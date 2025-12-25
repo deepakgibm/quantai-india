@@ -1,0 +1,99 @@
+======================================================================
+QUANTAI INDIA - COMPREHENSIVE API TESTING
+Started at: 2025-12-24 19:56:04.794922
+======================================================================
+
+[BASIC ENDPOINTS]
+  PASS: Root Endpoint (200)
+  PASS: Health Check (200)
+
+[AUTHENTICATION]
+  PASS: Login (200)
+      Token acquired successfully
+  PASS: Get Current User (200)
+
+[TRADING]
+  PASS: Dashboard Stats (200)
+  PASS: Market Indices (200)
+  PASS: Gainers/Losers (200)
+
+[UPSTOX]
+  PASS: Upstox Auth URL (200)
+
+[ORDERS]
+  PASS: Get Orders (200)
+
+[RISK]
+  PASS: Get Risk Config (200)
+
+[SETTINGS]
+  PASS: Get Settings (200)
+
+[ALGORITHMS]
+  PASS: Get Algorithms (200)
+
+[AI]
+  PASS: Market Analysis (200)
+
+[QUANT BOT]
+  PASS: Quant Symbols (200)
+  PASS: Quant Strategies (200)
+
+[SCANNER]
+  PASS: Scanner Momentum (200)
+  PASS: Scanner Strategies (200)
+  PASS: Scanner Indices (200)
+
+[MARKET]
+  PASS: Sector Heatmap (200)
+
+[ALPHAPRIME]
+  PASS: AlphaPrime Signals (200)
+  PASS: AlphaPrime Config (200)
+
+[ENGINE PERFORMANCE]
+  PASS: Engine Performance (200)
+
+[ALERTS]
+  PASS: List Monitors (200)
+
+[AGENTIC BOT]
+  PASS: Agentic Bot Process (200)
+
+======================================================================
+TEST SUMMARY
+======================================================================
+
+Detailed Results:
+--------------------------------------------------
+  [PASS] Root Endpoint: 200
+  [PASS] Health Check: 200
+  [PASS] Login: 200
+  [PASS] Get Current User: 200
+  [PASS] Dashboard Stats: 200
+  [PASS] Market Indices: 200
+  [PASS] Gainers/Losers: 200
+  [PASS] Upstox Auth URL: 200
+  [PASS] Get Orders: 200
+  [PASS] Get Risk Config: 200
+  [PASS] Get Settings: 200
+  [PASS] Get Algorithms: 200
+  [PASS] Market Analysis: 200
+  [PASS] Quant Symbols: 200
+  [PASS] Quant Strategies: 200
+  [PASS] Scanner Momentum: 200
+  [PASS] Scanner Strategies: 200
+  [PASS] Scanner Indices: 200
+  [PASS] Sector Heatmap: 200
+  [PASS] AlphaPrime Signals: 200
+  [PASS] AlphaPrime Config: 200
+  [PASS] Engine Performance: 200
+  [PASS] List Monitors: 200
+  [PASS] Agentic Bot Process: 200
+
+--------------------------------------------------
+PASSED: 24/24 (100%)
+FAILED: 0/24
+======================================================================
+
+*** ALL TESTS PASSED! ***

@@ -1,0 +1,178 @@
+# QuantAI Production Docker Compose
+# Complete stack with PostgreSQL, Redis, and monitoring
+
+version: '3.8'
+
+services:
+  # ==================
+  # Backend API
+  # ==================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantai-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://quantai:${DB_PASSWORD}@postgres:5432/quantai
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - UPSTOX_API_KEY=${UPSTOX_API_KEY}
+      - UPSTOX_API_SECRET=${UPSTOX_API_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ENVIRONMENT=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - quantai-network
+    volumes:
+      - ./logs:/app/logs
+      - ./models:/app/models
+
+  # ==================
+  # Frontend
+  # ==================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: quantai-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - quantai-network
+
+  # ==================
+  # PostgreSQL Database
+  # ==================
+  postgres:
+    image: postgres:15-alpine
+    container_name: quantai-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=quantai
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=quantai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U quantai" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantai-network
+
+  # ==================
+  # Redis Cache
+  # ==================
+  redis:
+    image: redis:7-alpine
+    container_name: quantai-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantai-network
+    command: redis-server --appendonly yes
+
+  # ==================
+  # Celery Worker (Background Tasks)
+  # ==================
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantai-celery-worker
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://quantai:${DB_PASSWORD}@postgres:5432/quantai
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - quantai-network
+    command: celery -A tasks.celery_app worker --loglevel=info
+
+  # ==================
+  # Celery Beat (Scheduled Tasks)
+  # ==================
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantai-celery-beat
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://quantai:${DB_PASSWORD}@postgres:5432/quantai
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      - postgres
+      - redis
+      - celery-worker
+    networks:
+      - quantai-network
+    command: celery -A tasks.celery_app beat --loglevel=info
+
+  # ==================
+  # Nginx Reverse Proxy
+  # ==================
+  nginx:
+    image: nginx:alpine
+    container_name: quantai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - quantai-network
+
+# ==================
+# Volumes
+# ==================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ==================
+# Networks
+# ==================
+networks:
+  quantai-network:
+    driver: bridge

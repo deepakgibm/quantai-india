@@ -1,0 +1,384 @@
+"""
+Scanner Engine - Core orchestrator for running scans.
+"""
+
+import asyncio
+from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta
+import pandas as pd
+import logging
+
+from strategies.base import StrategyRegistry, ScanResult, SignalType
+from services.derivatives_service import DerivativesService
+from core.scanner.decision_engine import DecisionEngine
+
+logger = logging.getLogger(__name__)
+
+
+# Index constituents mapping
+INDEX_CONSTITUENTS = {
+    "NIFTY 50": [
+        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
+        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
+        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
+        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
+        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
+        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
+        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
+        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO"
+    ],
+    "NIFTY 100": [
+        # Nifty 50 (included)
+        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
+        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
+        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
+        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
+        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
+        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
+        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
+        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO",
+        # Nifty Next 50
+        "ABB", "ADANIGREEN", "AMBUJACEM", "AUROPHARMA", "BANKBARODA", "BERGEPAINT",
+        "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "DLF", "DABUR", "GAIL", "GODREJCP",
+        "HAVELLS", "ICICIPRULI", "ICICIGI", "INDHOTEL", "INDUSTOWER", "JIOFIN",
+        "JINDALSTEL", "LICI", "LUPIN", "MARICO", "MOTHERSON", "NAUKRI", "NHPC",
+        "NMDC", "OBEROIRLTY", "OFSS", "PAGEIND", "PERSISTENT", "PETRONET", "PFC",
+        "PIDILITIND", "PNB", "POLYCAB", "RECLTD", "SBICARD", "SHREECEM", "SIEMENS",
+        "SRF", "TATAMOTORS", "TATAPOWER", "TORNTPHARM", "TVSMOTOR", "VEDL", "ZOMATO"
+    ],
+    "NIFTY 200": [
+        # Nifty 100 (included)
+        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
+        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
+        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
+        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
+        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
+        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
+        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
+        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO",
+        "ABB", "ADANIGREEN", "AMBUJACEM", "AUROPHARMA", "BANKBARODA", "BERGEPAINT",
+        "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "DLF", "DABUR", "GAIL", "GODREJCP",
+        "HAVELLS", "ICICIPRULI", "ICICIGI", "INDHOTEL", "INDUSTOWER", "JIOFIN",
+        "JINDALSTEL", "LICI", "LUPIN", "MARICO", "MOTHERSON", "NAUKRI", "NHPC",
+        "NMDC", "OBEROIRLTY", "OFSS", "PAGEIND", "PERSISTENT", "PETRONET", "PFC",
+        "PIDILITIND", "PNB", "POLYCAB", "RECLTD", "SBICARD", "SHREECEM", "SIEMENS",
+        "SRF", "TATAMOTORS", "TATAPOWER", "TORNTPHARM", "TVSMOTOR", "VEDL", "ZOMATO",
+        # Additional Nifty 200 stocks
+        "ACC", "ALKEM", "ASHOKLEY", "ASTRAL", "AUBANK", "BALRAMCHIN", "BANDHANBNK",
+        "BATAINDIA", "BHEL", "BIOCON", "CANFINHOME", "CGPOWER", "CHAMBLFERT", "COFORGE",
+        "COROMANDEL", "CROMPTON", "CUB", "DALBHARAT", "DEEPAKNTR", "DIXON", "ESCORTS",
+        "EXIDEIND", "FEDERALBNK", "FORTIS", "GLENMARK", "GMRINFRA", "GNFC", "GODREJPROP",
+        "GRANULES", "GUJGASLTD", "HAL", "HDFCAMC", "HONAUT", "IDFCFIRSTB", "IEX",
+        "INDIANB", "INDIGO", "IRCTC", "IRFC", "IGL", "JKCEMENT", "JSWENERGY",
+        "JUBLFOOD", "KEI", "KPITTECH", "LAURUSLABS", "LICHSGFIN", "LTIM", "LTTS",
+        "M&MFIN", "MANAPPURAM", "MCDOWELL-N", "MCX", "METROPOLIS", "MFSL", "MGL",
+        "MPHASIS", "MUTHOOTFIN", "NAM-INDIA", "NATIONALUM", "NAVINFLUOR", "NBCC",
+        "NCC", "OIL", "PAYTM", "PIIND", "POLYPLEX", "PRESTIGE", "PVRINOX",
+        "RAIN", "RAMCOCEM", "RBLBANK", "RELAXO", "RVNL", "SAIL", "SJVN",
+        "SONACOMS", "STAR", "SUNTV", "SYNGENE", "TATACHEM", "TATACOMM", "TATAELXSI",
+        "TIINDIA", "TORNTPOWER", "TRIDENT", "UBL", "UJJIVANSFB", "UPL", "VBL",
+        "VOLTAS", "YESBANK", "ZEEL", "ZYDUSLIFE"
+    ],
+    "NIFTY 500": [
+        # For NIFTY 500, we include all NIFTY 200 plus additional mid/small caps
+        # Full list would be 500 stocks - using a representative subset
+        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
+        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
+        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
+        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
+        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
+        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
+        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
+        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO",
+        "ABB", "ADANIGREEN", "AMBUJACEM", "AUROPHARMA", "BANKBARODA", "BERGEPAINT",
+        "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "DLF", "DABUR", "GAIL", "GODREJCP",
+        "HAVELLS", "ICICIPRULI", "ICICIGI", "INDHOTEL", "INDUSTOWER", "JIOFIN",
+        "JINDALSTEL", "LICI", "LUPIN", "MARICO", "MOTHERSON", "NAUKRI", "NHPC",
+        "NMDC", "OBEROIRLTY", "OFSS", "PAGEIND", "PERSISTENT", "PETRONET", "PFC",
+        "PIDILITIND", "PNB", "POLYCAB", "RECLTD", "SBICARD", "SHREECEM", "SIEMENS",
+        "SRF", "TATAMOTORS", "TATAPOWER", "TORNTPHARM", "TVSMOTOR", "VEDL", "ZOMATO",
+        "ACC", "ALKEM", "ASHOKLEY", "ASTRAL", "AUBANK", "BALRAMCHIN", "BANDHANBNK",
+        "BATAINDIA", "BHEL", "BIOCON", "CANFINHOME", "CGPOWER", "CHAMBLFERT", "COFORGE",
+        "COROMANDEL", "CROMPTON", "CUB", "DALBHARAT", "DEEPAKNTR", "DIXON", "ESCORTS",
+        "EXIDEIND", "FEDERALBNK", "FORTIS", "GLENMARK", "GMRINFRA", "GNFC", "GODREJPROP",
+        "GRANULES", "GUJGASLTD", "HAL", "HDFCAMC", "HONAUT", "IDFCFIRSTB", "IEX",
+        "INDIANB", "INDIGO", "IRCTC", "IRFC", "IGL", "JKCEMENT", "JSWENERGY",
+        "JUBLFOOD", "KEI", "KPITTECH", "LAURUSLABS", "LICHSGFIN", "LTIM", "LTTS",
+        "M&MFIN", "MANAPPURAM", "MCDOWELL-N", "MCX", "METROPOLIS", "MFSL", "MGL",
+        "MPHASIS", "MUTHOOTFIN", "NAM-INDIA", "NATIONALUM", "NAVINFLUOR", "NBCC",
+        "NCC", "OIL", "PAYTM", "PIIND", "POLYPLEX", "PRESTIGE", "PVRINOX",
+        "RAIN", "RAMCOCEM", "RBLBANK", "RELAXO", "RVNL", "SAIL", "SJVN",
+        "SONACOMS", "STAR", "SUNTV", "SYNGENE", "TATACHEM", "TATACOMM", "TATAELXSI",
+        "TIINDIA", "TORNTPOWER", "TRIDENT", "UBL", "UJJIVANSFB", "UPL", "VBL",
+        "VOLTAS", "YESBANK", "ZEEL", "ZYDUSLIFE",
+        # Additional Nifty 500 stocks (representative subset)
+        "3MINDIA", "AARTIIND", "AAVAS", "ABCAPITAL", "ABFRL", "AEGISCHEM", "AFFLE",
+        "AIAENG", "AJANTPHARM", "ALEMBICLTD", "AMARAJABAT", "ANGELONE", "APLAPOLLO",
+        "APOLLOTYRE", "APTUS", "ATUL", "BAJAJHLDNG", "BALAMINES", "BALKRISIND",
+        "BASF", "BAYERCROP", "BDL", "BEML", "BLUESTARCO", "BLS", "BRIGADE",
+        "BSE", "CAMPUS", "CARBORUNIV", "CASTROLIND", "CCL", "CDSL", "CEATLTD",
+        "CENTRALBK", "CENTURYTEX", "CENTURYPLY", "CHALET", "CLEAN",        "COCHINSHIP",
+        "CONTAINERS", "CRISIL", "CYIENT", "DCMSHRIRAM", "DELTACORP", "DEVYANI",
+        "ELECTCAST", "ELGIEQUIP", "EMAMILTD", "ENDURANCE", "EPL", "EQUITASBNK",
+        "ERIS", "FINCABLES", "FINPIPE", "FSL", "GALAXYSURF", "GATEWAY",
+        "GESHIP", "GLS", "GMDCLTD", "GODFRYPHLP", "GPIL", "GRAPHITE",
+        "GRINDWELL", "GSFC", "GSPL", "GUJALKALI", "HAPPSTMNDS", "HATSUN",
+        "HGS", "HINDCOPPER", "HINDZINC", "HOMEFIRST", "IDFC", "IFBIND"
+    ]
+}
+
+# Timeframe mapping for Upstox
+TIMEFRAME_MAP = {
+    "3m": "3minute",
+    "5m": "5minute",
+    "15m": "15minute",
+    "30m": "30minute",
+    "60m": "60minute",
+    "1d": "day"
+}
+
+
+class ScannerEngine:
+    """Main scanner orchestrator."""
+    
+    def __init__(self, upstox_client=None, db_session=None):
+        self.upstox_client = upstox_client
+        self.db_session = db_session
+        self._data_cache: Dict[str, pd.DataFrame] = {}
+    
+    async def run_scan(
+        self,
+        indices: List[str],
+        timeframe: str,
+        strategies: List[str],
+        progress_callback: Optional[callable] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute scan across selected indices and strategies.
+        
+        Args:
+            indices: List of index names
+            timeframe: Timeframe string (e.g., "15m", "1d")
+            strategies: List of strategy names to run
+            progress_callback: Optional callback for progress updates
+        
+        Returns:
+            List of enhanced scan results with derivatives data and final signals
+        """
+        results: List[ScanResult] = []
+        symbol_data: Dict[str, pd.DataFrame] = {}  # Cache data for derivatives calc
+        
+        # Get all symbols for selected indices
+        symbols = self._get_symbols_for_indices(indices)
+        total = len(symbols)
+        
+        logger.info(f"Starting scan: {total} symbols, {len(strategies)} strategies")
+        
+        for i, symbol in enumerate(symbols):
+            # Fetch data
+            df = await self._fetch_data(symbol, timeframe)
+            
+            if df is None or len(df) < 30:
+                continue
+            
+            # Cache data for derivatives calculation
+            symbol_data[symbol] = df
+            
+            # Determine which index this symbol belongs to
+            symbol_index = self._get_symbol_index(symbol, indices)
+            
+            # Run each strategy
+            for strategy_name in strategies:
+                strategy_cls = StrategyRegistry.get(strategy_name)
+                if not strategy_cls:
+                    continue
+                
+                try:
+                    strategy = strategy_cls()
+                    result = strategy.scan(df, symbol, symbol_index, timeframe)
+                    if result:
+                        results.append(result)
+                except Exception as e:
+                    logger.error(f"Strategy {strategy_name} failed on {symbol}: {e}")
+            
+            # Progress update
+            if progress_callback:
+                await progress_callback(i + 1, total)
+        
+        # Sort by confidence score
+        results.sort(key=lambda x: x.confidence_score, reverse=True)
+        
+        # Enhance results with derivatives data and decision engine
+        enhanced_results = await self._enhance_with_derivatives(results, symbol_data)
+        
+        return enhanced_results
+    
+    async def _enhance_with_derivatives(
+        self, 
+        results: List[ScanResult],
+        symbol_data: Dict[str, pd.DataFrame]
+    ) -> List[Dict[str, Any]]:
+        """
+        Enhance scan results with derivatives data and final signals.
+        
+        Args:
+            results: List of technical scan results
+            symbol_data: Cached OHLCV data per symbol
+            
+        Returns:
+            List of enhanced result dictionaries
+        """
+        derivatives_service = DerivativesService()
+        decision_engine = DecisionEngine()
+        
+        enhanced = []
+        
+        for result in results:
+            # Calculate price change for OI classification
+            price_change_pct = self._calculate_price_change(
+                symbol_data.get(result.symbol)
+            )
+            
+            # Get derivatives data
+            derivatives_data = await derivatives_service.get_derivatives_data(
+                result.symbol,
+                price_change_pct
+            )
+            
+            # Generate decision
+            decision = decision_engine.generate_decision(result, derivatives_data)
+            
+            # Build enhanced result dict
+            base_dict = result.to_dict()
+            decision_dict = decision.to_dict()
+            
+            # Merge results
+            enhanced_result = {**base_dict, **decision_dict}
+            enhanced.append(enhanced_result)
+        
+        return enhanced
+    
+    def _calculate_price_change(self, df: Optional[pd.DataFrame]) -> float:
+        """Calculate percentage price change from OHLCV data."""
+        if df is None or len(df) < 2:
+            return 0.0
+        
+        try:
+            prev_close = df['close'].iloc[-2]
+            curr_close = df['close'].iloc[-1]
+            if prev_close == 0:
+                return 0.0
+            return ((curr_close - prev_close) / prev_close) * 100
+        except Exception:
+            return 0.0
+    
+    def _get_symbols_for_indices(self, indices: List[str]) -> List[str]:
+        """Get unique symbols across all selected indices."""
+        symbols = set()
+        for index in indices:
+            if index in INDEX_CONSTITUENTS:
+                symbols.update(INDEX_CONSTITUENTS[index])
+        return list(symbols)
+    
+    def _get_symbol_index(self, symbol: str, indices: List[str]) -> str:
+        """Determine which index a symbol belongs to."""
+        for index in indices:
+            if index in INDEX_CONSTITUENTS and symbol in INDEX_CONSTITUENTS[index]:
+                return index
+        return indices[0] if indices else "Unknown"
+    
+    async def _fetch_data(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
+        """Fetch OHLCV data for a symbol."""
+        cache_key = f"{symbol}_{timeframe}"
+        
+        if cache_key in self._data_cache:
+            return self._data_cache[cache_key]
+        
+        try:
+            # Try Upstox API first
+            if self.upstox_client:
+                df = await self._fetch_from_upstox(symbol, timeframe)
+                if df is not None:
+                    self._data_cache[cache_key] = df
+                    return df
+            
+            # Fallback to database
+            if self.db_session:
+                df = await self._fetch_from_db(symbol)
+                if df is not None:
+                    self._data_cache[cache_key] = df
+                    return df
+            
+            # Generate sample data for testing (remove in production)
+            df = self._generate_sample_data(symbol)
+            self._data_cache[cache_key] = df
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch data for {symbol}: {e}")
+            return None
+    
+    async def _fetch_from_upstox(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
+        """Fetch from Upstox API."""
+        try:
+            interval = TIMEFRAME_MAP.get(timeframe, "day")
+            # Call upstox client - implementation depends on your client
+            # df = await self.upstox_client.get_historical_data(symbol, interval)
+            return None  # Placeholder
+        except Exception as e:
+            logger.error(f"Upstox fetch failed for {symbol}: {e}")
+            return None
+    
+    async def _fetch_from_db(self, symbol: str) -> Optional[pd.DataFrame]:
+        """Fetch from database."""
+        try:
+            # Implementation depends on your ORM
+            return None  # Placeholder
+        except Exception:
+            return None
+    
+    def _generate_sample_data(self, symbol: str, bars: int = 250) -> pd.DataFrame:
+        """Generate sample OHLCV data for testing."""
+        import numpy as np
+        
+        dates = pd.date_range(end=datetime.now(), periods=bars, freq='D')
+        base_price = 1000 + hash(symbol) % 2000
+        
+        # Generate realistic price movement
+        returns = np.random.randn(bars) * 0.02
+        prices = base_price * np.exp(np.cumsum(returns))
+        
+        df = pd.DataFrame({
+            'date': dates,
+            'open': prices * (1 + np.random.randn(bars) * 0.005),
+            'high': prices * (1 + np.abs(np.random.randn(bars) * 0.01)),
+            'low': prices * (1 - np.abs(np.random.randn(bars) * 0.01)),
+            'close': prices,
+            'volume': np.random.randint(100000, 10000000, bars)
+        })
+        
+        return df
+    
+    def get_available_strategies(self) -> List[Dict[str, Any]]:
+        """Get list of all available strategies."""
+        return StrategyRegistry.list_strategies()
+    
+    def get_available_indices(self) -> List[Dict[str, Any]]:
+        """Get list of available indices."""
+        return [
+            {"name": "NIFTY 50", "stocks": 50},
+            {"name": "NIFTY 100", "stocks": 100},
+            {"name": "NIFTY 200", "stocks": 200},
+            {"name": "NIFTY 500", "stocks": 500}
+        ]
+    
+    def get_available_timeframes(self) -> List[Dict[str, str]]:
+        """Get list of available timeframes."""
+        return [
+            {"value": "3m", "label": "3 Minutes"},
+            {"value": "5m", "label": "5 Minutes"},
+            {"value": "15m", "label": "15 Minutes"},
+            {"value": "30m", "label": "30 Minutes"},
+            {"value": "60m", "label": "60 Minutes"},
+            {"value": "1d", "label": "1 Day"}
+        ]
