@@ -227,3 +227,58 @@ async def get_walk_forward_presets():
             "description": "1 year train, 3 months test, monthly step"
         }
     }
+
+
+@router.get("/symbols")
+async def get_available_symbols(timeframe: str = "15m"):
+    """Get list of symbols available in database for a given timeframe"""
+    import sqlite3
+    import os
+    
+    db_paths = [
+        r"c:\Users\Deepak Kumar\Downloads\quantai-india\quantai_review_later\quantai.db",
+        r"c:\Users\Deepak Kumar\Downloads\quantai-india\backend\quantai.db",
+    ]
+    
+    db_path = None
+    for path in db_paths:
+        if os.path.exists(path):
+            db_path = path
+            break
+    
+    if not db_path:
+        return {"symbols": [], "error": "Database not found"}
+    
+    # Map timeframe to interval
+    interval_map = {
+        "5m": "5min",
+        "15m": "15min",
+        "30m": "30min",
+        "1h": "1hour",
+        "1D": "day"
+    }
+    interval = interval_map.get(timeframe, "15min")
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get symbols that have data for this interval
+        cursor.execute("""
+            SELECT DISTINCT symbol 
+            FROM stock_data 
+            WHERE interval = ?
+            ORDER BY symbol
+        """, (interval,))
+        
+        symbols = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        return {
+            "symbols": symbols,
+            "count": len(symbols),
+            "timeframe": timeframe,
+            "interval": interval
+        }
+    except Exception as e:
+        return {"symbols": [], "error": str(e)}

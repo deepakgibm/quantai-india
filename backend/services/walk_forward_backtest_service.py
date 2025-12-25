@@ -63,8 +63,8 @@ class WalkForwardBacktestService:
     
     def __init__(self):
         """Initialize database connection"""
-        self.db_path = settings.DATABASE_URL.replace("sqlite+aiosqlite:///", "")
-        self.engine = create_engine(f"sqlite:///{self.db_path}")
+        # Use SYNC_DATABASE_URL like other services
+        self.engine = create_engine(settings.SYNC_DATABASE_URL)
         self.Session = sessionmaker(bind=self.engine)
     
     async def run_backtest(self, request) -> Dict[str, Any]:
@@ -197,32 +197,93 @@ class WalkForwardBacktestService:
         )
     
     async def _load_data(self, symbols: List[str], timeframe: str) -> pd.DataFrame:
-        """Load historical data from database"""
+        """Load historical data from SQLite database"""
+        import sqlite3
+        import os
+        
+        all_data = []
+        
+        # Use SQLite file directly
+        db_paths = [
+            r"c:\Users\Deepak Kumar\Downloads\quantai-india\quantai_review_later\quantai.db",
+            r"c:\Users\Deepak Kumar\Downloads\quantai-india\backend\quantai.db",
+        ]
+        
+        db_path = None
+        for path in db_paths:
+            if os.path.exists(path):
+                db_path = path
+                break
+        
+        if not db_path:
+            logger.error("No SQLite database file found!")
+            return pd.DataFrame()
+        
+        logger.info(f"Using SQLite database: {db_path}")
+        
+        # Map frontend timeframe to database interval
+        # Database has: 1min, 3min, 5min, 15min, 30min, 1hour, day
         interval_map = {
-            "5m": "5minute",
-            "15m": "15minute",
-            "30m": "30minute",
+            "5m": "5min",
+            "15m": "15min",
+            "30m": "30min",
             "1h": "1hour",
             "1D": "day"
         }
-        interval = interval_map.get(timeframe, "15minute")
+        interval = interval_map.get(timeframe, "15min")
         
-        all_data = []
-        with self.Session() as session:
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
             for symbol in symbols:
-                query = text("""
-                    SELECT symbol, timestamp, open, high, low, close, volume
-                    FROM stock_data
-                    WHERE symbol = :symbol AND interval = :interval
-                    ORDER BY timestamp
-                """)
-                result = session.execute(query, {"symbol": symbol, "interval": interval})
-                rows = result.fetchall()
-                
-                if rows:
-                    df = pd.DataFrame(rows, columns=["symbol", "timestamp", "open", "high", "low", "close", "volume"])
-                    df["timestamp"] = pd.to_datetime(df["timestamp"])
-                    all_data.append(df)
+                try:
+                    # All data is in stock_data table
+                    cursor.execute("""
+                        SELECT symbol, timestamp, open, high, low, close, volume
+                        FROM stock_data
+                        WHERE symbol = ? AND interval = ?
+                        ORDER BY timestamp
+                        LIMIT 2000
+                    """, (symbol, interval))
+                    
+                    rows = cursor.fetchall()
+                    
+                    if not rows:
+                        # Try without interval filter for daily
+                        logger.warning(f"No {interval} data for {symbol}, trying day interval")
+                        cursor.execute("""
+                            SELECT symbol, timestamp, open, high, low, close, volume
+                            FROM stock_data
+                            WHERE symbol = ? AND interval = 'day'
+                            ORDER BY timestamp
+                            LIMIT 2000
+                        """, (symbol,))
+                        rows = cursor.fetchall()
+                    
+                    if rows:
+                        df = pd.DataFrame(rows, columns=['symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                        df['timestamp'] = pd.to_datetime(df['timestamp'])
+                        df['open'] = pd.to_numeric(df['open'], errors='coerce').fillna(0)
+                        df['high'] = pd.to_numeric(df['high'], errors='coerce').fillna(0)
+                        df['low'] = pd.to_numeric(df['low'], errors='coerce').fillna(0)
+                        df['close'] = pd.to_numeric(df['close'], errors='coerce').fillna(0)
+                        df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0).astype(int)
+                        all_data.append(df)
+                        logger.info(f"Loaded {len(rows)} {interval} rows for {symbol}")
+                    else:
+                        # Check what intervals ARE available for this symbol
+                        cursor.execute("SELECT DISTINCT interval FROM stock_data WHERE symbol = ?", (symbol,))
+                        available = [r[0] for r in cursor.fetchall()]
+                        logger.warning(f"No {interval} data for {symbol}. Available intervals: {available}")
+                except Exception as e:
+                    logger.warning(f"Error loading data for {symbol}: {e}")
+                    continue
+            
+            conn.close()
+        except Exception as e:
+            logger.error(f"SQLite error: {e}")
+            return pd.DataFrame()
         
         if not all_data:
             return pd.DataFrame()
@@ -356,34 +417,47 @@ class WalkForwardBacktestService:
                 "trade_count": 0
             }
         
-        # Aggregate by symbol if multiple
-        df = df.groupby("timestamp").agg({
-            "open": "mean",
-            "high": "max",
-            "low": "min",
-            "close": "mean",
-            "volume": "sum"
-        }).reset_index()
+        # Aggregate by timestamp if multiple symbols
+        if 'timestamp' in df.columns:
+            df = df.groupby("timestamp").agg({
+                "open": "mean",
+                "high": "max",
+                "low": "min",
+                "close": "mean",
+                "volume": "sum"
+            }).reset_index()
+        
+        # Sort by timestamp and reset index for clean iteration
+        if 'timestamp' in df.columns:
+            df = df.sort_values('timestamp').reset_index(drop=True)
+        
+        logger.info(f"Backtesting {strategy_name} on {len(df)} rows")
         
         # Generate signals based on strategy
         signals = self._generate_signals(df, strategy_name, params)
         
-        # Simulate trades
+        # Count signals for debugging
+        buy_signals = sum(1 for s in signals if s == 1)
+        sell_signals = sum(1 for s in signals if s == -1)
+        logger.info(f"Generated {buy_signals} buy signals, {sell_signals} sell signals")
+        
+        # Simulate trades using integer indexing
         equity = [capital]
         trades = []
         position = 0
         entry_price = 0
         
-        for i, row in df.iterrows():
+        for i in range(len(df)):
             if i >= len(signals):
                 break
                 
             signal = signals[i]
-            price = row["close"]
+            price = float(df.iloc[i]["close"])
             
             if signal == 1 and position == 0:  # Buy signal
                 position = equity[-1] / price
                 entry_price = price
+                logger.debug(f"BUY at {price}")
             elif signal == -1 and position > 0:  # Sell signal
                 pnl = position * (price - entry_price)
                 equity.append(equity[-1] + pnl)
@@ -392,8 +466,16 @@ class WalkForwardBacktestService:
                     "win": pnl > 0
                 })
                 position = 0
+                logger.debug(f"SELL at {price}, PnL: {pnl}")
             else:
-                equity.append(equity[-1] + position * (price - (df.iloc[i-1]["close"] if i > 0 else price)))
+                # Update equity for mark-to-market
+                if i > 0 and position > 0:
+                    prev_price = float(df.iloc[i-1]["close"])
+                    equity.append(equity[-1] + position * (price - prev_price))
+                elif len(equity) < i + 2:
+                    equity.append(equity[-1])
+        
+        logger.info(f"Completed with {len(trades)} trades")
         
         # Calculate metrics
         equity_arr = np.array(equity)
@@ -417,8 +499,9 @@ class WalkForwardBacktestService:
         equity_curve_data = []
         for i, eq in enumerate(equity):
             if i < len(df):
+                ts = df.iloc[i]["timestamp"]
                 equity_curve_data.append({
-                    "timestamp": df.iloc[i]["timestamp"].isoformat() if hasattr(df.iloc[i]["timestamp"], "isoformat") else str(df.iloc[i]["timestamp"]),
+                    "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
                     "equity": eq
                 })
         

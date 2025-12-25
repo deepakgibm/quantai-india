@@ -11,7 +11,9 @@ import {
     ChevronDown,
     ChevronUp,
     RefreshCw,
-    Info
+    Info,
+    HelpCircle,
+    X
 } from 'lucide-react';
 
 // Types
@@ -99,9 +101,238 @@ const POPULAR_SYMBOLS = [
     'BAJFINANCE', 'LT', 'AXISBANK', 'ASIANPAINT', 'MARUTI'
 ];
 
+// Help Modal Component
+const HelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-indigo-600 to-purple-600">
+                    <div className="flex items-center gap-3 text-white">
+                        <HelpCircle size={24} />
+                        <h2 className="text-xl font-bold">Walk-Forward Backtest Guide</h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
+                    >
+                        <X size={24} />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)] space-y-6">
+                    {/* What is Walk-Forward */}
+                    <section>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <TrendingUp size={20} className="text-indigo-600" />
+                            What is Walk-Forward Backtesting?
+                        </h3>
+                        <p className="text-slate-600 dark:text-slate-400 mb-3">
+                            Walk-Forward Analysis (WFA) is a <strong>gold-standard</strong> backtesting methodology developed by Robert Pardo.
+                            It simulates real-world trading by continuously re-optimizing strategy parameters on historical data
+                            and then testing them on unseen future data.
+                        </p>
+                        <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg p-4">
+                            <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                                <strong>Key Insight:</strong> Unlike simple backtesting, Walk-Forward prevents overfitting
+                                by ensuring your strategy is validated on data it has never seen before - mimicking live trading conditions.
+                            </p>
+                        </div>
+                    </section>
+
+                    {/* How it Works */}
+                    <section>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <Settings2 size={20} className="text-purple-600" />
+                            How Does It Work?
+                        </h3>
+
+                        <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 mb-4">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-4 w-16 bg-blue-500 rounded"></div>
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">In-Sample (Training)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="h-4 w-8 bg-emerald-500 rounded"></div>
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">Out-of-Sample (Testing)</span>
+                                </div>
+                            </div>
+
+                            {/* Visual Timeline */}
+                            <div className="space-y-2">
+                                <div className="flex gap-1">
+                                    <div className="h-6 w-24 bg-blue-400 rounded flex items-center justify-center text-xs text-white font-medium">Train 1</div>
+                                    <div className="h-6 w-10 bg-emerald-400 rounded flex items-center justify-center text-xs text-white font-medium">Test 1</div>
+                                </div>
+                                <div className="flex gap-1 ml-4">
+                                    <div className="h-6 w-24 bg-blue-400 rounded flex items-center justify-center text-xs text-white font-medium">Train 2</div>
+                                    <div className="h-6 w-10 bg-emerald-400 rounded flex items-center justify-center text-xs text-white font-medium">Test 2</div>
+                                </div>
+                                <div className="flex gap-1 ml-8">
+                                    <div className="h-6 w-24 bg-blue-400 rounded flex items-center justify-center text-xs text-white font-medium">Train 3</div>
+                                    <div className="h-6 w-10 bg-emerald-400 rounded flex items-center justify-center text-xs text-white font-medium">Test 3</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <ol className="space-y-3 text-slate-600 dark:text-slate-400">
+                            <li className="flex gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                                <span><strong>Optimize:</strong> Use the training window (In-Sample) data to find the best strategy parameters</span>
+                            </li>
+                            <li className="flex gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                                <span><strong>Test:</strong> Apply those parameters to the test window (Out-of-Sample) - data the optimizer never saw</span>
+                            </li>
+                            <li className="flex gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                                <span><strong>Roll Forward:</strong> Move the window forward by the step size and repeat</span>
+                            </li>
+                            <li className="flex gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                                <span><strong>Combine:</strong> Chain all OOS periods to see realistic strategy performance</span>
+                            </li>
+                        </ol>
+                    </section>
+
+                    {/* Configuration Settings */}
+                    <section>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <Calendar size={20} className="text-emerald-600" />
+                            Configuration Settings Explained
+                        </h3>
+
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                                <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Train Window</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    Number of sessions (candles/bars) used for optimization.
+                                    <br /><br />
+                                    <strong>Intraday:</strong> 60 sessions (10 days of 15m data)<br />
+                                    <strong>Swing:</strong> 252 sessions (1 year of daily data)
+                                </p>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                                <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Test Window</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    Number of sessions for out-of-sample testing.
+                                    <br /><br />
+                                    <strong>Rule of thumb:</strong> Test window should be 15-25% of train window
+                                </p>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                                <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Step Size</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    How many sessions to move forward for each new window.
+                                    <br /><br />
+                                    <strong>Tip:</strong> Usually equals test window for non-overlapping tests
+                                </p>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                                <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Anchored Mode</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    When enabled, training always starts from the beginning of data.
+                                    <br /><br />
+                                    <strong>Use case:</strong> Better for ML models that benefit from more data
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Metrics Explained */}
+                    <section>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <BarChart2 size={20} className="text-amber-600" />
+                            Understanding the Results
+                        </h3>
+
+                        <div className="space-y-3">
+                            <div className="flex gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                <div className="font-semibold text-slate-900 dark:text-white w-32 flex-shrink-0">Total Return</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-sm">Combined OOS returns from all windows. This is the realistic expected performance.</div>
+                            </div>
+                            <div className="flex gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                <div className="font-semibold text-slate-900 dark:text-white w-32 flex-shrink-0">Sharpe Ratio</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-sm">Risk-adjusted return. Above 1.0 is good, above 2.0 is excellent.</div>
+                            </div>
+                            <div className="flex gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                <div className="font-semibold text-slate-900 dark:text-white w-32 flex-shrink-0">Max Drawdown</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-sm">Largest peak-to-trough decline. Lower is better. Above 20% is concerning.</div>
+                            </div>
+                            <div className="flex gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                <div className="font-semibold text-slate-900 dark:text-white w-32 flex-shrink-0">Win Rate</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-sm">Percentage of winning trades. Note: A 40% win rate can still be profitable with good risk/reward.</div>
+                            </div>
+                            <div className="flex gap-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                <div className="font-semibold text-slate-900 dark:text-white w-32 flex-shrink-0">Profitable Windows</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-sm">Percentage of OOS windows that were profitable. Above 60% indicates a robust strategy.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Validation Criteria */}
+                    <section>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <CheckCircle size={20} className="text-green-600" />
+                            Validation Criteria (Pardo Standards)
+                        </h3>
+
+                        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+                            <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-3">
+                                A strategy passes validation when:
+                            </p>
+                            <ul className="space-y-2 text-sm text-emerald-600 dark:text-emerald-400">
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle size={16} />
+                                    OOS Sharpe Ratio ≥ 0.5
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle size={16} />
+                                    ≥60% of windows are profitable
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle size={16} />
+                                    Max drawdown ≤ 25%
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <CheckCircle size={16} />
+                                    Parameter stability across windows (optional)
+                                </li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    {/* Best Practices */}
+                    <section>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <AlertTriangle size={20} className="text-amber-600" />
+                            Best Practices
+                        </h3>
+
+                        <div className="space-y-2 text-slate-600 dark:text-slate-400 text-sm">
+                            <p>✓ <strong>Use enough data:</strong> At least 5-10 walk-forward windows for statistical significance</p>
+                            <p>✓ <strong>Match timeframes:</strong> Use 15m/30m data for intraday, daily for swing trading</p>
+                            <p>✓ <strong>Don't over-optimize:</strong> Fewer parameters = more robust strategy</p>
+                            <p>✓ <strong>Check parameter stability:</strong> If optimal parameters change wildly between windows, strategy may be curve-fitted</p>
+                            <p>✓ <strong>Consider transaction costs:</strong> High-frequency strategies need to account for slippage and fees</p>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const WalkForwardBacktest: React.FC = () => {
     // Config state
-    const [symbols, setSymbols] = useState<string[]>(['RELIANCE']);
+    const [symbols, setSymbols] = useState<string[]>([]);
     const [symbolInput, setSymbolInput] = useState('');
     const [strategyType, setStrategyType] = useState<'RULE_BASED' | 'ML'>('RULE_BASED');
     const [strategyName, setStrategyName] = useState('trend_finder');
@@ -124,6 +355,34 @@ const WalkForwardBacktest: React.FC = () => {
     // UI state
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [selectedWindow, setSelectedWindow] = useState<number | null>(null);
+    const [showHelp, setShowHelp] = useState(false);
+
+    // Available symbols from database
+    const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
+    const [loadingSymbols, setLoadingSymbols] = useState(false);
+
+    // Fetch available symbols when timeframe changes
+    useEffect(() => {
+        const fetchSymbols = async () => {
+            setLoadingSymbols(true);
+            try {
+                const response = await fetch(`/api/v1/backtest/walk-forward/symbols?timeframe=${timeframe}`);
+                const data = await response.json();
+                if (data.symbols && data.symbols.length > 0) {
+                    setAvailableSymbols(data.symbols);
+                    // Set first symbol as default if no symbols selected
+                    if (symbols.length === 0) {
+                        setSymbols([data.symbols[0]]);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch symbols:', err);
+            } finally {
+                setLoadingSymbols(false);
+            }
+        };
+        fetchSymbols();
+    }, [timeframe]);
 
     // Apply preset when trade style changes
     useEffect(() => {
@@ -133,12 +392,16 @@ const WalkForwardBacktest: React.FC = () => {
         }
     }, [tradeStyle]);
 
-    // Add symbol
+    // Add symbol - only if it's in available symbols
     const addSymbol = () => {
         const sym = symbolInput.trim().toUpperCase();
         if (sym && !symbols.includes(sym)) {
-            setSymbols([...symbols, sym]);
-            setSymbolInput('');
+            if (availableSymbols.includes(sym)) {
+                setSymbols([...symbols, sym]);
+                setSymbolInput('');
+            } else {
+                setError(`Symbol ${sym} not available in database for ${timeframe} timeframe`);
+            }
         }
     };
 
@@ -159,6 +422,9 @@ const WalkForwardBacktest: React.FC = () => {
         setResult(null);
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
             const response = await fetch('/api/v1/backtest/walk-forward', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -172,18 +438,38 @@ const WalkForwardBacktest: React.FC = () => {
                     walk_forward: wfConfig,
                     capital,
                     ml_model: strategyType === 'ML' ? mlModel : 'NONE'
-                })
+                }),
+                signal: controller.signal
             });
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || 'Backtest failed');
+            clearTimeout(timeoutId);
+
+            // Get response text first
+            const responseText = await response.text();
+
+            if (!responseText) {
+                throw new Error('Empty response from server. Please try again.');
             }
 
-            const data = await response.json();
+            // Try to parse as JSON
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (parseError) {
+                throw new Error(`Invalid response: ${responseText.substring(0, 100)}`);
+            }
+
+            if (!response.ok) {
+                throw new Error(data.detail || `Server error: ${response.status}`);
+            }
+
             setResult(data);
         } catch (err: any) {
-            setError(err.message);
+            if (err.name === 'AbortError') {
+                setError('Request timed out. Try with fewer symbols or shorter time window.');
+            } else {
+                setError(err.message || 'An unexpected error occurred');
+            }
         } finally {
             setLoading(false);
         }
@@ -200,6 +486,9 @@ const WalkForwardBacktest: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {/* Help Modal */}
+            <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -213,6 +502,15 @@ const WalkForwardBacktest: React.FC = () => {
                         Pardo-compliant strategy validation with rolling IS/OOS windows
                     </p>
                 </div>
+
+                {/* Help Button */}
+                <button
+                    onClick={() => setShowHelp(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-200"
+                >
+                    <HelpCircle size={20} />
+                    <span className="font-medium">How It Works</span>
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -255,20 +553,29 @@ const WalkForwardBacktest: React.FC = () => {
                         </div>
 
                         <div className="flex flex-wrap gap-1.5">
-                            {POPULAR_SYMBOLS.slice(0, 8).map(sym => (
-                                <button
-                                    key={sym}
-                                    onClick={() => !symbols.includes(sym) && setSymbols([...symbols, sym])}
-                                    disabled={symbols.includes(sym)}
-                                    className={`px-2 py-1 rounded text-xs ${symbols.includes(sym)
+                            {loadingSymbols ? (
+                                <span className="text-xs text-slate-500">Loading symbols...</span>
+                            ) : (
+                                availableSymbols.slice(0, 12).map(sym => (
+                                    <button
+                                        key={sym}
+                                        onClick={() => !symbols.includes(sym) && setSymbols([...symbols, sym])}
+                                        disabled={symbols.includes(sym)}
+                                        className={`px-2 py-1 rounded text-xs ${symbols.includes(sym)
                                             ? 'bg-slate-200 dark:bg-slate-600 text-slate-400 cursor-not-allowed'
                                             : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30'
-                                        }`}
-                                >
-                                    {sym}
-                                </button>
-                            ))}
+                                            }`}
+                                    >
+                                        {sym}
+                                    </button>
+                                ))
+                            )}
                         </div>
+                        {availableSymbols.length > 0 && (
+                            <p className="text-xs text-slate-500 mt-2">
+                                {availableSymbols.length} symbols available for {timeframe}
+                            </p>
+                        )}
                     </div>
 
                     {/* Strategy Selection */}
@@ -290,8 +597,8 @@ const WalkForwardBacktest: React.FC = () => {
                                             setMlModel(type === 'ML' ? 'XGBOOST' : 'NONE');
                                         }}
                                         className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${strategyType === type
-                                                ? 'bg-indigo-600 text-white'
-                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                             }`}
                                     >
                                         {type === 'RULE_BASED' ? 'Rule-Based' : 'ML Model'}
@@ -328,8 +635,8 @@ const WalkForwardBacktest: React.FC = () => {
                                         key={style}
                                         onClick={() => setTradeStyle(style)}
                                         className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${tradeStyle === style
-                                                ? 'bg-emerald-600 text-white'
-                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                             }`}
                                     >
                                         {style}
@@ -438,8 +745,8 @@ const WalkForwardBacktest: React.FC = () => {
                         onClick={runBacktest}
                         disabled={loading || symbols.length === 0}
                         className={`w-full py-4 rounded-xl font-semibold text-white shadow-lg flex items-center justify-center gap-2 transition ${loading || symbols.length === 0
-                                ? 'bg-slate-400 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                            ? 'bg-slate-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
                             }`}
                     >
                         {loading ? (
@@ -498,8 +805,8 @@ const WalkForwardBacktest: React.FC = () => {
                         <>
                             {/* Validation Status */}
                             <div className={`p-4 rounded-xl flex items-start gap-3 ${result.validation_passed
-                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'
-                                    : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
+                                ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'
+                                : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
                                 }`}>
                                 {result.validation_passed ? (
                                     <CheckCircle size={24} className="text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
@@ -508,8 +815,8 @@ const WalkForwardBacktest: React.FC = () => {
                                 )}
                                 <div>
                                     <h4 className={`font-semibold ${result.validation_passed
-                                            ? 'text-emerald-700 dark:text-emerald-300'
-                                            : 'text-amber-700 dark:text-amber-300'
+                                        ? 'text-emerald-700 dark:text-emerald-300'
+                                        : 'text-amber-700 dark:text-amber-300'
                                         }`}>
                                         {result.validation_passed ? 'Strategy Validation Passed' : 'Strategy Validation Warning'}
                                     </h4>
@@ -588,8 +895,8 @@ const WalkForwardBacktest: React.FC = () => {
                                                 key={w.window_id}
                                                 onClick={() => setSelectedWindow(selectedWindow === i ? null : i)}
                                                 className={`flex-shrink-0 p-3 rounded-lg border transition ${selectedWindow === i
-                                                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
-                                                        : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                                                    : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'
                                                     }`}
                                             >
                                                 <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
