@@ -13,7 +13,8 @@ import {
     RefreshCw,
     Info,
     HelpCircle,
-    X
+    X,
+    Search
 } from 'lucide-react';
 
 // Types
@@ -67,14 +68,33 @@ interface WalkForwardResult {
     duration_seconds: number;
 }
 
-// Available strategies
-const STRATEGIES = {
-    rule_based: [
-        { name: 'trend_finder', label: 'Trend Finder', description: 'EMA crossover with ADX filter' },
-        { name: 'breakout_detector', label: 'Breakout Detector', description: 'Price breakout with volume' },
-        { name: 'momentum', label: 'Momentum', description: 'RSI + ROC momentum strategy' },
-        { name: 'mean_reversion', label: 'Mean Reversion', description: 'Bollinger Band reversion' },
+// Available strategies organized by category
+const STRATEGY_CATEGORIES = {
+    'Trend & Momentum': [
+        { name: 'ma_crossover', label: 'Moving Average Crossover', description: 'Classic SMA/EMA crossover with trend confirmation' },
+        { name: 'supertrend', label: 'SuperTrend', description: 'ATR-based trailing stop system' },
+        { name: 'adx_trend', label: 'ADX Trend Following', description: 'Trade only when trend is confirmed by ADX' },
+        { name: 'donchian_breakout', label: 'Donchian Channel Breakout', description: 'Classic turtle trading breakout' },
     ],
+    'Mean Reversion': [
+        { name: 'rsi_mean_reversion', label: 'RSI Mean Reversion', description: 'Trade reversals at RSI extremes' },
+        { name: 'bollinger_reversion', label: 'Bollinger Bands Reversion', description: 'Trade reversals at band extremes' },
+        { name: 'zscore_reversion', label: 'Z-Score Reversion', description: 'Statistical mean reversion using z-score' },
+    ],
+    'Breakout & Volatility': [
+        { name: 'orb', label: 'Opening Range Breakout', description: 'Trade breakouts from opening range' },
+        { name: 'volume_breakout', label: 'Volume Breakout', description: 'Price breakout with volume confirmation' },
+        { name: 'atr_expansion', label: 'ATR Volatility Expansion', description: 'Trade volatility expansion after contraction' },
+    ],
+    'VWAP & Institutional': [
+        { name: 'vwap_pullback', label: 'VWAP Pullback', description: 'Trade pullbacks to VWAP' },
+        { name: 'vwap_trend', label: 'VWAP Trend Confirmation', description: 'Use VWAP for trend direction' },
+    ]
+};
+
+// Legacy format for backwards compatibility
+const STRATEGIES = {
+    rule_based: Object.values(STRATEGY_CATEGORIES).flat(),
     ml: [
         { name: 'xgboost_classifier', label: 'XGBoost', description: 'Binary classification' },
         { name: 'lstm_sequence', label: 'LSTM', description: 'Sequence prediction' },
@@ -82,11 +102,11 @@ const STRATEGIES = {
 };
 
 const TIMEFRAMES = [
-    { value: '5m', label: '5 Minutes' },
+    { value: '1D', label: 'Daily' },
     { value: '15m', label: '15 Minutes' },
     { value: '30m', label: '30 Minutes' },
     { value: '1h', label: '1 Hour' },
-    { value: '1D', label: 'Daily' },
+    { value: '5m', label: '5 Minutes' },
 ];
 
 const PRESETS = {
@@ -94,7 +114,7 @@ const PRESETS = {
     swing: { train_window: 252, test_window: 63, step_size: 21 },
 };
 
-// Popular NSE symbols
+// Popular NSE symbols (will be replaced by database fetch)
 const POPULAR_SYMBOLS = [
     'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
     'HINDUNILVR', 'SBIN', 'BHARTIARTL', 'KOTAKBANK', 'ITC',
@@ -335,17 +355,19 @@ const WalkForwardBacktest: React.FC = () => {
     const [symbols, setSymbols] = useState<string[]>([]);
     const [symbolInput, setSymbolInput] = useState('');
     const [strategyType, setStrategyType] = useState<'RULE_BASED' | 'ML'>('RULE_BASED');
-    const [strategyName, setStrategyName] = useState('trend_finder');
-    const [timeframe, setTimeframe] = useState('15m');
-    const [tradeStyle, setTradeStyle] = useState<'INTRADAY' | 'SWING'>('INTRADAY');
+    const [strategyName, setStrategyName] = useState('ma_crossover');
+    const [timeframe, setTimeframe] = useState('1D');
+    const [tradeStyle, setTradeStyle] = useState<'INTRADAY' | 'SWING'>('SWING');
     const [wfConfig, setWfConfig] = useState<WalkForwardConfig>({
-        train_window: 60,
-        test_window: 10,
-        step_size: 10,
+        train_window: 252,
+        test_window: 63,
+        step_size: 21,
         anchored: false
     });
     const [capital, setCapital] = useState(100000);
     const [mlModel, setMlModel] = useState<'NONE' | 'XGBOOST' | 'LSTM'>('NONE');
+    const [symbolSearch, setSymbolSearch] = useState('');
+    const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
 
     // Result state
     const [result, setResult] = useState<WalkForwardResult | null>(null);
@@ -516,66 +538,108 @@ const WalkForwardBacktest: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Configuration Panel */}
                 <div className="lg:col-span-1 space-y-4">
-                    {/* Symbol Selection */}
+                    {/* Symbol Selection with Searchable Dropdown */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
                         <h3 className="font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                             <BarChart2 size={18} />
-                            Symbols
+                            Symbols ({availableSymbols.length} available)
                         </h3>
 
-                        <div className="flex gap-2 mb-3">
+                        {/* Searchable Symbol Input */}
+                        <div className="relative mb-3">
                             <input
                                 type="text"
-                                value={symbolInput}
-                                onChange={e => setSymbolInput(e.target.value)}
-                                onKeyPress={e => e.key === 'Enter' && addSymbol()}
-                                placeholder="Enter symbol..."
-                                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                value={symbolSearch}
+                                onChange={e => {
+                                    setSymbolSearch(e.target.value);
+                                    setShowSymbolDropdown(true);
+                                }}
+                                onFocus={() => setShowSymbolDropdown(true)}
+                                placeholder="Search Nifty 500 symbols..."
+                                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             />
-                            <button
-                                onClick={addSymbol}
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
-                            >
-                                Add
-                            </button>
+
+                            {/* Dropdown */}
+                            {showSymbolDropdown && symbolSearch.length > 0 && (
+                                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                    {availableSymbols
+                                        .filter(sym =>
+                                            sym.toLowerCase().includes(symbolSearch.toLowerCase()) &&
+                                            !symbols.includes(sym)
+                                        )
+                                        .slice(0, 20)
+                                        .map(sym => (
+                                            <button
+                                                key={sym}
+                                                onClick={() => {
+                                                    setSymbols([...symbols, sym]);
+                                                    setSymbolSearch('');
+                                                    setShowSymbolDropdown(false);
+                                                }}
+                                                className="w-full px-3 py-2 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-700 dark:text-slate-300"
+                                            >
+                                                {sym}
+                                            </button>
+                                        ))
+                                    }
+                                    {availableSymbols.filter(sym =>
+                                        sym.toLowerCase().includes(symbolSearch.toLowerCase()) &&
+                                        !symbols.includes(sym)
+                                    ).length === 0 && (
+                                            <div className="px-3 py-2 text-sm text-slate-500">
+                                                No matching symbols found
+                                            </div>
+                                        )}
+                                </div>
+                            )}
                         </div>
 
+                        {/* Selected Symbols */}
                         <div className="flex flex-wrap gap-2 mb-3">
                             {symbols.map(sym => (
                                 <span
                                     key={sym}
-                                    className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-sm flex items-center gap-1"
+                                    className="px-3 py-1.5 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 text-indigo-700 dark:text-indigo-300 rounded-full text-sm font-medium flex items-center gap-2 border border-indigo-200 dark:border-indigo-700"
                                 >
                                     {sym}
-                                    <button onClick={() => removeSymbol(sym)} className="hover:text-red-500">×</button>
+                                    <button
+                                        onClick={() => removeSymbol(sym)}
+                                        className="hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full w-4 h-4 flex items-center justify-center text-xs"
+                                    >
+                                        ×
+                                    </button>
                                 </span>
                             ))}
-                        </div>
-
-                        <div className="flex flex-wrap gap-1.5">
-                            {loadingSymbols ? (
-                                <span className="text-xs text-slate-500">Loading symbols...</span>
-                            ) : (
-                                availableSymbols.slice(0, 12).map(sym => (
-                                    <button
-                                        key={sym}
-                                        onClick={() => !symbols.includes(sym) && setSymbols([...symbols, sym])}
-                                        disabled={symbols.includes(sym)}
-                                        className={`px-2 py-1 rounded text-xs ${symbols.includes(sym)
-                                            ? 'bg-slate-200 dark:bg-slate-600 text-slate-400 cursor-not-allowed'
-                                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30'
-                                            }`}
-                                    >
-                                        {sym}
-                                    </button>
-                                ))
+                            {symbols.length === 0 && (
+                                <span className="text-sm text-slate-400 italic">No symbols selected</span>
                             )}
                         </div>
-                        {availableSymbols.length > 0 && (
-                            <p className="text-xs text-slate-500 mt-2">
-                                {availableSymbols.length} symbols available for {timeframe}
-                            </p>
-                        )}
+
+                        {/* Quick Add Popular Symbols */}
+                        <div className="border-t border-slate-100 dark:border-slate-700 pt-3 mt-3">
+                            <p className="text-xs text-slate-500 mb-2">Quick add:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {loadingSymbols ? (
+                                    <span className="text-xs text-slate-500">Loading symbols...</span>
+                                ) : (
+                                    ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'SBIN', 'ICICIBANK', 'BHARTIARTL', 'ITC']
+                                        .filter(sym => availableSymbols.includes(sym))
+                                        .map(sym => (
+                                            <button
+                                                key={sym}
+                                                onClick={() => !symbols.includes(sym) && setSymbols([...symbols, sym])}
+                                                disabled={symbols.includes(sym)}
+                                                className={`px-2 py-1 rounded text-xs transition ${symbols.includes(sym)
+                                                    ? 'bg-slate-200 dark:bg-slate-600 text-slate-400 cursor-not-allowed'
+                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 hover:text-indigo-700'
+                                                    }`}
+                                            >
+                                                +{sym}
+                                            </button>
+                                        ))
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     {/* Strategy Selection */}
@@ -593,7 +657,7 @@ const WalkForwardBacktest: React.FC = () => {
                                         key={type}
                                         onClick={() => {
                                             setStrategyType(type);
-                                            setStrategyName(type === 'ML' ? 'xgboost_classifier' : 'trend_finder');
+                                            setStrategyName(type === 'ML' ? 'xgboost_classifier' : 'ma_crossover');
                                             setMlModel(type === 'ML' ? 'XGBOOST' : 'NONE');
                                         }}
                                         className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${strategyType === type
@@ -606,16 +670,33 @@ const WalkForwardBacktest: React.FC = () => {
                                 ))}
                             </div>
 
-                            {/* Strategy Name */}
+                            {/* Strategy Name - with categories */}
                             <select
                                 value={strategyName}
                                 onChange={e => setStrategyName(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                             >
-                                {(strategyType === 'RULE_BASED' ? STRATEGIES.rule_based : STRATEGIES.ml).map(s => (
-                                    <option key={s.name} value={s.name}>{s.label}</option>
-                                ))}
+                                {strategyType === 'RULE_BASED' ? (
+                                    Object.entries(STRATEGY_CATEGORIES).map(([category, strategies]) => (
+                                        <optgroup key={category} label={category}>
+                                            {strategies.map(s => (
+                                                <option key={s.name} value={s.name}>{s.label}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))
+                                ) : (
+                                    STRATEGIES.ml.map(s => (
+                                        <option key={s.name} value={s.name}>{s.label}</option>
+                                    ))
+                                )}
                             </select>
+
+                            {/* Strategy Description */}
+                            {strategyType === 'RULE_BASED' && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 p-2 rounded">
+                                    {Object.values(STRATEGY_CATEGORIES).flat().find(s => s.name === strategyName)?.description || ''}
+                                </p>
+                            )}
 
                             {/* Timeframe */}
                             <select

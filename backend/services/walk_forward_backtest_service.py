@@ -52,6 +52,7 @@ class WalkForwardBacktestService:
     
     # Available rule-based strategies
     STRATEGIES = {
+        # Original strategies
         "trend_finder": "_run_trend_strategy",
         "breakout_detector": "_run_breakout_strategy",
         "momentum": "_run_momentum_strategy",
@@ -59,6 +60,19 @@ class WalkForwardBacktestService:
         "gap_scanner": "_run_gap_strategy",
         "vwap_bounce": "_run_vwap_strategy",
         "sr_bounce": "_run_sr_strategy",
+        # New industry-standard strategies
+        "ma_crossover": "_run_ma_crossover_strategy",
+        "supertrend": "_run_supertrend_strategy",
+        "adx_trend": "_run_adx_trend_strategy",
+        "donchian_breakout": "_run_donchian_strategy",
+        "rsi_mean_reversion": "_run_rsi_reversion_strategy",
+        "bollinger_reversion": "_run_bollinger_reversion_strategy",
+        "zscore_reversion": "_run_zscore_strategy",
+        "orb": "_run_orb_strategy",
+        "volume_breakout": "_run_volume_breakout_strategy",
+        "atr_expansion": "_run_atr_expansion_strategy",
+        "vwap_pullback": "_run_vwap_pullback_strategy",
+        "vwap_trend": "_run_vwap_trend_strategy",
     }
     
     def __init__(self):
@@ -197,52 +211,41 @@ class WalkForwardBacktestService:
         )
     
     async def _load_data(self, symbols: List[str], timeframe: str) -> pd.DataFrame:
-        """Load historical data from SQLite database"""
-        import sqlite3
-        import os
+        """Load historical data from PostgreSQL database"""
+        import psycopg2
         
         all_data = []
         
-        # Use SQLite file directly
-        db_paths = [
-            r"c:\Users\Deepak Kumar\Downloads\quantai-india\quantai_review_later\quantai.db",
-            r"c:\Users\Deepak Kumar\Downloads\quantai-india\backend\quantai.db",
-        ]
-        
-        db_path = None
-        for path in db_paths:
-            if os.path.exists(path):
-                db_path = path
-                break
-        
-        if not db_path:
-            logger.error("No SQLite database file found!")
-            return pd.DataFrame()
-        
-        logger.info(f"Using SQLite database: {db_path}")
-        
         # Map frontend timeframe to database interval
-        # Database has: 1min, 3min, 5min, 15min, 30min, 1hour, day
+        # Database has: 1d, 1min, 5min, 15min, 30min
         interval_map = {
             "5m": "5min",
             "15m": "15min",
             "30m": "30min",
             "1h": "1hour",
-            "1D": "day"
+            "1D": "1d"  # Fixed: was "day", should be "1d"
         }
-        interval = interval_map.get(timeframe, "15min")
+        interval = interval_map.get(timeframe, "1d")
+        
+        logger.info(f"Loading data for {symbols} with interval {interval}")
         
         try:
-            conn = sqlite3.connect(db_path)
+            conn = psycopg2.connect(
+                host='localhost',
+                port=5432,
+                user='postgres',
+                password='admin',
+                database='quantai'
+            )
             cursor = conn.cursor()
             
             for symbol in symbols:
                 try:
-                    # All data is in stock_data table
+                    # Query PostgreSQL stock_data table
                     cursor.execute("""
                         SELECT symbol, timestamp, open, high, low, close, volume
                         FROM stock_data
-                        WHERE symbol = ? AND interval = ?
+                        WHERE symbol = %s AND interval = %s
                         ORDER BY timestamp
                         LIMIT 2000
                     """, (symbol, interval))
@@ -250,13 +253,13 @@ class WalkForwardBacktestService:
                     rows = cursor.fetchall()
                     
                     if not rows:
-                        # Try without interval filter for daily
-                        logger.warning(f"No {interval} data for {symbol}, trying day interval")
+                        # Try without interval filter (get all available data)
+                        logger.warning(f"No {interval} data for {symbol}, trying any available data")
                         cursor.execute("""
                             SELECT symbol, timestamp, open, high, low, close, volume
                             FROM stock_data
-                            WHERE symbol = ? AND interval = 'day'
-                            ORDER BY timestamp
+                            WHERE symbol = %s
+                            ORDER BY timestamp DESC
                             LIMIT 2000
                         """, (symbol,))
                         rows = cursor.fetchall()
@@ -269,20 +272,22 @@ class WalkForwardBacktestService:
                         df['low'] = pd.to_numeric(df['low'], errors='coerce').fillna(0)
                         df['close'] = pd.to_numeric(df['close'], errors='coerce').fillna(0)
                         df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0).astype(int)
+                        # Sort by timestamp ascending
+                        df = df.sort_values('timestamp').reset_index(drop=True)
                         all_data.append(df)
                         logger.info(f"Loaded {len(rows)} {interval} rows for {symbol}")
                     else:
                         # Check what intervals ARE available for this symbol
-                        cursor.execute("SELECT DISTINCT interval FROM stock_data WHERE symbol = ?", (symbol,))
+                        cursor.execute("SELECT DISTINCT interval FROM stock_data WHERE symbol = %s", (symbol,))
                         available = [r[0] for r in cursor.fetchall()]
-                        logger.warning(f"No {interval} data for {symbol}. Available intervals: {available}")
+                        logger.warning(f"No data found for {symbol}. Available intervals: {available}")
                 except Exception as e:
                     logger.warning(f"Error loading data for {symbol}: {e}")
                     continue
             
             conn.close()
         except Exception as e:
-            logger.error(f"SQLite error: {e}")
+            logger.error(f"PostgreSQL error: {e}")
             return pd.DataFrame()
         
         if not all_data:
@@ -379,8 +384,67 @@ class WalkForwardBacktestService:
                 "bb_period": 20,
                 "bb_std": 2.0
             }
+        # New industry-standard strategies
+        elif strategy_name == "ma_crossover":
+            return {
+                "fast_period": 9,
+                "slow_period": 21,
+                "ma_type": "EMA",
+                "atr_multiplier": 2.0
+            }
+        elif strategy_name == "supertrend":
+            return {
+                "period": 10,
+                "multiplier": 3.0
+            }
+        elif strategy_name == "adx_trend":
+            return {
+                "adx_period": 14,
+                "adx_threshold": 25
+            }
+        elif strategy_name == "donchian_breakout":
+            return {
+                "entry_period": 20,
+                "exit_period": 10
+            }
+        elif strategy_name == "rsi_mean_reversion":
+            return {
+                "rsi_period": 14,
+                "oversold": 30,
+                "overbought": 70
+            }
+        elif strategy_name == "bollinger_reversion":
+            return {
+                "period": 20,
+                "std_dev": 2.0
+            }
+        elif strategy_name == "zscore_reversion":
+            return {
+                "lookback": 20,
+                "entry_threshold": 2.0
+            }
+        elif strategy_name == "orb":
+            return {
+                "orb_minutes": 15,
+                "buffer_pct": 0.1
+            }
+        elif strategy_name == "volume_breakout":
+            return {
+                "price_period": 20,
+                "volume_mult": 1.5
+            }
+        elif strategy_name == "atr_expansion":
+            return {
+                "atr_period": 14,
+                "expansion_mult": 1.5
+            }
+        elif strategy_name in ["vwap_pullback", "vwap_trend"]:
+            return {
+                "trend_ema": 20,
+                "atr_multiplier": 1.5
+            }
         else:
-            return {"default": True}
+            return {"fast_period": 9, "slow_period": 21}
     
     async def _train_ml_model(
         self,
@@ -542,22 +606,25 @@ class WalkForwardBacktestService:
                 elif df.iloc[i]["ema_fast"] < df.iloc[i]["ema_slow"] and df.iloc[i-1]["ema_fast"] >= df.iloc[i-1]["ema_slow"]:
                     signals[i] = -1
                     
-        elif strategy_name == "momentum":
-            rsi_period = params.get("rsi_period", 14)
+        elif strategy_name == "momentum" or strategy_name == "rsi_mean_reversion":
+            rsi_period = params.get("rsi_period", params.get("period", 14))
             delta = df["close"].diff()
             gain = delta.where(delta > 0, 0).rolling(rsi_period).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(rsi_period).mean()
             rs = gain / (loss + 1e-10)
             rsi = 100 - (100 / (1 + rs))
             
+            oversold = params.get("rsi_oversold", params.get("oversold", 30))
+            overbought = params.get("rsi_overbought", params.get("overbought", 70))
+            
             for i in range(rsi_period, len(df)):
-                if rsi.iloc[i] < params.get("rsi_oversold", 30):
+                if rsi.iloc[i] < oversold:
                     signals[i] = 1
-                elif rsi.iloc[i] > params.get("rsi_overbought", 70):
+                elif rsi.iloc[i] > overbought:
                     signals[i] = -1
                     
-        elif strategy_name == "breakout_detector":
-            lookback = params.get("lookback", 20)
+        elif strategy_name == "breakout_detector" or strategy_name == "donchian_breakout":
+            lookback = params.get("lookback", params.get("entry_period", 20))
             for i in range(lookback, len(df)):
                 high_max = df["high"].iloc[i-lookback:i].max()
                 if df.iloc[i]["close"] > high_max:
@@ -565,14 +632,130 @@ class WalkForwardBacktestService:
                 low_min = df["low"].iloc[i-lookback:i].min()
                 if df.iloc[i]["close"] < low_min:
                     signals[i] = -1
-        else:
-            # Default: simple moving average crossover
-            df["sma20"] = df["close"].rolling(20).mean()
-            df["sma50"] = df["close"].rolling(50).mean()
-            for i in range(50, len(df)):
-                if df.iloc[i]["sma20"] > df.iloc[i]["sma50"] and df.iloc[i-1]["sma20"] <= df.iloc[i-1]["sma50"]:
+                    
+        elif strategy_name == "ma_crossover":
+            fast = params.get("fast_period", 9)
+            slow = params.get("slow_period", 21)
+            ma_type = params.get("ma_type", "EMA")
+            
+            if ma_type == "EMA":
+                df["fast_ma"] = df["close"].ewm(span=fast).mean()
+                df["slow_ma"] = df["close"].ewm(span=slow).mean()
+            else:
+                df["fast_ma"] = df["close"].rolling(fast).mean()
+                df["slow_ma"] = df["close"].rolling(slow).mean()
+            
+            for i in range(slow, len(df)):
+                if df.iloc[i]["fast_ma"] > df.iloc[i]["slow_ma"] and df.iloc[i-1]["fast_ma"] <= df.iloc[i-1]["slow_ma"]:
                     signals[i] = 1
-                elif df.iloc[i]["sma20"] < df.iloc[i]["sma50"] and df.iloc[i-1]["sma20"] >= df.iloc[i-1]["sma50"]:
+                elif df.iloc[i]["fast_ma"] < df.iloc[i]["slow_ma"] and df.iloc[i-1]["fast_ma"] >= df.iloc[i-1]["slow_ma"]:
+                    signals[i] = -1
+                    
+        elif strategy_name == "supertrend":
+            period = params.get("period", 10)
+            multiplier = params.get("multiplier", 3.0)
+            
+            # Calculate ATR
+            df['tr'] = np.maximum(
+                df['high'] - df['low'],
+                np.maximum(
+                    abs(df['high'] - df['close'].shift(1)),
+                    abs(df['low'] - df['close'].shift(1))
+                )
+            )
+            df['atr'] = df['tr'].rolling(period).mean()
+            df['hl2'] = (df['high'] + df['low']) / 2
+            df['upper'] = df['hl2'] + (multiplier * df['atr'])
+            df['lower'] = df['hl2'] - (multiplier * df['atr'])
+            
+            direction = [1] * len(df)
+            for i in range(period, len(df)):
+                if df['close'].iloc[i] > df['upper'].iloc[i-1]:
+                    direction[i] = 1
+                elif df['close'].iloc[i] < df['lower'].iloc[i-1]:
+                    direction[i] = -1
+                else:
+                    direction[i] = direction[i-1]
+                
+                # Signal on direction change
+                if direction[i] == 1 and direction[i-1] == -1:
+                    signals[i] = 1
+                elif direction[i] == -1 and direction[i-1] == 1:
+                    signals[i] = -1
+                    
+        elif strategy_name == "bollinger_reversion" or strategy_name == "mean_reversion":
+            period = params.get("period", params.get("bb_period", 20))
+            std_mult = params.get("std_dev", params.get("bb_std", 2.0))
+            
+            df["sma"] = df["close"].rolling(period).mean()
+            df["std"] = df["close"].rolling(period).std()
+            df["upper"] = df["sma"] + (std_mult * df["std"])
+            df["lower"] = df["sma"] - (std_mult * df["std"])
+            
+            for i in range(period, len(df)):
+                # Buy when price bounces from lower band
+                if df.iloc[i]["close"] > df.iloc[i]["lower"] and df.iloc[i-1]["close"] <= df.iloc[i-1]["lower"]:
+                    signals[i] = 1
+                # Sell when price reverts from upper band
+                elif df.iloc[i]["close"] < df.iloc[i]["upper"] and df.iloc[i-1]["close"] >= df.iloc[i-1]["upper"]:
+                    signals[i] = -1
+                    
+        elif strategy_name == "zscore_reversion":
+            lookback = params.get("lookback", 20)
+            threshold = params.get("entry_threshold", 2.0)
+            
+            df["ma"] = df["close"].rolling(lookback).mean()
+            df["std"] = df["close"].rolling(lookback).std()
+            df["zscore"] = (df["close"] - df["ma"]) / (df["std"] + 1e-10)
+            
+            for i in range(lookback, len(df)):
+                if df.iloc[i]["zscore"] > -threshold and df.iloc[i-1]["zscore"] <= -threshold:
+                    signals[i] = 1
+                elif df.iloc[i]["zscore"] < threshold and df.iloc[i-1]["zscore"] >= threshold:
+                    signals[i] = -1
+                    
+        elif strategy_name == "volume_breakout":
+            price_period = params.get("price_period", 20)
+            volume_mult = params.get("volume_mult", 1.5)
+            
+            df["high_max"] = df["high"].rolling(price_period).max().shift(1)
+            df["low_min"] = df["low"].rolling(price_period).min().shift(1)
+            df["avg_volume"] = df["volume"].rolling(price_period).mean()
+            df["volume_surge"] = df["volume"] > (volume_mult * df["avg_volume"])
+            
+            for i in range(price_period, len(df)):
+                if df.iloc[i]["close"] > df.iloc[i]["high_max"] and df.iloc[i]["volume_surge"]:
+                    signals[i] = 1
+                elif df.iloc[i]["close"] < df.iloc[i]["low_min"] and df.iloc[i]["volume_surge"]:
+                    signals[i] = -1
+                    
+        elif strategy_name in ["vwap_pullback", "vwap_trend", "vwap_bounce"]:
+            # Calculate VWAP
+            df["typical_price"] = (df["high"] + df["low"] + df["close"]) / 3
+            df["tp_volume"] = df["typical_price"] * df["volume"]
+            df["cum_tpv"] = df["tp_volume"].cumsum()
+            df["cum_volume"] = df["volume"].cumsum()
+            df["vwap"] = df["cum_tpv"] / (df["cum_volume"] + 1e-10)
+            df["ema20"] = df["close"].ewm(span=20).mean()
+            
+            for i in range(20, len(df)):
+                # Buy: price above VWAP and EMA
+                if df.iloc[i]["close"] > df.iloc[i]["vwap"] and df.iloc[i-1]["close"] <= df.iloc[i-1]["vwap"]:
+                    signals[i] = 1
+                # Sell: price below VWAP
+                elif df.iloc[i]["close"] < df.iloc[i]["vwap"] and df.iloc[i-1]["close"] >= df.iloc[i-1]["vwap"]:
+                    signals[i] = -1
+        
+        else:
+            # Default: simple moving average crossover (for ma_crossover and unknown)
+            fast = params.get("fast_period", 9)
+            slow = params.get("slow_period", 21)
+            df["sma_fast"] = df["close"].rolling(fast).mean()
+            df["sma_slow"] = df["close"].rolling(slow).mean()
+            for i in range(slow, len(df)):
+                if df.iloc[i]["sma_fast"] > df.iloc[i]["sma_slow"] and df.iloc[i-1]["sma_fast"] <= df.iloc[i-1]["sma_slow"]:
+                    signals[i] = 1
+                elif df.iloc[i]["sma_fast"] < df.iloc[i]["sma_slow"] and df.iloc[i-1]["sma_fast"] >= df.iloc[i-1]["sma_slow"]:
                     signals[i] = -1
         
         return signals

@@ -189,8 +189,56 @@ const MomentAlert: React.FC = () => {
         return ticks.filter(t => t.bucket === bucketId);
     };
 
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await Promise.all([
+                fetchMomentumData(),
+                fetchWeek52Breakouts()
+            ]);
+        } catch (error) {
+            console.error('Refresh error:', error);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full gap-6 p-2 animate-in fade-in duration-700">
+            {/* Header with Refresh Button */}
+            <div className="flex items-center justify-between bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/60 rounded-2xl px-6 py-4 shadow-lg">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/30">
+                        <Zap size={24} className="text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Momentum Alert</h1>
+                        <div className="flex items-center gap-3 mt-1">
+                            <div className={`flex items-center gap-1.5 text-xs font-semibold ${isConnected ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                                {isConnected ? `Connected (${connectionMode})` : 'Disconnected'}
+                            </div>
+                            {lastUpdate && (
+                                <span className="text-xs text-slate-400 flex items-center gap-1">
+                                    <Clock size={12} />
+                                    Updated: {new Date(lastUpdate).toLocaleTimeString()}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+            </div>
+
             {/* Momentum Pulse Buckets */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 {BUCKETS.map((bucket) => {

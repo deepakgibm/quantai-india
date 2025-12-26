@@ -353,7 +353,7 @@ def get_yfinance_price(symbol: str) -> float:
 
 
 @router.post("/prompt", response_model=AIPromptResponse)
-async def process_ai_prompt(request: AIPromptRequest, current_user: User = Depends(get_current_user)):
+async def process_ai_prompt(request: AIPromptRequest, current_user: User = Depends(get_optional_user)):
     if not settings.GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="Gemini API key not configured")
     
@@ -422,7 +422,7 @@ Guidelines:
                         break # Break out of the loop if any recommendation is invalid
                     
                     # Fetch current price for the recommended stock
-                    access_token = current_user.upstox_access_token if getattr(current_user, "upstox_access_token", None) else settings.UPSTOX_ACCESS_TOKEN
+                    access_token = (current_user.upstox_access_token if current_user and getattr(current_user, "upstox_access_token", None) else None) or settings.UPSTOX_ACCESS_TOKEN
                     
                     current_price = None
                     if access_token:
@@ -514,7 +514,7 @@ Guidelines:
         raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
 
 @router.get("/market-analysis")
-async def get_market_analysis(current_user: User = Depends(get_current_user)):
+async def get_market_analysis(current_user: User = Depends(get_optional_user)):
     if not settings.GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="Gemini API key not configured")
     
