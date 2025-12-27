@@ -4,6 +4,7 @@ import { Page, Stock, AlgoConfig } from '../types';
 import { ArrowUpRight, ArrowDownRight, Zap, Play, Clock, TrendingUp, DollarSign, Activity, X, Loader2 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { api } from '../services/api';
+import TopMoversCard from '../components/TopMoversCard';
 
 interface DashboardProps {
    onNavigate: (page: Page) => void;
@@ -39,38 +40,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       { name: 'INDIA VIX', value: 0, change: 0, percent: 0, loading: true },
    ]);
 
-
-
-   // User state for personalized greeting
-   const [userName, setUserName] = useState<string>('Trader');
-   const [marketSentiment, setMarketSentiment] = useState<{ sentiment: string, message: string }>({
-      sentiment: 'Neutral',
-      message: 'Analyzing market conditions...'
-   });
-
-   // Fetch current user and market data on mount
-   useEffect(() => {
-      const fetchData = async () => {
-         const user = await api.getCurrentUser();
-         if (user?.full_name) {
-            setUserName(user.full_name.split(' ')[0]);
-         } else if (user?.username) {
-            setUserName(user.username);
-         }
-
-         const response = await api.getSectorHeatmap();
-         if (response?.status === 'success') {
-            setMarketSentiment({
-               sentiment: response.market_outlook.verdict,
-               message: response.market_outlook.suggestion
-                  ? `Market is ${response.market_outlook.verdict} today. AI suggests ${response.market_outlook.suggestion.toLowerCase()}.`
-                  : `Market is ${response.market_outlook.verdict} today.`
-            });
-         }
-      };
-
-      fetchData();
-   }, []);
 
    // Real-time Indices WebSocket & Polling
    useEffect(() => {
@@ -269,105 +238,89 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
    // Remove hardcoded indices constant as it's now in state
 
-   // Gainers & Losers heatmap - now dynamic
-   const [heatmap, setHeatmap] = useState([
-      { ticker: 'RELIANCE', change: 1.2, color: 'bg-green-500' },
-      { ticker: 'HDFCBANK', change: -0.8, color: 'bg-red-400' },
-      { ticker: 'INFOSYS', change: 2.1, color: 'bg-green-600' },
-      { ticker: 'TATASTEEL', change: 0.5, color: 'bg-green-400' },
-      { ticker: 'SBIN', change: -1.2, color: 'bg-red-500' },
-      { ticker: 'BAJFINANCE', change: 0.2, color: 'bg-green-300' },
-   ]);
-   const [heatmapLoading, setHeatmapLoading] = useState(true);
-
-   // Fetch gainers/losers on mount
-   useEffect(() => {
-      const fetchHeatmap = async () => {
-         setHeatmapLoading(true);
-         const data = await api.getGainersLosers();
-         if (data && data.length > 0) {
-            setHeatmap(data);
-         }
-         setHeatmapLoading(false);
-      };
-      fetchHeatmap();
-   }, []);
 
    return (
       <div className="space-y-6">
          {/* Welcome & Stats Section */}
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Profile & Summary */}
-            <div className="col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-               <div className="flex justify-between items-start mb-6">
-                  <div>
-                     <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white">{getGreeting()}, {userName} 👋</h2>
-                     <p className={`text-slate-500 dark:text-slate-400 ${marketSentiment.sentiment === 'Bullish' ? 'text-green-600' : marketSentiment.sentiment === 'Bearish' ? 'text-red-500' : ''}`}>
-                        {marketSentiment.message}
-                     </p>
-                  </div>
-                  <div className="text-right">
-                     <p className="text-sm text-slate-500 dark:text-slate-400">Today's P&L</p>
-                     <p className="text-2xl font-bold text-green-500">+₹12,450.00</p>
-                  </div>
-               </div>
-
-               <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-700">
-                     <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
-                        <DollarSign size={14} /> Capital Used
-                     </div>
-                     <p className="text-lg font-bold text-slate-800 dark:text-slate-200">₹2.5L / ₹10L</p>
-                     <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-2">
-                        <div className="h-full w-1/4 bg-brand-500 rounded-full"></div>
-                     </div>
-                  </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-700">
-                     <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
-                        <Zap size={14} /> Running Algos
-                     </div>
-                     <p className="text-lg font-bold text-slate-800 dark:text-slate-200">{algorithms.filter(a => a.active).length} Active</p>
-                     <p className="text-xs text-green-500 mt-1">
-                        {algorithms.filter(a => a.active).length > 0
-                           ? algorithms.filter(a => a.active).map(a => a.name.split(' ')[0]).join(' • ')
-                           : 'No engines running'}
-                     </p>
-                  </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-700">
-                     <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
-                        <Activity size={14} /> Win Rate
-                     </div>
-                     <p className="text-lg font-bold text-slate-800 dark:text-slate-200">68%</p>
-                     <p className="text-xs text-slate-400 mt-1">Last 30 Days</p>
-                  </div>
-               </div>
+            {/* NIFTY 100 Top Movers */}
+            <div className="col-span-1 lg:col-span-2">
+               <TopMoversCard />
             </div>
 
-            {/* Mini Market Watch */}
-            <div className="col-span-1 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
-               <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-4">Market Overview</h3>
-               <div className="space-y-4">
-                  {indices.map((idx) => (
-                     <div key={idx.name} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer">
-                        <div>
-                           <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{idx.name}</p>
-                        </div>
-                        <div className="text-right">
-                           {idx.value === 0 ? (
-                              <p className="font-bold text-sm text-slate-400 animate-pulse">Loading...</p>
-                           ) : (
-                              <>
-                                 <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{idx.value.toLocaleString()}</p>
-                                 <p className={`text-xs font-medium ${idx.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                    {idx.change >= 0 ? '+' : ''}{idx.change} ({idx.percent}%)
+            {/* Market Overview - Premium Light Design */}
+            <div className="col-span-1 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
+               {/* Header */}
+               <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                     <h3 className="font-bold text-slate-800 dark:text-white tracking-wide">Market Overview</h3>
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                     {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+               </div>
+
+               {/* Index Cards */}
+               <div className="space-y-3 flex-1">
+                  {indices.map((idx) => {
+                     const isPositive = idx.change >= 0;
+                     const isVIX = idx.name === 'INDIA VIX';
+
+                     return (
+                        <div
+                           key={idx.name}
+                           className="relative overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/30 p-4 hover:border-slate-200 dark:hover:border-slate-600/50 hover:shadow-sm transition-all cursor-pointer group"
+                        >
+                           {/* Accent bar */}
+                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${isVIX
+                              ? 'bg-amber-500'
+                              : isPositive
+                                 ? 'bg-green-500'
+                                 : 'bg-red-500'
+                              }`}></div>
+
+                           <div className="flex items-center justify-between pl-3">
+                              <div>
+                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider mb-1">
+                                    {idx.name}
                                  </p>
-                              </>
-                           )}
+                                 {idx.value === 0 ? (
+                                    <div className="h-6 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                                 ) : (
+                                    <p className="text-xl font-bold text-slate-900 dark:text-white font-mono">
+                                       {idx.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                    </p>
+                                 )}
+                              </div>
+
+                              <div className="text-right">
+                                 {idx.value !== 0 && (
+                                    <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg ${isVIX
+                                       ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                       : isPositive
+                                          ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400'
+                                          : 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400'
+                                       }`}>
+                                       {!isVIX && (
+                                          <span className="text-xs">
+                                             {isPositive ? '▲' : '▼'}
+                                          </span>
+                                       )}
+                                       <span className="text-sm font-bold font-mono">
+                                          {isPositive ? '+' : ''}{idx.percent}%
+                                       </span>
+                                    </div>
+                                 )}
+                              </div>
+                           </div>
                         </div>
-                     </div>
-                  ))}
+                     );
+                  })}
                </div>
             </div>
+
+
          </div>
 
          {/* Agentic Bot Section */}
@@ -414,49 +367,32 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                </div>
             </div>
 
-            {/* Heatmap & Performance */}
-            <div className="space-y-6">
-               <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                  <div className="flex justify-between items-center mb-4">
-                     <h3 className="font-bold text-slate-800 dark:text-white">Gainers & Losers</h3>
-                     {heatmapLoading && <Loader2 size={16} className="text-brand-500 animate-spin" />}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                     {heatmap.map((item: any) => (
-                        <div key={item.ticker} className={`${item.color} p-3 rounded-lg text-white bg-opacity-90 flex flex-col items-center justify-center hover:bg-opacity-100 transition-opacity cursor-pointer`}>
-                           <span className="text-xs font-bold">{item.ticker}</span>
-                           <span className="text-sm font-bold">{item.change > 0 ? '+' : ''}{item.change}%</span>
-                           {item.price && <span className="text-xs opacity-80">₹{item.price.toLocaleString()}</span>}
-                        </div>
-                     ))}
-                  </div>
+            {/* Equity Curve */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+               <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-800 dark:text-white">Equity Curve</h3>
+                  <select className="text-xs bg-slate-100 dark:bg-slate-700 rounded p-1 border-none outline-none">
+                     <option>Intraday</option>
+                     <option>Week</option>
+                  </select>
                </div>
-
-               <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                  <div className="flex justify-between items-center mb-4">
-                     <h3 className="font-bold text-slate-800 dark:text-white">Equity Curve</h3>
-                     <select className="text-xs bg-slate-100 dark:bg-slate-700 rounded p-1 border-none outline-none">
-                        <option>Intraday</option>
-                        <option>Week</option>
-                     </select>
-                  </div>
-                  <div className="h-40 w-full">
-                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={mockData}>
-                           <Tooltip
-                              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                              cursor={{ stroke: '#cbd5e1' }}
-                           />
-                           <Line type="monotone" dataKey="val" stroke="#0ea5e9" strokeWidth={2} dot={false} />
-                        </LineChart>
-                     </ResponsiveContainer>
-                  </div>
+               <div className="h-40 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                     <LineChart data={mockData}>
+                        <Tooltip
+                           contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                           cursor={{ stroke: '#cbd5e1' }}
+                        />
+                        <Line type="monotone" dataKey="val" stroke="#0ea5e9" strokeWidth={2} dot={false} />
+                     </LineChart>
+                  </ResponsiveContainer>
                </div>
             </div>
          </div>
 
          {/* AI Scanner Modal */}
          {showScanModal && currentScan && (
+
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
                   <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700">
@@ -578,6 +514,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
          )}
       </div>
    );
+
 };
 
 export default Dashboard;

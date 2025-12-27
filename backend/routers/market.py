@@ -10,6 +10,35 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Market"])
 
+
+@router.get("/nifty100/top-movers")
+async def get_nifty100_top_movers():
+    """
+    Get top 5 gainers and top 5 losers from NIFTY 100 stocks.
+    
+    Uses live Upstox quotes with 60-second caching.
+    Calculates: change_pct = ((LTP - prev_close) / prev_close) * 100
+    
+    Returns:
+        JSON with 'as_of', 'gainers', and 'losers' arrays
+    """
+    from services.top_movers_service import get_top_movers_service
+    
+    try:
+        service = get_top_movers_service()
+        data = await service.get_top_movers()
+        return data
+    except Exception as e:
+        logger.error(f"Top movers endpoint failed: {e}")
+        return {
+            "as_of": datetime.now().isoformat(),
+            "gainers": [],
+            "losers": [],
+            "error": str(e)
+        }
+
+
+
 # Industry mapping for Sector Heatmap Detail
 INDUSTRY_MAPPING = {
     "Banking": ["Financial Services"],
