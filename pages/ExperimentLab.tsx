@@ -24,6 +24,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import SymbolSearch from '../components/SymbolSearch';
+import { ExperimentLabHelpGuide } from '../components/HelpGuide';
 
 // Strategy categories
 const CATEGORIES = [
@@ -209,9 +210,12 @@ const ExperimentLab: React.FC = () => {
                         <p className="text-sm text-slate-500 dark:text-slate-400">70 Strategy Combinations • Backtesting Only</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <AlertCircle size={16} className="text-amber-600" />
-                    <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Simulation Only - No Live Trading</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <AlertCircle size={16} className="text-amber-600" />
+                        <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Simulation Only - No Live Trading</span>
+                    </div>
+                    <ExperimentLabHelpGuide />
                 </div>
             </div>
 

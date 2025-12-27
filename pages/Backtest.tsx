@@ -24,6 +24,7 @@ import MonteCarloFanChart from '../components/charts/MonteCarloFanChart';
 import DistributionComparisonChart from '../components/charts/DistributionComparisonChart';
 import SymbolSearch from '../components/SymbolSearch';
 import StrategySelectionPanel from '../components/StrategySelectionPanel';
+import { BacktestHelpGuide } from '../components/HelpGuide';
 
 interface StrategyInfo {
     name: string;
@@ -321,6 +322,7 @@ const Backtest: React.FC = () => {
                         <p className="text-sm text-slate-500">Test trading ideas with institutional-grade data</p>
                     </div>
                 </div>
+                <BacktestHelpGuide />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
