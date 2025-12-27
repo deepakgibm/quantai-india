@@ -77,13 +77,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       let ws: WebSocket | null = null;
       let pollInterval: NodeJS.Timeout | null = null;
       let isSubscribed = true;
-      let wsConnected = false;
 
       const fetchIndices = async () => {
          try {
             const response = await api.getMarketIndices();
-            if (response && isSubscribed) {
-               setIndices(response);
+            if (response && isSubscribed && Array.isArray(response)) {
+               // Only update if we got valid data with actual values
+               const hasData = response.some((idx: any) => idx.value && idx.value > 0);
+               if (hasData) {
+                  setIndices(response);
+               }
             }
          } catch (e) {
             console.error('Failed to poll indices:', e);
@@ -93,7 +96,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       const startPolling = () => {
          if (pollInterval) return; // Already polling
          fetchIndices(); // Fetch immediately
-         pollInterval = setInterval(fetchIndices, 5000); // Poll every 5 seconds
+         pollInterval = setInterval(fetchIndices, 10000); // Poll every 10 seconds (reduced frequency)
       };
 
       const connectWS = () => {
@@ -101,47 +104,41 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             ws = new WebSocket('ws://localhost:8000/api/scanner/ws/scanner');
 
             ws.onopen = () => {
-               wsConnected = true;
-               // Stop REST polling when WS connects
-               if (pollInterval) {
-                  clearInterval(pollInterval);
-                  pollInterval = null;
-               }
+               console.log('Dashboard WS connected');
+               // DON'T stop REST polling - keep it as reliable backup
             };
 
             ws.onmessage = (event) => {
                try {
                   const message = JSON.parse(event.data);
-                  if (message.indices && isSubscribed) {
-                     setIndices(message.indices);
+                  // Only update if WS sends valid indices data
+                  if (message.indices && Array.isArray(message.indices) && isSubscribed) {
+                     const hasData = message.indices.some((idx: any) => idx.value && idx.value > 0);
+                     if (hasData) {
+                        setIndices(message.indices);
+                     }
                   }
                } catch (e) {
-                  console.warn('Failed to parse WS message:', e);
+                  // Silently ignore parse errors - REST will handle data
                }
             };
 
             ws.onerror = () => {
-               console.warn('Dashboard WS error, using REST fallback');
-               wsConnected = false;
-               startPolling();
+               console.warn('Dashboard WS error, REST polling will handle data');
             };
 
             ws.onclose = () => {
-               wsConnected = false;
-               if (isSubscribed) {
-                  startPolling();
-               }
+               // WebSocket closed - REST polling continues
             };
          } catch (e) {
             console.warn('WS connection failed:', e);
-            startPolling();
          }
       };
 
-      // Start REST polling immediately for quick initial data
+      // Start REST polling immediately for reliable data
       startPolling();
 
-      // Also try WebSocket for real-time updates  
+      // Also try WebSocket for real-time updates (optional enhancement)
       connectWS();
 
       return () => {
@@ -150,6 +147,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
          if (pollInterval) clearInterval(pollInterval);
       };
    }, []);
+
 
 
 
