@@ -14,8 +14,6 @@ import LiveMonitor from './pages/LiveMonitor';
 import AlphaPrime from './pages/AlphaPrime';
 import ETLStatus from './pages/ETLStatus';
 import Backtest from './pages/Backtest';
-import StrategyLab from './pages/StrategyLab';
-import DriftMonitor from './pages/DriftMonitor';
 import AuditReports from './pages/AuditReports';
 import Scanner from './pages/Scanner';
 import SectorHeatmapPage from './pages/SectorHeatmapPage';
@@ -113,10 +111,6 @@ const App: React.FC = () => {
         return <ETLStatus />;
       case Page.QUANT_BOT:
         return <Backtest />;
-      case Page.STRATEGY_LAB:
-        return <StrategyLab />;
-      case Page.DRIFT_MONITOR:
-        return <DriftMonitor />;
       case Page.AUDIT_REPORTS:
         return <AuditReports />;
       case Page.SCANNER:

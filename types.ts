@@ -11,8 +11,6 @@ export enum Page {
   ALPHA_PRIME = 'alpha_prime',
   ETL_STATUS = 'ETL_STATUS',
   QUANT_BOT = 'quant_bot',
-  STRATEGY_LAB = 'strategy_lab',
-  DRIFT_MONITOR = 'drift_monitor',
   AUDIT_REPORTS = 'audit_reports',
   SCANNER = 'scanner',
   SETTINGS = 'SETTINGS',

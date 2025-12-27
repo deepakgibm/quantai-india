@@ -2,7 +2,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, alerts, scanner, market
+from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, scanner, market
 from api.v1.endpoints import alpha # Added AlphaPrime import
 from api.v1.endpoints import walk_forward_backtest  # Walk-Forward Backtest
 from api.v1.endpoints import experiment_lab  # Strategy Experiment Lab (Beta)
@@ -75,7 +75,6 @@ app.include_router(algorithms.router, prefix="/api/algorithms", tags=["Algorithm
 app.include_router(agentic_bot.router, prefix="/api/agentic-bot", tags=["Agentic Bot"])
 app.include_router(engine_performance.router, prefix="/api/engines", tags=["Engine Performance"])
 app.include_router(quant_bot.router, prefix="/api/quant", tags=["Quant Bot"])
-app.include_router(alerts.router)  # Alerts router (already has full prefix)
 app.include_router(alpha.router)  # AlphaPrime router (already has full prefix in router definition)
 app.include_router(scanner.router)  # Scanner router (already has full prefix)
 app.include_router(market.router, prefix="/api/market", tags=["Market"])

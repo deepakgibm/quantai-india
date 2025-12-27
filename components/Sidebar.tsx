@@ -41,8 +41,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, onLogout, dar
     { page: Page.QUANT_BOT, icon: LineChart, label: 'Backtest' },
     { page: Page.WALK_FORWARD_BACKTEST, icon: TrendingUp, label: 'Walk-Forward' },
     { page: Page.EXPERIMENT_LAB, icon: FlaskConical, label: 'Experiment Lab' },
-    { page: Page.STRATEGY_LAB, icon: Zap, label: 'Strategy Lab' },
-    { page: Page.DRIFT_MONITOR, icon: ShieldAlert, label: 'Drift Monitor' },
     { page: Page.AUDIT_REPORTS, icon: Database, label: 'Audit & Reports' },
     { page: Page.LIVE_MONITOR, icon: Activity, label: 'Live Monitor' },
     { page: Page.ALGO_BUILDER, icon: Zap, label: 'Algo Builder' },
