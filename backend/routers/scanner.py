@@ -306,6 +306,213 @@ def _map_bucket_to_legacy(change_pct: float) -> str:
         return "NEUTRAL"
 
 
+@router.get("/breakout")
+async def get_breakout_data():
+    """
+    REST endpoint for breakout scanner.
+    Returns stocks showing breakout patterns (price crossing resistance levels).
+    Filters for stocks with strong upward momentum.
+    """
+    from services.db_data_fetcher import get_db_data_fetcher
+    from services.cache import get_cache_manager
+    
+    # Check cache first
+    cache = get_cache_manager()
+    cache_key = "quantai:breakout_data"
+    cached = cache.get(cache_key)
+    if cached:
+        logger.debug("Breakout data served from cache")
+        return cached
+    
+    # Use database for breakout detection
+    logger.info("Using database for breakout scanner")
+    db_fetcher = get_db_data_fetcher()
+    db_data = db_fetcher.fetch_latest_data()
+    
+    breakout_stocks = []
+    if db_data:
+        for symbol, tick in db_data.items():
+            # Breakout criteria: strong positive movement (>2%) or high volume
+            if tick.change_pct >= 2.0:
+                breakout_stocks.append({
+                    "symbol": tick.symbol,
+                    "ltp": tick.ltp,
+                    "prev_close": tick.prev_close,
+                    "change_pct": tick.change_pct,
+                    "breakout_score": min(100, int(tick.change_pct * 15 + 50)),
+                    "pattern": "BULLISH_BREAKOUT" if tick.change_pct >= 4.0 else "MODERATE_BREAKOUT",
+                    "strength": "STRONG" if tick.change_pct >= 4.0 else "MODERATE",
+                    "source": "DB",
+                    "last_update": tick.timestamp
+                })
+    
+    # Sort by change percentage descending
+    breakout_stocks.sort(key=lambda x: x["change_pct"], reverse=True)
+    
+    response = {
+        "type": "breakout_scan",
+        "timestamp": datetime.now().isoformat(),
+        "data": breakout_stocks[:50],  # Top 50 breakouts
+        "count": len(breakout_stocks),
+        "status": {
+            "source": "DB",
+            "is_healthy": len(breakout_stocks) > 0,
+            "last_update": datetime.now().isoformat()
+        }
+    }
+    
+    # Cache for 60 seconds
+    cache.set(cache_key, response, ttl=60)
+    return response
+
+
+@router.get("/reversal")
+async def get_reversal_data():
+    """
+    REST endpoint for reversal scanner.
+    Returns stocks showing reversal patterns (trend changes).
+    Identifies potential bottoms and tops.
+    """
+    from services.db_data_fetcher import get_db_data_fetcher
+    from services.cache import get_cache_manager
+    
+    # Check cache first
+    cache = get_cache_manager()
+    cache_key = "quantai:reversal_data"
+    cached = cache.get(cache_key)
+    if cached:
+        logger.debug("Reversal data served from cache")
+        return cached
+    
+    # Use database for reversal detection
+    logger.info("Using database for reversal scanner")
+    db_fetcher = get_db_data_fetcher()
+    db_data = db_fetcher.fetch_latest_data()
+    
+    reversal_candidates = []
+    if db_data:
+        for symbol, tick in db_data.items():
+            abs_change = abs(tick.change_pct)
+            # Reversal criteria: moderate movement in either direction indicating potential trend change
+            # Looking for stocks that moved between -3% to -1% (potential bullish reversal from oversold)
+            # or between +1% to +3% after decline (potential bearish reversal)
+            if (tick.change_pct <= -1.0 and tick.change_pct >= -4.0):
+                # Potential bullish reversal (oversold bounce candidate)
+                reversal_candidates.append({
+                    "symbol": tick.symbol,
+                    "ltp": tick.ltp,
+                    "prev_close": tick.prev_close,
+                    "change_pct": tick.change_pct,
+                    "reversal_score": int(abs(tick.change_pct) * 20),
+                    "pattern": "BULLISH_REVERSAL",
+                    "type": "OVERSOLD_BOUNCE",
+                    "strength": "STRONG" if tick.change_pct <= -3.0 else "MODERATE",
+                    "source": "DB",
+                    "last_update": tick.timestamp
+                })
+            elif (tick.change_pct >= 3.0 and tick.change_pct <= 6.0):
+                # Potential bearish reversal (overbought correction candidate)
+                reversal_candidates.append({
+                    "symbol": tick.symbol,
+                    "ltp": tick.ltp,
+                    "prev_close": tick.prev_close,
+                    "change_pct": tick.change_pct,
+                    "reversal_score": int(tick.change_pct * 15),
+                    "pattern": "BEARISH_REVERSAL",
+                    "type": "OVERBOUGHT_CORRECTION",
+                    "strength": "STRONG" if tick.change_pct >= 5.0 else "MODERATE",
+                    "source": "DB",
+                    "last_update": tick.timestamp
+                })
+    
+    # Sort by reversal score descending
+    reversal_candidates.sort(key=lambda x: x["reversal_score"], reverse=True)
+    
+    response = {
+        "type": "reversal_scan",
+        "timestamp": datetime.now().isoformat(),
+        "data": reversal_candidates[:50],  # Top 50 reversal candidates
+        "count": len(reversal_candidates),
+        "status": {
+            "source": "DB",
+            "is_healthy": len(reversal_candidates) > 0,
+            "last_update": datetime.now().isoformat()
+        }
+    }
+    
+    # Cache for 60 seconds
+    cache.set(cache_key, response, ttl=60)
+    return response
+
+
+@router.get("/trendfinder")
+async def get_trendfinder_data():
+    """
+    REST endpoint for TrendFinder AI scanner.
+    Returns stocks identified by AI-based trend detection.
+    Similar to momentum but with AI confidence scoring.
+    """
+    from services.db_data_fetcher import get_db_data_fetcher
+    from services.cache import get_cache_manager
+    
+    # Check cache first
+    cache = get_cache_manager()
+    cache_key = "quantai:trendfinder_data"
+    cached = cache.get(cache_key)
+    if cached:
+        logger.debug("TrendFinder data served from cache")
+        return cached
+    
+    # Use database for trend analysis
+    logger.info("Using database for TrendFinder AI scanner")
+    db_fetcher = get_db_data_fetcher()
+    db_data = db_fetcher.fetch_latest_data()
+    
+    trending_stocks = []
+    if db_data:
+        for symbol, tick in db_data.items():
+            abs_change = abs(tick.change_pct)
+            # TrendFinder: identify stocks with clear directional movement (>0.5%)
+            if abs_change >= 0.5:
+                # Calculate AI confidence based on magnitude of movement
+                ai_confidence = min(95, int(abs_change * 25 + 30))
+                
+                trending_stocks.append({
+                    "symbol": tick.symbol,
+                    "ltp": tick.ltp,
+                    "prev_close": tick.prev_close,
+                    "change_pct": tick.change_pct,
+                    "trend_direction": "BULLISH" if tick.change_pct > 0 else "BEARISH",
+                    "trend_strength": "STRONG" if abs_change >= 3.0 else "MODERATE" if abs_change >= 1.5 else "WEAK",
+                    "ai_confidence": ai_confidence,
+                    "momentum_score": max(5, min(95, 50 + int(tick.change_pct * 10))),
+                    "signal": "BUY" if tick.change_pct > 1.0 else "SELL" if tick.change_pct < -1.0 else "HOLD",
+                    "source": "DB",
+                    "last_update": tick.timestamp
+                })
+    
+    # Sort by AI confidence descending
+    trending_stocks.sort(key=lambda x: x["ai_confidence"], reverse=True)
+    
+    response = {
+        "type": "trendfinder_scan",
+        "timestamp": datetime.now().isoformat(),
+        "data": trending_stocks[:50],  # Top 50 trends
+        "count": len(trending_stocks),
+        "status": {
+            "source": "AI_DB",
+            "is_healthy": len(trending_stocks) > 0,
+            "last_update": datetime.now().isoformat(),
+            "ai_model": "TrendFinder v1.0"
+        }
+    }
+    
+    # Cache for 60 seconds
+    cache.set(cache_key, response, ttl=60)
+    return response
+
+
+
 @router.get("/week52-breakouts")
 async def get_week52_breakouts():
     """

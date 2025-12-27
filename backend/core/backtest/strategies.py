@@ -14,67 +14,7 @@ Strategy Categories:
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Any
-from dataclasses import dataclass, asdict
-from abc import ABC, abstractmethod
-from enum import Enum
-
-
-class SignalType(str, Enum):
-    BUY = "BUY"
-    SELL = "SELL"
-    HOLD = "HOLD"
-
-
-@dataclass
-class TradeSignal:
-    """Standard trade signal structure."""
-    timestamp: str
-    signal: SignalType
-    entry_price: float
-    stop_loss: float
-    target_1: float
-    target_2: Optional[float] = None
-    confidence: float = 0.0
-    reason: str = ""
-
-
-@dataclass
-class StrategyMetadata:
-    """Strategy metadata for UI display."""
-    name: str
-    display_name: str
-    category: str
-    description: str
-    parameters: Dict[str, Dict[str, Any]]
-    time_horizon: str  # "Intraday", "Swing", "Positional"
-
-
-class BaseStrategy(ABC):
-    """Abstract base class for all strategies."""
-    
-    @property
-    @abstractmethod
-    def metadata(self) -> StrategyMetadata:
-        """Return strategy metadata."""
-        pass
-    
-    @abstractmethod
-    def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
-        """
-        Generate trading signals.
-        
-        Args:
-            df: OHLCV DataFrame with columns [timestamp, open, high, low, close, volume]
-            params: Strategy-specific parameters
-            
-        Returns:
-            DataFrame with additional signal columns
-        """
-        pass
-    
-    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate common indicators. Override in subclass if needed."""
-        return df.copy()
+from .base import SignalType, TradeSignal, StrategyMetadata, BaseStrategy
 
 
 # =============================================================================
@@ -1063,7 +1003,37 @@ class StrategyRegistry:
         return categories
 
 
+# Import advanced strategies from Tier 2 & 3
+try:
+    from .advanced_strategies import (
+        # Tier 2: Momentum & Trend Confirmation
+        MACDBullishCrossoverStrategy,
+        StochasticOscillatorStrategy,
+        PriceMomentumStrategy,
+        RSIMACDConfluenceStrategy,
+        # Tier 3: Advanced & Structural
+        BollingerBandsBreakoutStrategy,
+        HeadAndShouldersStrategy,
+        WilliamsRStrategy,
+        ATRVolatilityBreakoutStrategy,
+        CCIDeviationStrategy,
+        DonchianMeanReversionStrategy,
+        FibonacciRetracementStrategy,
+        FlagPennantStrategy,
+        IchimokuCloudStrategy,
+        GoldenCrossStrategy,
+        OBVDivergenceStrategy,
+        ParabolicSARStrategy,
+        VolumeSurgeStrategy,
+        MultiTimeframeConfluenceStrategy
+    )
+    ADVANCED_STRATEGIES_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Advanced strategies not available: {e}")
+    ADVANCED_STRATEGIES_AVAILABLE = False
+
 # Register all strategies
+# Tier 1: Core strategies from this module
 StrategyRegistry.register(MACrossoverStrategy())
 StrategyRegistry.register(SuperTrendStrategy())
 StrategyRegistry.register(ADXTrendStrategy())
@@ -1076,6 +1046,30 @@ StrategyRegistry.register(VolumeBreakoutStrategy())
 StrategyRegistry.register(ATRExpansionStrategy())
 StrategyRegistry.register(VWAPPullbackStrategy())
 StrategyRegistry.register(VWAPTrendStrategy())
+
+# Tier 2 & 3: Advanced strategies
+if ADVANCED_STRATEGIES_AVAILABLE:
+    # Tier 2: Momentum & Trend Confirmation
+    StrategyRegistry.register(MACDBullishCrossoverStrategy())
+    StrategyRegistry.register(StochasticOscillatorStrategy())
+    StrategyRegistry.register(PriceMomentumStrategy())
+    StrategyRegistry.register(RSIMACDConfluenceStrategy())
+    
+    # Tier 3: Advanced & Structural
+    StrategyRegistry.register(BollingerBandsBreakoutStrategy())
+    StrategyRegistry.register(HeadAndShouldersStrategy())
+    StrategyRegistry.register(WilliamsRStrategy())
+    StrategyRegistry.register(ATRVolatilityBreakoutStrategy())
+    StrategyRegistry.register(CCIDeviationStrategy())
+    StrategyRegistry.register(DonchianMeanReversionStrategy())
+    StrategyRegistry.register(FibonacciRetracementStrategy())
+    StrategyRegistry.register(FlagPennantStrategy())
+    StrategyRegistry.register(IchimokuCloudStrategy())
+    StrategyRegistry.register(GoldenCrossStrategy())
+    StrategyRegistry.register(OBVDivergenceStrategy())
+    StrategyRegistry.register(ParabolicSARStrategy())
+    StrategyRegistry.register(VolumeSurgeStrategy())
+    StrategyRegistry.register(MultiTimeframeConfluenceStrategy())
 
 
 def get_strategy_catalog() -> Dict[str, Any]:

@@ -58,6 +58,14 @@ async def get_dashboard_stats(
         "total_trades": total_trades if total_trades > 0 else 156
     }
 
+@router.get("/health")
+def get_health():
+    """
+    Instant health check endpoint - no async operations, no database calls.
+    Used for monitoring and load balancer health checks.
+    """
+    return {"status": "healthy", "service": "quantai-trading-api"}
+
 @router.get("/market-indices")
 async def get_market_indices():
     """
@@ -76,8 +84,8 @@ async def get_market_indices():
     ]
     
     try:
-        # Wrap the entire fetch operation in a timeout
-        result = await asyncio.wait_for(_fetch_market_indices_internal(), timeout=15.0)
+        # Reduced timeout to 5 seconds for faster response
+        result = await asyncio.wait_for(_fetch_market_indices_internal(), timeout=5.0)
         return result if result else FALLBACK_DATA
     except asyncio.TimeoutError:
         logger.warning("Market indices fetch timed out, using fallback")
@@ -85,6 +93,29 @@ async def get_market_indices():
     except Exception as e:
         logger.error(f"Market indices fetch failed: {e}")
         return FALLBACK_DATA
+
+@router.get("/instruments")
+async def get_instruments():
+    """
+    Get list of available trading instruments.
+    Returns popular NSE stocks for quick access.
+    """
+    return {
+        "status": "success",
+        "instruments": [
+            {"symbol": "RELIANCE", "name": "Reliance Industries Ltd", "exchange": "NSE"},
+            {"symbol": "TCS", "name": "Tata Consultancy Services Ltd", "exchange": "NSE"},
+            {"symbol": "HDFCBANK", "name": "HDFC Bank Ltd", "exchange": "NSE"},
+            {"symbol": "INFY", "name": "Infosys Ltd", "exchange": "NSE"},
+            {"symbol": "ICICIBANK", "name": "ICICI Bank Ltd", "exchange": "NSE"},
+            {"symbol": "HINDUNILVR", "name": "Hindustan Unilever Ltd", "exchange": "NSE"},
+            {"symbol": "ITC", "name": "ITC Ltd", "exchange": "NSE"},
+            {"symbol": "SBIN", "name": "State Bank of India", "exchange": "NSE"},
+            {"symbol": "BHARTIARTL", "name": "Bharti Airtel Ltd", "exchange": "NSE"},
+            {"symbol": "KOTAKBANK", "name": "Kotak Mahindra Bank Ltd", "exchange": "NSE"}
+        ],
+        "count": 10
+    }
 
 
 async def _fetch_market_indices_internal():

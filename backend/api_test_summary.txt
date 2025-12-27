@@ -1,0 +1,374 @@
+
+================================================================================
+API TEST SUMMARY REPORT
+================================================================================
+Generated: 2025-12-27 14:19:00
+Base URL: http://localhost:8000
+
+OVERALL STATISTICS:
+  Total Tests:   32
+  Passed:        16 ✓
+  Failed:        1 ✗
+  Skipped:       15 ⊘
+  Success Rate:  94.1%
+
+================================================================================
+DETAILED RESULTS:
+================================================================================
+
+
+PASSED TESTS (16):
+--------------------------------------------------------------------------------
+
+[PASSED] GET /
+  Description: Root endpoint
+  Status Code: 200 (Expected: 200)
+  Response Time: 2055ms
+  Response Sample: {
+    "message": "QuantAI India Trading Bot API",
+    "status": "running"
+}...
+
+
+[PASSED] GET /health
+  Description: Health check endpoint
+  Status Code: 200 (Expected: 200)
+  Response Time: 2062ms
+  Response Sample: {
+    "status": "healthy"
+}...
+
+
+[PASSED] GET /api/trading/market-indices
+  Description: Market indices data
+  Status Code: 200 (Expected: 200)
+  Response Time: 2231ms
+  Response Sample: [
+    {
+        "name": "NIFTY 50",
+        "value": 26042.3,
+        "change": -99.8,
+        "percent": -0.38,
+        "source": "upstox"
+    },
+    {
+        "name": "BANK NIFTY",
+        "value": 59011.35,
+        "change": -172.25,
+        "percent": -0.29,
+        "source": "upstox"
+    },
+   ...
+
+
+[PASSED] GET /api/trading/instruments
+  Description: Get instruments list
+  Status Code: 200 (Expected: 200)
+  Response Time: 2051ms
+  Response Sample: {
+    "status": "success",
+    "instruments": [
+        {
+            "symbol": "RELIANCE",
+            "name": "Reliance Industries Ltd",
+            "exchange": "NSE"
+        },
+        {
+            "symbol": "TCS",
+            "name": "Tata Consultancy Services Ltd",
+            "exchange": "NSE...
+
+
+[PASSED] GET /api/upstox/status
+  Description: Upstox connection status
+  Status Code: 200 (Expected: 200)
+  Response Time: 2060ms
+  Response Sample: {
+    "status": "success",
+    "upstox": {
+        "connected": false,
+        "api_available": true,
+        "service": "operational"
+    },
+    "message": "Upstox not connected - using fallback data"
+}...
+
+
+[PASSED] GET /api/scanner/momentum
+  Description: Momentum scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 2076ms
+  Response Sample: {
+    "type": "bucket_update",
+    "timestamp": "2025-12-27T14:18:35.863247",
+    "data": [
+        {
+            "symbol": "3MINDIA",
+            "ltp": 34575.0,
+            "prev_close": 35010.0,
+            "change_pct": -1.24,
+            "momentum_score": 45,
+            "bucket": "MODERATE_BEA...
+
+
+[PASSED] GET /api/scanner/breakout
+  Description: Breakout scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 2372ms
+  Response Sample: {
+    "type": "breakout_scan",
+    "timestamp": "2025-12-27T14:18:38.261937",
+    "data": [
+        {
+            "symbol": "JBMA",
+            "ltp": 639.95,
+            "prev_close": 577.95,
+            "change_pct": 10.73,
+            "breakout_score": 100,
+            "pattern": "BULLISH_BREAKOU...
+
+
+[PASSED] GET /api/scanner/reversal
+  Description: Reversal scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 2445ms
+  Response Sample: {
+    "type": "reversal_scan",
+    "timestamp": "2025-12-27T14:18:40.704760",
+    "data": [
+        {
+            "symbol": "IIFL",
+            "ltp": 602.15,
+            "prev_close": 572.75,
+            "change_pct": 5.13,
+            "reversal_score": 76,
+            "pattern": "BEARISH_REVERSAL"...
+
+
+[PASSED] GET /api/scanner/trendfinder
+  Description: TrendFinder AI scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 2341ms
+  Response Sample: {
+    "type": "trendfinder_scan",
+    "timestamp": "2025-12-27T14:18:43.052424",
+    "data": [
+        {
+            "symbol": "BDL",
+            "ltp": 1481.2,
+            "prev_close": 1431.4,
+            "change_pct": 3.48,
+            "trend_direction": "BULLISH",
+            "trend_strength": "...
+
+
+[PASSED] GET /api/market/orchestrator/status
+  Description: Market data orchestrator status
+  Status Code: 200 (Expected: 200)
+  Response Time: 2045ms
+  Response Sample: {
+    "status": "success",
+    "orchestrator": {
+        "websocket_healthy": false,
+        "rest_api_healthy": true,
+        "current_source": "REST",
+        "fallback_active": true,
+        "db_fallback_enabled": true
+    },
+    "timestamp": "2025-12-27T14:18:45.104502",
+    "note": "Orchestrato...
+
+
+[PASSED] GET /api/market/health
+  Description: Market service health
+  Status Code: 200 (Expected: 200)
+  Response Time: 2169ms
+  Response Sample: {
+    "status": "healthy",
+    "services": {
+        "upstox_api": "connected",
+        "database": "healthy",
+        "cache": "healthy"
+    },
+    "timestamp": "2025-12-27T14:18:47.275117"
+}...
+
+
+[PASSED] GET /api/quant/symbols
+  Description: Get available symbols for backtesting
+  Status Code: 200 (Expected: 200)
+  Response Time: 2230ms
+  Response Sample: {
+    "status": "success",
+    "symbols": [],
+    "count": 0,
+    "with_data_count": 0
+}...
+
+
+[PASSED] GET /api/quant/strategies
+  Description: Get available strategies
+  Status Code: 200 (Expected: 200)
+  Response Time: 2039ms
+  Response Sample: {
+    "strategies": [
+        {
+            "name": "MACrossover",
+            "description": "Moving Average Crossover Strategy",
+            "version": "1.0.0",
+            "default_params": {
+                "fast_period": 10,
+                "slow_period": 30,
+                "ma_type": "EMA",
+ ...
+
+
+[PASSED] GET /api/v1/walk-forward/symbols
+  Description: Get WF backtest symbols
+  Status Code: 200 (Expected: 200)
+  Response Time: 2886ms
+  Response Sample: {
+    "symbols": [
+        "3MINDIA",
+        "ABB",
+        "ACC",
+        "ACE",
+        "ADANIENT",
+        "ADANIGREEN",
+        "ADANIPORTS",
+        "AFFLE",
+        "AIAENG",
+        "AJANTPHARM",
+        "ALKEM",
+        "ALKYLAMINE",
+        "ALLCARGO",
+        "AMBUJACEM",
+        "ANGELON...
+
+
+[PASSED] GET /api/v1/experiment-lab/strategies
+  Description: Get lab strategies
+  Status Code: 200 (Expected: 200)
+  Response Time: 2079ms
+  Response Sample: [
+    {
+        "id": 1,
+        "name": "RSI Mean Reversion",
+        "category": "A",
+        "description": "Buy when RSI is oversold (<30), sell when overbought (>70)"
+    },
+    {
+        "id": 2,
+        "name": "Bollinger Bands Breakout",
+        "category": "A",
+        "description": "Trade...
+
+
+[PASSED] GET /api/engines/performance
+  Description: Get engine performance metrics
+  Status Code: 200 (Expected: 200)
+  Response Time: 2039ms
+  Response Sample: {
+    "status": "success",
+    "engines": {
+        "Trend Finder AI": {
+            "performance": 11.5,
+            "win_rate": 61.2,
+            "data_source": "simulated"
+        },
+        "Breakout Detector": {
+            "performance": 8.0,
+            "win_rate": 59.1,
+            "data_sou...
+
+
+FAILED TESTS (1):
+--------------------------------------------------------------------------------
+
+[FAILED] GET /api/algorithms
+  Description: Get algorithms
+  Expected Code: 200
+  Actual Code: 403
+  Error: {"detail":"Not authenticated"}...
+
+
+SKIPPED TESTS (15):
+--------------------------------------------------------------------------------
+
+[SKIPPED] GET /api/trading/portfolio
+  Description: Portfolio data
+  Reason: Requires authentication
+
+
+[SKIPPED] GET /api/upstox/user-profile
+  Description: User profile
+  Reason: Requires Upstox authentication
+
+
+[SKIPPED] POST /api/quant/backtest
+  Description: Run backtest
+  Reason: Requires valid backtest parameters
+
+
+[SKIPPED] POST /api/v1/walk-forward/backtest
+  Description: Run WF backtest
+  Reason: Requires valid WF parameters
+
+
+[SKIPPED] POST /api/v1/experiment-lab/backtest
+  Description: Run lab backtest
+  Reason: Requires valid lab parameters
+
+
+[SKIPPED] POST /api/ai/prompt
+  Description: AI strategy prompt
+  Reason: Requires authentication and valid prompt
+
+
+[SKIPPED] GET /api/ai/strategies
+  Description: Get AI strategies
+  Reason: Requires authentication
+
+
+[SKIPPED] GET /api/alpha/config
+  Description: Get AlphaPrime config
+  Reason: Requires authentication
+
+
+[SKIPPED] POST /api/agentic-bot/process
+  Description: Process agentic bot request
+  Reason: Requires authentication and valid request
+
+
+[SKIPPED] GET /api/alerts
+  Description: Get alerts
+  Reason: Requires authentication
+
+
+[SKIPPED] POST /api/algorithms/execute
+  Description: Execute algorithm
+  Reason: Requires valid algorithm parameters
+
+
+[SKIPPED] GET /api/orders
+  Description: Get orders
+  Reason: Requires authentication
+
+
+[SKIPPED] GET /api/risk/profile
+  Description: Get risk profile
+  Reason: Requires authentication
+
+
+[SKIPPED] GET /api/settings
+  Description: Get user settings
+  Reason: Requires authentication
+
+
+[SKIPPED] GET /api/analytics/overview
+  Description: Get analytics overview
+  Reason: Requires authentication
+
+================================================================================
+END OF REPORT
+================================================================================

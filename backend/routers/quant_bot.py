@@ -9,9 +9,15 @@ from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 import pandas as pd
 import logging
+import numpy as np
 
 from sqlalchemy.orm import Session
 from database import get_db
+
+# New strategy system imports
+from core.backtest.strategies import StrategyRegistry
+from core.backtest.costs import OrderSide
+from core.backtest.executor import OrderType
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +84,79 @@ class StrategyListResponse(BaseModel):
 # Helper Functions
 # =====================
 
+class NewStrategyAdapter:
+    """Adapter to run vectorized strategies in the event-driven BacktestEngine"""
+    def __init__(self, strategy_instance, params):
+        self.strategy_instance = strategy_instance
+        self.params = params
+        self.signals_df = None
+        self.name = strategy_instance.metadata.display_name
+        self.version = "1.5.0"
+        self._symbol = ""
+
+    def on_init(self, df):
+        """Pre-calculate signals for the entire period"""
+        try:
+            self.signals_df = self.strategy_instance.generate_signals(df, self.params)
+        except Exception as e:
+            logger.error(f"Error in strategy generate_signals: {e}")
+            self.signals_df = None
+
+    def on_bar(self, bar, history, positions, executor):
+        """Called for each bar - looks up pre-calculated signals"""
+        if self.signals_df is None:
+            return None
+            
+        timestamp = bar.name
+        if self.signals_df is None or timestamp not in self.signals_df.index:
+            return None
+            
+        row = self.signals_df.loc[timestamp]
+        signal = row.get('signal')
+        symbol = self._symbol or "UNKNOWN"
+
+        if signal == 'BUY':
+            if not executor.has_position(symbol):
+                # Calculate quantity: use 95% of cash to be safe with costs
+                price = bar['close']
+                qty = int((executor.cash * 0.95) / price)
+                if qty > 0:
+                    executor.submit_order(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        quantity=qty,
+                        order_type=OrderType.MARKET
+                    )
+        elif signal == 'SELL':
+            if executor.has_position(symbol):
+                pos = executor.get_position(symbol)
+                executor.submit_order(
+                    symbol=symbol,
+                    side=OrderSide.SELL,
+                    quantity=pos.quantity,
+                    order_type=OrderType.MARKET
+                )
+        return None
+
 def get_strategy_class(name: str):
-    """Get strategy class by name"""
+    """Get strategy class by name (Old System) or Adapter (New System)"""
     from core.strategies import AVAILABLE_STRATEGIES
     
+    # Try old system first
+    if name in AVAILABLE_STRATEGIES:
+        return AVAILABLE_STRATEGIES[name]
+    
+    # Try new registry system
+    new_strat = StrategyRegistry.get(name)
+    if new_strat:
+        # Return a lambda that creates the adapter
+        return lambda params: NewStrategyAdapter(new_strat, params)
+        
     if name not in AVAILABLE_STRATEGIES:
-        available = ', '.join(AVAILABLE_STRATEGIES.keys())
-        raise HTTPException(status_code=400, detail=f"Unknown strategy: {name}. Available: {available}")
+        available_old = list(AVAILABLE_STRATEGIES.keys())
+        available_new = [s.name for s in StrategyRegistry.list_all()]
+        available = ', '.join(available_old + available_new[:10]) + "..."
+        raise HTTPException(status_code=400, detail=f"Unknown strategy: {name}. Total available: {len(available_old) + len(available_new)}")
     
     return AVAILABLE_STRATEGIES[name]
 
@@ -177,6 +249,10 @@ async def run_backtest(request: BacktestRequest, db: Session = Depends(get_db)):
         # Get strategy class and create instance
         strategy_class = get_strategy_class(request.strategy)
         strategy = strategy_class(request.params)
+        
+        # If it's the new adapter system, set the symbol
+        if isinstance(strategy, NewStrategyAdapter):
+            strategy._symbol = request.symbol
         
         # Create backtest config
         config = BacktestConfig(

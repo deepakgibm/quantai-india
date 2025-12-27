@@ -13,7 +13,7 @@ import AlgoBuilder from './pages/AlgoBuilder';
 import LiveMonitor from './pages/LiveMonitor';
 import AlphaPrime from './pages/AlphaPrime';
 import ETLStatus from './pages/ETLStatus';
-import QuantBot from './pages/QuantBot';
+import Backtest from './pages/Backtest';
 import StrategyLab from './pages/StrategyLab';
 import DriftMonitor from './pages/DriftMonitor';
 import AuditReports from './pages/AuditReports';
@@ -22,6 +22,7 @@ import SectorHeatmapPage from './pages/SectorHeatmapPage';
 import MomentAlert from './pages/MomentAlert';
 import Week52Breakout from './pages/Week52Breakout';
 import WalkForwardBacktest from './pages/WalkForwardBacktest';
+import ExperimentLab from './pages/ExperimentLab';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -111,7 +112,7 @@ const App: React.FC = () => {
       case Page.ETL_STATUS:
         return <ETLStatus />;
       case Page.QUANT_BOT:
-        return <QuantBot />;
+        return <Backtest />;
       case Page.STRATEGY_LAB:
         return <StrategyLab />;
       case Page.DRIFT_MONITOR:
@@ -128,6 +129,8 @@ const App: React.FC = () => {
         return <Week52Breakout />;
       case Page.WALK_FORWARD_BACKTEST:
         return <WalkForwardBacktest />;
+      case Page.EXPERIMENT_LAB:
+        return <ExperimentLab />;
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }

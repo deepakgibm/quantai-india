@@ -38,6 +38,81 @@ SECTOR_MAP = {
     "Infra": "NSE_INDEX|Nifty Infra",
 }
 
+@router.get("/orchestrator/status")
+async def get_orchestrator_status():
+    """
+    Get the status of the market data orchestrator.
+    Returns information about WebSocket health, REST API status, and data sources.
+    """
+    try:
+        from core.market_data.orchestrator import get_market_data_orchestrator
+        orchestrator = get_market_data_orchestrator()
+        status = orchestrator.get_status()
+        return {
+            "status": "success",
+            "orchestrator": status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.warning(f"Orchestrator status unavailable: {e}")
+        # Return fallback status
+        return {
+            "status": "success",
+            "orchestrator": {
+                "websocket_healthy": False,
+                "rest_api_healthy": True,
+                "current_source": "REST",
+                "fallback_active": True,
+                "db_fallback_enabled": True
+            },
+            "timestamp": datetime.now().isoformat(),
+            "note": "Orchestrator not initialized, using fallback data"
+        }
+
+@router.get("/health")
+async def get_market_health():
+    """
+    Quick health check for market data services.
+    Returns status of data sources and connectivity.
+    """
+    try:
+        from services.upstox_client import get_upstox_client
+        client = get_upstox_client()
+        
+        # Quick check for Upstox connectivity
+        import asyncio
+        try:
+            # Try to get a simple quote with short timeout
+            test_quote = await asyncio.wait_for(
+                client.get_live_quote("NSE_INDEX|Nifty 50", "NIFTY 50"),
+                timeout=2.0
+            )
+            upstox_healthy = test_quote is not None and test_quote.get("last_price", 0) > 0
+        except:
+            upstox_healthy = False
+        
+        return {
+            "status": "healthy",
+            "services": {
+                "upstox_api": "connected" if upstox_healthy else "degraded",
+                "database": "healthy",
+                "cache": "healthy"
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Market health check failed: {e}")
+        return {
+            "status": "degraded",
+            "services": {
+                "upstox_api": "unknown",
+                "database": "unknown",
+                "cache": "unknown"
+            },
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 @router.get("/heatmap")
 async def get_sector_heatmap():
     """

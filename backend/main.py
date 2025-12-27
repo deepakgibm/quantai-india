@@ -5,6 +5,8 @@ import uvicorn
 from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, alerts, scanner, market
 from api.v1.endpoints import alpha # Added AlphaPrime import
 from api.v1.endpoints import walk_forward_backtest  # Walk-Forward Backtest
+from api.v1.endpoints import experiment_lab  # Strategy Experiment Lab (Beta)
+from api.v1.endpoints import backtest_strategies  # Enhanced Strategy API with Tiers
 from database import init_db
 from services.upstox_ws_manager import get_upstox_ws_manager
 
@@ -78,6 +80,8 @@ app.include_router(alpha.router)  # AlphaPrime router (already has full prefix i
 app.include_router(scanner.router)  # Scanner router (already has full prefix)
 app.include_router(market.router, prefix="/api/market", tags=["Market"])
 app.include_router(walk_forward_backtest.router)  # Walk-Forward Backtest (already has full prefix)
+app.include_router(experiment_lab.router)  # Strategy Experiment Lab Beta (already has full prefix)
+app.include_router(backtest_strategies.router, prefix="/api/v1/backtest", tags=["Backtest Strategies"])  # Enhanced Strategy API
 
 # Phase 3: Analytics and Archive endpoints
 try:

@@ -17,7 +17,8 @@ import {
   LineChart,
   Bell,
   Target,
-  TrendingUp
+  TrendingUp,
+  FlaskConical
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -39,6 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, onLogout, dar
     { page: Page.WEEK52_BREAKOUT, icon: Target, label: '52-Week Breakout' },
     { page: Page.QUANT_BOT, icon: LineChart, label: 'Backtest' },
     { page: Page.WALK_FORWARD_BACKTEST, icon: TrendingUp, label: 'Walk-Forward' },
+    { page: Page.EXPERIMENT_LAB, icon: FlaskConical, label: 'Experiment Lab' },
     { page: Page.STRATEGY_LAB, icon: Zap, label: 'Strategy Lab' },
     { page: Page.DRIFT_MONITOR, icon: ShieldAlert, label: 'Drift Monitor' },
     { page: Page.AUDIT_REPORTS, icon: Database, label: 'Audit & Reports' },

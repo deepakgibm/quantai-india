@@ -15,6 +15,8 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime
 import logging
+import sqlite3
+import os
 
 from utils.auth import get_optional_user
 from models import User
@@ -22,7 +24,7 @@ from models import User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/v1/backtest/walk-forward",
+    prefix="/api/v1/walk-forward",
     tags=["Walk-Forward Backtest"]
 )
 
@@ -369,6 +371,8 @@ async def get_walk_forward_presets():
 async def get_available_symbols(timeframe: str = "1D"):
     """Get list of symbols available in database for a given timeframe"""
     import psycopg2
+    from config import settings
+    from urllib.parse import urlparse
     
     # Map timeframe to interval
     interval_map = {
@@ -376,17 +380,26 @@ async def get_available_symbols(timeframe: str = "1D"):
         "15m": "15min",
         "30m": "30min",
         "1h": "1hour",
+        "1H": "1hour",
         "1D": "1d"
     }
     interval = interval_map.get(timeframe, "1d")
     
     try:
+        # Parse DATABASE_URL from settings (postgresql+asyncpg://user:pass@host:port/db)
+        db_url = str(settings.DATABASE_URL)
+        # Remove asyncpg driver prefix if present
+        if '+asyncpg' in db_url:
+            db_url = db_url.replace('+asyncpg', '')
+        
+        parsed = urlparse(db_url)
+        
         conn = psycopg2.connect(
-            host='localhost',
-            port=5432,
-            user='postgres',
-            password='admin',
-            database='quantai'
+            host=parsed.hostname,
+            port=parsed.port or 5432,
+            user=parsed.username,
+            password=parsed.password,
+            database=parsed.path.lstrip('/')
         )
         cursor = conn.cursor()
         
@@ -401,33 +414,97 @@ async def get_available_symbols(timeframe: str = "1D"):
         symbols = [row[0] for row in cursor.fetchall()]
         conn.close()
         
-        return {
-            "symbols": symbols,
-            "count": len(symbols),
-            "timeframe": timeframe,
-            "interval": interval
-        }
-    except Exception as e:
-        # Fallback: return all unique symbols
-        try:
+        if not symbols:
+            # Try without interval filter
             conn = psycopg2.connect(
-                host='localhost',
-                port=5432,
-                user='postgres',
-                password='admin',
-                database='quantai'
+                host=parsed.hostname,
+                port=parsed.port or 5432,
+                user=parsed.username,
+                password=parsed.password,
+                database=parsed.path.lstrip('/')
             )
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT symbol FROM stock_data ORDER BY symbol")
             symbols = [row[0] for row in cursor.fetchall()]
             conn.close()
+            
             return {
                 "symbols": symbols,
                 "count": len(symbols),
                 "timeframe": timeframe,
                 "interval": interval,
-                "note": "Returned all symbols as interval filter failed"
+                "source": "postgresql",
+                "note": "Returned all symbols (no data for specific interval)"
             }
-        except Exception as e2:
-            return {"symbols": [], "error": str(e2)}
+        
+        return {
+            "symbols": symbols,
+            "count": len(symbols),
+            "timeframe": timeframe,
+            "interval": interval,
+            "source": "postgresql"
+        }
+    except Exception as e:
+        logger.error(f"Error fetching symbols from PostgreSQL: {e}")
+        
+        # --- Fallback to SQLite ---
+        db_paths = [
+            r"c:\Users\Deepak Kumar\Downloads\quantai-india\quantai_review_later\quantai.db",
+            r"c:\Users\Deepak Kumar\Downloads\quantai-india\backend\quantai.db",
+            r"c:\Users\Deepak Kumar\Downloads\quantai-india\quantai.db",
+            "quantai.db"
+        ]
+        
+        target_db = None
+        for path in db_paths:
+            if os.path.exists(path):
+                target_db = path
+                break
+        
+        if target_db:
+            try:
+                logger.info(f"Falling back to SQLite discovery: {target_db}")
+                s_conn = sqlite3.connect(target_db)
+                s_cur = s_conn.cursor()
+                
+                # Try with interval
+                s_cur.execute("SELECT DISTINCT symbol FROM stock_data WHERE interval = ? ORDER BY symbol", (interval,))
+                s_symbols = [row[0] for row in s_cur.fetchall()]
+                
+                if not s_symbols:
+                    # Try daily table
+                    s_cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='nifty_100_daily'")
+                    if s_cur.fetchone():
+                        s_cur.execute("SELECT DISTINCT symbol FROM nifty_100_daily ORDER BY symbol")
+                        s_symbols = [row[0] for row in s_cur.fetchall()]
+                
+                s_conn.close()
+                if s_symbols:
+                    return {
+                        "symbols": s_symbols,
+                        "count": len(s_symbols),
+                        "timeframe": timeframe,
+                        "interval": interval,
+                        "source": "sqlite",
+                        "db_path": target_db
+                    }
+            except Exception as se:
+                logger.error(f"SQLite fallback failed: {se}")
+
+        # --- Ultimate Hardcoded Fallback ---
+        fallback_symbols = [
+            "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
+            "HINDUNILVR", "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK",
+            "LT", "AXISBANK", "ASIANPAINT", "MARUTI", "BAJFINANCE"
+        ]
+        return {
+            "symbols": fallback_symbols,
+            "count": len(fallback_symbols),
+            "timeframe": timeframe,
+            "error": str(e),
+            "source": "hardcoded_fallback",
+            "note": "Using fallback symbol list due to database connection error"
+        }
+
+
 

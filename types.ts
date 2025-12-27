@@ -21,6 +21,7 @@ export enum Page {
   WEEK52_BREAKOUT = 'WEEK52_BREAKOUT',
   FORGOT_PASSWORD = 'FORGOT_PASSWORD',
   WALK_FORWARD_BACKTEST = 'walk_forward_backtest',
+  EXPERIMENT_LAB = 'experiment_lab',
 }
 
 export interface Stock {

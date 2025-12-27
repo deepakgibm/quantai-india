@@ -16,6 +16,7 @@ import {
     X,
     Search
 } from 'lucide-react';
+import SymbolSearch from '../components/SymbolSearch';
 
 // Types
 interface WalkForwardConfig {
@@ -353,7 +354,6 @@ const HelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
 const WalkForwardBacktest: React.FC = () => {
     // Config state
     const [symbols, setSymbols] = useState<string[]>([]);
-    const [symbolInput, setSymbolInput] = useState('');
     const [strategyType, setStrategyType] = useState<'RULE_BASED' | 'ML'>('RULE_BASED');
     const [strategyName, setStrategyName] = useState('ma_crossover');
     const [timeframe, setTimeframe] = useState('1D');
@@ -366,8 +366,6 @@ const WalkForwardBacktest: React.FC = () => {
     });
     const [capital, setCapital] = useState(100000);
     const [mlModel, setMlModel] = useState<'NONE' | 'XGBOOST' | 'LSTM'>('NONE');
-    const [symbolSearch, setSymbolSearch] = useState('');
-    const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
 
     // Result state
     const [result, setResult] = useState<WalkForwardResult | null>(null);
@@ -379,32 +377,6 @@ const WalkForwardBacktest: React.FC = () => {
     const [selectedWindow, setSelectedWindow] = useState<number | null>(null);
     const [showHelp, setShowHelp] = useState(false);
 
-    // Available symbols from database
-    const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
-    const [loadingSymbols, setLoadingSymbols] = useState(false);
-
-    // Fetch available symbols when timeframe changes
-    useEffect(() => {
-        const fetchSymbols = async () => {
-            setLoadingSymbols(true);
-            try {
-                const response = await fetch(`/api/v1/backtest/walk-forward/symbols?timeframe=${timeframe}`);
-                const data = await response.json();
-                if (data.symbols && data.symbols.length > 0) {
-                    setAvailableSymbols(data.symbols);
-                    // Set first symbol as default if no symbols selected
-                    if (symbols.length === 0) {
-                        setSymbols([data.symbols[0]]);
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to fetch symbols:', err);
-            } finally {
-                setLoadingSymbols(false);
-            }
-        };
-        fetchSymbols();
-    }, [timeframe]);
 
     // Apply preset when trade style changes
     useEffect(() => {
@@ -414,23 +386,6 @@ const WalkForwardBacktest: React.FC = () => {
         }
     }, [tradeStyle]);
 
-    // Add symbol - only if it's in available symbols
-    const addSymbol = () => {
-        const sym = symbolInput.trim().toUpperCase();
-        if (sym && !symbols.includes(sym)) {
-            if (availableSymbols.includes(sym)) {
-                setSymbols([...symbols, sym]);
-                setSymbolInput('');
-            } else {
-                setError(`Symbol ${sym} not available in database for ${timeframe} timeframe`);
-            }
-        }
-    };
-
-    // Remove symbol
-    const removeSymbol = (sym: string) => {
-        setSymbols(symbols.filter(s => s !== sym));
-    };
 
     // Run backtest
     const runBacktest = async () => {
@@ -447,22 +402,30 @@ const WalkForwardBacktest: React.FC = () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
-            const response = await fetch('/api/v1/backtest/walk-forward', {
+            // Corrected API endpoint to match backend router
+            const apiUrl = '/api/v1/walk-forward';
+            const requestBody = {
+                symbols,
+                exchange: 'NSE',
+                strategy_type: strategyType,
+                strategy_name: strategyName,
+                timeframe,
+                trade_style: tradeStyle,
+                walk_forward: wfConfig,
+                capital,
+                ml_model: strategyType === 'ML' ? mlModel : 'NONE'
+            };
+
+            console.log('[Walk-Forward] Starting backtest with:', requestBody);
+
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    symbols,
-                    exchange: 'NSE',
-                    strategy_type: strategyType,
-                    strategy_name: strategyName,
-                    timeframe,
-                    trade_style: tradeStyle,
-                    walk_forward: wfConfig,
-                    capital,
-                    ml_model: strategyType === 'ML' ? mlModel : 'NONE'
-                }),
+                body: JSON.stringify(requestBody),
                 signal: controller.signal
             });
+
+            console.log('[Walk-Forward] Backtest response status:', response.status);
 
             clearTimeout(timeoutId);
 
@@ -542,104 +505,15 @@ const WalkForwardBacktest: React.FC = () => {
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
                         <h3 className="font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                             <BarChart2 size={18} />
-                            Symbols ({availableSymbols.length} available)
+                            Symbols
                         </h3>
 
-                        {/* Searchable Symbol Input */}
-                        <div className="relative mb-3">
-                            <input
-                                type="text"
-                                value={symbolSearch}
-                                onChange={e => {
-                                    setSymbolSearch(e.target.value);
-                                    setShowSymbolDropdown(true);
-                                }}
-                                onFocus={() => setShowSymbolDropdown(true)}
-                                placeholder="Search Nifty 500 symbols..."
-                                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            />
-
-                            {/* Dropdown */}
-                            {showSymbolDropdown && symbolSearch.length > 0 && (
-                                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                    {availableSymbols
-                                        .filter(sym =>
-                                            sym.toLowerCase().includes(symbolSearch.toLowerCase()) &&
-                                            !symbols.includes(sym)
-                                        )
-                                        .slice(0, 20)
-                                        .map(sym => (
-                                            <button
-                                                key={sym}
-                                                onClick={() => {
-                                                    setSymbols([...symbols, sym]);
-                                                    setSymbolSearch('');
-                                                    setShowSymbolDropdown(false);
-                                                }}
-                                                className="w-full px-3 py-2 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-700 dark:text-slate-300"
-                                            >
-                                                {sym}
-                                            </button>
-                                        ))
-                                    }
-                                    {availableSymbols.filter(sym =>
-                                        sym.toLowerCase().includes(symbolSearch.toLowerCase()) &&
-                                        !symbols.includes(sym)
-                                    ).length === 0 && (
-                                            <div className="px-3 py-2 text-sm text-slate-500">
-                                                No matching symbols found
-                                            </div>
-                                        )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Selected Symbols */}
-                        <div className="flex flex-wrap gap-2 mb-3">
-                            {symbols.map(sym => (
-                                <span
-                                    key={sym}
-                                    className="px-3 py-1.5 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 text-indigo-700 dark:text-indigo-300 rounded-full text-sm font-medium flex items-center gap-2 border border-indigo-200 dark:border-indigo-700"
-                                >
-                                    {sym}
-                                    <button
-                                        onClick={() => removeSymbol(sym)}
-                                        className="hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full w-4 h-4 flex items-center justify-center text-xs"
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                            ))}
-                            {symbols.length === 0 && (
-                                <span className="text-sm text-slate-400 italic">No symbols selected</span>
-                            )}
-                        </div>
-
-                        {/* Quick Add Popular Symbols */}
-                        <div className="border-t border-slate-100 dark:border-slate-700 pt-3 mt-3">
-                            <p className="text-xs text-slate-500 mb-2">Quick add:</p>
-                            <div className="flex flex-wrap gap-1.5">
-                                {loadingSymbols ? (
-                                    <span className="text-xs text-slate-500">Loading symbols...</span>
-                                ) : (
-                                    ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'SBIN', 'ICICIBANK', 'BHARTIARTL', 'ITC']
-                                        .filter(sym => availableSymbols.includes(sym))
-                                        .map(sym => (
-                                            <button
-                                                key={sym}
-                                                onClick={() => !symbols.includes(sym) && setSymbols([...symbols, sym])}
-                                                disabled={symbols.includes(sym)}
-                                                className={`px-2 py-1 rounded text-xs transition ${symbols.includes(sym)
-                                                    ? 'bg-slate-200 dark:bg-slate-600 text-slate-400 cursor-not-allowed'
-                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 hover:text-indigo-700'
-                                                    }`}
-                                            >
-                                                +{sym}
-                                            </button>
-                                        ))
-                                )}
-                            </div>
-                        </div>
+                        <SymbolSearch
+                            selectedSymbols={symbols}
+                            onSymbolsChange={setSymbols}
+                            timeframe={timeframe}
+                            maxSymbols={10}
+                        />
                     </div>
 
                     {/* Strategy Selection */}

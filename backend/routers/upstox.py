@@ -10,6 +10,40 @@ from config import settings
 
 router = APIRouter()
 
+@router.get("/status")
+async def get_upstox_status():
+    """
+    Get Upstox connection status.
+    Returns connection state without requiring authentication.
+    """
+    try:
+        from services.upstox_client import get_upstox_client
+        client = get_upstox_client()
+        
+        # Check if client has access token
+        has_token = hasattr(client, '_access_token') and client._access_token is not None
+        
+        return {
+            "status": "success",
+            "upstox": {
+                "connected": has_token,
+                "api_available": True,
+                "service": "operational"
+            },
+            "message": "Upstox is connected" if has_token else "Upstox not connected - using fallback data"
+        }
+    except Exception as e:
+        logger.error(f"Upstox status check failed: {e}")
+        return {
+            "status": "error",
+            "upstox": {
+                "connected": False,
+                "api_available": False,
+                "service": "unavailable"
+            },
+            "message": f"Upstox service error: {str(e)}"
+        }
+
 @router.get("/auth-url", response_model=UpstoxAuthResponse)
 async def get_upstox_auth_url(current_user: User = Depends(get_current_user)):
     auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={settings.UPSTOX_API_KEY}&redirect_uri={settings.UPSTOX_REDIRECT_URI}"

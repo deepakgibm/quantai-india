@@ -191,7 +191,12 @@ class BacktestEngine:
         # Generate strategy hash
         strategy_hash = self._generate_strategy_hash(strategy)
         
+        # Run bar-by-bar simulation
         logger.info(f"Starting backtest: {strategy.__class__.__name__} on {self.config.symbol}")
+        
+        # Strategy initialization hook (e.g., for pre-calculating indicators)
+        if hasattr(strategy, 'on_init'):
+            strategy.on_init(self.data_handler.data)
         
         # Run bar-by-bar simulation
         for bar_index, bar in enumerate(self.data_handler):
