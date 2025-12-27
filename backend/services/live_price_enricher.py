@@ -2,6 +2,7 @@
 Live Price Enrichment Service
 Fetches real-time prices from Upstox and enriches scanner results.
 Falls back to Yahoo Finance for unmapped symbols.
+Falls back to database prices when market is closed or APIs fail.
 """
 
 import requests
@@ -16,6 +17,70 @@ from data.nifty500_instruments import NIFTY_500_MAPPING
 INSTRUMENT_MAPPING = NIFTY_500_MAPPING
 
 
+def get_database_prices(symbols: List[str]) -> Dict[str, float]:
+    """
+    Fallback to database for prices when live APIs fail.
+    Fetches the most recent close prices from stock_data table.
+    """
+    prices = {}
+    try:
+        import sqlite3
+        import os
+        
+        # Find the database file
+        db_path = None
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "quantai.db"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "quantai.db"),
+            "quantai.db",
+            os.path.join(os.getcwd(), "quantai.db"),
+            os.path.join(os.getcwd(), "backend", "quantai.db"),
+        ]
+        
+        for path in possible_paths:
+            abs_path = os.path.abspath(path)
+            if os.path.exists(abs_path):
+                db_path = abs_path
+                break
+        
+        if not db_path:
+            print("⚠️ Database not found for price fallback")
+            return prices
+        
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get the latest close price for each symbol
+        placeholders = ",".join(["?" for _ in symbols])
+        query = f"""
+            SELECT symbol, close, timestamp
+            FROM stock_data
+            WHERE symbol IN ({placeholders})
+            AND close > 0
+            ORDER BY timestamp DESC
+        """
+        
+        cursor.execute(query, symbols)
+        rows = cursor.fetchall()
+        
+        # Only take the latest price for each symbol
+        seen = set()
+        for symbol, close, timestamp in rows:
+            if symbol not in seen:
+                prices[symbol] = float(close)
+                seen.add(symbol)
+        
+        conn.close()
+        
+        if prices:
+            print(f"📊 Got {len(prices)} prices from database fallback")
+            
+    except Exception as e:
+        print(f"⚠️ Database fallback error: {e}")
+    
+    return prices
+
+
 def get_yfinance_price(symbol: str) -> Optional[float]:
     """Fallback to Yahoo Finance for symbols not in Upstox mapping."""
     try:
@@ -28,6 +93,7 @@ def get_yfinance_price(symbol: str) -> Optional[float]:
     except Exception as e:
         print(f"⚠️ yFinance fallback failed for {symbol}: {e}")
     return None
+
 
 
 def get_instrument_key(symbol: str) -> Optional[str]:
@@ -125,6 +191,7 @@ def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, float]:
 def enrich_scanner_results(results: List[Dict], access_token: str = None) -> List[Dict]:
     """
     Enrich scanner results with live prices from Upstox.
+    Falls back to database prices when Upstox/yFinance are unavailable.
     
     Updates current_price, entry_price, target_price, and stop_loss
     based on real-time LTP instead of database close prices.
@@ -145,11 +212,19 @@ def enrich_scanner_results(results: List[Dict], access_token: str = None) -> Lis
     print(f"🔄 Fetching live prices for {len(symbols)} symbols...")
     live_prices = fetch_live_ltp(symbols, access_token)
     
+    # Find symbols without live prices and use database fallback
+    missing_symbols = [s for s in symbols if s not in live_prices]
+    if missing_symbols:
+        print(f"⚠️ {len(missing_symbols)} symbols missing live prices, trying database fallback...")
+        db_prices = get_database_prices(missing_symbols)
+        live_prices.update(db_prices)
+    
     if not live_prices:
-        print("⚠️ No live prices available, using database prices")
+        print("⚠️ No prices available from any source, using original values")
         return results
     
-    print(f"✅ Got live prices for {len(live_prices)} symbols")
+    print(f"✅ Got prices for {len(live_prices)}/{len(symbols)} symbols")
+    
     
     # Enrich each result
     enriched = []

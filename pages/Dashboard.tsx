@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import AgenticBotCard from '../components/AgenticBotCard';
 import { Page, Stock, AlgoConfig } from '../types';
-import { ArrowUpRight, ArrowDownRight, Zap, Play, Clock, TrendingUp, DollarSign, Activity, X, Loader2 } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { Zap, X, Loader2, Play } from 'lucide-react';
+
 import { api } from '../services/api';
 import TopMoversCard from '../components/TopMoversCard';
 
@@ -10,15 +10,6 @@ interface DashboardProps {
    onNavigate: (page: Page) => void;
 }
 
-const mockData = [
-   { name: '9:30', val: 4000 },
-   { name: '10:30', val: 3000 },
-   { name: '11:30', val: 5000 },
-   { name: '12:30', val: 2780 },
-   { name: '13:30', val: 1890 },
-   { name: '14:30', val: 2390 },
-   { name: '15:30', val: 3490 },
-];
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
    const [prompt, setPrompt] = useState('');
@@ -328,67 +319,165 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <AgenticBotCard />
          </div>
 
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Scanners List */}
-            <div className="lg:col-span-2 space-y-4">
-               <div className="flex items-center justify-between">
+         {/* AI Trading Engines - Professional HFT Dashboard */}
+         <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center gap-3">
                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">AI Trading Engines</h3>
-                  <button onClick={() => onNavigate(Page.ALGO_BUILDER)} className="text-brand-600 text-sm font-medium hover:underline">View All</button>
+                  <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
+                     {algorithms.filter(a => a.active).length} Active
+                  </span>
                </div>
+               <button onClick={() => onNavigate(Page.ALGO_BUILDER)} className="text-brand-600 text-sm font-medium hover:underline">
+                  Manage All
+               </button>
+            </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {algorithms.map(algo => (
-                     <div key={algo.id} className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all cursor-pointer"
-                        onClick={() => handleAlgorithmClick(algo)}>
-                        <div className="flex justify-between items-start mb-3">
-                           <div className={`p-2 rounded-lg ${algo.active ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
-                              <Zap size={18} />
+            {/* 3-Column Responsive Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               {algorithms.map((algo, index) => {
+                  // Generate mock sparkline data for visual effect
+                  const sparkData = Array.from({ length: 12 }, (_, i) => ({
+                     v: algo.active ? 50 + Math.sin(i * 0.8 + index) * 30 + Math.random() * 10 : 50
+                  }));
+
+                  // Mock metrics (in production, these would come from backend)
+                  const metrics = {
+                     winRate: algo.active ? 62 + (index * 3) % 20 : null,
+                     dailyROI: algo.performance,
+                     drawdown: algo.active ? -((index * 2.3) % 8).toFixed(1) : null,
+                     signals: algo.active ? Math.floor(5 + index * 2) : 0
+                  };
+
+                  return (
+                     <div
+                        key={algo.id}
+                        onClick={() => handleAlgorithmClick(algo)}
+                        className={`
+                           relative overflow-hidden rounded-xl p-4 cursor-pointer
+                           transition-all duration-300 ease-out
+                           hover:scale-[1.02] hover:shadow-xl
+                           ${algo.active
+                              ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-emerald-500/30 shadow-lg shadow-emerald-500/10'
+                              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                           }
+                        `}
+                     >
+                        {/* Glassmorphism overlay for active */}
+                        {algo.active && (
+                           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none"></div>
+                        )}
+
+                        {/* Header Row */}
+                        <div className="flex items-start justify-between mb-3 relative z-10">
+                           <div className="flex items-center gap-2">
+                              <div className={`p-2 rounded-lg ${algo.active
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                 }`}>
+                                 <Zap size={16} />
+                              </div>
+                              {algo.active && (
+                                 <div className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Live</span>
+                                 </div>
+                              )}
                            </div>
-                           <span className={`text-xs font-bold px-2 py-1 rounded-full ${algo.active ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-slate-100 text-slate-500'}`}>
-                              {algo.active ? 'RUNNING' : 'IDLE'}
-                           </span>
+                           <button
+                              onClick={(e) => {
+                                 e.stopPropagation();
+                                 toggleAlgorithm(algo.id);
+                              }}
+                              className={`p-1.5 rounded-lg transition-all ${algo.active
+                                    ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400'
+                                    : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500'
+                                 }`}
+                           >
+                              <Play size={14} fill="currentColor" />
+                           </button>
                         </div>
-                        <h4 className="font-bold text-slate-900 dark:text-white mb-1">{algo.name}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 h-10">{algo.description}</p>
 
-                        <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700">
+                        {/* Title & Description */}
+                        <h4 className={`font-bold text-sm mb-1 ${algo.active ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+                           {algo.name}
+                        </h4>
+                        <p className={`text-xs mb-3 line-clamp-2 ${algo.active ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                           {algo.description}
+                        </p>
+
+                        {/* Sparkline */}
+                        <div className="h-10 mb-3 relative">
+                           <svg className="w-full h-full" viewBox="0 0 100 40" preserveAspectRatio="none">
+                              <defs>
+                                 <linearGradient id={`spark-grad-${algo.id}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={algo.active ? '#10b981' : '#64748b'} stopOpacity="0.3" />
+                                    <stop offset="100%" stopColor={algo.active ? '#10b981' : '#64748b'} stopOpacity="0" />
+                                 </linearGradient>
+                              </defs>
+                              <path
+                                 d={`M 0 ${40 - sparkData[0].v * 0.4} ${sparkData.map((d, i) =>
+                                    `L ${(i / (sparkData.length - 1)) * 100} ${40 - d.v * 0.4}`
+                                 ).join(' ')} L 100 40 L 0 40 Z`}
+                                 fill={`url(#spark-grad-${algo.id})`}
+                              />
+                              <path
+                                 d={`M 0 ${40 - sparkData[0].v * 0.4} ${sparkData.map((d, i) =>
+                                    `L ${(i / (sparkData.length - 1)) * 100} ${40 - d.v * 0.4}`
+                                 ).join(' ')}`}
+                                 fill="none"
+                                 stroke={algo.active ? '#10b981' : '#64748b'}
+                                 strokeWidth="1.5"
+                              />
+                           </svg>
+                        </div>
+
+                        {/* Metrics Grid */}
+                        <div className={`grid grid-cols-3 gap-2 pt-3 border-t ${algo.active ? 'border-slate-700/50' : 'border-slate-100 dark:border-slate-700'
+                           }`}>
                            <div>
-                              <span className="text-xs text-slate-400 block">Performance</span>
-                              <span className={`text-sm font-bold ${algo.performance === null ? 'text-slate-400' : algo.performance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                 {algo.performance === null ? '–' : `${algo.performance > 0 ? '+' : ''}${algo.performance}%`}
+                              <span className={`text-[10px] uppercase tracking-wide block ${algo.active ? 'text-slate-500' : 'text-slate-400'
+                                 }`}>Win Rate</span>
+                              <span className={`text-sm font-bold ${algo.active ? 'text-white' : 'text-slate-800 dark:text-slate-200'
+                                 }`}>
+                                 {metrics.winRate ? `${metrics.winRate}%` : '–'}
                               </span>
                            </div>
-                           <div className={`p-2 rounded-full transition-all ${algo.active ? 'bg-green-100 dark:bg-green-900/30' : 'bg-slate-100 dark:bg-slate-700'}`}>
-                              <Play size={16} className={`${algo.active ? 'text-green-600 dark:text-green-400' : 'text-slate-600 dark:text-slate-300'}`} fill="currentColor" />
+                           <div>
+                              <span className={`text-[10px] uppercase tracking-wide block ${algo.active ? 'text-slate-500' : 'text-slate-400'
+                                 }`}>Daily ROI</span>
+                              <span className={`text-sm font-bold ${metrics.dailyROI === null
+                                    ? 'text-slate-400'
+                                    : metrics.dailyROI >= 0
+                                       ? 'text-emerald-500'
+                                       : 'text-rose-500'
+                                 }`}>
+                                 {metrics.dailyROI === null ? '–' : `${metrics.dailyROI > 0 ? '+' : ''}${metrics.dailyROI}%`}
+                              </span>
+                           </div>
+                           <div>
+                              <span className={`text-[10px] uppercase tracking-wide block ${algo.active ? 'text-slate-500' : 'text-slate-400'
+                                 }`}>Drawdown</span>
+                              <span className={`text-sm font-bold ${algo.active ? 'text-rose-400' : 'text-slate-400'
+                                 }`}>
+                                 {metrics.drawdown ? `${metrics.drawdown}%` : '–'}
+                              </span>
                            </div>
                         </div>
-                     </div>
-                  ))}
-               </div>
-            </div>
 
-            {/* Equity Curve */}
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-               <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-slate-800 dark:text-white">Equity Curve</h3>
-                  <select className="text-xs bg-slate-100 dark:bg-slate-700 rounded p-1 border-none outline-none">
-                     <option>Intraday</option>
-                     <option>Week</option>
-                  </select>
-               </div>
-               <div className="h-40 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                     <LineChart data={mockData}>
-                        <Tooltip
-                           contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                           cursor={{ stroke: '#cbd5e1' }}
-                        />
-                        <Line type="monotone" dataKey="val" stroke="#0ea5e9" strokeWidth={2} dot={false} />
-                     </LineChart>
-                  </ResponsiveContainer>
-               </div>
+                        {/* Signals badge for active */}
+                        {algo.active && metrics.signals > 0 && (
+                           <div className="absolute top-3 right-12 flex items-center gap-1 bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                              <span className="text-[10px] font-bold">{metrics.signals} signals</span>
+                           </div>
+                        )}
+                     </div>
+                  );
+               })}
             </div>
          </div>
+
+
 
          {/* AI Scanner Modal */}
          {showScanModal && currentScan && (
