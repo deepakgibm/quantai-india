@@ -37,6 +37,15 @@ class ArchiveOldRequest(BaseModel):
 # ============================================
 # Analytics Endpoints
 # ============================================
+@router.get("/overview")
+async def get_analytics_overview():
+    """Get high-level analytics overview."""
+    return {
+        "status": "success",
+        "market_sentiment": "Neutral",
+        "active_alerts": 5,
+        "daily_volume_status": "High"
+    }
 
 @router.get("/momentum/top")
 async def get_top_momentum(

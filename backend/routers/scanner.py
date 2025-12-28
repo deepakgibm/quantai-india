@@ -10,24 +10,38 @@ from datetime import datetime
 import asyncio
 import json
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
-# Import strategy registry to trigger auto-registration
-# These are optional and may fail if dependencies are missing
+# Global scanner components
+StrategyRegistry = None
+ScannerEngine = None
+get_realtime_scanner_engine = None
+_scanner_available = False
+scanner = None
+
 try:
     from strategies import StrategyRegistry
     from core.scanner.scanner_engine import ScannerEngine
     from core.scanner.realtime_scanner_engine import get_realtime_scanner_engine
+    
     _scanner_available = True
-    scanner = ScannerEngine()
-except ImportError as e:
-    logger.warning(f"Scanner engine not available: {e}")
-    StrategyRegistry = None
-    ScannerEngine = None
-    get_realtime_scanner_engine = None
+    
+    if ScannerEngine is not None:
+        scanner = ScannerEngine()
+        logger.info(f"Scanner engine initialized with {len(StrategyRegistry._strategies) if StrategyRegistry else 0} strategies")
+except Exception as e:
+    logger.warning(f"Scanner components initialization failed: {e}")
+    
+    # Second attempt to at least get the registry for the strategy list
+    if StrategyRegistry is None:
+        try:
+            from strategies import StrategyRegistry
+        except Exception:
+            StrategyRegistry = None
+    
     _scanner_available = False
-    scanner = None
 
 router = APIRouter(prefix="/api/scanner", tags=["Scanner"])
 
@@ -64,34 +78,14 @@ class PresetRequest(BaseModel):
 saved_presets: Dict[str, Dict] = {}
 
 
+
+
 @router.get("/strategies")
 async def get_strategies():
     """Get all available scanning strategies grouped by tier."""
-    try:
-        strategies = scanner.get_available_strategies()
-        
-        # Group by tier
-        grouped = {
-            "Tier 1 - Highest Win Rate": [],
-            "Tier 2 - Solid Strategies": [],
-            "Tier 3 - Advanced Strategies": [],
-            "Multi-Timeframe Confluence": []
-        }
-        
-        for s in strategies:
-            tier = s.get("tier", "Tier 3 - Advanced Strategies")
-            if tier in grouped:
-                grouped[tier].append(s)
-            else:
-                grouped["Tier 3 - Advanced Strategies"].append(s)
-        
-        return {
-            "status": "success",
-            "strategies": grouped,
-            "total_count": len(strategies)
-        }
-    except Exception as e:
-        logger.error(f"Error getting strategies: {e}")
+    # Check if StrategyRegistry is available (set to None if import failed)
+    if StrategyRegistry is None:
+        logger.warning("StrategyRegistry not available - returning fallback strategies")
         return {
             "status": "success",
             "strategies": {
@@ -106,6 +100,30 @@ async def get_strategies():
             },
             "total_count": 2
         }
+    
+    # Get all registered strategies
+    strategies = StrategyRegistry.list_strategies()
+    
+    # Group by tier
+    grouped = {
+        "Tier 1 - Highest Win Rate": [],
+        "Tier 2 - Solid Strategies": [],
+        "Tier 3 - Advanced Strategies": [],
+        "Multi-Timeframe Confluence": []
+    }
+    
+    for s in strategies:
+        tier = s.get("tier", "Tier 3 - Advanced Strategies")
+        if tier in grouped:
+            grouped[tier].append(s)
+        else:
+            grouped["Tier 3 - Advanced Strategies"].append(s)
+    
+    return {
+        "status": "success",
+        "strategies": grouped,
+        "total_count": len(strategies)
+    }
 
 
 @router.get("/indices")

@@ -2,28 +2,28 @@
 ================================================================================
 API TEST SUMMARY REPORT
 ================================================================================
-Generated: 2025-12-27 14:19:00
+Generated: 2025-12-28 23:44:13
 Base URL: http://localhost:8000
 
 OVERALL STATISTICS:
-  Total Tests:   32
-  Passed:        16 ✓
-  Failed:        1 ✗
-  Skipped:       15 ⊘
-  Success Rate:  94.1%
+  Total Tests:   30
+  Passed:        23 ✓
+  Failed:        3 ✗
+  Skipped:       4 ⊘
+  Success Rate:  88.5%
 
 ================================================================================
 DETAILED RESULTS:
 ================================================================================
 
 
-PASSED TESTS (16):
+PASSED TESTS (23):
 --------------------------------------------------------------------------------
 
 [PASSED] GET /
   Description: Root endpoint
   Status Code: 200 (Expected: 200)
-  Response Time: 2055ms
+  Response Time: 3830ms
   Response Sample: {
     "message": "QuantAI India Trading Bot API",
     "status": "running"
@@ -33,16 +33,29 @@ PASSED TESTS (16):
 [PASSED] GET /health
   Description: Health check endpoint
   Status Code: 200 (Expected: 200)
-  Response Time: 2062ms
+  Response Time: 2019ms
   Response Sample: {
     "status": "healthy"
+}...
+
+
+[PASSED] GET /api/auth/me
+  Description: Current user info
+  Status Code: 200 (Expected: 200)
+  Response Time: 2081ms
+  Response Sample: {
+    "email": "dthat@gmail.com",
+    "username": "admin",
+    "full_name": "Admin User",
+    "id": 4,
+    "is_active": true
 }...
 
 
 [PASSED] GET /api/trading/market-indices
   Description: Market indices data
   Status Code: 200 (Expected: 200)
-  Response Time: 2231ms
+  Response Time: 6458ms
   Response Sample: [
     {
         "name": "NIFTY 50",
@@ -61,10 +74,30 @@ PASSED TESTS (16):
    ...
 
 
+[PASSED] GET /api/upstox/portfolio
+  Description: Portfolio data
+  Status Code: 200 (Expected: 200)
+  Response Time: 2187ms
+  Response Sample: {
+    "status": "success",
+    "data": [
+        {
+            "symbol": "RELIANCE",
+            "quantity": 50,
+            "avg_price": 2440.0,
+            "ltp": 2456.0,
+            "pnl": 800
+        },
+        {
+            "symbol": "HDFCBANK",
+            "quantity": 25,
+            "avg_pric...
+
+
 [PASSED] GET /api/trading/instruments
   Description: Get instruments list
   Status Code: 200 (Expected: 200)
-  Response Time: 2051ms
+  Response Time: 2251ms
   Response Sample: {
     "status": "success",
     "instruments": [
@@ -82,7 +115,7 @@ PASSED TESTS (16):
 [PASSED] GET /api/upstox/status
   Description: Upstox connection status
   Status Code: 200 (Expected: 200)
-  Response Time: 2060ms
+  Response Time: 2045ms
   Response Sample: {
     "status": "success",
     "upstox": {
@@ -94,13 +127,26 @@ PASSED TESTS (16):
 }...
 
 
+[PASSED] GET /api/upstox/user-profile
+  Description: User profile
+  Status Code: 200 (Expected: 200)
+  Response Time: 2057ms
+  Response Sample: {
+    "id": 4,
+    "email": "dthat@gmail.com",
+    "full_name": "Admin User",
+    "username": "admin",
+    "upstox_connected": false
+}...
+
+
 [PASSED] GET /api/scanner/momentum
   Description: Momentum scanner
   Status Code: 200 (Expected: 200)
-  Response Time: 2076ms
+  Response Time: 2079ms
   Response Sample: {
     "type": "bucket_update",
-    "timestamp": "2025-12-27T14:18:35.863247",
+    "timestamp": "2025-12-28T23:43:37.536135",
     "data": [
         {
             "symbol": "3MINDIA",
@@ -114,10 +160,10 @@ PASSED TESTS (16):
 [PASSED] GET /api/scanner/breakout
   Description: Breakout scanner
   Status Code: 200 (Expected: 200)
-  Response Time: 2372ms
+  Response Time: 2086ms
   Response Sample: {
     "type": "breakout_scan",
-    "timestamp": "2025-12-27T14:18:38.261937",
+    "timestamp": "2025-12-28T23:43:29.053244",
     "data": [
         {
             "symbol": "JBMA",
@@ -131,10 +177,10 @@ PASSED TESTS (16):
 [PASSED] GET /api/scanner/reversal
   Description: Reversal scanner
   Status Code: 200 (Expected: 200)
-  Response Time: 2445ms
+  Response Time: 2055ms
   Response Sample: {
     "type": "reversal_scan",
-    "timestamp": "2025-12-27T14:18:40.704760",
+    "timestamp": "2025-12-28T23:43:31.342448",
     "data": [
         {
             "symbol": "IIFL",
@@ -148,10 +194,10 @@ PASSED TESTS (16):
 [PASSED] GET /api/scanner/trendfinder
   Description: TrendFinder AI scanner
   Status Code: 200 (Expected: 200)
-  Response Time: 2341ms
+  Response Time: 2047ms
   Response Sample: {
     "type": "trendfinder_scan",
-    "timestamp": "2025-12-27T14:18:43.052424",
+    "timestamp": "2025-12-28T23:43:33.684110",
     "data": [
         {
             "symbol": "BDL",
@@ -165,7 +211,7 @@ PASSED TESTS (16):
 [PASSED] GET /api/market/orchestrator/status
   Description: Market data orchestrator status
   Status Code: 200 (Expected: 200)
-  Response Time: 2045ms
+  Response Time: 2055ms
   Response Sample: {
     "status": "success",
     "orchestrator": {
@@ -175,14 +221,14 @@ PASSED TESTS (16):
         "fallback_active": true,
         "db_fallback_enabled": true
     },
-    "timestamp": "2025-12-27T14:18:45.104502",
+    "timestamp": "2025-12-28T23:43:45.802142",
     "note": "Orchestrato...
 
 
 [PASSED] GET /api/market/health
   Description: Market service health
   Status Code: 200 (Expected: 200)
-  Response Time: 2169ms
+  Response Time: 2102ms
   Response Sample: {
     "status": "healthy",
     "services": {
@@ -190,43 +236,48 @@ PASSED TESTS (16):
         "database": "healthy",
         "cache": "healthy"
     },
-    "timestamp": "2025-12-27T14:18:47.275117"
+    "timestamp": "2025-12-28T23:43:47.906954"
 }...
 
 
 [PASSED] GET /api/quant/symbols
   Description: Get available symbols for backtesting
   Status Code: 200 (Expected: 200)
-  Response Time: 2230ms
+  Response Time: 2077ms
   Response Sample: {
     "status": "success",
-    "symbols": [],
-    "count": 0,
-    "with_data_count": 0
-}...
+    "symbols": [
+        {
+            "symbol": "360ONE",
+            "in_nifty200": true,
+            "has_data": true,
+            "bar_count": 23,
+            "start_date": "2025-11-17T00:00:00",
+            "end_date": "2025-12-17T00:00:00"
+        },
+        {
+      ...
 
 
 [PASSED] GET /api/quant/strategies
   Description: Get available strategies
   Status Code: 200 (Expected: 200)
-  Response Time: 2039ms
+  Response Time: 2065ms
   Response Sample: {
     "strategies": [
         {
-            "name": "MACrossover",
-            "description": "Moving Average Crossover Strategy",
-            "version": "1.0.0",
-            "default_params": {
-                "fast_period": 10,
-                "slow_period": 30,
-                "ma_type": "EMA",
- ...
+            "name": "ML Trend Continuation",
+            "description": "Uses ML to predict trend continuation based on SMA crossover and other factors.",
+            "params": {}
+        }
+    ]
+}...
 
 
 [PASSED] GET /api/v1/walk-forward/symbols
   Description: Get WF backtest symbols
   Status Code: 200 (Expected: 200)
-  Response Time: 2886ms
+  Response Time: 2674ms
   Response Sample: {
     "symbols": [
         "3MINDIA",
@@ -249,7 +300,7 @@ PASSED TESTS (16):
 [PASSED] GET /api/v1/experiment-lab/strategies
   Description: Get lab strategies
   Status Code: 200 (Expected: 200)
-  Response Time: 2079ms
+  Response Time: 2062ms
   Response Sample: [
     {
         "id": 1,
@@ -264,51 +315,104 @@ PASSED TESTS (16):
         "description": "Trade...
 
 
+[PASSED] GET /api/ai/strategies
+  Description: Get AI strategies
+  Status Code: 200 (Expected: 200)
+  Response Time: 2058ms
+  Response Sample: {
+    "status": "success",
+    "strategies": [
+        {
+            "id": "trend-finder",
+            "name": "Trend Finder AI",
+            "description": "Identifies strong trend continuation setups"
+        },
+        {
+            "id": "breakout-detector",
+            "name": "Breakout Detecto...
+
+
+[PASSED] GET /api/algorithms
+  Description: Get algorithms
+  Status Code: 200 (Expected: 200)
+  Response Time: 51ms
+  Response Sample: [
+    {
+        "id": 4,
+        "name": "Trend Finder AI",
+        "description": "Identifies strong trend continuation setups",
+        "is_active": true,
+        "performance": 12.4,
+        "config": {
+            "timeframe": "15m",
+            "indicators": [
+                "EMA",
+           ...
+
+
+[PASSED] GET /api/orders
+  Description: Get orders
+  Status Code: 200 (Expected: 200)
+  Response Time: 22ms
+  Response Sample: []...
+
+
 [PASSED] GET /api/engines/performance
   Description: Get engine performance metrics
   Status Code: 200 (Expected: 200)
-  Response Time: 2039ms
+  Response Time: 2046ms
   Response Sample: {
     "status": "success",
     "engines": {
         "Trend Finder AI": {
-            "performance": 11.5,
+            "performance": 11.6,
             "win_rate": 61.2,
             "data_source": "simulated"
         },
         "Breakout Detector": {
-            "performance": 8.0,
+            "performance": 8.1,
             "win_rate": 59.1,
             "data_sou...
 
 
-FAILED TESTS (1):
+[PASSED] GET /api/analytics/overview
+  Description: Get analytics overview
+  Status Code: 200 (Expected: 200)
+  Response Time: 2043ms
+  Response Sample: {
+    "status": "success",
+    "market_sentiment": "Neutral",
+    "active_alerts": 5,
+    "daily_volume_status": "High"
+}...
+
+
+FAILED TESTS (3):
 --------------------------------------------------------------------------------
 
-[FAILED] GET /api/algorithms
-  Description: Get algorithms
-  Expected Code: 200
-  Actual Code: 403
-  Error: {"detail":"Not authenticated"}...
-
-
-SKIPPED TESTS (15):
---------------------------------------------------------------------------------
-
-[SKIPPED] GET /api/trading/portfolio
-  Description: Portfolio data
-  Reason: Requires authentication
-
-
-[SKIPPED] GET /api/upstox/user-profile
-  Description: User profile
-  Reason: Requires Upstox authentication
-
-
-[SKIPPED] POST /api/quant/backtest
+[FAILED] POST /api/quant/backtest/run
   Description: Run backtest
-  Reason: Requires valid backtest parameters
+  Expected Code: 200
+  Actual Code: 400
+  Error: {"detail":"Unknown strategy: MACrossover. Total available: 31"}...
 
+
+[FAILED] GET /api/risk/
+  Description: Get risk settings
+  Expected Code: 200
+  Actual Code: 404
+  Error: {"detail":"Settings not found"}...
+
+
+[FAILED] GET /api/settings
+  Description: Get user settings
+  Expected Code: 200
+  Actual Code: 404
+  Error: {"detail":"Settings not found"}...
+
+
+SKIPPED TESTS (4):
+--------------------------------------------------------------------------------
 
 [SKIPPED] POST /api/v1/walk-forward/backtest
   Description: Run WF backtest
@@ -320,54 +424,14 @@ SKIPPED TESTS (15):
   Reason: Requires valid lab parameters
 
 
-[SKIPPED] POST /api/ai/prompt
-  Description: AI strategy prompt
-  Reason: Requires authentication and valid prompt
-
-
-[SKIPPED] GET /api/ai/strategies
-  Description: Get AI strategies
-  Reason: Requires authentication
-
-
-[SKIPPED] GET /api/alpha/config
-  Description: Get AlphaPrime config
-  Reason: Requires authentication
-
-
 [SKIPPED] POST /api/agentic-bot/process
   Description: Process agentic bot request
   Reason: Requires authentication and valid request
 
 
-[SKIPPED] GET /api/alerts
-  Description: Get alerts
-  Reason: Requires authentication
-
-
 [SKIPPED] POST /api/algorithms/execute
   Description: Execute algorithm
   Reason: Requires valid algorithm parameters
-
-
-[SKIPPED] GET /api/orders
-  Description: Get orders
-  Reason: Requires authentication
-
-
-[SKIPPED] GET /api/risk/profile
-  Description: Get risk profile
-  Reason: Requires authentication
-
-
-[SKIPPED] GET /api/settings
-  Description: Get user settings
-  Reason: Requires authentication
-
-
-[SKIPPED] GET /api/analytics/overview
-  Description: Get analytics overview
-  Reason: Requires authentication
 
 ================================================================================
 END OF REPORT

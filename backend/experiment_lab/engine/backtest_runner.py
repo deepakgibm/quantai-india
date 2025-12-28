@@ -12,7 +12,7 @@ import hashlib
 import json
 
 from ..registry import StrategyRegistry
-from ..strategies.base import SignalType, SignalResult
+from ..lab_strategies.base import SignalType, SignalResult
 from .position_manager import PositionSizer, RiskMode
 from .metrics_calculator import MetricsCalculator, BacktestMetrics, TradeRecord
 

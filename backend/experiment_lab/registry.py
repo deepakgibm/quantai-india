@@ -4,19 +4,19 @@ Central registry of all 70 strategy combinations.
 """
 
 from typing import Dict, List, Optional, Type
-from .strategies.base import ExperimentStrategy, StrategyInfo, get_all_strategies, get_strategy_by_id
+from .lab_strategies.base import ExperimentStrategy, StrategyInfo, get_all_strategies, get_strategy_by_id
 
 # Import all strategy modules to trigger registration
-from .strategies import category_a_baselines
-from .strategies import category_b_price_momentum
-from .strategies import category_c_breakout
-from .strategies import category_d_trend_confluence
-from .strategies import category_e_volume
-from .strategies import category_f_mean_reversion
-from .strategies import category_g_multi_indicator
-from .strategies import category_h_mtf
-from .strategies import category_i_pattern
-from .strategies import category_j_experimental
+from .lab_strategies import category_a_baselines
+from .lab_strategies import category_b_price_momentum
+from .lab_strategies import category_c_breakout
+from .lab_strategies import category_d_trend_confluence
+from .lab_strategies import category_e_volume
+from .lab_strategies import category_f_mean_reversion
+from .lab_strategies import category_g_multi_indicator
+from .lab_strategies import category_h_mtf
+from .lab_strategies import category_i_pattern
+from .lab_strategies import category_j_experimental
 
 
 # Complete catalog of all 70 strategies

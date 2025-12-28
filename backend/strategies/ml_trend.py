@@ -4,6 +4,9 @@ import numpy as np
 # import lightgbm as lgb # Uncomment when model is ready
 
 class MLTrendStrategy(BaseStrategy):
+    name = "ML Trend Continuation"
+    description = "Uses ML to predict trend continuation based on SMA crossover and other factors."
+
     def __init__(self, config: dict):
         super().__init__(config)
         # self.model = lgb.Booster(model_file='model.txt')

@@ -13,7 +13,22 @@ from sqlalchemy.orm import sessionmaker, Session
 _sync_engine = create_engine(settings.SYNC_DATABASE_URL)
 SessionLocal = sessionmaker(bind=_sync_engine)
 
+
 router = APIRouter()
+
+@router.get("/strategies")
+async def get_ai_strategies(current_user: User = Depends(get_optional_user)):
+    """Get available AI strategies"""
+    return {
+        "status": "success",
+        "strategies": [
+            {"id": "trend-finder", "name": "Trend Finder AI", "description": "Identifies strong trend continuation setups"},
+            {"id": "breakout-detector", "name": "Breakout Detector", "description": "Detects volume-backed breakouts"},
+            {"id": "top5-picks", "name": "Top 5 Picks", "description": "Daily top 5 buy/sell recommendations"},
+            {"id": "momentum-scanner", "name": "Momentum Scanner", "description": "High momentum stocks"},
+            {"id": "mean-reversion", "name": "Mean Reversion", "description": "Oversold/Overbought reversal setups"}
+        ]
+    }
 
 
 if settings.GEMINI_API_KEY:

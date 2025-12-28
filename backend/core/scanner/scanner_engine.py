@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import logging
 
-from strategies.base import StrategyRegistry, ScanResult, SignalType
+# Import from full strategies package to trigger all tier registrations
+from strategies import StrategyRegistry, ScanResult, SignalType
 from services.derivatives_service import DerivativesService
 from core.scanner.decision_engine import DecisionEngine
 

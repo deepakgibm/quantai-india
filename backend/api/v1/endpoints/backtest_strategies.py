@@ -9,15 +9,8 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 from enum import Enum
 
-import sys
-import os
-
-# Add the core/backtest directory to the path
-backend_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-sys.path.insert(0, os.path.join(backend_root, 'core', 'backtest'))
-
 # Import StrategyRegistry
-from core.backtest.strategies import StrategyRegistry
+from core.backtest.strategies_impl import StrategyRegistry
 
 router = APIRouter()
 

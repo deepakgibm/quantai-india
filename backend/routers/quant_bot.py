@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 
 # New strategy system imports
-from core.backtest.strategies import StrategyRegistry
+from core.backtest.strategies_impl import StrategyRegistry
 from core.backtest.costs import OrderSide
 from core.backtest.executor import OrderType
 
@@ -140,7 +140,7 @@ class NewStrategyAdapter:
 
 def get_strategy_class(name: str):
     """Get strategy class by name (Old System) or Adapter (New System)"""
-    from core.strategies import AVAILABLE_STRATEGIES
+    from strategies import AVAILABLE_STRATEGIES
     
     # Try old system first
     if name in AVAILABLE_STRATEGIES:
@@ -210,7 +210,7 @@ async def load_data_for_symbol(symbol: str, start_date: date, end_date: date, db
 async def list_strategies():
     """List available trading strategies"""
     try:
-        from core.strategies import list_strategies as get_all_strategies
+        from strategies import list_strategies as get_all_strategies
         strategies = get_all_strategies()
         return {"strategies": strategies}
     except Exception as e:

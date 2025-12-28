@@ -50,12 +50,22 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        if not credentials:
+            with open("auth_debug.log", "a") as f: f.write("DEBUG AUTH: No credentials provided\n")
+            raise credentials_exception
         token = credentials.credentials
+        with open("auth_debug.log", "a") as f: f.write(f"DEBUG AUTH: Analyzing token: {token[:10]}...{token[-10:]}\n")
+        
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
+        
+        with open("auth_debug.log", "a") as f: f.write(f"DEBUG AUTH: Decoded email: {email}\n")
+
         if email is None:
+            with open("auth_debug.log", "a") as f: f.write("DEBUG AUTH: Email is None in payload\n")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        with open("auth_debug.log", "a") as f: f.write(f"DEBUG AUTH: JWT Error: {e}\n")
         raise credentials_exception
     
     result = await db.execute(select(User).where(User.email == email))
