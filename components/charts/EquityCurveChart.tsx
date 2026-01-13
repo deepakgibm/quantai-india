@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo, memo } from 'react';
+import { downsampleLTTB } from '../../utils/chartDataUtils';
 
 interface EquityCurveChartProps {
     data: { date: string; equity: number }[];
@@ -6,6 +7,9 @@ interface EquityCurveChartProps {
     height?: number;
     showGrid?: boolean;
 }
+
+// Maximum data points to render (prevents UI freeze with large datasets)
+const MAX_DATA_POINTS = 300;
 
 const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
     data,
@@ -15,8 +19,14 @@ const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
+    // Memoize downsampled data to prevent unnecessary recalculations (P3.2 virtualization)
+    const processedData = useMemo(() => {
+        if (data.length <= MAX_DATA_POINTS) return data;
+        return downsampleLTTB(data, MAX_DATA_POINTS, 'equity' as keyof typeof data[0]);
+    }, [data]);
+
     useEffect(() => {
-        if (!canvasRef.current || data.length === 0) return;
+        if (!canvasRef.current || processedData.length === 0) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
@@ -148,4 +158,5 @@ const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
     );
 };
 
-export default EquityCurveChart;
+// Memoize chart component to prevent re-renders when parent state changes
+export default memo(EquityCurveChart);

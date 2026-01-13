@@ -61,9 +61,8 @@ class UpstoxWSManager:
         """Fetch authorized WebSocket URL from Upstox."""
         endpoint = "/feed/market-data-feed/authorize"
         try:
-            # Note: client._make_request is synchronous, so we run in executor if needed
-            # but for simplicity we'll just call it as it's a one-time setup
-            response = self.client._make_request("GET", endpoint)
+            # Await the async _make_request method
+            response = await self.client._make_request("GET", endpoint)
             if response.get("status") == "success":
                 return response["data"]["authorized_redirect_url"]
             raise Exception(f"Failed to authorize WS: {response}")
@@ -71,30 +70,53 @@ class UpstoxWSManager:
             logger.error(f"Error authorizing Upstox WS: {e}")
             raise
 
-    async def connect(self):
-        """Connect to Upstox WebSocket."""
+    async def connect(self, max_retries: int = 5):
+        """
+        Connect to Upstox WebSocket with exponential backoff retry.
+        
+        Args:
+            max_retries: Maximum connection attempts (default 5)
+            
+        Retry delays: 1s, 2s, 4s, 8s, 16s (exponential backoff)
+        """
         if self.is_running:
             return
-            
-        auth_url = await self._get_authorized_url()
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
         
-        try:
-            self.ws = await websockets.connect(auth_url, ssl=ssl_context)
-            self.is_running = True
-            logger.info("Connected to Upstox WebSocket")
-            
-            # Start background tasks
-            asyncio.create_task(self._listen())
-            
-            # Re-subscribe if we had previous subscriptions
-            if self.subscribed_symbols:
-                await self.subscribe(list(self.subscribed_symbols))
+        for attempt in range(max_retries):
+            try:
+                auth_url = await self._get_authorized_url()
+                ssl_context = ssl.create_default_context(cafile=certifi.where())
                 
-        except Exception as e:
-            logger.error(f"WebSocket connection failed: {e}")
-            self.is_running = False
-            raise
+                self.ws = await websockets.connect(
+                    auth_url, 
+                    ssl=ssl_context,
+                    ping_interval=30,
+                    ping_timeout=10
+                )
+                self.is_running = True
+                self._reconnect_attempts = 0
+                logger.info(f"Connected to Upstox WebSocket (attempt {attempt + 1})")
+                
+                # Start background listener
+                asyncio.create_task(self._listen())
+                
+                # Re-subscribe if we had previous subscriptions
+                if self.subscribed_symbols:
+                    await self.subscribe(list(self.subscribed_symbols))
+                
+                return  # Success
+                
+            except Exception as e:
+                wait_time = 2 ** attempt  # 1, 2, 4, 8, 16 seconds
+                logger.warning(f"WebSocket connection attempt {attempt + 1}/{max_retries} failed: {e}")
+                
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
+        
+        # All retries exhausted
+        self.is_running = False
+        raise ConnectionError(f"WebSocket connection failed after {max_retries} attempts")
 
     async def subscribe(self, symbols: List[str]):
         """Subscribe to market data for symbols."""

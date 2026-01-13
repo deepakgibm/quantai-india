@@ -1,8 +1,13 @@
 import { Order } from "../types";
 
-const API_URL = "http://localhost:8000";
-const USE_MOCK = false; // Toggle this to FALSE when backend is running locally
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const REQUEST_TIMEOUT = 60000; // 60 second timeout
+
+// PRODUCTION MODE: Mock data is disabled
+const USE_MOCK = false;
+
+// PRODUCTION MODE: No mock data fallbacks
+// If real data is unavailable, UI must show "Data unavailable" - never fake numbers
 
 // Helper for fetch with timeout
 const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
@@ -24,19 +29,6 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     throw error;
   }
 };
-
-// --- MOCK DATA (Fallback) ---
-const MOCK_POSITIONS = [
-  { id: '1', symbol: 'RELIANCE', quantity: 50, entryPrice: 2440.0, ltp: 2456.0, pnl: 800 },
-  { id: '2', symbol: 'HDFCBANK', quantity: 25, entryPrice: 1455.0, ltp: 1450.0, pnl: -125 },
-  { id: '3', symbol: 'INFY', quantity: 100, entryPrice: 1580.0, ltp: 1585.0, pnl: 500 },
-];
-
-const MOCK_ORDERS: Order[] = [
-  { id: 'ORD-001', timestamp: '10:23:45', stock: 'RELIANCE', type: 'BUY', quantity: 50, entryPrice: 2450.5, exitPrice: 0, status: 'OPEN', algo: 'Trend Finder', pnl: 1250 },
-  { id: 'ORD-002', timestamp: '11:15:10', stock: 'TATASTEEL', type: 'SELL', quantity: 200, entryPrice: 110.2, exitPrice: 108.5, status: 'CLOSED', algo: 'Breakout Detector', pnl: 340 },
-  { id: 'ORD-003', timestamp: '12:45:00', stock: 'HDFCBANK', type: 'BUY', quantity: 100, entryPrice: 1450.0, exitPrice: 0, status: 'OPEN', algo: 'Top 3 Buy', pnl: -450 },
-];
 
 // Helper to get auth headers
 const getAuthHeaders = () => {
@@ -199,17 +191,17 @@ export const api = {
   },
 
   getUpstoxPositions: async () => {
-    if (USE_MOCK) return MOCK_POSITIONS;
-
     try {
       const res = await fetch(`${API_URL}/api/upstox/positions`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();
+      console.warn(`Positions API returned ${res.status}: ${res.statusText}`);
     } catch (e) {
-      console.warn("Failed to fetch Upstox positions");
+      console.warn("Failed to fetch Upstox positions:", e);
     }
-    return MOCK_POSITIONS;
+    // PRODUCTION: Return empty array, not mock data
+    return [];
   },
 
   // --- TRADING ---
@@ -246,22 +238,39 @@ export const api = {
     } catch (e: any) {
       console.warn("Failed to fetch market indices:", e.message);
     }
-    // Return realistic fallback data (updated Dec 2024)
-    console.log("Using fallback market data");
-    return [
-      { name: "NIFTY 50", value: 23850.15, change: 125.4, percent: 0.53, source: "fallback" },
-      { name: "BANK NIFTY", value: 51200.80, change: -89.3, percent: -0.17, source: "fallback" },
-      { name: "INDIA VIX", value: 13.25, change: -0.35, percent: -2.58, source: "fallback" }
-    ];
+    // Return empty array if API fails - no fake data
+    console.log("Market indices API failed, returning empty array");
+    return [];
   },
 
+  getEnginePerformance: async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/engines/performance`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn("Failed to fetch engine performance");
+    }
+    return null;
+  },
+
+
   getGainersLosers: async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/market/nifty100/top-movers`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn("Failed to fetch gainers/losers");
+    }
     return null;
   },
 
   getSectorHeatmap: async () => {
     try {
-      const res = await fetch(`${API_URL}/api/market/heatmap`, {
+      const res = await fetch(`${API_URL}/api/heatmap/sectors`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();
@@ -273,7 +282,7 @@ export const api = {
 
   getSectorStocks: async (sector: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/market/sector-stocks/${sector}`, {
+      const res = await fetch(`${API_URL}/api/heatmap/sector/${sector}`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();
@@ -299,17 +308,17 @@ export const api = {
   },
 
   getOrders: async () => {
-    if (USE_MOCK) return MOCK_ORDERS;
-
     try {
       const res = await fetch(`${API_URL}/api/orders/`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();
+      console.warn(`Orders API returned ${res.status}: ${res.statusText}`);
     } catch (e) {
-      console.warn("API Orders fetch failed");
+      console.warn("API Orders fetch failed:", e);
     }
-    return MOCK_ORDERS;
+    // PRODUCTION: Return empty array, not mock data
+    return [];
   },
 
   // --- AI ---
@@ -456,93 +465,13 @@ export const api = {
     return await api.getUpstoxPositions();
   },
 
-  // --- ALPHAPRIME ---
-  alphaPrime: {
-    // Train the ML model
-    train: async (lookback_days: number = 30, n_estimators: number = 100, max_depth: number = 10) => {
-      try {
-        const res = await fetch(`${API_URL}/api/v1/alpha-prime/train`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ lookback_days, n_estimators, max_depth })
-        });
-        if (res.ok) return await res.json();
-      } catch (e) {
-        console.warn("AlphaPrime training failed:", e);
-      }
-      return null;
-    },
-
-    // Run backtest
-    backtest: async (start_date: string, end_date: string, initial_capital: number = 1000000) => {
-      try {
-        const res = await fetch(`${API_URL}/api/v1/alpha-prime/backtest`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ start_date, end_date, initial_capital })
-        });
-        if (res.ok) return await res.json();
-      } catch (e) {
-        console.warn("AlphaPrime backtest failed:", e);
-      }
-      return null;
-    },
-
-    // Get latest signals
-    getSignals: async (limit: number = 20, min_confidence: number = 0.7) => {
-      try {
-        const params = new URLSearchParams({
-          limit: limit.toString(),
-          min_confidence: min_confidence.toString()
-        });
-        const res = await fetch(`${API_URL}/api/v1/alpha-prime/signals?${params}`, {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) return await res.json();
-      } catch (e) {
-        console.warn("AlphaPrime signals fetch failed:", e);
-      }
-      return [];
-    },
-
-    // Get configuration
-    getConfig: async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/v1/alpha-prime/config`, {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) return await res.json();
-      } catch (e) {
-        console.warn("AlphaPrime config fetch failed:", e);
-      }
-      return null;
-    }
-  },
 
   // --- SCANNER ---
   getStrategies: async () => {
-    // Mock strategies for fallback when backend is slow
-    const MOCK_STRATEGIES = {
-      "Tier 1 - Highest Win Rate": [
-        { name: "RSI Mean Reversion", description: "Identifies oversold/overbought conditions using RSI", tier: "Tier 1 - Highest Win Rate", min_bars: 30 },
-        { name: "Bollinger Breakout", description: "Detects price breakouts from Bollinger Bands", tier: "Tier 1 - Highest Win Rate", min_bars: 20 },
-        { name: "Williams %R", description: "Momentum indicator for overbought/oversold", tier: "Tier 1 - Highest Win Rate", min_bars: 14 }
-      ],
-      "Tier 2 - Solid Strategies": [
-        { name: "MACD Crossover", description: "Classic MACD signal line crossover", tier: "Tier 2 - Solid Strategies", min_bars: 26 },
-        { name: "ADX Trend", description: "Trend strength indicator", tier: "Tier 2 - Solid Strategies", min_bars: 14 },
-        { name: "Stochastic Oscillator", description: "Momentum comparison indicator", tier: "Tier 2 - Solid Strategies", min_bars: 14 }
-      ],
-      "Tier 3 - Advanced Strategies": [
-        { name: "Ichimoku Cloud", description: "Multi-component trend indicator", tier: "Tier 3 - Advanced Strategies", min_bars: 52 },
-        { name: "Fibonacci Bounce", description: "Price reactions at Fibonacci levels", tier: "Tier 3 - Advanced Strategies", min_bars: 50 }
-      ]
-    };
-
     try {
-      // Use short 5s timeout for strategies
+      // Use short 10s timeout for strategies
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const res = await fetch(`${API_URL}/api/scanner/strategies`, {
         signal: controller.signal
@@ -552,11 +481,10 @@ export const api = {
       if (res.ok) return await res.json();
       console.warn("Strategies fetch returned:", res.status, res.statusText);
     } catch (e: any) {
-      console.warn("Failed to fetch strategies (using mock data):", e.message);
-      // Return mock data when backend is slow/unavailable
-      return { status: "success", strategies: MOCK_STRATEGIES, total_count: 8, source: "mock" };
+      console.warn("Failed to fetch strategies:", e.message);
     }
-    return { status: "success", strategies: MOCK_STRATEGIES, total_count: 8, source: "mock" };
+    // PRODUCTION: Return null, not mock data. UI should show "Strategies unavailable"
+    return null;
   },
 
   runScan: async (indices: string[], timeframe: string, strategies: string[]) => {
@@ -571,5 +499,44 @@ export const api = {
       console.warn("Scan failed:", e);
     }
     return null;
+  },
+
+  // Generic scanner runner for AI endpoints
+  runScanner: async (endpoint: string) => {
+    try {
+      // Ensure endpoint starts with /
+      const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const res = await fetch(`${API_URL}${path}`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Server error: ${res.status}`);
+      }
+      return await res.json();
+    } catch (e) {
+      console.error(`Scanner failed for ${endpoint}:`, e);
+      throw e;
+    }
+  },
+
+  // --- ML FORECAST ---
+  getPriceForecast: async (symbol: string, timeframe: string = '5m', horizon: number = 10) => {
+    try {
+      const params = new URLSearchParams({
+        symbol: symbol.toUpperCase(),
+        timeframe,
+        horizon: horizon.toString()
+      });
+      const res = await fetch(`${API_URL}/api/v1/ml/predict?${params}`);
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ detail: { message: 'Prediction failed' } }));
+        throw new Error(error.detail?.message || 'Prediction failed');
+      }
+      return await res.json();
+    } catch (e) {
+      console.error('ML Forecast failed:', e);
+      throw e;
+    }
   }
 };

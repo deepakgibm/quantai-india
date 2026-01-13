@@ -3,6 +3,8 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from services.upstox_client import get_upstox_client
 from database import AsyncSessionLocal
+from models import User
+from utils.auth import get_current_user
 from services.nifty500_fetcher import Nifty500Symbol
 from sqlalchemy import select
 import logging
@@ -16,27 +18,154 @@ async def get_nifty100_top_movers():
     """
     Get top 5 gainers and top 5 losers from NIFTY 100 stocks.
     
-    Uses live Upstox quotes with 60-second caching.
-    Calculates: change_pct = ((LTP - prev_close) / prev_close) * 100
+    Data Sourcing Strategy:
+    - During market hours (09:15-15:30 IST): WebSocket live data → Cache every 5-10s
+    - After market hours: REST API EOD data → Cache with 5-hour TTL + global context
+    - Always reads from Dragonfly cache first for sub-50ms response
     
     Returns:
-        JSON with 'as_of', 'gainers', and 'losers' arrays
+        JSON with 'as_of', 'trading_date', 'gainers', 'losers', 'source', 
+        'is_market_open', 'global_context' (when market closed), and 'cache_metadata'
+    
+    Data Integrity:
+        - NEVER returns mock/fake data
+        - Returns explicit error if data unavailable
+        - Includes cache metadata for transparency
     """
-    from services.top_movers_service import get_top_movers_service
+    import asyncio
+    import time
+    from services.nifty100_ranking_service import get_nifty100_ranking_service
+    
+    start_time = time.perf_counter()
     
     try:
-        service = get_top_movers_service()
-        data = await service.get_top_movers()
+        service = get_nifty100_ranking_service()
+        # 10-second timeout for ranking computation
+        data = await asyncio.wait_for(service.get_rankings(), timeout=10.0)
+        
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(f"Top movers API response in {elapsed_ms:.2f}ms (source: {data.get('source', 'unknown')})")
+        
+        # Check for error response
+        if data.get("error_code"):
+            return data
+        
+        # Add global market context when NSE is closed
+        if not data.get("is_market_open", True):
+            try:
+                from services.global_market_service import get_global_market_service
+                global_service = get_global_market_service()
+                global_context = await asyncio.wait_for(
+                    global_service.get_global_context(), 
+                    timeout=5.0
+                )
+                data["global_context"] = global_context
+                logger.info(f"Added global context: {global_context.get('sentiment', {}).get('direction', 'N/A')}")
+            except asyncio.TimeoutError:
+                logger.warning("Global context fetch timed out")
+                data["global_context"] = {"status": "timeout", "message": "Global data fetch timed out"}
+            except Exception as ge:
+                logger.warning(f"Failed to fetch global context: {ge}")
+                data["global_context"] = {"status": "error", "message": str(ge)}
+        
+        # Check for valid data
+        if not data.get("gainers") and not data.get("losers"):
+            logger.warning("Top movers service returned empty data, trying yfinance fallback")
+            try:
+                from utils.market_fallback import fetch_top_movers_yfinance
+                fallback_data = await fetch_top_movers_yfinance()
+                if fallback_data.get("gainers") or fallback_data.get("losers"):
+                    return fallback_data
+            except Exception as fe:
+                logger.error(f"Top movers fallback failed: {fe}")
+                
+            return {
+                "as_of": datetime.now().isoformat(),
+                "gainers": [],
+                "losers": [],
+                "error": "Market data temporarily unavailable",
+                "error_code": "DATA_UNAVAILABLE",
+                "retry_after_seconds": 10
+            }
+        
         return data
-    except Exception as e:
-        logger.error(f"Top movers endpoint failed: {e}")
+        
+    except asyncio.TimeoutError:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.error(f"Top movers service timed out after {elapsed_ms:.2f}ms")
         return {
             "as_of": datetime.now().isoformat(),
             "gainers": [],
             "losers": [],
-            "error": str(e)
+            "error": "Request timed out. Market data service is slow.",
+            "error_code": "TIMEOUT",
+            "retry_after_seconds": 5
+        }
+        
+    except Exception as e:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.error(f"Top movers endpoint failed in {elapsed_ms:.2f}ms: {e}")
+        return {
+            "as_of": datetime.now().isoformat(),
+            "gainers": [],
+            "losers": [],
+            "error": "Failed to fetch market data",
+            "error_code": "INTERNAL_ERROR",
+            "retry_after_seconds": 10
         }
 
+
+@router.get("/global-context")
+async def get_global_market_context():
+    """
+    Get global market indices for after-hours context.
+    
+    Returns:
+        - SGX Nifty (most relevant for next day's NSE direction)
+        - Dow Jones, S&P 500, Nasdaq (US markets)
+        - FTSE 100 (European market)
+        - Overall sentiment indicator
+    
+    Useful when NSE is closed to gauge global market sentiment.
+    """
+    import asyncio
+    from services.global_market_service import get_global_market_service
+    
+    try:
+        service = get_global_market_service()
+        data = await asyncio.wait_for(service.get_global_context(), timeout=10.0)
+        return data
+    except asyncio.TimeoutError:
+        return {
+            "status": "timeout",
+            "error": "Global market data fetch timed out",
+            "indices": [],
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Global context endpoint error: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "indices": [],
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+
+@router.get("/nifty100/status")
+async def get_nifty100_ranking_status():
+    """Get NIFTY 100 ranking service status for monitoring."""
+    from services.nifty100_ranking_service import get_nifty100_ranking_service
+    service = get_nifty100_ranking_service()
+    return service.get_status()
+
+
+# Alias for compatibility
+@router.get("/top-movers")
+async def get_top_movers_alias():
+    """Alias for /nifty100/top-movers for API compatibility."""
+    return await get_nifty100_top_movers()
 
 
 # Industry mapping for Sector Heatmap Detail
@@ -143,179 +272,112 @@ async def get_market_health():
         }
 
 @router.get("/heatmap")
-async def get_sector_heatmap():
+async def get_sector_heatmap(current_user: User = Depends(get_current_user)):
     """
-    Fetches real-time performance of sectoral indices from Upstox.
-    Calculates change percentage and generates market outlook.
+    Fetches real-time performance of sectoral indices.
+    Source: Redis Cache (populated by HP Scanner / Heatmap Aggregator)
     """
-    import asyncio
-    from datetime import datetime
+    from services.dragonfly_client import get_cache, CacheKeys
+    cache = get_cache()
     
-    # Fallback data
-    FALLBACK_DATA = {
-        "status": "success",
-        "data": [
-            {"sector": "IT", "last_price": 36500, "change_pct": 1.2, "is_bullish": True},
-            {"sector": "Banking", "last_price": 51200, "change_pct": 0.8, "is_bullish": True},
-            {"sector": "Auto", "last_price": 18900, "change_pct": -0.5, "is_bullish": False},
-            {"sector": "Pharma", "last_price": 18200, "change_pct": 0.3, "is_bullish": True},
-            {"sector": "FMCG", "last_price": 56800, "change_pct": -0.2, "is_bullish": False},
-            {"sector": "Metal", "last_price": 8500, "change_pct": 1.5, "is_bullish": True},
-            {"sector": "Realty", "last_price": 1050, "change_pct": 2.1, "is_bullish": True},
-            {"sector": "Energy", "last_price": 36200, "change_pct": -0.8, "is_bullish": False},
-        ],
-        "market_outlook": {
-            "verdict": "Neutral",
-            "nifty_change": 0.25,
-            "suggestion": "Range-bound: Trade with caution",
-            "timestamp": datetime.now().isoformat()
-        }
-    }
+    # Try common heatmap key first (computed by workers)
+    data = cache.get(CacheKeys.heatmap_all())
     
-    try:
-        result = await asyncio.wait_for(_fetch_heatmap_internal(), timeout=15.0)
-        return result
-    except asyncio.TimeoutError:
-        logger.warning("Sector heatmap fetch timed out, using fallback")
-        return FALLBACK_DATA
-    except Exception as e:
-        logger.error(f"Heatmap generation failed: {e}")
-        return FALLBACK_DATA
+    if not data:
+        # Fallback to internal aggregator if worker hasn't run
+        return await _fetch_heatmap_internal()
+    
+    return {"status": "success", "data": data}
+
 
 
 async def _fetch_heatmap_internal():
-    """Internal function to fetch heatmap data"""
+    """
+    Internal function to fetch heatmap data.
+    Uses Dragonfly cache for instant response.
+    """
+    from services.dragonfly_client import get_cache, CacheKeys
     from datetime import datetime
     
-    client = get_upstox_client()
-    results = []
+    cache = get_cache()
     
+    # 1. Try to get cached computation
+    cache_key = "qai:market:heatmap"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    # 2. If no pre-computed data, build from quotes (Avoid blocking)
     try:
-        # Prepare all keys for batch fetch
-        nifty_key = "NSE_INDEX|Nifty 50"
-        sector_keys = list(SECTOR_MAP.values())
-        all_keys = [nifty_key] + sector_keys
+        from services.upstox_client import get_upstox_client
+        client = get_upstox_client()
         
-        # Fetch all at once
+        all_keys = ["NSE_INDEX|Nifty 50"] + list(SECTOR_MAP.values())
         quotes = await client.get_live_quotes(all_keys)
         
-        # Find Nifty 50 quote
-        nifty_quote = None
-        for key in [nifty_key, nifty_key.replace("|", ":")]:
-            if key in quotes:
-                nifty_quote = quotes[key]
-                break
-                
-        nifty_change = 0
-        if nifty_quote and nifty_quote.get('open'):
-            nifty_change = ((nifty_quote['last_price'] - nifty_quote['open']) / nifty_quote['open']) * 100
-        elif nifty_quote:
-            nifty_change = nifty_quote.get('change_percent', 0)
+        results = []
+        nifty_quote = quotes.get("NSE_INDEX|Nifty 50") or quotes.get("NSE_INDEX:Nifty 50")
+        nifty_change = nifty_quote.get('change_percent', 0) if nifty_quote else 0
 
-        # Process sectors
         for sector, key in SECTOR_MAP.items():
-            quote = None
-            for k in [key, key.replace("|", ":")]:
-                if k in quotes:
-                    quote = quotes[k]
-                    break
-            
-            if quote and (quote.get('open') or quote.get('last_price')):
-                open_val = quote.get('open') or (quote.get('last_price', 0) - quote.get('net_change', 0))
-                if open_val and open_val > 0:
-                    change = ((quote['last_price'] - open_val) / open_val) * 100
-                else:
-                    change = quote.get('change_percent', 0)
-                
+            quote = quotes.get(key) or quotes.get(key.replace("|", ":"))
+            if quote:
                 results.append({
                     "sector": sector,
                     "last_price": quote['last_price'],
-                    "change_pct": round(change, 2),
-                    "is_bullish": change > 0,
-                    "volume": quote.get("volume", 0)
-                })
-            else:
-                results.append({
-                    "sector": sector,
-                    "last_price": 0,
-                    "change_pct": 0,
-                    "is_bullish": False,
-                    "status": "No data available"
+                    "change_pct": round(quote.get('change_percent', 0), 2),
+                    "is_bullish": quote.get('change_percent', 0) > 0
                 })
         
-        # Sort by performance
         results.sort(key=lambda x: x.get('change_pct', 0), reverse=True)
         
-        # Determine Market Outlook
-        outlook = "Neutral"
-        if nifty_change > 0.4:
-            outlook = "Bullish"
-        elif nifty_change < -0.4:
-            outlook = "Bearish"
-            
-        suggestion = "Look for Long positions" if "Bullish" in outlook else "Look for Short positions" if "Bearish" in outlook else "Range-bound: Trade with caution"
-
-        return {
-            "status": "success",
+        data = {
+            "status": "success", 
             "data": results,
             "market_outlook": {
-                "verdict": outlook,
+                "verdict": "Bullish" if nifty_change > 0.4 else "Bearish" if nifty_change < -0.4 else "Neutral",
                 "nifty_change": round(nifty_change, 2),
-                "suggestion": suggestion,
                 "timestamp": datetime.now().isoformat()
             }
         }
         
+        cache.set(cache_key, data, ttl=60)
+        return data
+        
     except Exception as e:
         logger.error(f"Internal heatmap fetch failed: {e}")
-        raise
+        return {"status": "error", "message": str(e), "data": []}
+
+
 
 
 @router.get("/sector-stocks/{sector_name}")
-async def get_sector_stocks(sector_name: str):
+async def get_sector_stocks(sector_name: str, current_user: User = Depends(get_current_user)):
     """
     Fetches list of stocks for a given sector and their live performance.
+    Source: Redis Cache (populated by HP Scanner)
     """
-    industries = INDUSTRY_MAPPING.get(sector_name)
-    if not industries:
-        # Lowercase fallback check
-        for k, v in INDUSTRY_MAPPING.items():
-            if k.lower() == sector_name.lower():
-                industries = v
-                break
-        
-        if not industries:
-            raise HTTPException(status_code=404, detail=f"Sector '{sector_name}' mapping not found")
-
-    client = get_upstox_client()
-    stocks = []
+    from services.dragonfly_client import get_cache, CacheKeys
+    cache = get_cache()
     
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(Nifty500Symbol).where(Nifty500Symbol.industry.in_(industries))
-        )
-        symbols = result.scalars().all()
-        
-        # Limit to 40 symbols for performance/stability
-        symbols = symbols[:40]
-        
-        for s in symbols:
-            try:
-                quote = await client.get_live_quote(s.instrument_key, s.symbol)
-                if quote and quote.get('open'):
-                    change_pct = ((quote['last_price'] - quote['open']) / quote['open']) * 100
-                    stocks.append({
-                        "symbol": s.symbol,
-                        "company_name": s.company_name,
-                        "last_price": quote['last_price'],
-                        "change_pct": round(change_pct, 2),
-                        "is_bullish": change_pct > 0
-                    })
-            except Exception as e:
-                logger.error(f"Error fetching quote for {s.symbol}: {e}")
-                
+    # 1. Try to get cached sector snapshot (calculated by workers)
+    key = f"{CacheKeys.sector_snapshot(sector_name)}:stocks"
+    stocks = cache.get(key)
+    
+    if stocks:
+        return {
+            "status": "success",
+            "sector": sector_name,
+            "stocks": sorted(stocks, key=lambda x: x.get('change_pct', 0), reverse=True)
+        }
+
+    # 2. If not in cache, fallback logic removed to prevent blocking
     return {
         "status": "success",
         "sector": sector_name,
-        "stocks": sorted(stocks, key=lambda x: x['change_pct'], reverse=True)
+        "stocks": [],
+        "note": "Market data for this sector is still warming up"
     }
+
+
+

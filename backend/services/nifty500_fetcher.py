@@ -178,6 +178,16 @@ class Nifty500Fetcher:
             return [(s.symbol, s.instrument_key) for s in symbols]
         finally:
             session.close()
+
+    def fetch_nifty_500(self) -> List[Nifty500Symbol]:
+        """
+        Get all Nifty 500 symbol objects from database.
+        """
+        session = self._Session()
+        try:
+            return session.query(Nifty500Symbol).all()
+        finally:
+            session.close()
     
     def refresh(self) -> int:
         """

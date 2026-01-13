@@ -1,247 +1,215 @@
 """
-Momentum Scanner Service
+Momentum Scanner Service (Vectorized)
 Finds stocks with strong price momentum using ROC and MFI indicators.
-Optimized: Uses precomputed indicators when available.
+Optimized: Uses vectorized Pandas operations for <2s latency.
 """
 
 import pandas as pd
+import numpy as np
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 from config import settings
+from database import SessionLocal
 import logging
+from utils.symbol_utils import get_company_name
 
 logger = logging.getLogger(__name__)
 
 
 class MomentumScanner:
     """
-    Momentum-based stock scanner.
+    Momentum-based stock scanner (Vectorized).
     
     Indicators:
     - ROC (Rate of Change) - Price momentum
     - MFI (Money Flow Index) - Volume-weighted momentum
     - RSI acceleration - Momentum of momentum
     
-    Optimization: Uses precomputed_indicators table when available.
+    Optimization: Vectorized calculation on full dataset.
     """
     
     def __init__(self):
-        self._engine = create_engine(settings.SYNC_DATABASE_URL)
-        self._Session = sessionmaker(bind=self._engine)
+        self._Session = SessionLocal
         self.min_score = 60
-        self._use_precomputed = self._check_precomputed_available()
+        # Precomputed check logic removed/simplified as vectorization is fast enough
+        # But we can keep it if needed. For now, vectorization is the priority refactor.
+        self._use_precomputed = False 
     
-    def _check_precomputed_available(self) -> bool:
-        """Check if precomputed indicators table exists and has data."""
-        try:
-            session = self._Session()
-            try:
-                result = session.execute(text(
-                    "SELECT COUNT(*) FROM precomputed_indicators LIMIT 1"
-                ))
-                count = result.scalar()
-                if count and count > 0:
-                    logger.info("Precomputed indicators available - using fast path")
-                    return True
-            except Exception:
-                pass
-            finally:
-                session.close()
-        except Exception:
-            pass
-        return False
-    
-    def scan_from_precomputed(self, limit: int = 10) -> List[Dict]:
-        """
-        Fast scan using precomputed indicators.
-        Returns top momentum stocks directly from indicator table.
-        """
-        session = self._Session()
-        try:
-            # Get latest indicators per symbol with high momentum score
-            query = text("""
-                WITH latest_indicators AS (
-                    SELECT DISTINCT ON (symbol) 
-                        symbol, timestamp, close, 
-                        rsi_14, roc_10, roc_20, mfi_14, momentum_score
-                    FROM precomputed_indicators
-                    WHERE momentum_score IS NOT NULL
-                    ORDER BY symbol, timestamp DESC
-                )
-                SELECT * FROM latest_indicators
-                WHERE momentum_score >= :min_score
-                ORDER BY momentum_score DESC
-                LIMIT :limit
-            """)
-            
-            result = session.execute(query, {"min_score": self.min_score, "limit": limit})
-            rows = result.fetchall()
-            
-            results = []
-            for row in rows:
-                results.append({
-                    "symbol": row.symbol,
-                    "name": row.symbol,
-                    "momentum_type": "STRONG" if row.roc_10 and row.roc_10 > 3 else "MODERATE",
-                    "strength": round(row.momentum_score) if row.momentum_score else 0,
-                    "current_price": round(float(row.close), 2) if row.close else 0,
-                    "roc_10d": round(float(row.roc_10), 2) if row.roc_10 else 0,
-                    "roc_20d": round(float(row.roc_20), 2) if row.roc_20 else 0,
-                    "mfi": round(float(row.mfi_14), 2) if row.mfi_14 else 0,
-                    "target_price": round(float(row.close) * 1.05, 2) if row.close else 0,
-                    "stop_loss": round(float(row.close) * 0.97, 2) if row.close else 0,
-                    "reason": f"ROC {row.roc_10:.1f}%. MFI {row.mfi_14:.0f}" if row.roc_10 and row.mfi_14 else "Precomputed"
-                })
-            
-            logger.info(f"Fast scan: returned {len(results)} results from precomputed indicators")
-            return results
-            
-        except Exception as e:
-            logger.warning(f"Precomputed scan failed, falling back: {e}")
-            return []
-        finally:
-            session.close()
-        
-    def _get_ohlcv_data(self, symbol: str, days: int = 60) -> Optional[pd.DataFrame]:
+    def _get_bulk_ohlcv_df(self, days: int = 60) -> pd.DataFrame:
+        """Fetch OHLCV data for ALL symbols in one query as a single DataFrame."""
         try:
             from models_ml import Nifty100Daily
-            from sqlalchemy import desc
+            
             session = self._Session()
             try:
-                # Get latest N records (no date filter - use whatever data is available)
-                results = session.query(Nifty100Daily).filter(
-                    Nifty100Daily.symbol == symbol
-                ).order_by(desc(Nifty100Daily.timestamp)).limit(days).all()
+                cutoff_date = datetime.now() - timedelta(days=days)
                 
-                if not results or len(results) < 20:
-                    return None
+                # Bulk query
+                query = session.query(
+                    Nifty100Daily.symbol,
+                    Nifty100Daily.timestamp,
+                    Nifty100Daily.open,
+                    Nifty100Daily.high,
+                    Nifty100Daily.low,
+                    Nifty100Daily.close,
+                    Nifty100Daily.volume
+                ).filter(
+                    Nifty100Daily.timestamp >= cutoff_date
+                ).statement
                 
-                # Reverse to chronological order
-                results = results[::-1]
+                df = pd.read_sql(query, session.bind)
+
+                if df.empty:
+                    return pd.DataFrame()
                 
-                data = [{'timestamp': r.timestamp, 'open': float(r.open), 'high': float(r.high),
-                         'low': float(r.low), 'close': float(r.close), 'volume': int(r.volume)} for r in results]
-                df = pd.DataFrame(data)
-                df.set_index('timestamp', inplace=True)
+                # Ensure correct types
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df['close'] = df['close'].astype(float)
+                df['high'] = df['high'].astype(float)
+                df['low'] = df['low'].astype(float)
+                df['volume'] = df['volume'].astype(float)
+
                 return df
             finally:
                 session.close()
         except Exception as e:
-            print(f"Error fetching {symbol}: {e}")
-            return None
-    
-    def calculate_mfi(self, df: pd.DataFrame, period: int = 14) -> float:
-        """Calculate Money Flow Index."""
-        typical_price = (df['high'] + df['low'] + df['close']) / 3
-        money_flow = typical_price * df['volume']
+            logger.error(f"Error fetching bulk data: {e}")
+            return pd.DataFrame()
+
+    def _calculate_indicators_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate ROC and MFI vectorized."""
+        df = df.sort_values(['symbol', 'timestamp'])
+        g = df.groupby('symbol')
         
-        positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0).rolling(period).sum()
-        negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0).rolling(period).sum()
+        # 1. ROC (10d, 20d)
+        # Shift close by 10 and 20
+        close_shift_10 = g['close'].shift(10)
+        close_shift_20 = g['close'].shift(20)
         
-        mfi = 100 - (100 / (1 + positive_flow / negative_flow))
-        return mfi.iloc[-1] if not pd.isna(mfi.iloc[-1]) else 50
-    
-    def analyze_stock(self, symbol: str) -> Optional[Dict]:
-        df = self._get_ohlcv_data(symbol)
-        if df is None:
-            return None
+        df['roc_10'] = ((df['close'] - close_shift_10) / close_shift_10) * 100
+        df['roc_20'] = ((df['close'] - close_shift_20) / close_shift_20) * 100
         
-        close = df['close']
-        current_price = close.iloc[-1]
+        # 2. MFI (Money Flow Index) - 14 period
+        # Needs high, low, close, volume
+        df['tp'] = (df['high'] + df['low'] + df['close']) / 3
+        df['rmf'] = df['tp'] * df['volume'] # Raw Money Flow
         
-        # ROC (10-period)
-        roc_10 = ((close.iloc[-1] - close.iloc[-10]) / close.iloc[-10]) * 100 if len(close) >= 10 else 0
-        roc_20 = ((close.iloc[-1] - close.iloc[-20]) / close.iloc[-20]) * 100 if len(close) >= 20 else 0
+        # Vectorized MFI logic
+        # Positive/Negative Flow requires comparing TP with previous TP
+        tp_prev = g['tp'].shift(1)
         
-        # MFI
-        mfi = self.calculate_mfi(df)
+        df['pos_flow'] = np.where(df['tp'] > tp_prev, df['rmf'], 0)
+        df['neg_flow'] = np.where(df['tp'] < tp_prev, df['rmf'], 0)
         
-        # Score calculation
-        scores = {}
+        # Rolling Sums
+        # Note: we must group again for rolling operations
+        # But we can assume df is sorted by symbol, so transform works
         
-        # ROC score (40%)
-        if roc_10 > 5:
-            scores["roc"] = 100
-        elif roc_10 > 2:
-            scores["roc"] = 80
-        elif roc_10 > 0:
-            scores["roc"] = 60
-        else:
-            scores["roc"] = 30
+        # We need rolling sum of pos_flow and neg_flow
+        # Since transform runs on Series, we invoke it per column
         
-        # MFI score (30%)
-        if 50 < mfi < 80:
-            scores["mfi"] = 90
-        elif mfi >= 80:
-            scores["mfi"] = 50  # Overbought
-        else:
-            scores["mfi"] = 40
+        df['pos_mf_14'] = g['pos_flow'].transform(lambda x: x.rolling(14).sum())
+        df['neg_mf_14'] = g['neg_flow'].transform(lambda x: x.rolling(14).sum())
         
-        # Trend consistency (30%)
-        if roc_10 > 0 and roc_20 > 0:
-            scores["trend"] = 90
-        elif roc_10 > 0:
-            scores["trend"] = 60
-        else:
-            scores["trend"] = 30
+        # Avoid division by zero
+        df['neg_mf_14'] = df['neg_mf_14'].replace(0, 1) # or handle infinity
         
-        total = scores["roc"] * 0.4 + scores["mfi"] * 0.3 + scores["trend"] * 0.3
+        df['mfr'] = df['pos_mf_14'] / df['neg_mf_14']
+        df['mfi'] = 100 - (100 / (1 + df['mfr']))
         
-        return {
-            "symbol": symbol,
-            "name": symbol,
-            "momentum_type": "STRONG" if roc_10 > 3 else "MODERATE",
-            "strength": round(total),
-            "current_price": round(current_price, 2),
-            "roc_10d": round(roc_10, 2),
-            "roc_20d": round(roc_20, 2),
-            "mfi": round(mfi, 2),
-            "target_price": round(current_price * 1.05, 2),
-            "stop_loss": round(current_price * 0.97, 2),
-            "reason": f"ROC {roc_10:.1f}%. MFI {mfi:.0f}"
-        }
-    
-    def get_symbols(self) -> List[str]:
-        try:
-            from models_ml import Nifty100Daily
-            session = self._Session()
-            try:
-                return [s[0] for s in session.query(Nifty100Daily.symbol).distinct().all()]
-            finally:
-                session.close()
-        except:
-            return ["RELIANCE", "TCS", "HDFCBANK", "INFY"]
-    
+        # Default MFI to 50 if NaN
+        df['mfi'] = df['mfi'].fillna(50)
+        
+        return df
+
     def scan_all(self, limit: int = 10) -> List[Dict]:
-        """
-        Scan all symbols for momentum signals.
-        Optimized: 
-        1. Tries precomputed indicators first (fastest)
-        2. Falls back to on-demand computation with symbol limits
-        """
-        # Try fast path using precomputed indicators
-        if self._use_precomputed:
-            precomputed_results = self.scan_from_precomputed(limit)
-            if precomputed_results:
-                return precomputed_results
+        """Vectorized scan for momentum."""
+        import time
+        t0 = time.time()
         
-        # Fallback: compute on-demand
-        logger.info("Using on-demand indicator computation")
-        symbols = self.get_symbols()[:200]  # Limit to 200 symbols max
+        # 1. Fetch
+        df = self._get_bulk_ohlcv_df()
+        if df.empty:
+            return []
+        
+        t1 = time.time()
+        
+        # 2. Calculate
+        df = self._calculate_indicators_vectorized(df)
+        t2 = time.time()
+        
+        # 3. Filter Latest
+        latest_df = df.groupby('symbol').tail(1).copy()
+        
+        # 4. Filter empty/NaN ROCs (e.g. not enough data)
+        latest_df['roc_10'] = latest_df['roc_10'].fillna(0)
+        latest_df['roc_20'] = latest_df['roc_20'].fillna(0)
+        
+        # 5. Scoring Vectorized
+        # ROC Score (40%)
+        # >5 -> 100, >2 -> 80, >0 -> 60, else 30
+        roc_score = np.select(
+            [latest_df['roc_10'] > 5, latest_df['roc_10'] > 2, latest_df['roc_10'] > 0],
+            [100, 80, 60],
+            default=30
+        )
+        
+        # MFI Score (30%)
+        # 50 < mfi < 80 -> 90 (Strong)
+        # mfi >= 80 -> 50 (Overbought)
+        # else -> 40
+        mfi = latest_df['mfi']
+        mfi_score = np.select(
+            [(mfi > 50) & (mfi < 80), mfi >= 80],
+            [90, 50],
+            default=40
+        )
+        
+        # Trend Score (30%)
+        # roc10 > 0 and roc20 > 0 -> 90
+        # roc10 > 0 -> 60
+        # else 30
+        trend_score = np.select(
+            [(latest_df['roc_10'] > 0) & (latest_df['roc_20'] > 0), latest_df['roc_10'] > 0],
+            [90, 60],
+            default=30
+        )
+        
+        # Total Weighted Score
+        total_score = (roc_score * 0.4) + (mfi_score * 0.3) + (trend_score * 0.3)
+        latest_df['score'] = total_score
+        
+        # Filter & Sort
+        momentum_stocks = latest_df[latest_df['score'] >= self.min_score].sort_values('score', ascending=False).head(limit)
+        
+        t3 = time.time()
+        logger.info(f"Vectorized Momentum Scan: Fetch={t1-t0:.2f}s, Calc={t2-t1:.2f}s, Filter={t3-t2:.2f}s. Total={t3-t0:.2f}s")
+        
+        # 6. Format
         results = []
-        
-        for symbol in symbols:
-            try:
-                analysis = self.analyze_stock(symbol)
-                if analysis and analysis["strength"] >= self.min_score:
-                    results.append(analysis)
-                    # Early termination: once we have 3x the limit, sort and return
-                    if len(results) >= limit * 3:
-                        break
-            except:
-                continue
-        
-        results.sort(key=lambda x: x["strength"], reverse=True)
-        return results[:limit]
+        for _, row in momentum_stocks.iterrows():
+            roc_10 = row['roc_10']
+            mfi_val = row['mfi']
+            
+            strength_desc = "STRONG" if roc_10 > 3 else "MODERATE"
+            
+            results.append({
+                "symbol": row['symbol'],
+                "name": row['symbol'], 
+                "momentum_type": strength_desc,
+                "strength": round(row['score']),
+                "current_price": round(row['close'], 2),
+                "roc_10d": round(roc_10, 2),
+                "roc_20d": round(row['roc_20'], 2),
+                "mfi": round(mfi_val, 2),
+                "target_price": round(row['close'] * 1.05, 2),
+                "stop_loss": round(row['close'] * 0.97, 2),
+                "reason": f"ROC {roc_10:.1f}%. MFI {mfi_val:.0f}"
+            })
+            
+        return results
+
+    def get_symbols(self) -> List[str]:
+        from utils.symbol_utils import get_all_symbols
+        return get_all_symbols()

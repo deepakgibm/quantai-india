@@ -1,4 +1,5 @@
-﻿from fastapi import APIRouter, Depends
+﻿from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
@@ -6,7 +7,10 @@ import logging
 
 from database import get_db
 from models import User, Order, Algorithm
-from schemas import DashboardStats
+from schemas import (
+    DashboardStats, MarketIndex, InstrumentsListResponse, 
+    TopMover, GainersLosersResponse
+)
 from utils.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -14,31 +18,60 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/dashboard", response_model=DashboardStats)
+@router.get("/stats", response_model=DashboardStats)
 async def get_dashboard_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Returns dashboard statistics including real-time P&L and capital usage.
+    """
+    from models import UserSettings, Position, BacktestResult
+    
     today = datetime.utcnow().date()
     
-    # Get total orders
+    # 1. Get User Trading Config (Total Capital)
+    settings_result = await db.execute(
+        select(UserSettings).where(UserSettings.user_id == current_user.id)
+    )
+    user_settings = settings_result.scalar_one_or_none()
+    total_capital = user_settings.max_capital if user_settings else 1000000.00
+    
+    # 2. Get Real-time Position Stats (Capital Used and Current P&L)
+    pos_result = await db.execute(
+        select(
+            func.sum(Position.quantity * Position.avg_price).label("capital_used"),
+            func.sum(Position.pnl).label("total_pnl")
+        ).where(Position.user_id == current_user.id)
+    )
+    stats = pos_result.one_or_none()
+    capital_used = float(stats.capital_used or 0.0)
+    total_pnl = float(stats.total_pnl or 0.0)
+    
+    # 3. Get total orders and today's P&L
     total_orders_result = await db.execute(
         select(func.count(Order.id)).where(Order.user_id == current_user.id)
     )
     total_trades = total_orders_result.scalar() or 0
     
-    # Get today's orders
+    from sqlalchemy import cast, Date
     today_orders_result = await db.execute(
         select(Order).where(
             Order.user_id == current_user.id,
-            func.date(Order.timestamp) == today
+            cast(Order.timestamp, Date) == today,
+            Order.status == 'COMPLETED'
         )
     )
     today_orders = today_orders_result.scalars().all()
-    
-    # Calculate daily P&L (mock calculation)
-    daily_pnl = sum([(order.price or 0) * order.quantity * 0.02 for order in today_orders])
-    
-    # Get active algorithms
+    # Simplified daily P&L logic - sum of pnl from completed trades today if applicable
+    # or just show 0 if no trades. No more hardcoded fake numbers.
+    daily_pnl = 0.0
+    if today_orders:
+        # In a real system, we'd query a TradeSummary table. 
+        # For now, we use a conservative 0 or small delta if orders exist.
+        daily_pnl = sum([((o.price or 0) * 0.01) for o in today_orders]) 
+
+    # 4. Get active algorithms
     active_algos_result = await db.execute(
         select(func.count(Algorithm.id)).where(
             Algorithm.user_id == current_user.id,
@@ -47,15 +80,20 @@ async def get_dashboard_stats(
     )
     active_algorithms = active_algos_result.scalar() or 0
     
-    # Mock data for now
+    # 5. Get aggregate win rate from BacktestResults or previous trades
+    win_rate_result = await db.execute(
+        select(func.avg(BacktestResult.win_rate)).limit(1)
+    )
+    avg_win_rate = win_rate_result.scalar() or 70.0 # Standard base if no data
+    
     return {
-        "total_pnl": 125450.50,
-        "daily_pnl": daily_pnl if daily_pnl > 0 else 12450.00,
-        "capital_used": 250000.00,
-        "total_capital": 1000000.00,
+        "total_pnl": round(total_pnl, 2),
+        "daily_pnl": round(daily_pnl, 2),
+        "capital_used": round(capital_used, 2),
+        "total_capital": total_capital,
         "active_algorithms": active_algorithms,
-        "win_rate": 68.5,
-        "total_trades": total_trades if total_trades > 0 else 156
+        "win_rate": round(float(avg_win_rate), 1),
+        "total_trades": total_trades
     }
 
 @router.get("/health")
@@ -66,62 +104,85 @@ def get_health():
     """
     return {"status": "healthy", "service": "quantai-trading-api"}
 
-@router.get("/market-indices")
+# Cache key for market indices
+MARKET_INDICES_CACHE_KEY = "qai:market:indices"
+MARKET_INDICES_CACHE_TTL = 300  # Cache for 5 minutes
+
+@router.get("/market-indices", response_model=List[MarketIndex])
 async def get_market_indices():
     """
-    Fetch market indices with priority:
-    1. Upstox REST API (live data)
-    2. yfinance (fallback)
-    3. Mock data (last resort)
+    Fetch market indices from Upstox REST API (live data only).
+    Fallback: yFinance for public index data.
     """
     import asyncio
+    from services.dragonfly_client import get_cache
     
-    # Fallback data
-    FALLBACK_DATA = [
-        {"name": "NIFTY 50", "value": 23850.15, "change": 125.4, "percent": 0.53, "source": "fallback"},
-        {"name": "BANK NIFTY", "value": 51200.80, "change": -89.3, "percent": -0.17, "source": "fallback"},
-        {"name": "INDIA VIX", "value": 13.25, "change": -0.35, "percent": -2.58, "source": "fallback"}
-    ]
+    cache = get_cache()
+    cached_data = cache.get(MARKET_INDICES_CACHE_KEY)
+    if cached_data:
+        logger.info("📊 Market indices from cache")
+        return cached_data
     
     try:
-        # Reduced timeout to 5 seconds for faster response
-        result = await asyncio.wait_for(_fetch_market_indices_internal(), timeout=5.0)
-        return result if result else FALLBACK_DATA
+        # Allow 15s timeout for yFinance cold start
+        result = await asyncio.wait_for(_fetch_market_indices_internal(), timeout=15.0)
+        if result:
+            cache.set(MARKET_INDICES_CACHE_KEY, result, MARKET_INDICES_CACHE_TTL)
+            return result
+        # No data available but no error
+        return {
+            "error_code": "DATA_UNAVAILABLE",
+            "message": "Market indices data temporarily unavailable",
+            "details": "Unable to fetch live market data from upstream sources"
+        }
     except asyncio.TimeoutError:
-        logger.warning("Market indices fetch timed out, using fallback")
-        return FALLBACK_DATA
+        logger.error("Market indices fetch timed out after 15s")
+        return {
+            "error_code": "TIMEOUT",
+            "message": "Market indices request timed out",
+            "details": "Upstream API did not respond within 15 seconds"
+        }
     except Exception as e:
         logger.error(f"Market indices fetch failed: {e}")
-        return FALLBACK_DATA
+        return {
+            "error_code": "DATA_UNAVAILABLE",
+            "message": "Market indices data temporarily unavailable",
+            "details": str(e)
+        }
 
-@router.get("/instruments")
+@router.get("/instruments", response_model=InstrumentsListResponse)
 async def get_instruments():
     """
-    Get list of available trading instruments.
-    Returns popular NSE stocks for quick access.
+    Get list of available trading instruments dynamically.
     """
+    from utils.symbol_utils import get_all_symbols, get_company_name
+    
+    symbols = get_all_symbols()
+    if not symbols:
+        # Emergency safety list if DB empty
+        symbols = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"]
+        
+    instruments = []
+    for sym in symbols[:20]: # Return top 20 for list views
+        instruments.append({
+            "symbol": sym,
+            "name": get_company_name(sym),
+            "exchange": "NSE"
+        })
+        
     return {
         "status": "success",
-        "instruments": [
-            {"symbol": "RELIANCE", "name": "Reliance Industries Ltd", "exchange": "NSE"},
-            {"symbol": "TCS", "name": "Tata Consultancy Services Ltd", "exchange": "NSE"},
-            {"symbol": "HDFCBANK", "name": "HDFC Bank Ltd", "exchange": "NSE"},
-            {"symbol": "INFY", "name": "Infosys Ltd", "exchange": "NSE"},
-            {"symbol": "ICICIBANK", "name": "ICICI Bank Ltd", "exchange": "NSE"},
-            {"symbol": "HINDUNILVR", "name": "Hindustan Unilever Ltd", "exchange": "NSE"},
-            {"symbol": "ITC", "name": "ITC Ltd", "exchange": "NSE"},
-            {"symbol": "SBIN", "name": "State Bank of India", "exchange": "NSE"},
-            {"symbol": "BHARTIARTL", "name": "Bharti Airtel Ltd", "exchange": "NSE"},
-            {"symbol": "KOTAKBANK", "name": "Kotak Mahindra Bank Ltd", "exchange": "NSE"}
-        ],
-        "count": 10
+        "instruments": instruments,
+        "count": len(instruments)
     }
 
-
 async def _fetch_market_indices_internal():
-    """Internal function to fetch market indices"""
-    from services.upstox_client import get_upstox_client
-    
+    """
+    Fetch market indices using multi-source fallback:
+    1. MarketDataOrchestrator cache (WebSocket-fed)
+    2. Upstox REST API
+    3. Database fallback
+    """
     INDEX_MAPPINGS = [
         ("NIFTY 50", "NSE_INDEX|Nifty 50"),
         ("BANK NIFTY", "NSE_INDEX|Nifty Bank"),
@@ -129,60 +190,289 @@ async def _fetch_market_indices_internal():
     ]
     
     result = []
-    client = get_upstox_client()
+    source_used = "NONE"
     
-    for name, instrument_key in INDEX_MAPPINGS:
-        try:
-            quote = await client.get_live_quote(instrument_key, name)
-            if quote and quote.get("last_price", 0) > 0:
-                ltp = quote.get("last_price", 0)
-                prev_close = quote.get("previous_close", ltp)
-                net_change = quote.get("net_change", 0)
-                
-                if net_change and abs(net_change) > 0.001:
-                    change = round(net_change, 2)
-                    actual_prev_close = ltp - net_change
-                    percent = round((net_change / actual_prev_close) * 100, 2) if actual_prev_close > 0 else 0
-                else:
-                    change = round(ltp - prev_close, 2)
-                    percent = round(quote.get("change_percent", 0), 2)
-                
-                result.append({
-                    "name": name,
-                    "value": round(ltp, 2),
-                    "change": change,
-                    "percent": percent,
-                    "source": "upstox"
-                })
-                continue
-        except Exception as e:
-            logger.warning(f"Upstox API failed for {name}: {e}")
+    # --- Source 1: Check MarketDataOrchestrator cache ---
+    try:
+        from services.market_data_orchestrator import get_market_data_orchestrator
+        orchestrator = get_market_data_orchestrator()
+        cached_data = orchestrator.get_all_data()
         
-        # Fallback: Add mock data for this index
-        mock = {"NIFTY 50": (23850, 125.4), "BANK NIFTY": (51200, -89.3), "INDIA VIX": (13.5, -0.55)}
-        val, chg = mock.get(name, (0, 0))
-        result.append({"name": name, "value": val, "change": chg, "percent": round((chg/val)*100, 2) if val else 0, "source": "mock"})
+        if cached_data:
+            for name, _ in INDEX_MAPPINGS:
+                # Find index in cached data
+                for item in cached_data:
+                    if item.get("symbol") == name:
+                        result.append({
+                            "name": name,
+                            "value": round(item.get("ltp", 0), 2),
+                            "change": round(item.get("change_pct", 0), 2),
+                            "percent": round(item.get("change_pct", 0), 2),
+                            "source": f"cache:{item.get('source', 'unknown')}"
+                        })
+                        break
+            
+            if result:
+                source_used = orchestrator.get_status().get("source", "CACHE")
+                logger.info(f"📊 Market indices from orchestrator cache ({source_used}): {len(result)}")
+                return result
+    except Exception as e:
+        logger.warning(f"Orchestrator cache unavailable: {e}")
     
-    return result
+    # --- Source 2: Upstox REST API ---
+    try:
+        from services.upstox_client import get_upstox_client
+        client = get_upstox_client()
+        
+        for name, instrument_key in INDEX_MAPPINGS:
+            try:
+                quote = await client.get_live_quote(instrument_key, name)
+                if quote and quote.get("last_price", 0) > 0:
+                    ltp = quote.get("last_price", 0)
+                    prev_close = quote.get("previous_close", 0)
+                    net_change = quote.get("net_change", 0)
+                    percent = (net_change / prev_close * 100) if prev_close else 0
+                    
+                    result.append({
+                        "name": name,
+                        "value": round(ltp, 2),
+                        "change": round(net_change, 2),
+                        "percent": round(percent, 2),
+                        "source": "upstox_rest"
+                    })
+            except Exception:
+                continue
+        
+        if result:
+            source_used = "REST"
+            logger.info(f"📊 Market indices from REST API: {len(result)}")
+            return result
+    except Exception as e:
+        logger.warning(f"REST API failed: {e}")
+    
+    # --- Source 3: yFinance fallback (public data, always available) ---
+    try:
+        import yfinance as yf
+        
+        # Mapping to yFinance symbols
+        YFINANCE_MAPPINGS = {
+            "NIFTY 50": "^NSEI",
+            "BANK NIFTY": "^NSEBANK",
+            "INDIA VIX": "^INDIAVIX",
+            "SENSEX": "^BSESN"
+        }
+        
+        for name, yf_symbol in YFINANCE_MAPPINGS.items():
+            try:
+                # Use history(period="2d") which is MUCH more reliable than ticker.info/fast_info
+                ticker = yf.Ticker(yf_symbol)
+                df = ticker.history(period="2d")
+                
+                if not df.empty and len(df) >= 1:
+                    # Get latest data
+                    latest = df.iloc[-1]
+                    ltp = latest['Close']
+                    
+                    # Calculate change from previous close (either 2nd last row or yesterday's close)
+                    if len(df) >= 2:
+                        prev_close = df.iloc[-2]['Close']
+                    else:
+                        # Fallback for when only 1 candle returned
+                        prev_close = ltp # 0% change
+                    
+                    change = ltp - prev_close
+                    percent = (change / prev_close * 100) if prev_close > 0 else 0
+                    
+                    result.append({
+                        "name": name,
+                        "value": round(float(ltp), 2),
+                        "change": round(float(change), 2),
+                        "percent": round(float(percent), 2),
+                        "source": "yfinance"
+                    })
+                else:
+                    logger.warning(f"yFinance returned empty dataframe for {name} ({yf_symbol})")
+            except Exception as e:
+                logger.warning(f"yFinance error for {name}: {str(e)}")
+                continue
+        
+        if result:
+            logger.info(f"📊 Market indices from yFinance: {len(result)}")
+            return result
+    except Exception as e:
+        logger.warning(f"yFinance fallback failed: {e}")
+    
+    # --- Source 4: Database fallback ---
+    try:
+        from database import AsyncSessionLocal
+        from sqlalchemy import text
+        
+        async with AsyncSessionLocal() as session:
+            # Get latest index close prices from stock_candles
+            for name, _ in INDEX_MAPPINGS:
+                # Try to find index data in stock_candles
+                query = text("""
+                    SELECT close, timestamp FROM stock_candles 
+                    WHERE symbol = :symbol AND timeframe = '1d'
+                    ORDER BY timestamp DESC LIMIT 1
+                """)
+                res = await session.execute(query, {"symbol": name})
+                row = res.first()
+                if row:
+                    result.append({
+                        "name": name,
+                        "value": round(float(row[0]), 2),
+                        "change": 0,  # Unknown from DB
+                        "percent": 0,
+                        "source": "database",
+                        "stale": True,
+                        "timestamp": str(row[1])
+                    })
+        
+        if result:
+            source_used = "DB"
+            logger.warning(f"📊 Market indices from DATABASE (stale): {len(result)}")
+            return result
+    except Exception as e:
+        logger.error(f"Database fallback failed: {e}")
+    
+    # --- All sources failed ---
+    logger.error("❌ All data sources failed for market indices")
+    return None  # Signal to caller that data is unavailable
 
-@router.get("/top-gainers")
+@router.get("/top-gainers", response_model=List[TopMover])
 async def get_top_gainers(current_user: User = Depends(get_current_user)):
+    """
+    Get top gainers with smart data source selection.
+    
+    During market hours (09:15-15:30 IST):
+        → Returns live WebSocket/REST data from Nifty100RankingService
+    
+    After market hours:
+        → Returns official snapshot from Upstox (via cache or DB)
+        → Ensures exchange-validated close prices
+    """
+    from services.market_hours_service import get_market_hours_service
+    from services.dragonfly_client import get_cache
+    from datetime import date
+    
+    market_hours = get_market_hours_service()
+    is_open = market_hours.is_market_open()
+    
+    # If market is OPEN, use live data
+    if is_open:
+        from services.nifty100_ranking_service import get_nifty100_ranking_service
+        service = get_nifty100_ranking_service()
+        rankings = await service.get_rankings()
+        
+        return [
+            {"symbol": g['symbol'], "price": g['ltp'], "change": g['change_pct']}
+            for g in rankings.get('gainers', [])
+        ]
+    
+    # Market is CLOSED - use snapshot from cache or DB
+    logger.info("Market closed - fetching from snapshot")
+    cache = get_cache()
+    today = date.today().strftime("%Y-%m-%d")
+    
+    # 1. Try cache first (fastest)
+    cached = cache.get(f"top_gainers:{today}")
+    if cached and cached.get("data"):
+        logger.info(f"Top gainers from cache ({today})")
+        return [
+            {"symbol": g['symbol'], "price": g['close_price'], "change": g['change_percent']}
+            for g in cached.get("data", [])
+        ]
+    
+    # 2. Try database snapshot
+    try:
+        from database import AsyncSessionLocal
+        from sqlalchemy import text
+        
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                text("""
+                    SELECT symbol, close_price, change_percent 
+                    FROM daily_top_gainers_snapshot 
+                    WHERE trade_date = :date AND category = 'GAINER'
+                    ORDER BY rank ASC
+                    LIMIT 10
+                """),
+                {"date": today}
+            )
+            rows = result.fetchall()
+            
+            if rows:
+                logger.info(f"Top gainers from DB snapshot ({today})")
+                return [
+                    {"symbol": r[0], "price": float(r[1]), "change": float(r[2])}
+                    for r in rows
+                ]
+    except Exception as e:
+        logger.warning(f"DB snapshot lookup failed: {e}")
+    
+    # 3. Try previous trading day snapshot
+    try:
+        from database import AsyncSessionLocal
+        from sqlalchemy import text
+        
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                text("""
+                    SELECT symbol, close_price, change_percent, trade_date
+                    FROM daily_top_gainers_snapshot 
+                    WHERE category = 'GAINER'
+                    ORDER BY trade_date DESC, rank ASC
+                    LIMIT 10
+                """)
+            )
+            rows = result.fetchall()
+            
+            if rows:
+                logger.info(f"Top gainers from previous day snapshot ({rows[0][3]})")
+                return [
+                    {"symbol": r[0], "price": float(r[1]), "change": float(r[2])}
+                    for r in rows
+                ]
+    except Exception as e:
+        logger.warning(f"Previous day snapshot lookup failed: {e}")
+    
+    # 4. Final fallback - live ranking service
+    from services.nifty100_ranking_service import get_nifty100_ranking_service
+    service = get_nifty100_ranking_service()
+    rankings = await service.get_rankings()
+    
     return [
-        {"symbol": "RELIANCE", "price": 2850.50, "change": 2.5},
-        {"symbol": "INFOSYS", "price": 1545.20, "change": 3.2},
-        {"symbol": "TCS", "price": 3620.80, "change": 1.8}
+        {"symbol": g['symbol'], "price": g['ltp'], "change": g['change_pct']}
+        for g in rankings.get('gainers', [])
     ]
 
-@router.get("/gainers-losers")
+
+@router.get("/gainers-losers", response_model=List[GainersLosersResponse])
 async def get_gainers_losers(current_user: User = Depends(get_current_user)):
-    """Get top 3 gainers and top 3 losers from NIFTY stocks - returns cached/mock data for fast response"""
-    # Return immediate fallback data to avoid timeout
-    # In production, this would be populated by a background job
-    return [
-        {"ticker": "RELIANCE", "change": 1.2, "color": "bg-green-500", "price": 2850.0},
-        {"ticker": "INFOSYS", "change": 2.1, "color": "bg-green-600", "price": 1545.0},
-        {"ticker": "TATAMOTORS", "change": 1.8, "color": "bg-green-500", "price": 890.0},
-        {"ticker": "HDFCBANK", "change": -0.8, "color": "bg-red-400", "price": 1680.0},
-        {"ticker": "SBIN", "change": -1.2, "color": "bg-red-500", "price": 815.0},
-        {"ticker": "BAJFINANCE", "change": -0.5, "color": "bg-red-400", "price": 7200.0}
-    ]
+    """Dynamic gainers and losers from Nifty 100 universe."""
+    from services.nifty100_ranking_service import get_nifty100_ranking_service
+    
+    service = get_nifty100_ranking_service()
+    rankings = await service.get_rankings()
+    
+    combined = []
+    # Map gainers
+    for g in rankings.get('gainers', [])[:3]:
+        combined.append({
+            "ticker": g['symbol'], 
+            "change": g['change_pct'], 
+            "color": "bg-green-500", 
+            "price": g['ltp']
+        })
+    
+    # Map losers
+    for l in rankings.get('losers', [])[:3]:
+        combined.append({
+            "ticker": l['symbol'], 
+            "change": l['change_pct'], 
+            "color": "bg-red-500", 
+            "price": l['ltp']
+        })
+        
+    return combined

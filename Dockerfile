@@ -1,65 +1,55 @@
-# QuantAI Production Dockerfile
-# Multi-stage build for optimized image size
-
-# ==================
-# Stage 1: Builder
-# ==================
-FROM python:3.11-slim as builder
+# Frontend Dockerfile (Multi-stage build)
+# Stage 1: Build
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Firebase environment variables as build args
+ARG VITE_API_URL
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_STORAGE_BUCKET
+ARG VITE_FIREBASE_MESSAGING_SENDER_ID
+ARG VITE_FIREBASE_APP_ID
+ARG VITE_FIREBASE_MEASUREMENTID
 
-# Copy requirements and install Python dependencies
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+# Set them as environment variables for Vite build
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY
+ENV VITE_FIREBASE_AUTH_DOMAIN=$VITE_FIREBASE_AUTH_DOMAIN
+ENV VITE_FIREBASE_PROJECT_ID=$VITE_FIREBASE_PROJECT_ID
+ENV VITE_FIREBASE_STORAGE_BUCKET=$VITE_FIREBASE_STORAGE_BUCKET
+ENV VITE_FIREBASE_MESSAGING_SENDER_ID=$VITE_FIREBASE_MESSAGING_SENDER_ID
+ENV VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID
+ENV VITE_FIREBASE_MEASUREMENTID=$VITE_FIREBASE_MEASUREMENTID
 
-# ==================
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build for production
+RUN npm run build
+
 # Stage 2: Production
-# ==================
-FROM python:3.11-slim as production
+FROM nginx:alpine
 
-# Labels
-LABEL maintainer="QuantAI Team"
-LABEL version="1.0.0"
-LABEL description="QuantAI Production Trading Platform"
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy Python packages from builder
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
-
-# Copy application code
-COPY backend/ .
-
-# Create non-root user for security
-RUN useradd -m -u 1000 quantai && \
-    chown -R quantai:quantai /app
-
-# Switch to non-root user
-USER quantai
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    ENVIRONMENT=production
+# Copy built assets from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Expose port
-EXPOSE 8000
+EXPOSE 80
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
 
-# Run with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["nginx", "-g", "daemon off;"]

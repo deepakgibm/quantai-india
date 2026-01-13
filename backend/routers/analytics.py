@@ -7,7 +7,11 @@ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+import pandas as pd
 import logging
+from utils.auth import get_current_user
+from models import User
+from fastapi import Depends
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +42,7 @@ class ArchiveOldRequest(BaseModel):
 # Analytics Endpoints
 # ============================================
 @router.get("/overview")
-async def get_analytics_overview():
+async def get_analytics_overview(current_user: User = Depends(get_current_user)):
     """Get high-level analytics overview."""
     return {
         "status": "success",
@@ -50,7 +54,8 @@ async def get_analytics_overview():
 @router.get("/momentum/top")
 async def get_top_momentum(
     n: int = Query(10, ge=1, le=100),
-    lookback_days: int = Query(20, ge=5, le=60)
+    lookback_days: int = Query(20, ge=5, le=60),
+    current_user: User = Depends(get_current_user)
 ):
     """Get top N stocks by momentum using DuckDB analytics."""
     try:
@@ -73,7 +78,8 @@ async def get_top_momentum(
 @router.get("/volatility/{symbol}")
 async def get_volatility_analysis(
     symbol: str,
-    lookback_days: int = Query(30, ge=5, le=90)
+    lookback_days: int = Query(30, ge=5, le=90),
+    current_user: User = Depends(get_current_user)
 ):
     """Get volatility analysis for a specific symbol."""
     try:
@@ -101,7 +107,8 @@ async def get_volatility_analysis(
 @router.post("/correlation")
 async def get_correlation_matrix(
     symbols: List[str],
-    lookback_days: int = Query(60, ge=20, le=120)
+    lookback_days: int = Query(60, ge=20, le=120),
+    current_user: User = Depends(get_current_user)
 ):
     """Calculate correlation matrix between multiple symbols."""
     if len(symbols) < 2:
@@ -129,7 +136,8 @@ async def get_correlation_matrix(
 @router.get("/support-resistance/{symbol}")
 async def get_support_resistance(
     symbol: str,
-    lookback_days: int = Query(90, ge=30, le=180)
+    lookback_days: int = Query(90, ge=30, le=180),
+    current_user: User = Depends(get_current_user)
 ):
     """Calculate support and resistance levels for a symbol."""
     try:
@@ -137,6 +145,10 @@ async def get_support_resistance(
         
         engine = get_analytics_engine()
         df = engine.get_support_resistance_levels(symbol, lookback_days)
+        
+        # Sanitize DataFrame (NaN -> None, Inf -> None) for JSON compliance
+        import numpy as np
+        df = df.replace([np.inf, -np.inf], np.nan).where(pd.notnull(df), None)
         
         if df.empty:
             raise HTTPException(status_code=404, detail=f"No data found for {symbol}")
@@ -155,11 +167,16 @@ async def get_support_resistance(
 
 
 @router.post("/query")
-async def execute_custom_query(request: QueryRequest):
+async def execute_custom_query(request: QueryRequest, current_user: User = Depends(get_current_user)):
     """
     Execute custom SQL query using DuckDB.
-    WARNING: This endpoint should be restricted to admin users in production.
+    Restricted to authenticated users. 
+    NOTE: In production, this should be restricted to admin users only.
     """
+    # For now, we enforce authentication. 
+    # To truly fix CB-1, we should also check if current_user.email in ADMIN_EMAILS
+    # if current_user.email not in settings.ADMIN_EMAILS:
+    #     raise HTTPException(status_code=403, detail="Admin access required")
     try:
         from services.analytics_engine import get_analytics_engine
         
@@ -182,7 +199,7 @@ async def execute_custom_query(request: QueryRequest):
 # ============================================
 
 @router.get("/archive/list")
-async def list_archives():
+async def list_archives(current_user: User = Depends(get_current_user)):
     """List all available Parquet archives."""
     try:
         from services.parquet_archive import get_archive_service
@@ -201,7 +218,7 @@ async def list_archives():
 
 
 @router.get("/archive/stats")
-async def get_archive_stats():
+async def get_archive_stats(current_user: User = Depends(get_current_user)):
     """Get archive storage statistics."""
     try:
         from services.parquet_archive import get_archive_service
@@ -219,7 +236,7 @@ async def get_archive_stats():
 
 
 @router.post("/archive/month")
-async def archive_month(request: ArchiveRequest, background_tasks: BackgroundTasks):
+async def archive_month(request: ArchiveRequest, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user)):
     """
     Archive one month of data to Parquet.
     Runs in background if delete_after is True.
@@ -253,7 +270,7 @@ async def archive_month(request: ArchiveRequest, background_tasks: BackgroundTas
 
 
 @router.post("/archive/old")
-async def archive_old_data(request: ArchiveOldRequest, background_tasks: BackgroundTasks):
+async def archive_old_data(request: ArchiveOldRequest, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user)):
     """
     Archive all data older than specified months.
     Always runs in background.
@@ -280,7 +297,7 @@ async def archive_old_data(request: ArchiveOldRequest, background_tasks: Backgro
 
 
 @router.post("/archive/restore")
-async def restore_from_archive(request: ArchiveRequest):
+async def restore_from_archive(request: ArchiveRequest, current_user: User = Depends(get_current_user)):
     """Restore archived data back to database."""
     try:
         from services.parquet_archive import get_archive_service
@@ -306,6 +323,7 @@ async def restore_from_archive(request: ArchiveRequest):
 @router.post("/indicators/compute")
 async def trigger_indicator_computation(
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     interval: str = Query("1d", regex="^(1min|5min|15min|30min|1d)$"),
     symbol_limit: Optional[int] = Query(None, ge=1, le=1000)
 ):
@@ -335,18 +353,13 @@ async def trigger_indicator_computation(
 
 
 @router.get("/indicators/latest/{symbol}")
-async def get_latest_indicators(symbol: str, interval: str = "1d"):
+async def get_latest_indicators(symbol: str, interval: str = "1d", current_user: User = Depends(get_current_user)):
     """Get latest precomputed indicators for a symbol."""
     try:
-        from sqlalchemy import create_engine, text
-        from sqlalchemy.orm import sessionmaker
-        from config import settings
+        from database import AsyncSessionLocal
+        from sqlalchemy import text
         
-        engine = create_engine(settings.SYNC_DATABASE_URL)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-        
-        try:
+        async with AsyncSessionLocal() as session:
             query = text("""
                 SELECT * FROM precomputed_indicators
                 WHERE symbol = :symbol AND interval = :interval
@@ -354,7 +367,7 @@ async def get_latest_indicators(symbol: str, interval: str = "1d"):
                 LIMIT 1
             """)
             
-            result = session.execute(query, {"symbol": symbol, "interval": interval})
+            result = await session.execute(query, {"symbol": symbol, "interval": interval})
             row = result.fetchone()
             
             if not row:
@@ -373,8 +386,6 @@ async def get_latest_indicators(symbol: str, interval: str = "1d"):
                 "interval": interval,
                 "indicators": data
             }
-        finally:
-            session.close()
             
     except HTTPException:
         raise

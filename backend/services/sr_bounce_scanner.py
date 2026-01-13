@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings
+from utils.symbol_utils import get_company_name
 
 
 class SRBounceScanner:
-    """
     Support/Resistance Bounce Scanner.
     """
     
@@ -23,24 +23,36 @@ class SRBounceScanner:
         
     def _get_ohlcv_data(self, symbol: str, days: int = 60) -> Optional[pd.DataFrame]:
         try:
-            from models_ml import Nifty100Daily
+            from models_alpha import StockCandle
             from sqlalchemy import desc
             session = self._Session()
             try:
-                results = session.query(Nifty100Daily).filter(
-                    Nifty100Daily.symbol == symbol
-                ).order_by(desc(Nifty100Daily.timestamp)).limit(days).all()
+                # Filter by symbol and '1d' timeframe
+                results = session.query(StockCandle).filter(
+                    StockCandle.symbol == symbol,
+                    StockCandle.timeframe == '1d'
+                ).order_by(desc(StockCandle.timestamp)).limit(days).all()
+                
                 if not results or len(results) < 20:
                     return None
+                
+                # Results are DESC, reverse for chronological order
                 results = results[::-1]
-                data = [{'timestamp': r.timestamp, 'high': float(r.high), 'low': float(r.low),
-                         'close': float(r.close), 'volume': int(r.volume)} for r in results]
+                data = [{
+                    'timestamp': r.dt_timestamp, 
+                    'high': float(r.high), 
+                    'low': float(r.low),
+                    'close': float(r.close), 
+                    'volume': int(r.volume)
+                } for r in results]
+                
                 df = pd.DataFrame(data)
                 df.set_index('timestamp', inplace=True)
                 return df
             finally:
                 session.close()
-        except:
+        except Exception as e:
+            print(f"Error fetching OHLCV for {symbol}: {e}")
             return None
     
     def find_sr_levels(self, df: pd.DataFrame) -> Dict:
@@ -117,7 +129,9 @@ class SRBounceScanner:
         
         return {
             "symbol": symbol,
-            "name": symbol,
+            "symbol": symbol,
+            "name": get_company_name(symbol),
+            "signal": signal,
             "signal": signal,
             "action": action,
             "trend": "BULLISH" if action == "BUY" else "BEARISH",
@@ -133,15 +147,8 @@ class SRBounceScanner:
         }
     
     def get_symbols(self) -> List[str]:
-        try:
-            from models_ml import Nifty100Daily
-            session = self._Session()
-            try:
-                return [s[0] for s in session.query(Nifty100Daily.symbol).distinct().all()]
-            finally:
-                session.close()
-        except:
-            return ["RELIANCE", "TCS"]
+        from utils.symbol_utils import get_all_symbols
+        return get_all_symbols()
     
     def scan_all(self, limit: int = 10) -> List[Dict]:
         symbols = self.get_symbols()

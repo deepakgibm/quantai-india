@@ -6,9 +6,9 @@ Identifies oversold/overbought stocks for reversal plays.
 import pandas as pd
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from config import settings
+from utils.symbol_utils import get_company_name
+from database import SessionLocal
 
 
 class MeanReversionScanner:
@@ -17,10 +17,60 @@ class MeanReversionScanner:
     """
     
     def __init__(self):
-        self._engine = create_engine(settings.SYNC_DATABASE_URL)
-        self._Session = sessionmaker(bind=self._engine)
+        self._Session = SessionLocal
         self.min_score = 60
         
+    def _get_bulk_ohlcv_data(self, days: int = 60) -> Dict[str, pd.DataFrame]:
+        """Fetch OHLCV data for ALL symbols in one query."""
+        try:
+            from models_ml import Nifty100Daily
+            
+            session = self._Session()
+            try:
+                cutoff_date = datetime.now() - timedelta(days=days)
+                
+                # Bulk query
+                results = session.query(
+                    Nifty100Daily.symbol,
+                    Nifty100Daily.timestamp,
+                    Nifty100Daily.open,
+                    Nifty100Daily.high,
+                    Nifty100Daily.low,
+                    Nifty100Daily.close,
+                    Nifty100Daily.volume
+                ).filter(
+                    Nifty100Daily.timestamp >= cutoff_date
+                ).order_by(Nifty100Daily.symbol, Nifty100Daily.timestamp.asc()).all()
+                
+                if not results:
+                    return {}
+                
+                # Convert to DataFrame
+                data = [{
+                    'symbol': r.symbol,
+                    'timestamp': r.timestamp,
+                    'open': float(r.open),
+                    'high': float(r.high),
+                    'low': float(r.low),
+                    'close': float(r.close),
+                    'volume': int(r.volume)
+                } for r in results]
+                
+                df = pd.DataFrame(data)
+                
+                # Split by symbol
+                symbol_dfs = {}
+                for symbol, group in df.groupby('symbol'):
+                    group.set_index('timestamp', inplace=True)
+                    symbol_dfs[symbol] = group.drop('symbol', axis=1)
+                    
+                return symbol_dfs
+            finally:
+                session.close()
+        except Exception as e:
+            print(f"Error fetching bulk data: {e}")
+            return {}
+
     def _get_ohlcv_data(self, symbol: str, days: int = 60) -> Optional[pd.DataFrame]:
         try:
             from models_ml import Nifty100Daily
@@ -42,8 +92,10 @@ class MeanReversionScanner:
         except:
             return None
     
-    def analyze_stock(self, symbol: str) -> Optional[Dict]:
-        df = self._get_ohlcv_data(symbol)
+    def analyze_stock(self, symbol: str, df: Optional[pd.DataFrame] = None) -> Optional[Dict]:
+        if df is None:
+            df = self._get_ohlcv_data(symbol)
+        
         if df is None:
             return None
         
@@ -102,7 +154,7 @@ class MeanReversionScanner:
         
         return {
             "symbol": symbol,
-            "name": symbol,
+            "name": get_company_name(symbol),
             "signal": signal,
             "action": action,
             "strength": round(total),
@@ -115,25 +167,30 @@ class MeanReversionScanner:
         }
     
     def get_symbols(self) -> List[str]:
-        try:
-            from models_ml import Nifty100Daily
-            session = self._Session()
-            try:
-                return [s[0] for s in session.query(Nifty100Daily.symbol).distinct().all()]
-            finally:
-                session.close()
-        except:
-            return ["RELIANCE", "TCS", "HDFCBANK"]
+        from utils.symbol_utils import get_all_symbols
+        return get_all_symbols()
     
     def scan_all(self, limit: int = 10) -> List[Dict]:
-        symbols = self.get_symbols()
+        """Scan all stocks for mean reversion using bulk optimization."""
+        # 1. Fetch bulk data
+        print("📊 Fetching bulk OHLCV data...")
+        symbol_data_map = self._get_bulk_ohlcv_data()
+        
+        if not symbol_data_map:
+            print("⚠️ No data found in database.")
+            return []
+            
+        print(f"✅ Loaded data for {len(symbol_data_map)} stocks. Scanning...")
+        
         results = []
-        for symbol in symbols:
+        # 2. Process in memory
+        for symbol, df in symbol_data_map.items():
             try:
-                analysis = self.analyze_stock(symbol)
+                analysis = self.analyze_stock(symbol, df)
                 if analysis and analysis["strength"] >= self.min_score:
                     results.append(analysis)
             except:
                 continue
+        
         results.sort(key=lambda x: x["strength"], reverse=True)
         return results[:limit]

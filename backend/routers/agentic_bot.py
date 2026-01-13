@@ -1,7 +1,9 @@
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from pydantic import BaseModel, Field
 from typing import List, Optional
+from models import User
+from utils.auth import get_current_user
 import asyncio
 import logging
 
@@ -19,10 +21,13 @@ def get_orchestrator():
     return _orchestrator
 
 class AgentRequest(BaseModel):
-    prompt: str
+    prompt: str = Field(..., min_length=5, description="Analysis prompt")
 
 @router.post("/analyze")
-async def run_agent_analysis(request: AgentRequest):
+async def run_agent_analysis(
+    request: AgentRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Trigger the 3-Agent Workflow
     """

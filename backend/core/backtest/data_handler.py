@@ -79,36 +79,82 @@ class DataHandler:
         symbol: str,
         start_date: date,
         end_date: date,
-        db_session: Any
+        db_session: Any,
+        timeframe: str = "1d"
     ) -> None:
         """
-        Load data from Nifty100Daily database table
+        Load data from StockCandle database table (V3 source)
         """
-        from models_ml import Nifty100Daily
-        from sqlalchemy import and_
+        import models # Ensure User is registered first to avoid TradeDecision relationship errors
+        from models_alpha import StockCandle, TimeframeMapper
+        from sqlalchemy import and_, cast, text
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+        import datetime as dt
         
-        query = db_session.query(Nifty100Daily).filter(
-            and_(
-                Nifty100Daily.symbol == symbol,
-                Nifty100Daily.date >= start_date,
-                Nifty100Daily.date <= end_date
-            )
-        ).order_by(Nifty100Daily.date.asc())
+        db_tf = TimeframeMapper.to_standard(timeframe)
+        
+        # Step 1: Resolve instrument_key using raw SQL to avoid ORM metadata collisions
+        sql = text("SELECT instrument_key FROM stock_master WHERE symbol = :symbol")
+        result = db_session.execute(sql, {"symbol": symbol}).fetchone()
+        instrument_key = result[0] if result else None
+        
+        if not instrument_key:
+            logger.warning(f"Could not resolve instrument_key for {symbol}, trying fallback symbol query")
+
+        # Step 2: Query stock_candles using ORM for the OHLCV data
+        if instrument_key:
+            query = db_session.query(StockCandle).filter(
+                and_(
+                    StockCandle.instrument_key == instrument_key,
+                    StockCandle.timeframe == db_tf,
+                    cast(StockCandle.timestamp, TIMESTAMP) >= start_date,
+                    cast(StockCandle.timestamp, TIMESTAMP) <= end_date
+                )
+            ).order_by(cast(StockCandle.timestamp, TIMESTAMP).asc())
+        else:
+            query = db_session.query(StockCandle).filter(
+                and_(
+                    StockCandle.symbol == symbol,
+                    StockCandle.timeframe == db_tf,
+                    cast(StockCandle.timestamp, TIMESTAMP) >= start_date,
+                    cast(StockCandle.timestamp, TIMESTAMP) <= end_date
+                )
+            ).order_by(cast(StockCandle.timestamp, TIMESTAMP).asc())
         
         records = query.all()
         
         if not records:
-            raise ValueError(f"No data found for {symbol} between {start_date} and {end_date}")
+            # Fallback to Nifty100Daily for daily data if candles missing
+            if db_tf == "1d":
+                logger.info(f"No {db_tf} data in StockCandle for {symbol}, trying Nifty100Daily fallback")
+                from models_ml import Nifty100Daily
+                query = db_session.query(Nifty100Daily).filter(
+                    and_(
+                        Nifty100Daily.symbol == symbol,
+                        Nifty100Daily.timestamp >= start_date,
+                        Nifty100Daily.timestamp <= end_date
+                    )
+                ).order_by(Nifty100Daily.timestamp.asc())
+                records = query.all()
+        
+        if not records:
+            raise ValueError(f"No data found for {symbol} ({db_tf}) between {start_date} and {end_date}")
         
         data = []
         for r in records:
+            ts_raw = r.timestamp
+            if isinstance(ts_raw, str):
+                ts = dt.datetime.fromisoformat(ts_raw)
+            else:
+                ts = ts_raw
+                
             data.append({
-                'date': r.date,
-                'open': r.open,
-                'high': r.high,
-                'low': r.low,
-                'close': r.close,
-                'volume': r.volume
+                'date': ts,
+                'open': float(r.open),
+                'high': float(r.high),
+                'low': float(r.low),
+                'close': float(r.close),
+                'volume': float(r.volume or 0)
             })
         
         df = pd.DataFrame(data)

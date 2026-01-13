@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from database import get_db
 from models import User, UserSettings
-from utils.auth import get_current_user
+from utils.auth import get_current_user, get_optional_user
 
 router = APIRouter()
 

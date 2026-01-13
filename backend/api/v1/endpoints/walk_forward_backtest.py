@@ -18,8 +18,11 @@ import logging
 import sqlite3
 import os
 
-from utils.auth import get_optional_user
+from utils.auth import get_current_user
 from models import User
+from database import AsyncSessionLocal
+from models_alpha import StockCandle, TimeframeMapper
+from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +155,7 @@ class WalkForwardResponse(BaseModel):
 @router.post("", response_model=WalkForwardResponse)
 async def run_walk_forward_backtest(
     request: WalkForwardRequest,
-    current_user: Optional[User] = Depends(get_optional_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Run a Pardo-compliant Walk-Forward Backtest
@@ -193,7 +196,7 @@ async def run_walk_forward_backtest(
 
 
 @router.get("/strategies")
-async def get_available_strategies():
+async def get_available_strategies(current_user: User = Depends(get_current_user)):
     """Get list of available strategies for walk-forward backtesting with full parameter details"""
     return {
         "Trend & Momentum": [
@@ -349,7 +352,7 @@ async def get_available_strategies():
 
 
 @router.get("/presets")
-async def get_walk_forward_presets():
+async def get_walk_forward_presets(current_user: User = Depends(get_current_user)):
     """Get recommended walk-forward configurations by trade style"""
     return {
         "intraday": {
@@ -368,143 +371,29 @@ async def get_walk_forward_presets():
 
 
 @router.get("/symbols")
-async def get_available_symbols(timeframe: str = "1D"):
-    """Get list of symbols available in database for a given timeframe"""
-    import psycopg2
-    from config import settings
-    from urllib.parse import urlparse
-    
-    # Map timeframe to interval
-    interval_map = {
-        "5m": "5min",
-        "15m": "15min",
-        "30m": "30min",
-        "1h": "1hour",
-        "1H": "1hour",
-        "1D": "1d"
-    }
-    interval = interval_map.get(timeframe, "1d")
+async def get_available_symbols(
+    timeframe: str = "1D",
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of symbols available in stock_candles for a given timeframe using async session"""
+    db_tf = TimeframeMapper.to_standard(timeframe)
     
     try:
-        # Parse DATABASE_URL from settings (postgresql+asyncpg://user:pass@host:port/db)
-        db_url = str(settings.DATABASE_URL)
-        # Remove asyncpg driver prefix if present
-        if '+asyncpg' in db_url:
-            db_url = db_url.replace('+asyncpg', '')
-        
-        parsed = urlparse(db_url)
-        
-        conn = psycopg2.connect(
-            host=parsed.hostname,
-            port=parsed.port or 5432,
-            user=parsed.username,
-            password=parsed.password,
-            database=parsed.path.lstrip('/')
-        )
-        cursor = conn.cursor()
-        
-        # Get symbols that have data for this interval
-        cursor.execute("""
-            SELECT DISTINCT symbol 
-            FROM stock_data 
-            WHERE interval = %s
-            ORDER BY symbol
-        """, (interval,))
-        
-        symbols = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        
-        if not symbols:
-            # Try without interval filter
-            conn = psycopg2.connect(
-                host=parsed.hostname,
-                port=parsed.port or 5432,
-                user=parsed.username,
-                password=parsed.password,
-                database=parsed.path.lstrip('/')
-            )
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT symbol FROM stock_data ORDER BY symbol")
-            symbols = [row[0] for row in cursor.fetchall()]
-            conn.close()
+        async with AsyncSessionLocal() as session:
+            # Query distinct symbols for the given timeframe
+            query = select(StockCandle.symbol).where(StockCandle.timeframe == db_tf).distinct().order_by(StockCandle.symbol)
+            result = await session.execute(query)
+            symbols = [row[0] for row in result.all()]
             
             return {
                 "symbols": symbols,
                 "count": len(symbols),
-                "timeframe": timeframe,
-                "interval": interval,
-                "source": "postgresql",
-                "note": "Returned all symbols (no data for specific interval)"
+                "timeframe": db_tf,
+                "source": "postgresql_async"
             }
-        
-        return {
-            "symbols": symbols,
-            "count": len(symbols),
-            "timeframe": timeframe,
-            "interval": interval,
-            "source": "postgresql"
-        }
     except Exception as e:
-        logger.error(f"Error fetching symbols from PostgreSQL: {e}")
-        
-        # --- Fallback to SQLite ---
-        db_paths = [
-            r"c:\Users\Deepak Kumar\Downloads\quantai-india\quantai_review_later\quantai.db",
-            r"c:\Users\Deepak Kumar\Downloads\quantai-india\backend\quantai.db",
-            r"c:\Users\Deepak Kumar\Downloads\quantai-india\quantai.db",
-            "quantai.db"
-        ]
-        
-        target_db = None
-        for path in db_paths:
-            if os.path.exists(path):
-                target_db = path
-                break
-        
-        if target_db:
-            try:
-                logger.info(f"Falling back to SQLite discovery: {target_db}")
-                s_conn = sqlite3.connect(target_db)
-                s_cur = s_conn.cursor()
-                
-                # Try with interval
-                s_cur.execute("SELECT DISTINCT symbol FROM stock_data WHERE interval = ? ORDER BY symbol", (interval,))
-                s_symbols = [row[0] for row in s_cur.fetchall()]
-                
-                if not s_symbols:
-                    # Try daily table
-                    s_cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='nifty_100_daily'")
-                    if s_cur.fetchone():
-                        s_cur.execute("SELECT DISTINCT symbol FROM nifty_100_daily ORDER BY symbol")
-                        s_symbols = [row[0] for row in s_cur.fetchall()]
-                
-                s_conn.close()
-                if s_symbols:
-                    return {
-                        "symbols": s_symbols,
-                        "count": len(s_symbols),
-                        "timeframe": timeframe,
-                        "interval": interval,
-                        "source": "sqlite",
-                        "db_path": target_db
-                    }
-            except Exception as se:
-                logger.error(f"SQLite fallback failed: {se}")
-
-        # --- Ultimate Hardcoded Fallback ---
-        fallback_symbols = [
-            "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
-            "HINDUNILVR", "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK",
-            "LT", "AXISBANK", "ASIANPAINT", "MARUTI", "BAJFINANCE"
-        ]
-        return {
-            "symbols": fallback_symbols,
-            "count": len(fallback_symbols),
-            "timeframe": timeframe,
-            "error": str(e),
-            "source": "hardcoded_fallback",
-            "note": "Using fallback symbol list due to database connection error"
-        }
+        logger.error(f"Error fetching symbols via AsyncSession: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch available symbols")
 
 
 

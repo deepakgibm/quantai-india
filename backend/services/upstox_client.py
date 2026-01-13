@@ -10,17 +10,14 @@ Production-grade wrapper with:
 
 import asyncio
 import time
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime, timedelta
-import requests
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type
-)
-from config import settings
+import httpx
 import pandas as pd
+import urllib.parse
+from typing import List, Dict, Optional, Tuple, Any
+from datetime import datetime
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from config import settings
 
 
 class RateLimiter:
@@ -52,7 +49,8 @@ class RateLimiter:
             # Wait if no tokens available
             if self.tokens < 1:
                 wait_time = (1 - self.tokens) * 60.0 / self.rate_per_minute
-                await asyncio.sleep(wait_time)
+                if wait_time > 0:
+                    await asyncio.sleep(wait_time)
                 self.tokens = 1
             
             self.tokens -= 1
@@ -71,40 +69,41 @@ class UpstoxClient:
             rate_per_minute=settings.UPSTOX_RATE_LIMIT_PER_MINUTE,
             burst=settings.UPSTOX_RATE_LIMIT_BURST
         )
-        self.session = requests.Session()
-        self.session.headers.update({
+        self._client = None
+        self.headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {self.access_token}"
-        })
+        }
     
+    @property
+    def client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                headers=self.headers,
+                timeout=httpx.Timeout(10.0, connect=5.0)
+            )
+        return self._client
+
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, requests.exceptions.Timeout))
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=0.5, min=1, max=3),
+        retry=retry_if_exception_type(httpx.RequestError)  # Only retry network errors, not HTTP errors like 401
     )
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
+    async def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
         """
         Make HTTP request with retry logic.
-        
-        Args:
-            method: HTTP method (GET, POST)
-            endpoint: API endpoint (without base URL)
-            **kwargs: Additional arguments for requests
-            
-        Returns:
-            JSON response as dict
-            
-        Raises:
-            requests.exceptions.HTTPError: On HTTP errors
+        Only retries on network errors, not on HTTP status errors (401, 429, etc.).
         """
         url = f"{self.BASE_URL}{endpoint}"
         
         try:
-            response = self.session.request(method, url, timeout=10, **kwargs)
+            response = await self.client.request(method, url, **kwargs)
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.HTTPError as e:
-            print(f"HTTP Error: {e.response.status_code} - {e.response.text}")
+        except httpx.HTTPStatusError as e:
+            # Don't log 401 errors excessively - they're expected with expired tokens
+            if e.response.status_code != 401:
+                print(f"HTTP Error: {e.response.status_code} - {e.response.text}")
             raise
         except Exception as e:
             print(f"Request error: {e}")
@@ -126,7 +125,7 @@ class UpstoxClient:
             instrument_key: Upstox instrument key (e.g., "NSE_EQ|INE002A01018")
             from_date: Start date
             to_date: End date
-            interval: Candle interval (1minute, 5minute, 1day, etc.)
+            interval: Candle interval (1minute, 5minute, day, etc.)
             
         Returns:
             DataFrame with columns: timestamp, open, high, low, close, volume
@@ -134,10 +133,12 @@ class UpstoxClient:
         await self.rate_limiter.acquire()
         
         # Upstox API endpoint for historical data
-        endpoint = f"/historical-candle/{instrument_key}/{interval}/{to_date.strftime('%Y-%m-%d')}/{from_date.strftime('%Y-%m-%d')}"
+        # URL encode the instrument_key because it contains characters like '|'
+        encoded_key = urllib.parse.quote(instrument_key, safe='')
+        endpoint = f"/historical-candle/{encoded_key}/{interval}/{to_date.strftime('%Y-%m-%d')}/{from_date.strftime('%Y-%m-%d')}"
         
         try:
-            data = self._make_request("GET", endpoint)
+            data = await self._make_request("GET", endpoint)
             
             if data.get("status") != "success" or not data.get("data", {}).get("candles"):
                 print(f"No data for {symbol} from {from_date} to {to_date}")
@@ -181,7 +182,7 @@ class UpstoxClient:
         endpoint = f"/market-quote/quotes?instrument_key={encoded_keys}"
         
         try:
-            data = self._make_request("GET", endpoint)
+            data = await self._make_request("GET", endpoint)
             
             results = {}
             if data.get("status") == "success" and data.get("data"):
@@ -238,32 +239,44 @@ class UpstoxClient:
         endpoint = f"/market-quote/quotes?instrument_key={encoded_key}"
         
         try:
-            data = self._make_request("GET", endpoint)
+            data = await self._make_request("GET", endpoint)
             
             if data.get("status") == "success" and data.get("data"):
                 # Extract the quote (key might vary)
                 quote_data = next(iter(data["data"].values()))
                 
-                # Get previous close - Upstox provides this in full quote
-                # If not available, try to use close from OHLC
-                prev_close = quote_data.get("previous_close") or quote_data.get("ohlc", {}).get("close")
                 ltp = quote_data.get("last_price", 0)
+                ohlc = quote_data.get("ohlc", {})
                 
-                # Calculate change if we have previous close
+                # Get previous close - try multiple sources
+                prev_close = quote_data.get("previous_close")
+                if not prev_close or prev_close == 0:
+                    # Fallback to OHLC close (previous day's closing price)
+                    prev_close = ohlc.get("close", 0)
+                
+                # Get net_change and percentage_change from API
                 net_change = quote_data.get("net_change", 0)
                 change_pct = quote_data.get("percentage_change", 0)
                 
-                # If API doesn't provide change, calculate it
-                if not change_pct and prev_close and prev_close > 0:
+                # If percentage_change is missing/zero but we have net_change, calculate it
+                if (not change_pct or change_pct == 0) and net_change and prev_close and prev_close > 0:
+                    # Calculate from net_change: percent = (net_change / (ltp - net_change)) * 100
+                    actual_prev = ltp - net_change
+                    if actual_prev > 0:
+                        change_pct = (net_change / actual_prev) * 100
+                
+                # Last resort: calculate from ltp and prev_close
+                if (not change_pct or change_pct == 0) and prev_close and prev_close > 0:
                     change_pct = ((ltp - prev_close) / prev_close) * 100
+                    net_change = ltp - prev_close
                 
                 return {
                     "symbol": symbol,
                     "timestamp": datetime.now(),
-                    "open": quote_data.get("ohlc", {}).get("open"),
-                    "high": quote_data.get("ohlc", {}).get("high"),
-                    "low": quote_data.get("ohlc", {}).get("low"),
-                    "close": quote_data.get("ohlc", {}).get("close"),
+                    "open": ohlc.get("open"),
+                    "high": ohlc.get("high"),
+                    "low": ohlc.get("low"),
+                    "close": ohlc.get("close"),
                     "last_price": ltp,
                     "previous_close": prev_close,
                     "net_change": net_change,
@@ -272,8 +285,9 @@ class UpstoxClient:
                 }
             
             return None
+
             
-        except requests.exceptions.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
                 # Token expired
                 pass
@@ -304,16 +318,23 @@ class UpstoxClient:
             except Exception as e:
                 print(f"Error reading nifty200_instruments.json: {e}")
         
-        # Fallback to hardcoded subset
-        NIFTY_50_MAPPING = {
-            "RELIANCE": "NSE_EQ|INE002A01018",
-            "TCS": "NSE_EQ|INE467B01029",
-            "HDFCBANK": "NSE_EQ|INE040A01034",
-            "INFY": "NSE_EQ|INE009A01021",
-            "ICICIBANK": "NSE_EQ|INE090A01021",
-        }
-        
-        return list(NIFTY_50_MAPPING.items())
+        # Fallback to Database query
+        try:
+            from sqlalchemy import create_engine, text
+            from config import settings
+            
+            engine = create_engine(settings.SYNC_DATABASE_URL)
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT symbol, instrument_key FROM stock_master LIMIT 200"))
+                db_data = [(row.symbol, row.instrument_key) for row in result]
+                
+            if db_data:
+                return db_data
+        except Exception as e:
+            print(f"Error fetching symbols from DB fallback: {e}")
+
+        # Final empty fallback - better than hardcoded stale data
+        return []
     
     async def batch_fetch_historical(
         self,
@@ -361,14 +382,14 @@ class UpstoxClient:
     async def get_profile(self) -> Dict:
         """Fetch user profile"""
         await self.rate_limiter.acquire()
-        return self._make_request("GET", "/user/profile")
+        return await self._make_request("GET", "/user/profile")
 
     async def get_positions(self) -> List[Dict]:
         """Fetch all positions (short-term and long-term)"""
         await self.rate_limiter.acquire()
         # Fetch both and combine
-        short_term = self._make_request("GET", "/portfolio/short-term-positions")
-        # long_term = self._make_request("GET", "/portfolio/long-term-positions") # Optional depending on API
+        short_term = await self._make_request("GET", "/portfolio/short-term-positions")
+        # long_term = await self._make_request("GET", "/portfolio/long-term-positions") # Optional depending on API
         
         positions = []
         if short_term.get("status") == "success":
@@ -379,7 +400,7 @@ class UpstoxClient:
     async def get_holdings(self) -> List[Dict]:
         """Fetch holdings"""
         await self.rate_limiter.acquire()
-        response = self._make_request("GET", "/portfolio/long-term-holdings")
+        response = await self._make_request("GET", "/portfolio/long-term-holdings")
         if response.get("status") == "success":
             return response.get("data", [])
         return []
@@ -387,7 +408,7 @@ class UpstoxClient:
     async def get_orders(self) -> List[Dict]:
         """Fetch order book"""
         await self.rate_limiter.acquire()
-        response = self._make_request("GET", "/order/retrieve-all")
+        response = await self._make_request("GET", "/order/retrieve-all")
         if response.get("status") == "success":
             return response.get("data", [])
         return []
@@ -422,16 +443,17 @@ class UpstoxClient:
             "is_amo": False
         }
         
-        return self._make_request("POST", "/order/place", json=payload)
+        return await self._make_request("POST", "/order/place", json=payload)
 
     async def cancel_order(self, order_id: str) -> Dict:
         """Cancel an order"""
         await self.rate_limiter.acquire()
-        return self._make_request("DELETE", f"/order/cancel?order_id={order_id}")
+        return await self._make_request("DELETE", f"/order/cancel?order_id={order_id}")
 
-    def close(self):
-        """Close the session"""
-        self.session.close()
+    async def aclose(self):
+        """Close the client"""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
 
 
 # Singleton instance

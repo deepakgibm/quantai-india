@@ -1,102 +1,119 @@
-version: '3.8'
+# QuantAI India - Docker Compose Configuration
+# Full stack: Frontend, Backend API, HP Scanner Worker, Dragonfly Cache, PostgreSQL
+
+version: '3.9'
 
 services:
-  backend:
-    build: ./backend
-    container_name: algobot_backend
-    command: gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-    volumes:
-      - ./backend:/app
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://user:password@postgres/algobot
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - UPSTOX_API_KEY=${UPSTOX_API_KEY}
-      - UPSTOX_API_SECRET=${UPSTOX_API_SECRET}
-      - UPSTOX_REDIRECT_URI=${UPSTOX_REDIRECT_URI}
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - algobot_net
-
-  celery_worker:
-    build: ./backend
-    container_name: algobot_worker
-    command: celery -A worker.celery_app worker --loglevel=info
-    volumes:
-      - ./backend:/app
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://user:password@postgres/algobot
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    depends_on:
-      - backend
-      - redis
-      - postgres
-    networks:
-      - algobot_net
-
-  celery_beat:
-    build: ./backend
-    container_name: algobot_beat
-    command: celery -A worker.celery_app beat --loglevel=info
-    volumes:
-      - ./backend:/app
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://user:password@postgres/algobot
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    depends_on:
-      - backend
-      - redis
-      - postgres
-    networks:
-      - algobot_net
-
-  frontend:
-    build: ./frontend
-    container_name: algobot_frontend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    networks:
-      - algobot_net
-
-  nginx:
-    image: nginx:alpine
-    container_name: algobot_nginx
+  # ==========================================================================
+  # Dragonfly Cache (Redis-compatible, 25x faster)
+  # ==========================================================================
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    container_name: quantai-dragonfly
     ports:
-      - "80:80"
+      - "6379:6379"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - dragonfly_data:/data
+    command: dragonfly --logtostderr
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # Backend API (FastAPI)
+  # ==========================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quantai-backend
+    env_file:
+      - ./backend/.env
+    environment:
+
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
+      - SYNC_DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
+      - DRAGONFLY_HOST=dragonfly
+      - DRAGONFLY_PORT=6379
+      - UPSTOX_API_KEY=${UPSTOX_API_KEY:-}
+      - UPSTOX_API_SECRET=${UPSTOX_API_SECRET:-}
+      - UPSTOX_REDIRECT_URI=${UPSTOX_REDIRECT_URI:-}
+      - UPSTOX_ACCESS_TOKEN=${UPSTOX_ACCESS_TOKEN:-}
+      - SECRET_KEY=${SECRET_KEY:-QuantAI_Dev_SecretKey_2025_Secure_RandomToken_AbCdEfGhIjKlMnOpQrStUvWxYz123456789}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey}
+
+    ports:
+      - "8000:8000"
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ==========================================================================
+  # HP Scanner Worker (Background processing)
+  # ==========================================================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: quantai-worker
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
+      - SYNC_DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
+      - DRAGONFLY_HOST=dragonfly
+      - DRAGONFLY_PORT=6379
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Frontend (React + Vite + nginx)
+  # ==========================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+        - VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
+        - VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
+        - VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
+        - VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET}
+        - VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        - VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID}
+        - VITE_FIREBASE_MEASUREMENTID=${VITE_FIREBASE_MEASUREMENTID}
+    container_name: quantai-frontend
+    ports:
+      - "127.0.0.1:3000:80"
     depends_on:
       - backend
-      - frontend
-    networks:
-      - algobot_net
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  postgres:
-    image: postgres:15
-    container_name: algobot_postgres
-    environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=algobot
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - algobot_net
-
-  redis:
-    image: redis:7
-    container_name: algobot_redis
-    networks:
-      - algobot_net
-
-networks:
-  algobot_net:
-    driver: bridge
-
+# ==========================================================================
+# Volumes
+# ==========================================================================
 volumes:
-  postgres_data:
+  dragonfly_data:
+    driver: local
+
+# ==========================================================================
+# Networks (default bridge network is used)
+# ==========================================================================

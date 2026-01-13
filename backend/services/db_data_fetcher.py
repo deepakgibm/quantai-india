@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 import psycopg2
+import pandas as pd
 from config import settings
 from urllib.parse import urlparse
 
@@ -92,7 +93,7 @@ class DatabaseDataFetcher:
     def fetch_latest_data(self, symbols: List[str] = None) -> Dict[str, DatabaseTick]:
         """
         Fetch latest available data from database.
-        Uses stock_data table for price data - FAST query.
+        Uses stock_candles table for price data - FAST query.
         
         Args:
             symbols: List of symbols to fetch. If None, fetches all available.
@@ -110,31 +111,37 @@ class DatabaseDataFetcher:
         try:
             cursor = conn.cursor()
             
-            logger.info("Fetching momentum data from stock_data table (simple approach)")
+            logger.info("Fetching momentum data from stock_candles table (V3)")
             
-            # Step 1: Get the global max date in the database (fast)
-            cursor.execute("SELECT MAX(timestamp::date) FROM stock_data")
+            # Step 1: Get the latest date from stock_candles (fastest)
+            cursor.execute("SELECT MAX(timestamp::date) FROM stock_candles")
             max_date_row = cursor.fetchone()
             if not max_date_row or not max_date_row[0]:
-                logger.error("No data in stock_data table")
+                logger.error("No data in stock_candles table")
                 return {}
             
             max_date = max_date_row[0]
-            logger.info(f"Latest date in database: {max_date}")
+            logger.info(f"Latest date in stock_candles: {max_date}")
             
-            # Step 2: Get latest close prices for the most recent 2 trading days
-            # Optimized query: use direct timestamp comparison instead of date casting
-            # and add LIMIT to prevent full table scans
+            # Step 2: Get latest close prices for the most recent trading days
+            # JOIN with stock_master to get the ACTUAL trading symbol (e.g. RELIANCE) 
+            # instead of the full company name stored in stock_candles.symbol
             cursor.execute("""
-                SELECT symbol, timestamp::date as trade_date, close
-                FROM stock_data
-                WHERE timestamp >= %s::timestamp - interval '5 days'
-                ORDER BY symbol, timestamp DESC
+                SELECT sm.symbol, sc.timestamp::date as trade_date, sc.close
+                FROM stock_candles sc
+                JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
+                WHERE sc.timeframe = '1d' 
+                AND sc.timestamp >= %s::timestamp - interval '10 days'
+                ORDER BY sm.symbol, sc.timestamp DESC
                 LIMIT 10000
             """, (max_date,))
             
             rows = cursor.fetchall()
-            logger.info(f"Query returned {len(rows)} rows (limited to 10000)")
+            logger.info(f"stock_candles query returned {len(rows)} rows with symbol mapping join")
+            
+            if not rows:
+                logger.warning("No 1d data in stock_candles for the specified date range")
+                return {}
             
             # Process rows to get latest and previous close per symbol
             symbol_data = {}
@@ -214,6 +221,88 @@ class DatabaseDataFetcher:
             "symbol_count": len(self._cache),
             "poll_interval": 60  # DB data doesn't change frequently
         }
+
+    def get_historical_data(
+        self,
+        symbol: str,
+        interval: str,
+        start_date: str,
+        end_date: str
+    ) -> Optional[pd.DataFrame]:
+        """
+        Fetch historical OHLCV data for backtesting.
+        Primary source: stock_candles (V3).
+        """
+        from models_alpha import TimeframeMapper
+        
+        db_tf = TimeframeMapper.to_standard(interval)
+        conn = self._get_connection()
+        if not conn:
+            return None
+            
+        try:
+            cursor = conn.cursor()
+            
+            # Step 1: Resolve instrument_key if not provided
+            # Note: We prefer querying by instrument_key as it's the primary index in stock_candles
+            instrument_key = None
+            cursor.execute("SELECT instrument_key FROM stock_master WHERE symbol = %s", (symbol,))
+            key_row = cursor.fetchone()
+            if key_row:
+                instrument_key = key_row[0]
+                logger.info(f"Resolved {symbol} to {instrument_key}")
+            else:
+                logger.warning(f"Could not resolve instrument_key for {symbol}, falling back to symbol query (less reliable)")
+
+            logger.info(f"Fetching historical {db_tf} data for {symbol} ({instrument_key}) from stock_candles")
+            
+            # Step 2: Query using instrument_key (robust) or symbol (fallback)
+            if instrument_key:
+                query = """
+                    SELECT timestamp, open, high, low, close, volume
+                    FROM stock_candles
+                    WHERE instrument_key = %s AND timeframe = %s
+                    AND timestamp::date >= %s::date
+                    AND timestamp::date <= %s::date
+                    ORDER BY timestamp ASC
+                """
+                params = (instrument_key, db_tf, start_date, end_date)
+            else:
+                query = """
+                    SELECT timestamp, open, high, low, close, volume
+                    FROM stock_candles
+                    WHERE symbol = %s AND timeframe = %s
+                    AND timestamp::date >= %s::date
+                    AND timestamp::date <= %s::date
+                    ORDER BY timestamp ASC
+                """
+                params = (symbol, db_tf, start_date, end_date)
+
+            cursor.execute(query, params)
+            
+            rows = cursor.fetchall()
+            if not rows:
+                logger.warning(f"No historical data for {symbol} in stock_candles")
+                return None
+                
+            df = pd.DataFrame(rows, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
+            df.set_index('timestamp', inplace=True)
+            
+            # Enforce numeric types
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+            return df
+        except Exception as e:
+            logger.error(f"Error fetching historical data: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def get_stock_data(self, *args, **kwargs):
+        """Alias for get_historical_data to satisfy Experiment Lab."""
+        return self.get_historical_data(*args, **kwargs)
 
 
 # Singleton instance

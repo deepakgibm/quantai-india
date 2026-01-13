@@ -262,44 +262,4 @@ class PositionSizer:
 
 
 # Example usage
-async def test_position_sizing():
-    """Test position sizing calculations"""
-    from models_risk import RiskConfig
-    
-    # Mock risk config
-    class MockRiskConfig:
-        max_position_size = 0.05
-        risk_per_trade = 0.01
-        atr_multiplier = 2.0
-        position_sizing_method = 'atr'
-    
-    config = MockRiskConfig()
-    sizer = PositionSizer(account_value=1000000, risk_config=config)
-    
-    # Test ATR-based sizing
-    print("Testing Position Sizing...")
-    print(f"Account Value: ₹10,00,000")
-    print(f"Risk per trade: {config.risk_per_trade * 100}%")
-    print(f"Max position size: {config.max_position_size * 100}%\n")
-    
-    # Example: Buying RELIANCE at ₹2500
-    result = await sizer.atr_based_sizing('RELIANCE', entry_price=2500)
-    
-    print("ATR-Based Position Sizing for RELIANCE @ ₹2500:")
-    print(f"  Shares to buy: {result.get('shares', 0)}")
-    print(f"  Position value: ₹{result.get('position_value', 0):,.2f}")
-    print(f"  Position %: {result.get('position_pct', 0) * 100:.2f}%")
-    print(f"  Risk amount: ₹{result.get('risk_amount', 0):,.2f}")
-    print(f"  Stop loss: ₹{result.get('stop_loss', 0):,.2f}")
-    print(f"  ATR: ₹{result.get('atr', 0):.2f}")
-    
-    # Test fixed fractional
-    print("\nFixed Fractional (5%):")
-    result = sizer.fixed_fractional(entry_price=2500)
-    print(f"  Shares: {result['shares']}")
-    print(f"  Value: ₹{result['position_value']:,.2f}")
 
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(test_position_sizing())

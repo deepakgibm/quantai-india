@@ -21,19 +21,16 @@ interface Week52BreakoutStock {
     ltp: number;
     high_52w: number;
     low_52w: number;
-    prev_close: number;
     change_pct: number;
-    breakout_type: string;
+    breakout_type: string; // "Breakout", "Yearly High", "Yearly Low"
     breakout_pct: number;
-    days_data: number;
-    volume: number;
-    avg_volume: number;
     volume_ratio: number;
+    volume_strength: string;
     industry: string;
-    last_update: string;
+    timestamp: string;
 }
 
-type SortField = 'symbol' | 'ltp' | 'change_pct' | 'breakout_pct' | 'volume_ratio';
+type SortField = 'symbol' | 'ltp' | 'change_pct' | 'breakout_pct' | 'volume_ratio' | 'breakout_type';
 type SortOrder = 'asc' | 'desc';
 
 const Week52Breakout: React.FC = () => {
@@ -59,8 +56,17 @@ const Week52Breakout: React.FC = () => {
             const response = await fetch('http://localhost:8000/api/scanner/week52-breakouts');
             if (response.ok) {
                 const data = await response.json();
-                setHighBreakouts(data.high_breakouts || []);
-                setLowBreakdowns(data.low_breakdowns || []);
+
+                // Extra safety: Filter out any rows with missing critical data
+                const validHighs = (data.high_breakouts || []).filter((s: Week52BreakoutStock) =>
+                    s.symbol && s.industry && s.industry !== 'N/A'
+                );
+                const validLows = (data.low_breakdowns || []).filter((s: Week52BreakoutStock) =>
+                    s.symbol && s.industry && s.industry !== 'N/A'
+                );
+
+                setHighBreakouts(validHighs);
+                setLowBreakdowns(validLows);
                 setLastRefresh(new Date().toLocaleTimeString());
             }
         } catch (error) {
@@ -72,8 +78,7 @@ const Week52Breakout: React.FC = () => {
 
     useEffect(() => {
         fetchBreakouts();
-        const interval = setInterval(fetchBreakouts, 300000); // 5 minutes
-        return () => clearInterval(interval);
+        // Removed auto-polling to ensure refresh is user-triggered only
     }, []);
 
     // Sort function
@@ -150,8 +155,8 @@ const Week52Breakout: React.FC = () => {
             <button
                 onClick={() => onSort(field)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isActive
-                        ? `bg-${color}-500/20 text-${color}-600 dark:text-${color}-400 border border-${color}-500/30`
-                        : 'bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    ? `bg-${color}-500/20 text-${color}-600 dark:text-${color}-400 border border-${color}-500/30`
+                    : 'bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
             >
                 {label}
@@ -300,10 +305,18 @@ const Week52Breakout: React.FC = () => {
                                 <div key={stock.symbol} className="group relative bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-[32px] p-6 transition-all hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-1">
                                     <div className="flex justify-between items-start mb-6">
                                         <div>
-                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-emerald-500 transition-colors">
-                                                {stock.symbol}
-                                            </h3>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-emerald-500 transition-colors">
+                                                    {stock.symbol}
+                                                </h3>
+                                                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${stock.breakout_type === 'Breakout'
+                                                    ? 'bg-indigo-500 text-white'
+                                                    : 'bg-emerald-500/10 text-emerald-600'
+                                                    }`}>
+                                                    {stock.breakout_type}
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                 {stock.industry}
                                             </p>
                                         </div>
@@ -327,21 +340,25 @@ const Week52Breakout: React.FC = () => {
                                         <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Breakout %</span>
                                             <span className="text-sm font-black text-blue-600 dark:text-blue-400 leading-none">
-                                                +{stock.breakout_pct.toFixed(2)}%
+                                                {stock.breakout_pct > 0 ? '+' : ''}{stock.breakout_pct.toFixed(2)}%
                                             </span>
                                         </div>
                                         <div className="p-4 bg-purple-500/5 rounded-2xl border border-purple-500/10">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Vol Ratio</span>
                                             <span className="text-sm font-black text-purple-600 dark:text-purple-400 leading-none">
-                                                {stock.volume_ratio.toFixed(1)}x
+                                                {stock.volume_ratio.toFixed(2)}x
                                             </span>
                                         </div>
                                     </div>
 
                                     <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Strong Volume Support</span>
+                                            <div className={`w-2 h-2 rounded-full animate-pulse ${stock.volume_strength === 'Strong' ? 'bg-emerald-500' :
+                                                stock.volume_strength === 'Normal' ? 'bg-blue-500' : 'bg-slate-400'
+                                                }`} />
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                {stock.volume_strength} Volume Support
+                                            </span>
                                         </div>
                                         <button className="text-slate-400 hover:text-emerald-500 transition-colors">
                                             <ArrowRight size={20} />
@@ -423,10 +440,15 @@ const Week52Breakout: React.FC = () => {
                                 <div key={stock.symbol} className="group relative bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-[32px] p-6 transition-all hover:shadow-2xl hover:shadow-rose-500/10 hover:-translate-y-1">
                                     <div className="flex justify-between items-start mb-6">
                                         <div>
-                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-rose-500 transition-colors">
-                                                {stock.symbol}
-                                            </h3>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-rose-500 transition-colors">
+                                                    {stock.symbol}
+                                                </h3>
+                                                <span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                                    {stock.breakout_type}
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                 {stock.industry}
                                             </p>
                                         </div>
@@ -448,23 +470,26 @@ const Week52Breakout: React.FC = () => {
                                             </span>
                                         </div>
                                         <div className="p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Breakdown %</span>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Gap to Low %</span>
                                             <span className="text-sm font-black text-orange-600 dark:text-orange-400 leading-none">
-                                                -{stock.breakout_pct.toFixed(2)}%
+                                                {stock.breakout_pct > 0 ? '+' : ''}{stock.breakout_pct.toFixed(2)}%
                                             </span>
                                         </div>
                                         <div className="p-4 bg-purple-500/5 rounded-2xl border border-purple-500/10">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Vol Ratio</span>
                                             <span className="text-sm font-black text-purple-600 dark:text-purple-400 leading-none">
-                                                {stock.volume_ratio.toFixed(1)}x
+                                                {stock.volume_ratio.toFixed(2)}x
                                             </span>
                                         </div>
                                     </div>
 
                                     <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Heavy Selling Pressure</span>
+                                            <div className={`w-2 h-2 rounded-full animate-pulse ${stock.volume_ratio >= 1.5 ? 'bg-rose-500' : 'bg-slate-400'
+                                                }`} />
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                {stock.volume_ratio >= 1.5 ? 'Heavy Selling Pressure' : 'Normal Volume'}
+                                            </span>
                                         </div>
                                         <button className="text-slate-400 hover:text-rose-500 transition-colors">
                                             <ArrowRight size={20} />

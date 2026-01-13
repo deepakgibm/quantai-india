@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings
+from utils.symbol_utils import get_company_name
 
 
 class GapScanner:
-    """
     Gap Up/Down Scanner - detects significant overnight gaps.
     """
     
@@ -107,7 +107,9 @@ class GapScanner:
         
         return {
             "symbol": symbol,
-            "name": symbol,
+            "symbol": symbol,
+            "name": get_company_name(symbol),
+            "gap_type": gap_type,
             "gap_type": gap_type,
             "gap_pct": float(round(gap_pct, 2)),
             "trade_type": trade_type,
@@ -122,15 +124,8 @@ class GapScanner:
         }
     
     def get_symbols(self) -> List[str]:
-        try:
-            from models_ml import Nifty100Daily
-            session = self._Session()
-            try:
-                return [s[0] for s in session.query(Nifty100Daily.symbol).distinct().all()]
-            finally:
-                session.close()
-        except:
-            return ["RELIANCE", "TCS"]
+        from utils.symbol_utils import get_all_symbols
+        return get_all_symbols()
     
     def scan_all(self, limit: int = 10) -> List[Dict]:
         symbols = self.get_symbols()

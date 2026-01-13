@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings
+from utils.symbol_utils import get_company_name
 
 
 class RelativeStrengthScanner:
-    """
     Relative Strength Scanner - finds stocks outperforming NIFTY 50.
     """
     
@@ -77,7 +77,9 @@ class RelativeStrengthScanner:
         
         return {
             "symbol": symbol,
-            "name": symbol,
+            "symbol": symbol,
+            "name": get_company_name(symbol),
+            "rs_rating": strength_label,
             "rs_rating": strength_label,
             "strength": round(score),
             "current_price": round(current_price, 2),
@@ -90,15 +92,8 @@ class RelativeStrengthScanner:
         }
     
     def get_symbols(self) -> List[str]:
-        try:
-            from models_ml import Nifty100Daily
-            session = self._Session()
-            try:
-                return [s[0] for s in session.query(Nifty100Daily.symbol).distinct().all()]
-            finally:
-                session.close()
-        except:
-            return ["RELIANCE", "TCS", "HDFCBANK"]
+        from utils.symbol_utils import get_all_symbols
+        return get_all_symbols()
     
     def scan_all(self, limit: int = 10) -> List[Dict]:
         symbols = self.get_symbols()

@@ -4,10 +4,12 @@ Enhanced Backtest Strategy API
 Production-ready API endpoints for strategy listing with tier organization
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 from enum import Enum
+from models import User
+from utils.auth import get_current_user
 
 # Import StrategyRegistry
 from core.backtest.strategies_impl import StrategyRegistry
@@ -102,7 +104,8 @@ def mark_implementation_status(strategy_info: Dict[str, Any]) -> Dict[str, Any]:
 async def list_all_strategies(
     tier: Optional[str] = Query(None, description="Filter by tier: tier_1, tier_2, tier_3"),
     category: Optional[str] = Query(None, description="Filter by category name"),
-    implemented_only: bool = Query(False, description="Show only implemented strategies")
+    implemented_only: bool = Query(False, description="Show only implemented strategies"),
+    current_user: User = Depends(get_current_user)
 ):
     """
     List all available trading strategies organized by category and tier
@@ -174,7 +177,7 @@ async def list_all_strategies(
 
 
 @router.get("/strategies/by-tier")
-async def get_strategies_by_tier():
+async def get_strategies_by_tier(current_user: User = Depends(get_current_user)):
     """
     Get strategies organized strictly by tier
     """
@@ -230,7 +233,8 @@ async def get_strategies_by_tier():
 @router.get("/strategies/search")
 async def search_strategies(
     query: str = Query(..., min_length=2, description="Search term"),
-    limit: int = Query(20, ge=1, le=100)
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Search for strategies
@@ -267,7 +271,10 @@ async def search_strategies(
 
 
 @router.get("/strategies/{strategy_name}")
-async def get_strategy_details(strategy_name: str):
+async def get_strategy_details(
+    strategy_name: str,
+    current_user: User = Depends(get_current_user)
+):
     """
     Get detailed information about a specific strategy
     """

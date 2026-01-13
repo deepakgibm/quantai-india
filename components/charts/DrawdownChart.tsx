@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo, memo } from 'react';
 
 interface DrawdownChartProps {
     data: { date: string; drawdown: number }[];
@@ -142,4 +142,5 @@ const DrawdownChart: React.FC<DrawdownChartProps> = ({
     );
 };
 
-export default DrawdownChart;
+// Memoize chart component to prevent re-renders when parent state changes
+export default memo(DrawdownChart);

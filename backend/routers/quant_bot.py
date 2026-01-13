@@ -11,8 +11,10 @@ import pandas as pd
 import logging
 import numpy as np
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
+from models import User
+from utils.auth import get_current_user
 
 # New strategy system imports
 from core.backtest.strategies_impl import StrategyRegistry
@@ -30,7 +32,7 @@ router = APIRouter()
 
 class BacktestRequest(BaseModel):
     """Request model for running a backtest"""
-    symbol: str = Field(..., description="Stock symbol (e.g., 'RELIANCE')")
+    symbol: str = Field(..., min_length=1, description="Stock symbol (e.g., 'RELIANCE')")
     strategy: str = Field("MACrossover", description="Strategy name")
     start_date: date = Field(..., description="Backtest start date")
     end_date: date = Field(..., description="Backtest end date")
@@ -161,7 +163,7 @@ def get_strategy_class(name: str):
     return AVAILABLE_STRATEGIES[name]
 
 
-async def load_data_for_symbol(symbol: str, start_date: date, end_date: date, db: Session) -> pd.DataFrame:
+async def load_data_for_symbol(symbol: str, start_date: date, end_date: date, db: AsyncSession) -> pd.DataFrame:
     """Load historical data from database"""
     from models_ml import Nifty100Daily
     from sqlalchemy import and_, select
@@ -207,7 +209,7 @@ async def load_data_for_symbol(symbol: str, start_date: date, end_date: date, db
 # =====================
 
 @router.get("/strategies", response_model=StrategyListResponse)
-async def list_strategies():
+async def list_strategies(current_user: User = Depends(get_current_user)):
     """List available trading strategies"""
     try:
         from strategies import list_strategies as get_all_strategies
@@ -215,14 +217,15 @@ async def list_strategies():
         return {"strategies": strategies}
     except Exception as e:
         logger.error(f"Error listing strategies: {e}")
-        return {"strategies": [
-            {"name": "MACrossover", "description": "Moving Average Crossover", "params": {"fast_period": 10, "slow_period": 30}},
-            {"name": "RSIMeanReversion", "description": "RSI Mean Reversion", "params": {"period": 14, "oversold": 30, "overbought": 70}}
-        ]}
+        raise HTTPException(status_code=500, detail="Failed to load strategies")
 
 
 @router.post("/backtest/run", response_model=BacktestResponse)
-async def run_backtest(request: BacktestRequest, db: Session = Depends(get_db)):
+async def run_backtest(
+    request: BacktestRequest, 
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Run a backtest for a strategy
     
@@ -279,13 +282,20 @@ async def run_backtest(request: BacktestRequest, db: Session = Depends(get_db)):
         
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.warning(f"Backtest validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid backtest parameters: {str(e)}")
     except Exception as e:
-        logger.error(f"Backtest failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Backtest failed: {str(e)}")
+        logger.error(f"Backtest failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Backtest execution failed: {str(e)}")
 
 
 @router.post("/walkforward/run", response_model=WFAResponse)
-async def run_walkforward(request: WFARequest, db: Session = Depends(get_db)):
+async def run_walkforward(
+    request: WFARequest, 
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Run walk-forward analysis
     
@@ -340,13 +350,19 @@ async def run_walkforward(request: WFARequest, db: Session = Depends(get_db)):
         
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.warning(f"WFA validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid WFA parameters: {str(e)}")
     except Exception as e:
-        logger.error(f"WFA failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"WFA failed: {str(e)}")
+        logger.error(f"WFA failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"WFA execution failed: {str(e)}")
 
 
 @router.get("/symbols")
-async def list_available_symbols(db: Session = Depends(get_db)):
+async def list_available_symbols(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get list of Nifty 200 symbols with available data information"""
     from models_ml import Nifty100Daily
     from sqlalchemy import select, func
@@ -410,15 +426,6 @@ async def list_available_symbols(db: Session = Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Error listing symbols: {e}")
-        # Return fallback list of common symbols
-        fallback_symbols = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", 
-                           "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "ASIANPAINT", "BAJFINANCE",
-                           "MARUTI", "TITAN", "WIPRO", "HCLTECH", "TATAMOTORS", "AXISBANK"]
-        return {
-            "status": "success",
-            "symbols": [{"symbol": s, "in_nifty200": True, "has_data": True, "bar_count": 500} for s in fallback_symbols],
-            "count": len(fallback_symbols),
-            "with_data_count": len(fallback_symbols)
-        }
+        raise HTTPException(status_code=500, detail="Failed to fetch available symbols")
 
 

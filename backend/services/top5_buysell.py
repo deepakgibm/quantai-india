@@ -187,14 +187,8 @@ class Top5BuySellEngine:
         }
     
     def _get_stock_name(self, symbol: str) -> str:
-        names = {
-            "RELIANCE": "Reliance Industries", "TCS": "Tata Consultancy Services",
-            "HDFCBANK": "HDFC Bank", "INFY": "Infosys", "ICICIBANK": "ICICI Bank",
-            "SBIN": "State Bank of India", "BHARTIARTL": "Bharti Airtel",
-            "KOTAKBANK": "Kotak Mahindra Bank", "LT": "Larsen & Toubro",
-            "AXISBANK": "Axis Bank", "WIPRO": "Wipro", "HCLTECH": "HCL Technologies",
-        }
-        return names.get(symbol, symbol)
+        from utils.symbol_utils import get_company_name
+        return get_company_name(symbol)
     
     def _generate_reason(self, action: str, rsi: float, vol_ratio: float, macd: float) -> str:
         parts = []
@@ -214,44 +208,162 @@ class Top5BuySellEngine:
         return ". ".join(parts[:2])
     
     def get_symbols(self) -> List[str]:
+        from utils.symbol_utils import get_all_symbols
+        return get_all_symbols()
+    
+    def _scan_all_vectorized(self, limit: int = 5) -> Dict[str, List[Dict]]:
+        """
+        OPTIMIZED: Vectorized scan using bulk query + pandas.
+        Reduces 100+ individual queries to 1 bulk query.
+        """
+        import time
+        t0 = time.time()
+        
         try:
             from models_ml import Nifty100Daily
+            import numpy as np
+            
             session = self._Session()
             try:
-                symbols = session.query(Nifty100Daily.symbol).distinct().all()
-                return [s[0] for s in symbols]
+                # Single bulk query for ALL symbols - last 100 days
+                cutoff_date = datetime.now() - timedelta(days=100)
+                query = session.query(
+                    Nifty100Daily.symbol,
+                    Nifty100Daily.timestamp,
+                    Nifty100Daily.open,
+                    Nifty100Daily.high,
+                    Nifty100Daily.low,
+                    Nifty100Daily.close,
+                    Nifty100Daily.volume
+                ).filter(
+                    Nifty100Daily.timestamp >= cutoff_date
+                ).statement
+                
+                df = pd.read_sql(query, session.bind)
+                
+                if df.empty:
+                    return {"buy": [], "sell": []}
+                
+                # Type conversions
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df['close'] = df['close'].astype(float)
+                df['high'] = df['high'].astype(float)
+                df['low'] = df['low'].astype(float)
+                df['volume'] = df['volume'].astype(float)
+                
+                # Sort
+                df = df.sort_values(['symbol', 'timestamp'])
+                
+                # Vectorized indicator calculation per symbol
+                g = df.groupby('symbol')
+                
+                # EMAs
+                df['ema_9'] = g['close'].transform(lambda x: x.ewm(span=9, adjust=False).mean())
+                df['ema_21'] = g['close'].transform(lambda x: x.ewm(span=21, adjust=False).mean())
+                df['ema_12'] = g['close'].transform(lambda x: x.ewm(span=12, adjust=False).mean())
+                df['ema_26'] = g['close'].transform(lambda x: x.ewm(span=26, adjust=False).mean())
+                
+                # MACD
+                df['macd'] = df['ema_12'] - df['ema_26']
+                df['macd_signal'] = df.groupby('symbol')['macd'].transform(lambda x: x.ewm(span=9, adjust=False).mean())
+                df['macd_histogram'] = df['macd'] - df['macd_signal']
+                
+                # RSI
+                def calc_rsi(x, period=14):
+                    delta = x.diff()
+                    gain = delta.where(delta > 0, 0).rolling(period).mean()
+                    loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
+                    rs = gain / loss
+                    return 100 - (100 / (1 + rs))
+                
+                df['rsi'] = g['close'].transform(lambda x: calc_rsi(x))
+                
+                # Volume ratio
+                df['vol_avg_20'] = g['volume'].transform(lambda x: x.shift(1).rolling(20).mean())
+                
+                # Get latest row per symbol
+                latest = df.groupby('symbol').tail(1).copy()
+                
+                # Clean NaNs
+                latest['rsi'] = latest['rsi'].fillna(50)
+                latest['vol_avg_20'] = latest['vol_avg_20'].replace(0, 1)
+                latest['vol_ratio'] = latest['volume'] / latest['vol_avg_20']
+                
+                # Scoring
+                # BUY: ema9 > ema21 and close > ema9
+                # SELL: ema9 < ema21 and close < ema9
+                buy_mask = (latest['ema_9'] > latest['ema_21']) & (latest['close'] > latest['ema_9'])
+                sell_mask = (latest['ema_9'] < latest['ema_21']) & (latest['close'] < latest['ema_9'])
+                
+                latest['action'] = np.where(buy_mask, 'BUY', np.where(sell_mask, 'SELL', 'HOLD'))
+                
+                # Simple score based on RSI + volume + MACD alignment
+                latest['score'] = 50  # Base
+                # RSI
+                latest.loc[(latest['action'] == 'BUY') & (latest['rsi'] >= 40) & (latest['rsi'] <= 65), 'score'] += 25
+                latest.loc[(latest['action'] == 'SELL') & (latest['rsi'] >= 35) & (latest['rsi'] <= 60), 'score'] += 25
+                # Volume
+                latest.loc[latest['vol_ratio'] >= 1.5, 'score'] += 15
+                latest.loc[(latest['vol_ratio'] >= 1.0) & (latest['vol_ratio'] < 1.5), 'score'] += 8
+                # MACD
+                latest.loc[(latest['action'] == 'BUY') & (latest['macd_histogram'] > 0), 'score'] += 15
+                latest.loc[(latest['action'] == 'SELL') & (latest['macd_histogram'] < 0), 'score'] += 15
+                
+                # Filter by action and min score
+                buys = latest[(latest['action'] == 'BUY') & (latest['score'] >= self.min_score)].nlargest(limit, 'score')
+                sells = latest[(latest['action'] == 'SELL') & (latest['score'] >= self.min_score)].nlargest(limit, 'score')
+                
+                t1 = time.time()
+                print(f"⚡ Vectorized scan completed in {t1-t0:.2f}s (found {len(buys)} BUY, {len(sells)} SELL)")
+                
+                # Format output
+                def format_row(row, action):
+                    atr = 10  # Simplified ATR estimate
+                    price = row['close']
+                    if action == 'BUY':
+                        target = round(price * 1.03, 2)
+                        stop = round(price * 0.985, 2)
+                        expected = f"+3%"
+                    else:
+                        target = round(price * 0.97, 2)
+                        stop = round(price * 1.015, 2)
+                        expected = f"-3%"
+                    
+                    return {
+                        "symbol": row['symbol'],
+                        "name": row['symbol'],
+                        "action": action,
+                        "confidence": int(row['score']),
+                        "current_price": round(price, 2),
+                        "entry_range": f"{round(price*0.995,2)}-{round(price*1.005,2)}",
+                        "target_1": target,
+                        "target_2": round(target * 1.02, 2),
+                        "stop_loss": stop,
+                        "expected_move": expected,
+                        "indicators": {
+                            "rsi": round(row['rsi'], 2),
+                            "volume_ratio": round(row['vol_ratio'], 2),
+                            "macd_histogram": round(row['macd_histogram'], 4)
+                        },
+                        "reason": f"{'Bullish' if action=='BUY' else 'Bearish'} EMA crossover"
+                    }
+                
+                buy_signals = [format_row(row, 'BUY') for _, row in buys.iterrows()]
+                sell_signals = [format_row(row, 'SELL') for _, row in sells.iterrows()]
+                
+                return {"buy": buy_signals, "sell": sell_signals}
+                
             finally:
                 session.close()
-        except:
-            return ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"]
+                
+        except Exception as e:
+            print(f"Vectorized scan error: {e}")
+            return {"buy": [], "sell": []}
     
     def scan_all(self, limit: int = 5) -> Dict[str, List[Dict]]:
         """
         Scan all stocks and return top 5 BUY and top 5 SELL signals.
+        Uses vectorized method for performance.
         """
-        symbols = self.get_symbols()
-        print(f"📊 Scanning {len(symbols)} stocks for buy/sell signals...")
-        
-        buy_signals = []
-        sell_signals = []
-        
-        for symbol in symbols:
-            try:
-                analysis = self.analyze_stock(symbol)
-                if analysis and analysis["confidence"] >= self.min_score:
-                    if analysis["action"] == "BUY":
-                        buy_signals.append(analysis)
-                    else:
-                        sell_signals.append(analysis)
-            except:
-                continue
-        
-        buy_signals.sort(key=lambda x: x["confidence"], reverse=True)
-        sell_signals.sort(key=lambda x: x["confidence"], reverse=True)
-        
-        print(f"✅ Found {len(buy_signals)} BUY and {len(sell_signals)} SELL signals")
-        
-        return {
-            "buy": buy_signals[:limit],
-            "sell": sell_signals[:limit]
-        }
+        # Use fast vectorized scan
+        return self._scan_all_vectorized(limit)

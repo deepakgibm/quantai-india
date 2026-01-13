@@ -77,13 +77,12 @@ class ParquetArchiveService:
         
         session = self._Session()
         try:
-            # Fetch data for the month
+            # Fetch data for the month from stock_candles
             query = text("""
-                SELECT id, symbol, timestamp, open, high, low, close, volume, 
-                       interval, source, created_at
-                FROM stock_data
+                SELECT symbol, instrument_key, timeframe, timestamp, open, high, low, close, volume
+                FROM stock_candles
                 WHERE timestamp >= :start_date AND timestamp < :end_date
-                ORDER BY symbol, timestamp
+                ORDER BY instrument_key, timestamp
             """)
             
             result = session.execute(query, {
@@ -94,12 +93,12 @@ class ParquetArchiveService:
             rows = result.fetchall()
             
             if not rows:
-                logger.warning(f"No data found for {year}-{month:02d}")
+                logger.warning(f"No data found in stock_candles for {year}-{month:02d}")
                 return {"status": "no_data", "rows": 0}
             
             # Convert to DataFrame
-            columns = ['id', 'symbol', 'timestamp', 'open', 'high', 'low', 
-                      'close', 'volume', 'interval', 'source', 'created_at']
+            columns = ['symbol', 'instrument_key', 'timeframe', 'timestamp', 
+                      'open', 'high', 'low', 'close', 'volume']
             df = pd.DataFrame(rows, columns=columns)
             
             # Generate output filename
@@ -138,7 +137,7 @@ class ParquetArchiveService:
             # Optionally delete from database
             if delete_after:
                 delete_query = text("""
-                    DELETE FROM stock_data
+                    DELETE FROM stock_candles
                     WHERE timestamp >= :start_date AND timestamp < :end_date
                 """)
                 result = session.execute(delete_query, {
@@ -147,7 +146,7 @@ class ParquetArchiveService:
                 })
                 session.commit()
                 stats["rows_deleted"] = result.rowcount
-                logger.info(f"Deleted {result.rowcount} rows from database")
+                logger.info(f"Deleted {result.rowcount} rows from stock_candles")
             
             return stats
             
@@ -179,7 +178,7 @@ class ParquetArchiveService:
                 SELECT DISTINCT 
                     EXTRACT(YEAR FROM timestamp)::int as year,
                     EXTRACT(MONTH FROM timestamp)::int as month
-                FROM stock_data
+                FROM stock_candles
                 WHERE timestamp < :cutoff_date
                 ORDER BY year, month
             """)
@@ -228,7 +227,7 @@ class ParquetArchiveService:
                 
                 # Use pandas to_sql for simplicity
                 batch.to_sql(
-                    'stock_data', 
+                    'stock_candles', 
                     self._engine, 
                     if_exists='append', 
                     index=False,

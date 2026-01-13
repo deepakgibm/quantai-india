@@ -211,90 +211,82 @@ class WalkForwardBacktestService:
         )
     
     async def _load_data(self, symbols: List[str], timeframe: str) -> pd.DataFrame:
-        """Load historical data from PostgreSQL database"""
-        import psycopg2
+        """Load historical data from PostgreSQL database (stock_candles V3) using async asyncpg"""
+        import asyncpg
+        from models_alpha import TimeframeMapper
         
         all_data = []
         
-        # Map frontend timeframe to database interval
-        # Database has: 1d, 1min, 5min, 15min, 30min
-        interval_map = {
-            "5m": "5min",
-            "15m": "15min",
-            "30m": "30min",
-            "1h": "1hour",
-            "1D": "1d"  # Fixed: was "day", should be "1d"
-        }
-        interval = interval_map.get(timeframe, "1d")
+        # Map frontend timeframe to database timeframe
+        # stock_candles uses: 1d, 1h, 30m, 15m, 5m
+        db_timeframe = TimeframeMapper.to_standard(timeframe)
         
-        logger.info(f"Loading data for {symbols} with interval {interval}")
+        logger.info(f"Loading data for {symbols} with timeframe {db_timeframe}")
+        
+        # Build async connection URL (convert from SQLAlchemy format)
+        db_url = settings.SYNC_DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").replace("postgresql://", "")
         
         try:
-            conn = psycopg2.connect(
-                host='localhost',
-                port=5432,
-                user='postgres',
-                password='admin',
-                database='quantai'
-            )
-            cursor = conn.cursor()
+            # Use asyncpg for non-blocking database access
+            conn = await asyncpg.connect(f"postgresql://{db_url}")
             
-            for symbol in symbols:
-                try:
-                    # Query PostgreSQL stock_data table
-                    cursor.execute("""
-                        SELECT symbol, timestamp, open, high, low, close, volume
-                        FROM stock_data
-                        WHERE symbol = %s AND interval = %s
-                        ORDER BY timestamp
-                        LIMIT 2000
-                    """, (symbol, interval))
-                    
-                    rows = cursor.fetchall()
-                    
-                    if not rows:
-                        # Try without interval filter (get all available data)
-                        logger.warning(f"No {interval} data for {symbol}, trying any available data")
-                        cursor.execute("""
-                            SELECT symbol, timestamp, open, high, low, close, volume
-                            FROM stock_data
-                            WHERE symbol = %s
-                            ORDER BY timestamp DESC
-                            LIMIT 2000
-                        """, (symbol,))
-                        rows = cursor.fetchall()
-                    
-                    if rows:
-                        df = pd.DataFrame(rows, columns=['symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume'])
-                        df['timestamp'] = pd.to_datetime(df['timestamp'])
-                        df['open'] = pd.to_numeric(df['open'], errors='coerce').fillna(0)
-                        df['high'] = pd.to_numeric(df['high'], errors='coerce').fillna(0)
-                        df['low'] = pd.to_numeric(df['low'], errors='coerce').fillna(0)
-                        df['close'] = pd.to_numeric(df['close'], errors='coerce').fillna(0)
-                        df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0).astype(int)
-                        # Sort by timestamp ascending
-                        df = df.sort_values('timestamp').reset_index(drop=True)
-                        all_data.append(df)
-                        logger.info(f"Loaded {len(rows)} {interval} rows for {symbol}")
-                    else:
-                        # Check what intervals ARE available for this symbol
-                        cursor.execute("SELECT DISTINCT interval FROM stock_data WHERE symbol = %s", (symbol,))
-                        available = [r[0] for r in cursor.fetchall()]
-                        logger.warning(f"No data found for {symbol}. Available intervals: {available}")
-                except Exception as e:
-                    logger.warning(f"Error loading data for {symbol}: {e}")
-                    continue
-            
-            conn.close()
+            try:
+                # Step 1: Batch resolve instrument_keys from stock_master for all symbols at once
+                instrument_rows = await conn.fetch(
+                    "SELECT symbol, instrument_key FROM stock_master WHERE symbol = ANY($1)",
+                    symbols
+                )
+                symbol_to_key = {row['symbol']: row['instrument_key'] for row in instrument_rows}
+                
+                # Get valid instrument keys
+                valid_symbols = [s for s in symbols if s in symbol_to_key]
+                instrument_keys = [symbol_to_key[s] for s in valid_symbols]
+                
+                if not instrument_keys:
+                    logger.warning(f"Could not resolve any instrument_keys for {symbols}")
+                    return pd.DataFrame()
+                
+                # Step 2: Batch query all candles at once using IN clause
+                # This replaces N+1 queries with a single batch query
+                rows = await conn.fetch("""
+                    SELECT sm.symbol, sc.timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
+                    FROM stock_candles sc
+                    JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
+                    WHERE sc.instrument_key = ANY($1) 
+                    AND sc.timeframe = $2
+                    ORDER BY sm.symbol, sc.timestamp ASC
+                """, instrument_keys, db_timeframe)
+                
+                if not rows:
+                    logger.warning(f"No {db_timeframe} data found in stock_candles for {valid_symbols}")
+                    return pd.DataFrame()
+                
+                # Convert to DataFrame
+                df = pd.DataFrame(
+                    [(row['symbol'], row['timestamp'], row['open'], row['high'], 
+                      row['low'], row['close'], row['volume']) for row in rows],
+                    columns=['symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume']
+                )
+                
+                # Ensure timestamp is datetime and handle timezone
+                df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_localize(None)
+                df['open'] = pd.to_numeric(df['open'], errors='coerce').fillna(0)
+                df['high'] = pd.to_numeric(df['high'], errors='coerce').fillna(0)
+                df['low'] = pd.to_numeric(df['low'], errors='coerce').fillna(0)
+                df['close'] = pd.to_numeric(df['close'], errors='coerce').fillna(0)
+                df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0).astype(int)
+                
+                df = df.sort_values(['symbol', 'timestamp']).reset_index(drop=True)
+                logger.info(f"Loaded {len(df)} rows for {len(valid_symbols)} symbols using async batch query")
+                
+                return df
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
-            logger.error(f"PostgreSQL error: {e}")
+            logger.error(f"PostgreSQL async error: {e}")
             return pd.DataFrame()
-        
-        if not all_data:
-            return pd.DataFrame()
-        
-        combined = pd.concat(all_data, ignore_index=True)
-        return combined
     
     def _generate_windows(
         self,

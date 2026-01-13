@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import AgenticBotCard from '../components/AgenticBotCard';
 import { Page, Stock, AlgoConfig } from '../types';
 import { Zap, X, Loader2, Play } from 'lucide-react';
@@ -61,7 +61,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       const connectWS = () => {
          try {
-            ws = new WebSocket('ws://localhost:8000/api/scanner/ws/scanner');
+            ws = new WebSocket('ws://127.0.0.1:8000/api/scanner/ws/scanner');
 
             ws.onopen = () => {
                console.log('Dashboard WS connected');
@@ -101,6 +101,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       // Also try WebSocket for real-time updates (optional enhancement)
       connectWS();
 
+      // Fetch engine performance once at startup
+      const fetchEnginePerf = async () => {
+         try {
+            const data = await api.getEnginePerformance();
+            if (data?.status === 'success' && data.engines) {
+               setAlgorithms(prev => prev.map(algo => {
+                  const perf = data.engines[algo.name];
+                  if (perf) {
+                     return {
+                        ...algo,
+                        // If it's not active, we still show the global performance/winrate from backend
+                        performance: algo.performance || perf.performance,
+                        winRate: perf.win_rate
+                     };
+                  }
+                  return algo;
+               }));
+            }
+         } catch (e) {
+            console.warn("Failed to update engine performance from backend");
+         }
+      };
+
+      fetchEnginePerf();
+
       return () => {
          isSubscribed = false;
          if (ws) ws.close();
@@ -111,13 +136,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
 
 
-   // Dynamic greeting based on time of day
-   const getGreeting = () => {
+   // Memoized greeting based on time of day (only recalculates when window refocuses)
+   const greeting = useMemo(() => {
       const hour = new Date().getHours();
       if (hour < 12) return 'Good Morning';
       if (hour < 17) return 'Good Afternoon';
       return 'Good Evening';
-   };
+   }, []);
 
    // Modal and loading state for all AI scanners
    const [showScanModal, setShowScanModal] = useState(false);
@@ -126,13 +151,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
    const [scanError, setScanError] = useState<string | null>(null);
    const [currentScan, setCurrentScan] = useState<{ name: string, endpoint: string, algoId?: string } | null>(null);
 
-   const toggleAlgorithm = (id: string) => {
+   // Memoized callback to prevent re-renders
+   const toggleAlgorithm = useCallback((id: string) => {
       setAlgorithms(prev =>
          prev.map(algo =>
             algo.id === id ? { ...algo, active: !algo.active } : algo
          )
       );
-   };
+   }, []);
 
    // Map algorithm names to their API endpoints
    const algoEndpoints: Record<string, string> = {
@@ -147,7 +173,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       'S/R Bounces': '/api/ai/sr-bounce'
    };
 
-   const handleAlgorithmClick = async (algo: AlgoConfig) => {
+   // Memoized algorithm click handler
+   const handleAlgorithmClick = useCallback(async (algo: AlgoConfig) => {
       const endpoint = algoEndpoints[algo.name];
       if (endpoint) {
          // Set algorithm to RUNNING state
@@ -159,20 +186,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
          setScanLoading(true);
          setScanError(null);
          setScanResults(null);
+         setScanError(null);
+         setScanResults(null);
          try {
-            // Get token if available (optional - scanners work without auth now)
-            const token = localStorage.getItem('access_token');
-            const headers: Record<string, string> = {};
-            if (token) {
-               headers['Authorization'] = `Bearer ${token}`;
-            }
-
-            const response = await fetch(`http://localhost:8000${endpoint}`, { headers });
-            if (!response.ok) {
-               const errorData = await response.json().catch(() => ({}));
-               throw new Error(errorData.detail || `Server error: ${response.status}`);
-            }
-            const data = await response.json();
+            const data = await api.runScanner(endpoint);
             setScanResults(data);
 
             // Calculate performance from scan results
@@ -214,10 +231,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       } else {
          toggleAlgorithm(algo.id);
       }
-   };
+   }, [algoEndpoints, toggleAlgorithm]);
 
-   // Handle modal close - set algorithm back to IDLE
-   const handleCloseModal = () => {
+   // Memoized modal close handler
+   const handleCloseModal = useCallback(() => {
       if (currentScan?.algoId) {
          setAlgorithms(prev =>
             prev.map(a => a.id === currentScan.algoId ? { ...a, active: false } : a)
@@ -225,7 +242,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       }
       setShowScanModal(false);
       setCurrentScan(null);
-   };
+   }, [currentScan]);
 
    // Remove hardcoded indices constant as it's now in state
 
@@ -255,7 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                {/* Index Cards */}
                <div className="space-y-3 flex-1">
                   {indices.map((idx) => {
-                     const isPositive = idx.change >= 0;
+                     const isPositive = idx.percent >= 0;
                      const isVIX = idx.name === 'INDIA VIX';
 
                      return (
@@ -299,7 +316,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                                           </span>
                                        )}
                                        <span className="text-sm font-bold font-mono">
-                                          {isPositive ? '+' : ''}{idx.percent}%
+                                          {isPositive ? '+' : ''}{idx.percent.toFixed(2)}%
                                        </span>
                                     </div>
                                  )}
@@ -341,12 +358,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                      v: algo.active ? 50 + Math.sin(i * 0.8 + index) * 30 + Math.random() * 10 : 50
                   }));
 
-                  // Mock metrics (in production, these would come from backend)
+                  // Metrics from backend (via getEnginePerformance API)
                   const metrics = {
-                     winRate: algo.active ? 62 + (index * 3) % 20 : null,
+                     winRate: (algo as any).winRate || null,
                      dailyROI: algo.performance,
-                     drawdown: algo.active ? -((index * 2.3) % 8).toFixed(1) : null,
-                     signals: algo.active ? Math.floor(5 + index * 2) : 0
+                     drawdown: (algo as any).drawdown || null,
+                     signals: (algo as any).signals || 0
                   };
 
                   return (
@@ -372,8 +389,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         <div className="flex items-start justify-between mb-3 relative z-10">
                            <div className="flex items-center gap-2">
                               <div className={`p-2 rounded-lg ${algo.active
-                                    ? 'bg-emerald-500/20 text-emerald-400'
-                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                 ? 'bg-emerald-500/20 text-emerald-400'
+                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                                  }`}>
                                  <Zap size={16} />
                               </div>
@@ -390,8 +407,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                                  toggleAlgorithm(algo.id);
                               }}
                               className={`p-1.5 rounded-lg transition-all ${algo.active
-                                    ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400'
-                                    : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500'
+                                 ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400'
+                                 : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500'
                                  }`}
                            >
                               <Play size={14} fill="currentColor" />
@@ -447,10 +464,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                               <span className={`text-[10px] uppercase tracking-wide block ${algo.active ? 'text-slate-500' : 'text-slate-400'
                                  }`}>Daily ROI</span>
                               <span className={`text-sm font-bold ${metrics.dailyROI === null
-                                    ? 'text-slate-400'
-                                    : metrics.dailyROI >= 0
-                                       ? 'text-emerald-500'
-                                       : 'text-rose-500'
+                                 ? 'text-slate-400'
+                                 : metrics.dailyROI >= 0
+                                    ? 'text-emerald-500'
+                                    : 'text-rose-500'
                                  }`}>
                                  {metrics.dailyROI === null ? '–' : `${metrics.dailyROI > 0 ? '+' : ''}${metrics.dailyROI}%`}
                               </span>

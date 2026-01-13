@@ -8,7 +8,6 @@ export enum Page {
   RISK_MANAGER = 'RISK_MANAGER',
   ALGO_BUILDER = 'algo_builder',
   LIVE_MONITOR = 'live_monitor',
-  ALPHA_PRIME = 'alpha_prime',
   ETL_STATUS = 'ETL_STATUS',
   QUANT_BOT = 'quant_bot',
   AUDIT_REPORTS = 'audit_reports',
@@ -20,6 +19,7 @@ export enum Page {
   FORGOT_PASSWORD = 'FORGOT_PASSWORD',
   WALK_FORWARD_BACKTEST = 'walk_forward_backtest',
   EXPERIMENT_LAB = 'experiment_lab',
+  PRICE_FORECAST = 'price_forecast',
 }
 
 export interface Stock {

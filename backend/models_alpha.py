@@ -53,6 +53,70 @@ class StockData(Base):
         return f"<StockData(symbol={self.symbol}, timestamp={self.timestamp}, close={self.close})>"
 
 
+class StockCandle(Base):
+    """
+    Unified OHLCV storage for multi-timeframe data.
+    Supports 1m, 5m, 15m, 1h, 1d timeframes.
+    """
+    __tablename__ = "stock_candles"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    instrument_key = Column(String(50), nullable=True, index=True)  # Upstox instrument key
+    timestamp = Column(DateTime, nullable=False, index=True)
+    timeframe = Column(String(10), nullable=False, index=True)  # 1m, 5m, 15m, 1h, 1d
+    
+    # OHLCV data
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    volume = Column(Integer, nullable=False)
+    
+    source = Column(String(20), nullable=False, default="upstox")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        Index('idx_candle_symbol_tf_ts', 'symbol', 'timeframe', 'timestamp'),
+        Index('idx_candle_instkey_tf_ts', 'instrument_key', 'timeframe', 'timestamp'),
+        UniqueConstraint('symbol', 'timestamp', 'timeframe', name='uq_candle_symbol_ts_tf'),
+        {'extend_existing': True}
+    )
+    
+    def __repr__(self):
+        return f"<StockCandle(symbol={self.symbol}, timeframe={self.timeframe}, timestamp={self.timestamp})>"
+
+
+class TimeframeMapper:
+    """
+    Utility class to map UI timeframes to database timeframe values.
+    """
+    MAPPING = {
+        '1m': '1minute',
+        '5m': '5minute', 
+        '15m': '15minute',
+        '1h': '1hour',
+        '1d': '1day',
+        '1D': '1day',
+        'day': '1day',
+        '1minute': '1minute',
+        '5minute': '5minute',
+        '15minute': '15minute',
+        '1hour': '1hour',
+        '1day': '1day',
+    }
+    
+    @classmethod
+    def to_db(cls, ui_tf: str) -> str:
+        """Convert UI timeframe to database timeframe"""
+        return cls.MAPPING.get(ui_tf, ui_tf)
+    
+    @classmethod
+    def from_db(cls, db_tf: str) -> str:
+        """Convert database timeframe to UI timeframe"""
+        reverse = {v: k for k, v in cls.MAPPING.items() if len(k) <= 3}
+        return reverse.get(db_tf, db_tf)
+
 class AlphaSignal(Base):
     """
     Storage for raw factor values and computed alpha signals.

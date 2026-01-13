@@ -189,10 +189,15 @@ class IndicatorComputeService:
         self._computer = IndicatorComputer()
     
     def get_symbols(self, limit: int = None) -> List[str]:
-        """Get all unique symbols from stock_data table."""
+        """Get all unique symbols from stock_candles table (via stock_master mapping)."""
         session = self._Session()
         try:
-            query = "SELECT DISTINCT symbol FROM stock_data ORDER BY symbol"
+            query = """
+                SELECT DISTINCT sm.symbol 
+                FROM stock_candles sc
+                JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
+                ORDER BY sm.symbol
+            """
             if limit:
                 query += f" LIMIT {limit}"
             result = session.execute(text(query))
@@ -202,17 +207,18 @@ class IndicatorComputeService:
     
     def get_ohlcv_data(self, symbol: str, interval: str = "1d", 
                        days: int = 100) -> pd.DataFrame:
-        """Fetch OHLCV data for a symbol."""
+        """Fetch OHLCV data for a symbol from stock_candles."""
         session = self._Session()
         try:
             cutoff = datetime.now() - timedelta(days=days)
             query = text("""
-                SELECT timestamp, open, high, low, close, volume
-                FROM stock_data
-                WHERE symbol = :symbol 
-                  AND interval = :interval
-                  AND timestamp >= :cutoff
-                ORDER BY timestamp ASC
+                SELECT sc.timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
+                FROM stock_candles sc
+                JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
+                WHERE sm.symbol = :symbol 
+                  AND sc.timeframe = :interval
+                  AND sc.timestamp >= :cutoff
+                ORDER BY sc.timestamp ASC
             """)
             result = session.execute(query, {
                 "symbol": symbol, 
@@ -226,9 +232,8 @@ class IndicatorComputeService:
             
             df = pd.DataFrame(rows, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp'])
-            for col in ['open', 'high', 'low', 'close']:
-                df[col] = df[col].astype(float)
-            df['volume'] = df['volume'].astype(int)
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
             return df
         finally:
             session.close()

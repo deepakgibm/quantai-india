@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-import requests
-
+import httpx
 from database import get_db
 from models import User
 from schemas import UpstoxAuthResponse, UpstoxCallback, UpstoxTokenResponse
@@ -30,10 +29,9 @@ async def get_upstox_status():
                 "api_available": True,
                 "service": "operational"
             },
-            "message": "Upstox is connected" if has_token else "Upstox not connected - using fallback data"
+            "message": "Upstox is connected" if has_token else "Upstox not connected"
         }
     except Exception as e:
-        logger.error(f"Upstox status check failed: {e}")
         return {
             "status": "error",
             "upstox": {
@@ -58,7 +56,7 @@ async def get_user_profile(current_user: User = Depends(get_current_user)):
         "full_name": current_user.full_name,
         "username": current_user.username,
         "upstox_connected": current_user.is_upstox_connected,
-        "upstox_id": current_user.upstox_id if hasattr(current_user, "upstox_id") else None
+        "upstox_id": getattr(current_user, "upstox_id", None)
     }
 
 @router.post("/callback", response_model=UpstoxTokenResponse)
@@ -77,79 +75,96 @@ async def upstox_callback(
         "grant_type": "authorization_code"
     }
     
-    try:
-        response = requests.post(token_url, data=payload)
-        response.raise_for_status()
-        token_data = response.json()
-        
-        # Save tokens to user
-        current_user.upstox_access_token = token_data.get("access_token")
-        current_user.is_upstox_connected = True
-        await db.commit()
-        
-        return {
-            "access_token": token_data.get("access_token"),
-            "message": "Upstox connected successfully"
-        }
-    except requests.RequestException as e:
-        raise HTTPException(status_code=400, detail=f"Upstox authentication failed: {str(e)}")
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(token_url, data=payload)
+            response.raise_for_status()
+            token_data = response.json()
+            
+            # Save tokens to user
+            current_user.upstox_access_token = token_data.get("access_token")
+            current_user.is_upstox_connected = True
+            await db.commit()
+            
+            return {
+                "access_token": token_data.get("access_token"),
+                "message": "Upstox connected successfully"
+            }
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=400, detail=f"Upstox auth failed: {e.response.text}")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Upstox authentication failed: {str(e)}")
+
+from utils.error_responses import APIError
 
 @router.get("/portfolio")
 async def get_portfolio(current_user: User = Depends(get_current_user)):
     if not current_user.is_upstox_connected:
-        # Return mock portfolio when not connected
-        return {
-            "status": "success",
-            "data": [
-                {"symbol": "RELIANCE", "quantity": 50, "avg_price": 2440.0, "ltp": 2456.0, "pnl": 800},
-                {"symbol": "HDFCBANK", "quantity": 25, "avg_price": 1455.0, "ltp": 1450.0, "pnl": -125},
-                {"symbol": "INFY", "quantity": 100, "avg_price": 1580.0, "ltp": 1585.0, "pnl": 500},
-            ],
-            "message": "Mock portfolio (Upstox not connected)"
-        }
+        raise APIError(
+            code="BROKER_NOT_CONNECTED",
+            message="Upstox broker is not connected. Please login via /api/upstox/auth-url.",
+            status_code=400
+        )
     
     headers = {
         "Authorization": f"Bearer {current_user.upstox_access_token}",
         "Accept": "application/json"
     }
     
-    try:
-        response = requests.get("https://api.upstox.com/v2/portfolio/long-term-holdings", headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch portfolio: {str(e)}")
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get("https://api.upstox.com/v2/portfolio/long-term-holdings", headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch portfolio: {e.response.text}")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch portfolio: {str(e)}")
 
 @router.get("/positions")
 async def get_positions(current_user: User = Depends(get_current_user)):
     if not current_user.is_upstox_connected:
-        raise HTTPException(status_code=400, detail="Upstox not connected")
+        raise APIError(
+            code="BROKER_NOT_CONNECTED",
+            message="Upstox broker is not connected. Please login via /api/upstox/auth-url.",
+            status_code=400
+        )
     
     headers = {
         "Authorization": f"Bearer {current_user.upstox_access_token}",
         "Accept": "application/json"
     }
     
-    try:
-        response = requests.get("https://api.upstox.com/v2/portfolio/short-term-positions", headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch positions: {str(e)}")
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get("https://api.upstox.com/v2/portfolio/short-term-positions", headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch positions: {e.response.text}")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch positions: {str(e)}")
 
 @router.get("/market-quote/{symbol}")
 async def get_market_quote(symbol: str, current_user: User = Depends(get_current_user)):
     if not current_user.is_upstox_connected:
-        raise HTTPException(status_code=400, detail="Upstox not connected")
+        raise APIError(
+            code="BROKER_NOT_CONNECTED",
+            message="Upstox broker is not connected. Please login via /api/upstox/auth-url.",
+            status_code=400
+        )
     
     headers = {
         "Authorization": f"Bearer {current_user.upstox_access_token}",
         "Accept": "application/json"
     }
     
-    try:
-        response = requests.get(f"https://api.upstox.com/v2/market-quote/ltp?symbol={symbol}", headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch market quote: {str(e)}")
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"https://api.upstox.com/v2/market-quote/ltp?symbol={symbol}", headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch market quote: {e.response.text}")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch market quote: {str(e)}")

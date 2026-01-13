@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings
+from utils.symbol_utils import get_company_name, get_all_symbols
 
 
 class EarningsReactionScanner:
@@ -177,13 +178,8 @@ class EarningsReactionScanner:
         }
     
     def _get_stock_name(self, symbol: str) -> str:
-        names = {
-            "RELIANCE": "Reliance Industries", "TCS": "Tata Consultancy Services",
-            "HDFCBANK": "HDFC Bank", "INFY": "Infosys", "ICICIBANK": "ICICI Bank",
-            "WIPRO": "Wipro", "HCLTECH": "HCL Technologies", "TECHM": "Tech Mahindra",
-            "AXISBANK": "Axis Bank", "SBIN": "State Bank of India",
-        }
-        return names.get(symbol, symbol)
+        from utils.symbol_utils import get_company_name
+        return get_company_name(symbol)
     
     def _generate_reason(self, reaction: str, trade_type: str, gap_pct: float, vol_ratio: float) -> str:
         parts = []
@@ -200,16 +196,8 @@ class EarningsReactionScanner:
         return ". ".join(parts)
     
     def get_symbols(self) -> List[str]:
-        try:
-            from models_ml import Nifty100Daily
-            session = self._Session()
-            try:
-                symbols = session.query(Nifty100Daily.symbol).distinct().all()
-                return [s[0] for s in symbols]
-            finally:
-                session.close()
-        except:
-            return ["RELIANCE", "TCS", "HDFCBANK", "INFY", "WIPRO"]
+        from utils.symbol_utils import get_all_symbols
+        return get_all_symbols()
     
     def scan_all(self, limit: int = 10) -> List[Dict]:
         """Scan all stocks for earnings-like reactions."""

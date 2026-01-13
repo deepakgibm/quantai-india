@@ -1,19 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import timedelta
-
+from datetime import datetime, timedelta
 from database import get_db
 from models import User, UserSettings
 from schemas import UserCreate, UserLogin, Token, UserResponse, FirebaseLogin
 from utils.auth import get_password_hash, verify_password, verify_password_async, create_access_token, get_current_user
+from utils.rate_limit import rate_limit
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 from config import settings as app_settings
 
 router = APIRouter()
 
-@router.post("/signup", response_model=UserResponse)
+@router.post("/signup", response_model=UserResponse, dependencies=[Depends(rate_limit(limit=100, window=60, name="auth_signup"))])
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
     import logging
     import time
@@ -71,31 +71,73 @@ async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, dependencies=[Depends(rate_limit(limit=100, window=60, name="auth_login"))])
 async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == user.email))
-    db_user = result.scalar_one_or_none()
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
     
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
+    try:
+        logger.info(f"Login attempt for {user.email}")
+        result = await db.execute(select(User).where(User.email == user.email))
+        db_user = result.scalar_one_or_none()
+        
+        if not db_user:
+            logger.warning(f"Login failed: User not found {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+        
+        # Check for account lockout
+        if db_user.locked_until and db_user.locked_until > datetime.utcnow():
+            logger.warning(f"Login attempt on locked account: {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Account is locked. Try again after {db_user.locked_until.strftime('%H:%M:%S')} UTC"
+            )
+
+        # Use async password verification to avoid blocking
+        try:
+            password_valid = await verify_password_async(user.password, db_user.hashed_password)
+        except Exception as e:
+            logger.error(f"Password verification CRASHED for {user.email}: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"Auth engine error: {str(e)[:100]}")
+
+        if not password_valid:
+            # Increment failed attempts
+            db_user.failed_login_attempts = (db_user.failed_login_attempts or 0) + 1
+            if db_user.failed_login_attempts >= 5:
+                db_user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+                logger.error(f"Account LOCKED for {user.email} after {db_user.failed_login_attempts} failed attempts")
+            
+            await db.commit()
+            
+            logger.warning(f"Login failed: Incorrect password for {user.email} (Attempt {db_user.failed_login_attempts}/5)")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+        
+        # Successful login - Reset attempts
+        db_user.failed_login_attempts = 0
+        db_user.locked_until = None
+        await db.commit()
+        
+        access_token_expires = timedelta(minutes=app_settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": db_user.email}, expires_delta=access_token_expires
         )
-    
-    # Use async password verification to avoid blocking
-    password_valid = await verify_password_async(user.password, db_user.hashed_password)
-    if not password_valid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
-        )
-    
-    access_token_expires = timedelta(minutes=app_settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": db_user.email}, expires_delta=access_token_expires
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer"}
+        
+        logger.info(f"Login successful for {user.email}")
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected login error for {user.email}: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 @router.post("/firebase-login", response_model=Token)
 async def firebase_login(data: FirebaseLogin, db: AsyncSession = Depends(get_db)):
@@ -105,12 +147,20 @@ async def firebase_login(data: FirebaseLogin, db: AsyncSession = Depends(get_db)
     except ValueError:
         firebase_admin.initialize_app()
         
-    user_email = data.email
-    user_full_name = data.full_name or "Firebase User"
-    
-    # In a production app, you MUST verify the id_token with firebase_auth.verify_id_token(data.id_token)
-    # Since we don't have the service account JSON here, we'll use the provided email/name 
-    # to fulfill the integration request.
+    # Production Readiness: Verify the id_token with Firebase
+    try:
+        decoded_token = firebase_auth.verify_id_token(data.id_token)
+        user_email = decoded_token.get("email")
+        user_full_name = decoded_token.get("name") or "Firebase User"
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Firebase token verification failed: {e}")
+        # In development, we might want a fallback, but for production readiness validation:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Firebase token: {str(e)}"
+        )
     
     if not user_email:
         raise HTTPException(status_code=400, detail="Email is required from Firebase")

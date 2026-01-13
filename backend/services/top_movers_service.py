@@ -14,29 +14,8 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 # NIFTY 100 constituents (instrument keys for Upstox)
-# Format: NSE_EQ|{SYMBOL}
-NIFTY_100_SYMBOLS = [
-    "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "BHARTIARTL",
-    "INFY", "SBIN", "ITC", "HINDUNILVR", "LT",
-    "BAJFINANCE", "HCLTECH", "KOTAKBANK", "AXISBANK", "MARUTI",
-    "TITAN", "SUNPHARMA", "ASIANPAINT", "WIPRO", "ULTRACEMCO",
-    "ADANIENT", "NTPC", "ONGC", "TATAMOTORS", "POWERGRID",
-    "M&M", "TATASTEEL", "NESTLEIND", "JSWSTEEL", "BAJAJFINSV",
-    "COALINDIA", "ADANIPORTS", "TECHM", "GRASIM", "DIVISLAB",
-    "HINDALCO", "BAJAJ-AUTO", "DRREDDY", "BRITANNIA", "CIPLA",
-    "BPCL", "EICHERMOT", "SBILIFE", "INDUSINDBK", "APOLLOHOSP",
-    "HEROMOTOCO", "TATACONSUM", "SHREECEM", "HDFCLIFE", "DABUR",
-    "GODREJCP", "PIDILITIND", "HAVELLS", "SIEMENS", "DLF",
-    "AMBUJACEM", "ADANIGREEN", "BANKBARODA", "INDIGO", "ICICIPRULI",
-    "BERGEPAINT", "ICICIGI", "CHOLAFIN", "TATAPOWER", "VEDL",
-    "NAUKRI", "JINDALSTEL", "MARICO", "COLPAL", "MUTHOOTFIN",
-    "IOC", "GAIL", "BOSCHLTD", "SBICARD", "ABB",
-    "TORNTPHARM", "PIIND", "SRF", "HINDPETRO", "LUPIN",
-    "SAIL", "MCDOWELL-N", "LICI", "TRENT", "ZOMATO",
-    "JSWENERGY", "CANBK", "POLYCAB", "ATGL", "BALKRISIND",
-    "HAL", "IRCTC", "BHEL", "RECLTD", "PFC",
-    "TVSMOTOR", "BEL", "NMDC", "MAXHEALTH", "LTIM"
-]
+# Sourced dynamically from utils.symbol_utils
+from utils.symbol_utils import get_nifty_symbols
 
 
 @dataclass
@@ -82,23 +61,103 @@ class TopMoversService:
         elapsed = (datetime.now() - self._cache_time).total_seconds()
         return elapsed < self._cache_ttl_seconds
     
+    def _is_market_hours(self) -> bool:
+        """Check if current time is within Indian stock market hours (IST)."""
+        try:
+            import pytz
+            ist = pytz.timezone('Asia/Kolkata')
+            now = datetime.now(ist)
+            
+            # Market closed on weekends
+            if now.weekday() >= 5:  # Saturday=5, Sunday=6
+                return False
+            
+            # Market hours: 9:15 AM to 3:30 PM IST
+            market_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
+            market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
+            
+            return market_open <= now <= market_close
+        except Exception:
+            # Default to True if timezone check fails
+            return True
+    
     async def get_top_movers(self) -> Dict[str, Any]:
         """
         Get top 5 gainers and top 5 losers from NIFTY 100.
         
-        Returns:
-            Dict with 'as_of', 'gainers', and 'losers' keys
+        Prioritizes Dragonfly cache (HP Scanner snapshots) for instant response.
+        Falls back to Upstox API -> Database.
+        
+        NEVER returns mock data - returns explicit error if unavailable.
         """
-        # Return cached data if valid
+        import time
+        from services.dragonfly_client import get_cache, CacheKeys, TTLPolicy
+        
+        start_time = time.perf_counter()
+        
+        # 1. Try Dragonfly Cache (Fastest)
+        try:
+            cache = get_cache()
+            snapshots = cache.get(CacheKeys.all_snapshots())
+            
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            
+            if snapshots and len(snapshots) > 0:
+                logger.info(f"CACHE HIT: Dragonfly returned {len(snapshots)} snapshots in {elapsed_ms:.2f}ms")
+                
+                valid_stocks = []
+                for s in snapshots:
+                    if s.get('ltp', 0) <= 0: continue
+                    
+                    # Calculate change if not present
+                    change_pct = s.get('change_pct')
+                    if change_pct is None and s.get('prev_close') and s['prev_close'] > 0:
+                        change_pct = ((s['ltp'] - s['prev_close']) / s['prev_close']) * 100
+                    
+                    if change_pct is None: continue
+
+                    valid_stocks.append({
+                        "symbol": s.get('symbol', 'UNKNOWN'),
+                        "ltp": round(float(s.get('ltp', 0)), 2),
+                        "change_pct": round(float(change_pct), 2),
+                        "prev_close": round(float(s.get('prev_close', 0)), 2),
+                        "volume": int(s.get('volume', 0)),
+                        "day_high": round(float(s.get('high', s.get('ltp', 0))), 2),
+                        "day_low": round(float(s.get('low', s.get('ltp', 0))), 2)
+                    })
+                
+                # Sort and return with metadata
+                return {
+                    "as_of": datetime.now().isoformat(),
+                    "gainers": sorted(valid_stocks, key=lambda x: x["change_pct"], reverse=True)[:5],
+                    "losers": sorted(valid_stocks, key=lambda x: x["change_pct"])[:5],
+                    "source": "dragonfly",
+                    "cache_metadata": {
+                        "cached_at": datetime.now().isoformat(),
+                        "ttl_seconds": TTLPolicy.SNAPSHOT,
+                        "is_stale": False
+                    },
+                    "is_market_hours": self._is_market_hours()
+                }
+            else:
+                logger.info(f"CACHE MISS: Dragonfly empty in {elapsed_ms:.2f}ms, falling back to Upstox")
+                
+        except Exception as e:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.warning(f"CACHE ERROR: Dragonfly failed in {elapsed_ms:.2f}ms: {e}")
+
+        # 2. Existing Logic (Upstox API)
+        # Return cached result of THIS service if valid (in-memory)
         if self._is_cache_valid():
-            logger.debug("Returning cached top movers data")
+            logger.debug("Returning cached top movers data (memory)")
             return self._cache
         
-        logger.info("Fetching fresh NIFTY 100 quotes for top movers")
+        logger.info("Fetching fresh NIFTY 100 quotes for top movers (Upstox Fallback)")
         
         try:
             # Build instrument keys
-            instrument_keys = [f"NSE_EQ|{sym}" for sym in NIFTY_100_SYMBOLS]
+            symbols = get_nifty_symbols()
+            instrument_keys = [f"NSE_EQ|{sym}" for sym in symbols]
             
             # Fetch quotes in batches (Upstox has limits)
             client = self._get_upstox_client()
@@ -117,6 +176,7 @@ class TopMoversService:
             
             # Process quotes and calculate movers
             movers = self._calculate_movers(all_quotes)
+            movers["source"] = "upstox"
             
             # If no movers from live data (market closed), try database fallback
             if len(movers.get("gainers", [])) == 0 and len(movers.get("losers", [])) == 0:
@@ -165,7 +225,7 @@ class TopMoversService:
             
             valid_stocks = []
             for symbol, tick in db_data.items():
-                if symbol not in NIFTY_100_SYMBOLS:
+                if symbol not in get_nifty_symbols():
                     continue
                 
                 ltp = tick.ltp or 0

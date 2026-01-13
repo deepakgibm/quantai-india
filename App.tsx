@@ -11,7 +11,6 @@ import RiskManager from './pages/RiskManager';
 import Settings from './pages/Settings';
 import AlgoBuilder from './pages/AlgoBuilder';
 import LiveMonitor from './pages/LiveMonitor';
-import AlphaPrime from './pages/AlphaPrime';
 import ETLStatus from './pages/ETLStatus';
 import Backtest from './pages/Backtest';
 import AuditReports from './pages/AuditReports';
@@ -21,6 +20,7 @@ import MomentAlert from './pages/MomentAlert';
 import Week52Breakout from './pages/Week52Breakout';
 import WalkForwardBacktest from './pages/WalkForwardBacktest';
 import ExperimentLab from './pages/ExperimentLab';
+import PriceForecast from './pages/PriceForecast';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -105,8 +105,6 @@ const App: React.FC = () => {
         return <AlgoBuilder />;
       case Page.LIVE_MONITOR:
         return <LiveMonitor />;
-      case Page.ALPHA_PRIME:
-        return <AlphaPrime />;
       case Page.ETL_STATUS:
         return <ETLStatus />;
       case Page.QUANT_BOT:
@@ -125,6 +123,8 @@ const App: React.FC = () => {
         return <WalkForwardBacktest />;
       case Page.EXPERIMENT_LAB:
         return <ExperimentLab />;
+      case Page.PRICE_FORECAST:
+        return <PriceForecast />;
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }

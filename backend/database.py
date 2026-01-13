@@ -23,3 +23,13 @@ async def init_db():
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
+
+# Sync DB Connection (for legacy services)
+from sqlalchemy import create_engine
+sync_engine = create_engine(
+    settings.SYNC_DATABASE_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)

@@ -15,6 +15,8 @@ class User(Base):
     is_upstox_connected = Column(Boolean, default=False)
     upstox_access_token = Column(String, nullable=True)
     upstox_refresh_token = Column(String, nullable=True)
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     orders = relationship("Order", back_populates="user")
@@ -24,6 +26,18 @@ class User(Base):
     positions = relationship("Position", back_populates="user")
     holdings = relationship("Holding", back_populates="user")
     risk_config = relationship("RiskConfig", back_populates="user", uselist=False)
+    scanner_presets = relationship("ScannerPreset", back_populates="user")
+
+class ScannerPreset(Base):
+    __tablename__ = "scanner_presets"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    name = Column(String)
+    indices = Column(JSON) # List of strings
+    timeframe = Column(String)
+    strategies = Column(JSON) # List of strings
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", back_populates="scanner_presets")
 
 class BrokerCredentials(Base):
     __tablename__ = "broker_credentials"
@@ -123,7 +137,7 @@ class UserSettings(Base):
 
 # Import AlphaPrime models to ensure they're registered with Base
 from models_alpha import (
-    StockData,
+    StockCandle,
     AlphaSignal,
     TradeDecision,
     ETLLog,
@@ -135,3 +149,28 @@ from services.nifty500_fetcher import Nifty500Symbol
 
 # Import precomputed indicators model
 from models_indicators import PrecomputedIndicator, IndicatorComputeJob
+
+
+class DailyTopGainersSnapshot(Base):
+    """
+    Stores official post-market top gainers/losers snapshot.
+    
+    Populated by ETL at 15:40 IST using Upstox REST API.
+    Immutable per trading day - source of truth for after-hours display.
+    """
+    __tablename__ = "daily_top_gainers_snapshot"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, index=True)
+    trade_date = Column(DateTime, nullable=False, index=True)
+    symbol = Column(String, nullable=False)
+    company_name = Column(String, nullable=True)
+    close_price = Column(Float, nullable=False)
+    prev_close = Column(Float, nullable=False)
+    change = Column(Float, nullable=False)
+    change_percent = Column(Float, nullable=False)
+    volume = Column(Integer, nullable=True)
+    rank = Column(Integer, nullable=False)  # 1-10 for gainers, -1 to -10 for losers
+    category = Column(String, default="GAINER")  # GAINER or LOSER
+    data_source = Column(String, default="UPSTOX")
+    created_at = Column(DateTime, default=datetime.utcnow)

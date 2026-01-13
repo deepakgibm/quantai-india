@@ -91,7 +91,10 @@ class DuckDBAnalyticsEngine:
                 result = self._conn.execute(sql, params)
             else:
                 result = self._conn.execute(sql)
-            return result.df()
+            df = result.df()
+            # Handle NaN/Inf for JSON compatibility
+            df = df.fillna(0).replace([float('inf'), float('-inf')], 0)
+            return df
         except Exception as e:
             logger.error(f"Query failed: {e}")
             raise
@@ -138,12 +141,65 @@ class DuckDBAnalyticsEngine:
     
     # ========== Analytics Functions ==========
     
+    def _ensure_table_exists(self, table_name: str):
+        """Ensure a table exists in DuckDB, trying to load it from Postgres if missing."""
+        try:
+            # Check if table exists in DuckDB catalog
+            tables = self._conn.execute("SHOW TABLES").fetchall()
+            table_list = [t[0] for t in tables]
+            
+            if table_name in table_list:
+                return
+
+            logger.info(f"Table {table_name} not found in DuckDB. Attempting to load from Postgres...")
+            print(f"DEBUG: Table {table_name} not found. Catalog: {table_list}")
+            
+            try:
+                from config import settings
+                pg_conn = settings.SYNC_DATABASE_URL
+                # Handle host.docker.internal for local dev
+                if "localhost" in pg_conn and os.path.exists('/.dockerenv'):
+                    pg_conn = pg_conn.replace("localhost", "host.docker.internal")
+                
+                logger.info(f"Using PG Connection for DuckDB: {pg_conn}")
+                self.load_from_postgres(pg_conn, table_name)
+                
+                # Verify again
+                tables = self._conn.execute("SHOW TABLES").fetchall()
+                if table_name in [t[0] for t in tables]:
+                    logger.info(f"Successfully loaded {table_name} into DuckDB")
+                    return
+            except Exception as e:
+                logger.error(f"Failed to auto-load {table_name} from Postgres: {e}")
+                print(f"DEBUG: PG Load failed: {e}")
+                
+            # Final Fallback: Create empty table
+            logger.warning(f"Creating empty fallback table for {table_name}")
+            if table_name == 'stock_candles':
+                self._conn.execute("""
+                    CREATE TABLE IF NOT EXISTS stock_candles (
+                        symbol VARCHAR,
+                        instrument_key VARCHAR,
+                        timeframe VARCHAR,
+                        timestamp TIMESTAMP,
+                        open DOUBLE,
+                        high DOUBLE,
+                        low DOUBLE,
+                        close DOUBLE,
+                        volume DOUBLE
+                    )
+                """)
+        except Exception as e:
+            logger.error(f"Critical error in _ensure_table_exists: {e}")
+            print(f"DEBUG: Critical error in _ensure_table_exists: {e}")
+
     def get_top_momentum_stocks(self, n: int = 10, 
                                  lookback_days: int = 20) -> pd.DataFrame:
         """
         Get top N stocks by momentum (ROC).
         Uses DuckDB window functions for efficient computation.
         """
+        self._ensure_table_exists('stock_candles')
         sql = f"""
         WITH latest_prices AS (
             SELECT 
@@ -152,7 +208,8 @@ class DuckDBAnalyticsEngine:
                 LAG(close, {lookback_days}) OVER (PARTITION BY symbol ORDER BY timestamp) as prev_close,
                 timestamp,
                 ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
-            FROM stock_data
+            FROM stock_candles
+            WHERE timeframe = '1d'
         ),
         momentum AS (
             SELECT 
@@ -181,6 +238,7 @@ class DuckDBAnalyticsEngine:
         """
         Analyze volatility metrics for a symbol.
         """
+        self._ensure_table_exists('stock_candles')
         sql = f"""
         WITH daily_returns AS (
             SELECT 
@@ -188,8 +246,8 @@ class DuckDBAnalyticsEngine:
                 timestamp::date as date,
                 close,
                 (close - LAG(close) OVER (ORDER BY timestamp)) / LAG(close) OVER (ORDER BY timestamp) as daily_return
-            FROM stock_data
-            WHERE symbol = '{symbol}'
+            FROM stock_candles
+            WHERE symbol = '{symbol}' AND timeframe = '1d'
             ORDER BY timestamp DESC
             LIMIT {lookback_days}
         )
@@ -212,6 +270,7 @@ class DuckDBAnalyticsEngine:
         """
         Calculate correlation matrix between symbols.
         """
+        self._ensure_table_exists('stock_candles')
         # Get returns for all symbols
         sql = f"""
         WITH returns AS (
@@ -220,8 +279,9 @@ class DuckDBAnalyticsEngine:
                 timestamp::date as date,
                 (close - LAG(close) OVER (PARTITION BY symbol ORDER BY timestamp)) / 
                 LAG(close) OVER (PARTITION BY symbol ORDER BY timestamp) as ret
-            FROM stock_data
+            FROM stock_candles
             WHERE symbol IN ({','.join([f"'{s}'" for s in symbols])})
+            AND timeframe = '1d'
             AND timestamp >= CURRENT_DATE - INTERVAL '{lookback_days} days'
         )
         SELECT symbol, date, ret
@@ -246,6 +306,7 @@ class DuckDBAnalyticsEngine:
         Args:
             sector_mapping: Dict mapping symbol -> sector
         """
+        self._ensure_table_exists('stock_candles')
         # Create temp table with sector mapping
         mapping_df = pd.DataFrame([
             {'symbol': k, 'sector': v} for k, v in sector_mapping.items()
@@ -253,18 +314,26 @@ class DuckDBAnalyticsEngine:
         self.load_dataframe(mapping_df, 'sector_map')
         
         sql = f"""
-        WITH price_changes AS (
+        WITH latest_candles AS (
             SELECT 
-                s.symbol,
-                m.sector,
-                s.close as current_close,
-                FIRST_VALUE(s.close) OVER (
-                    PARTITION BY s.symbol 
-                    ORDER BY s.timestamp ASC
-                ) as start_close
-            FROM stock_data s
-            JOIN sector_map m ON s.symbol = m.symbol
-            WHERE s.timestamp >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+                instrument_key,
+                close,
+                timestamp,
+                FIRST_VALUE(close) OVER (PARTITION BY instrument_key ORDER BY timestamp ASC) as start_close,
+                ROW_NUMBER() OVER (PARTITION BY instrument_key ORDER BY timestamp DESC) as rn
+            FROM stock_candles
+            WHERE timeframe = '1d' 
+              AND timestamp >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+        ),
+        price_changes AS (
+            SELECT 
+                sm.symbol,
+                sm.sector,
+                lc.close as current_close,
+                lc.start_close
+            FROM latest_candles lc
+            JOIN stock_master sm ON lc.instrument_key = sm.instrument_key
+            WHERE lc.rn = 1
         ),
         latest AS (
             SELECT DISTINCT ON (symbol)
@@ -289,6 +358,7 @@ class DuckDBAnalyticsEngine:
         """
         Calculate support and resistance levels using pivot points.
         """
+        self._ensure_table_exists('stock_candles')
         sql = f"""
         WITH daily_data AS (
             SELECT 
@@ -296,8 +366,8 @@ class DuckDBAnalyticsEngine:
                 MAX(high) as high,
                 MIN(low) as low,
                 (array_agg(close ORDER BY timestamp DESC))[1] as close
-            FROM stock_data
-            WHERE symbol = '{symbol}'
+            FROM stock_candles
+            WHERE symbol = '{symbol}' AND timeframe = '1d'
             AND timestamp >= CURRENT_DATE - INTERVAL '{lookback_days} days'
             GROUP BY date
         ),
@@ -312,11 +382,11 @@ class DuckDBAnalyticsEngine:
         )
         SELECT 
             MAX(date) as as_of_date,
-            ROUND(AVG(pivot)::numeric, 2) as pivot_point,
-            ROUND((2 * AVG(pivot) - AVG(low))::numeric, 2) as r1,
-            ROUND((AVG(pivot) + (AVG(high) - AVG(low)))::numeric, 2) as r2,
-            ROUND((2 * AVG(pivot) - AVG(high))::numeric, 2) as s1,
-            ROUND((AVG(pivot) - (AVG(high) - AVG(low)))::numeric, 2) as s2,
+            ROUND(AVG("pivot")::numeric, 2) as pivot_point,
+            ROUND((2 * AVG("pivot") - AVG(low))::numeric, 2) as r1,
+            ROUND((AVG("pivot") + (AVG(high) - AVG(low)))::numeric, 2) as r2,
+            ROUND((2 * AVG("pivot") - AVG(high))::numeric, 2) as s1,
+            ROUND((AVG("pivot") - (AVG(high) - AVG(low)))::numeric, 2) as s2,
             ROUND(MAX(high)::numeric, 2) as resistance_max,
             ROUND(MIN(low)::numeric, 2) as support_min
         FROM pivot_calc

@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import random
 
 from database import get_db
-from models import BacktestResult, Algorithm
+from models import User, BacktestResult, Algorithm
 from utils.auth import get_current_user
 
 router = APIRouter()
@@ -39,23 +39,34 @@ async def test_endpoint():
 
 
 @router.get("/performance")
-async def get_engine_performance():
+async def get_engine_performance(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get dynamic performance metrics for all AI Trading Engines."""
-    # Add slight daily variance based on day of year
-    day_of_year = datetime.now().timetuple().tm_yday
+    engine_results = {}
     
-    def add_variance(base: float, engine_idx: int) -> float:
-        variance = ((day_of_year + engine_idx * 7) % 20 - 10) / 10  # -1.0 to +1.0
-        return round(base + variance, 1)
+    for engine_name, aliases in ENGINE_STRATEGY_MAP.items():
+        perf = await _get_backtest_performance(db, aliases)
+        if perf:
+            engine_results[engine_name] = {
+                "performance": round(perf["roi"], 1),
+                "win_rate": round(perf["win_rate"], 1),
+                "total_trades": perf["total_trades"],
+                "data_source": "backtest_results"
+            }
+        else:
+            # Fallback to a stable base if no backtests exist, but mark as simulated
+            base_val = DEFAULT_PERFORMANCE.get(engine_name, 0.0)
+            engine_results[engine_name] = {
+                "performance": base_val,
+                "win_rate": 60.0,
+                "data_source": "default_baseline"
+            }
     
     return {
         "status": "success",
-        "engines": {
-            "Trend Finder AI": {"performance": add_variance(12.4, 0), "win_rate": 61.2, "data_source": "simulated"},
-            "Breakout Detector": {"performance": add_variance(8.2, 1), "win_rate": 59.1, "data_source": "simulated"},
-            "Top 3 Buy/Sell Engine": {"performance": add_variance(18.7, 2), "win_rate": 64.4, "data_source": "simulated"},
-            "Earnings Reaction": {"performance": add_variance(-2.1, 3), "win_rate": 54.0, "data_source": "simulated"},
-        },
+        "engines": engine_results,
         "calculated_at": datetime.now().isoformat()
     }
 
@@ -126,10 +137,11 @@ async def _get_backtest_performance(
 @router.get("/performance/{engine_name}")
 async def get_single_engine_performance(
     engine_name: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Dict:
     """Get performance for a specific engine by name."""
-    all_perf = await get_engine_performance(db)
+    all_perf = await get_engine_performance(current_user, db)
     
     if engine_name in all_perf["engines"]:
         return {

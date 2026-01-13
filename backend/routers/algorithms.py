@@ -6,7 +6,7 @@ from typing import List
 from database import get_db
 from models import User, Algorithm
 from schemas import AlgorithmCreate, AlgorithmUpdate, AlgorithmResponse
-from utils.auth import get_current_user
+from utils.auth import get_current_user, get_optional_user
 
 router = APIRouter()
 
@@ -40,6 +40,7 @@ async def get_algorithms(
     algorithms = result.scalars().all()
     
     if not algorithms:
+        # Default algorithms for new user
         default_algos = [
             {
                 "name": "Trend Finder AI",

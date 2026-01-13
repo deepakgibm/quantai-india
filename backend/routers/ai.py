@@ -1,23 +1,46 @@
 ﻿from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Dict, Any, Optional
 import google.generativeai as genai
-import requests
+import httpx
 import json
 from models import User
-from schemas import AIPromptRequest, AIPromptResponse, AICommandRequest, AICommandResponse
-from utils.auth import get_current_user, get_optional_user
 from config import settings
 from sqlalchemy import desc, create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from schemas import (
+    AIPromptRequest, AIPromptResponse, AICommandRequest, AICommandResponse,
+    ScannerResponse, MarketAnalysisResponse
+)
+from services.dragonfly_client import get_cache
+from utils.auth import get_current_user, get_optional_user
+import logging
 
-# Create a synchronous engine for fallback price queries
-_sync_engine = create_engine(settings.SYNC_DATABASE_URL)
-SessionLocal = sessionmaker(bind=_sync_engine)
+logger = logging.getLogger(__name__)
 
+def get_cached_ai_data(strategy_id: str):
+    """Get data from cache if valid."""
+    cache = get_cache()
+    if not cache.is_available():
+        return None
+    try:
+        return cache.get(f"qai:ai:strategy:{strategy_id}")
+    except Exception as e:
+        logger.error(f"Cache get error for {strategy_id}: {e}")
+        return None
+
+def set_cached_ai_data(strategy_id: str, data: any):
+    """Set data in cache with TTL."""
+    cache = get_cache()
+    if not cache.is_available():
+        return
+    try:
+        cache.set(f"qai:ai:strategy:{strategy_id}", data, ttl=600)  # 10 min cache for performance
+    except Exception as e:
+        logger.error(f"Cache set error for {strategy_id}: {e}")
 
 router = APIRouter()
 
 @router.get("/strategies")
-async def get_ai_strategies(current_user: User = Depends(get_optional_user)):
+async def get_ai_strategies(current_user: User = Depends(get_current_user)):
     """Get available AI strategies"""
     return {
         "status": "success",
@@ -26,81 +49,99 @@ async def get_ai_strategies(current_user: User = Depends(get_optional_user)):
             {"id": "breakout-detector", "name": "Breakout Detector", "description": "Detects volume-backed breakouts"},
             {"id": "top5-picks", "name": "Top 5 Picks", "description": "Daily top 5 buy/sell recommendations"},
             {"id": "momentum-scanner", "name": "Momentum Scanner", "description": "High momentum stocks"},
-            {"id": "mean-reversion", "name": "Mean Reversion", "description": "Oversold/Overbought reversal setups"}
+            {"id": "mean-reversion", "name": "Mean Reversion", "description": "Oversold/Overbought reversal setups"},
+            {"id": "vwap-scanner", "name": "VWAP Trading", "description": "VWAP crossovers with LIVE prices"},
+            {"id": "sr-bounce", "name": "Support/Resistance", "description": "Bounce signals from S/R levels"}
         ]
     }
 
 
-if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    # Using gemini-2.0-flash (gemini-1.5-flash has been deprecated)
-    model = genai.GenerativeModel("gemini-2.0-flash")
-
-
-def get_db_price(symbol: str) -> float:
-    """Fetch latest closing price from database (Nifty100Daily or StockData)"""
+def get_working_model():
+    """
+    Dynamically finds the best available 'flash' model 
+    to prevent 404 errors.
+    """
     try:
-        from models_ml import Nifty100Daily
-        db = SessionLocal()
-        try:
-            latest = db.query(Nifty100Daily).filter(
-                Nifty100Daily.symbol == symbol
-            ).order_by(desc(Nifty100Daily.timestamp)).first()
-            
-            if latest:
-                print(f"📊 DB price for {symbol}: {latest.close} (date: {latest.timestamp.date()})")
-                return float(latest.close)
-        finally:
-            db.close()
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                if 'flash' in m.name:
+                    logger.info(f"✅ Found working Gemini model: {m.name}")
+                    return m.name
     except Exception as e:
-        print(f"⚠️ DB price error for {symbol}: {e}")
+        logger.warning(f"Could not list Gemini models: {e}")
     
-    # Try StockData table as fallback
+    # Default fallback
+    return 'gemini-2.0-flash'
+
+if settings.GEMINI_API_KEY:
     try:
-        from models_alpha import StockData
-        db = SessionLocal()
-        try:
-            latest = db.query(StockData).filter(
-                StockData.symbol == symbol
-            ).order_by(desc(StockData.timestamp)).first()
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model_name = get_working_model()
+        model = genai.GenerativeModel(model_name)
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini AI: {e}")
+        model = None
+else:
+    model = None
+
+
+async def get_db_price(symbol: str) -> float:
+    """Fetch latest closing price from database asynchronously"""
+    from database import AsyncSessionLocal
+    from sqlalchemy import select
+    
+    try:
+        async with AsyncSessionLocal() as db:
+            # Try Nifty100Daily first
+            from models_ml import Nifty100Daily
+            stmt = select(Nifty100Daily).where(Nifty100Daily.symbol == symbol).order_by(desc(Nifty100Daily.timestamp))
+            res = await db.execute(stmt)
+            latest = res.scalar_one_or_none()
             
             if latest:
-                print(f"📊 StockData price for {symbol}: {latest.close}")
                 return float(latest.close)
-        finally:
-            db.close()
+            
+            # Try StockData fallback
+            from models_alpha import StockData
+            stmt = select(StockData).where(StockData.symbol == symbol).order_by(desc(StockData.timestamp))
+            res = await db.execute(stmt)
+            latest = res.scalar_one_or_none()
+            
+            if latest:
+                return float(latest.close)
     except Exception as e:
-        print(f"⚠️ StockData price error for {symbol}: {e}")
+        logger.error(f"Async DB price error for {symbol}: {e}")
     
     return None
 
 
-def get_best_price(symbol: str, access_token: str = None) -> float:
+async def get_best_price(symbol: str, access_token: str = None) -> float:
     """Get price from best available source: Upstox -> yFinance -> Database"""
     # Try Upstox first
-    price = get_real_time_price(symbol, access_token)
+    price = await get_real_time_price_async(symbol, access_token)
     if price and price > 0:
         return price
     
     # Try Yahoo Finance
-    price = get_yfinance_price(symbol)
+    from services.live_price_enricher import get_yfinance_price as get_yf_price_async
+    price = await get_yf_price_async(symbol)
     if price and price > 0:
         return price
     
     # Fallback to database
-    price = get_db_price(symbol)
+    price = await get_db_price(symbol)
     if price and price > 0:
         return price
     
     return None
 
 
-def _get_fallback_stocks_with_real_prices(stocks_template: list, access_token: str = None) -> list:
+async def _get_fallback_stocks_with_real_prices(stocks_template: list, access_token: str = None) -> list:
     """Update fallback stocks template with real prices from best available source"""
     updated_stocks = []
     for stock in stocks_template:
         stock_copy = stock.copy()
-        price = get_best_price(stock["symbol"], access_token)
+        price = await get_best_price(stock["symbol"], access_token)
         if price and price > 0:
             stock_copy["current_price"] = round(price, 2)
             # Calculate entry/target/stop_loss based on real price
@@ -118,8 +159,8 @@ def _get_fallback_stocks_with_real_prices(stocks_template: list, access_token: s
         updated_stocks.append(stock_copy)
     return updated_stocks
 
-def get_real_time_price(symbol: str, access_token: str = None) -> float:
-    """Fetch real-time price from Upstox API"""
+async def get_real_time_price_async(symbol: str, access_token: str = None) -> float:
+    """Fetch real-time price from Upstox API using async httpx (non-blocking)"""
     if not access_token:
         access_token = settings.UPSTOX_ACCESS_TOKEN
     
@@ -334,23 +375,41 @@ def get_real_time_price(symbol: str, access_token: str = None) -> float:
     }
     
     try:
-        response = requests.get(
-            f"https://api.upstox.com/v2/market-quote/ltp?symbol={instrument_key}",
-            headers=headers,
-            timeout=5
-        )
-        if response.status_code == 200:
-            data = response.json()
-            # Extract LTP from response
-            if data.get("status") == "success" and data.get("data"):
-                # Upstox might return a different key than requested (e.g. NSE_EQ:RELIANCE vs NSE_EQ|INE...)
-                # Since we request one symbol, we can just take the first item.
-                if data['data']:
-                    ltp_data = next(iter(data['data'].values()))
-                    return ltp_data.get("last_price")
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"https://api.upstox.com/v2/market-quote/ltp?symbol={instrument_key}",
+                headers=headers
+            )
+            if response.status_code == 200:
+                data = response.json()
+                # Extract LTP from response
+                if data.get("status") == "success" and data.get("data"):
+                    # Upstox might return a different key than requested (e.g. NSE_EQ:RELIANCE vs NSE_EQ|INE...)
+                    # Since we request one symbol, we can just take the first item.
+                    if data['data']:
+                        ltp_data = next(iter(data['data'].values()))
+                        return ltp_data.get("last_price")
         return None
     except Exception as e:
         print(f"Error fetching price for {symbol}: {str(e)}")
+        return None
+
+
+def get_real_time_price(symbol: str, access_token: str = None) -> float:
+    """Sync wrapper for backward compatibility - calls async version"""
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If already in async context, create a new task
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, get_real_time_price_async(symbol, access_token))
+                return future.result(timeout=10)
+        else:
+            return asyncio.run(get_real_time_price_async(symbol, access_token))
+    except Exception as e:
+        print(f"Error in sync wrapper for {symbol}: {e}")
         return None
 
 def get_yfinance_price(symbol: str) -> float:
@@ -370,7 +429,7 @@ def get_yfinance_price(symbol: str) -> float:
 @router.post("/prompt", response_model=AIPromptResponse)
 async def process_ai_prompt(request: AIPromptRequest, current_user: User = Depends(get_optional_user)):
     if not settings.GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="Gemini API key not configured")
+        raise HTTPException(status_code=503, detail="Gemini API key not configured")
     
     try:
         enhanced_prompt = f"""You are a professional stock trading advisor for the Indian stock market (NSE Cash Segment only).
@@ -408,10 +467,10 @@ Guidelines:
 - Keep reasons concise and actionable
 - Only respond with the JSON array, nothing else"""
         
-        print(f"Processing AI prompt: {request.prompt}")
+        logger.info(f"Processing AI prompt: {request.prompt}")
         response = model.generate_content(enhanced_prompt)
         response_text = response.text.strip()
-        print(f"Got AI response, length: {len(response_text)}")
+        logger.info(f"Got AI response, length: {len(response_text)}")
         
         suggested_stocks = []
         fallback_used = False
@@ -441,12 +500,13 @@ Guidelines:
                     
                     current_price = None
                     if access_token:
-                        current_price = get_real_time_price(stock_rec["symbol"], access_token)
+                        current_price = await get_real_time_price_async(stock_rec["symbol"], access_token)
                     
                     # Fallback to Yahoo Finance if Upstox fails
                     if current_price is None or current_price == 0:
-                        print(f"Upstox price failed for {stock_rec['symbol']}, trying Yahoo Finance...")
-                        current_price = get_yfinance_price(stock_rec["symbol"])
+                        logger.warning(f"Upstox price failed for {stock_rec['symbol']}, trying Yahoo Finance...")
+                        from services.live_price_enricher import get_yfinance_price as get_yf_price_async
+                        current_price = await get_yf_price_async(stock_rec["symbol"])
 
                     if current_price is not None and current_price > 0:
                         stock_rec["price"] = current_price
@@ -523,64 +583,156 @@ Guidelines:
             "strategy": {"type": "ai_generated", "confidence": "high"}
         }
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"Error details: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
+        logger.error(f"AI processing failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=503, detail=f"AI service temporarily unavailable: {str(e)}")
 
-@router.get("/market-analysis")
+@router.get("/market-analysis", response_model=MarketAnalysisResponse)
 async def get_market_analysis(current_user: User = Depends(get_optional_user)):
+    """AI Market Analysis - Summarizes current market state using technicals + Gemini."""
+    import asyncio
+    import time
+    import hashlib
+    
+    start_time = time.time()
+    
+    # 1. Check Cache FIRST (10 min TTL)
+    cache_key = "market-analysis-daily"
+    cached = get_cached_ai_data(cache_key)
+    if cached:
+        logger.info(f"market-analysis: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        return cached
+    
     if not settings.GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="Gemini API key not configured")
+        raise HTTPException(status_code=503, detail="Gemini API key not configured")
+    
+    prompt = """Perform a comprehensive daily market analysis for the Indian stock market (NIFTY 50).
+    Provide the analysis in the following JSON format strictly:
+    {
+      "status": "success",
+      "analysis": "A detailed 2-3 sentence analysis of current market trends and levels.",
+      "sentiment": "BULLISH/BEARISH/NEUTRAL",
+      "trend": "UPTREND/DOWNTREND/SIDEWAYS",
+      "top_sectors": ["Sector 1", "Sector 2"],
+      "stocks_to_watch": ["STOCK1", "STOCK2"],
+      "timestamp": "YYYY-MM-DD"
+    }
+    """
+    
+    from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+    
+    @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), retry=retry_if_exception_type(Exception))
+    def fetch_analysis():
+        generative_response = model.generate_content(prompt)
+        text = generative_response.text
+        # Extract JSON if Gemini wraps it in markdown backticks
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+        return json.loads(text)
     
     try:
-        prompt = """Provide a brief daily market analysis for the Indian stock market (NIFTY 50).
-Include: 1. Market sentiment 2. Key sectors 3. Support/resistance levels 4. Trading recommendation"""
+        loop = asyncio.get_event_loop()
+        try:
+            result = await asyncio.wait_for(
+                loop.run_in_executor(None, fetch_analysis),
+                timeout=12.0  # Increased timeout for complex prompt
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"market-analysis: Gemini API timeout after 12s")
+            return {
+                "status": "timeout",
+                "analysis": "Market analysis is taking longer than expected due to AI service load.",
+                "sentiment": "NEUTRAL",
+                "trend": "SIDEWAYS",
+                "top_sectors": [],
+                "stocks_to_watch": [],
+                "timestamp": datetime.now().strftime("%Y-%m-%d"),
+                "retry_after_seconds": 30
+            }
         
-        response = model.generate_content(prompt)
-        return {"analysis": response.text, "market_sentiment": "Bullish"}
+        # Ensure timestamp is set if missing
+        if "timestamp" not in result:
+            result["timestamp"] = datetime.now().strftime("%Y-%m-%d")
+        
+        # Cache for 10 minutes (600s)
+        cache = get_cache()
+        if cache.is_available():
+            try:
+                cache.set(f"qai:ai:strategy:{cache_key}", result, ttl=600)
+            except Exception:
+                pass
+        
+        elapsed = (time.time() - start_time) * 1000
+        logger.info(f"market-analysis: Completed in {elapsed:.0f}ms")
+        return result
+        
     except Exception as e:
-        print(f"AI Market Analysis failed: {e}")
-        # Fallback to a static or semi-dynamic analysis if AI fails
+        logger.error(f"AI Market Analysis failed after retries: {e}")
         return {
-            "analysis": "The market is showing consolidation with a slight bullish bias. Key resistance at 24,500 and support at 24,000 for NIFTY 50. Sectors to watch: IT, Banking and Auto. (Fallback analysis due to AI service busy)",
-            "market_sentiment": "Stable",
-            "fallback": True
+            "status": "error",
+            "analysis": "Market analysis temporarily unavailable due to high demand. Please consult the 'Trend Finder' or 'Momentum Scanner' for automated signals.",
+            "sentiment": "NEUTRAL",
+            "trend": "SIDEWAYS",
+            "top_sectors": [],
+            "stocks_to_watch": [],
+            "timestamp": datetime.now().strftime("%Y-%m-%d")
         }
+
+# Sentiment analysis consolidated below at /sentiment
 
 @router.get("/trend-finder")
 async def get_trend_finder_stocks(current_user: User = Depends(get_optional_user)):
-    """
-    Identify stocks with strong trend continuation setups using technical analysis.
+    """Identify stocks with strong trend continuation setups using technical analysis."""
+    import asyncio
+    import time
+    from fastapi.responses import JSONResponse
     
-    Uses quantitative indicators:
-    - 20-EMA Trend Filter (25%)
-    - RSI Momentum 40-70 zone (20%)
-    - Volume Confirmation >1.5x (15%)
-    - Pullback Detection (25%)
-    - ADX Strength >25 (15%)
+    start_time = time.time()
     
-    Returns stocks with score >= 60, enriched with LIVE prices from Upstox.
-    """
+    # 1. Check Cache
+    cached = get_cached_ai_data("trend-finder")
+    if cached:
+        logger.info(f"trend-finder: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        return cached
+
     try:
         from services.trend_analyzer import TrendAnalyzer
         from services.live_price_enricher import enrich_scanner_results
         
-        analyzer = TrendAnalyzer()
-        stocks = analyzer.scan_all(limit=10)
+        # Run in thread pool
+        def run_scan():
+            analyzer = TrendAnalyzer()
+            return analyzer.scan_all(limit=10)
+        
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning("trend-finder: Timeout after 10s")
+            return {
+                "status": "timeout",
+                "count": 0, "stocks": [], "scan_type": "trend_technical",
+                "description": "Trend scan is taking too long. Please try again."
+            }
         
         if stocks:
-            # Enrich with live prices from Upstox
             access_token = settings.UPSTOX_ACCESS_TOKEN
-            enriched_stocks = enrich_scanner_results(stocks, access_token)
+            enriched_stocks = await enrich_scanner_results(stocks, access_token)
             
-            return {
+            response = {
                 "status": "success",
                 "count": len(enriched_stocks),
                 "stocks": enriched_stocks,
                 "scan_type": "trend_technical",
                 "description": "Stocks identified using technical analysis with LIVE prices (EMA, RSI, ADX, Volume, Pullback)"
             }
+            # 2. Update Cache
+            set_cached_ai_data("trend-finder", response)
+            return response
         else:
             # No stocks met criteria - return message
             return {
@@ -592,55 +744,77 @@ async def get_trend_finder_stocks(current_user: User = Depends(get_optional_user
             }
             
     except Exception as e:
-        print(f"Trend finder error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        # Fallback to database price lookup for sample stocks
-        fallback_template = [
-            {"symbol": "RELIANCE", "name": "Reliance Industries", "trend": "BULLISH", "strength": 70, "current_price": 0, "entry_price": 0, "target_price": 0, "stop_loss": 0, "reason": "Technical analysis service error - showing sample data"},
-            {"symbol": "TCS", "name": "Tata Consultancy Services", "trend": "BULLISH", "strength": 65, "current_price": 0, "entry_price": 0, "target_price": 0, "stop_loss": 0, "reason": "Technical analysis service error - showing sample data"},
-            {"symbol": "HDFCBANK", "name": "HDFC Bank", "trend": "BULLISH", "strength": 60, "current_price": 0, "entry_price": 0, "target_price": 0, "stop_loss": 0, "reason": "Technical analysis service error - showing sample data"}
-        ]
-        access_token = settings.UPSTOX_ACCESS_TOKEN
-        fallback_stocks = _get_fallback_stocks_with_real_prices(fallback_template, access_token)
+        logger.error(f"Trend finder error: {str(e)}", exc_info=True)
         return {
-            "status": "success",
-            "count": len(fallback_stocks),
-            "stocks": fallback_stocks,
-            "scan_type": "trend_fallback",
-            "description": "Technical analysis service error - showing sample data with real prices"
+            "status": "error",
+            "count": 0,
+            "stocks": [],
+            "scan_type": "trend_technical",
+            "description": f"Trend finder temporarily unavailable: {str(e)[:100]}"
         }
 
-@router.get("/breakout-detector")
+@router.get("/breakout-detector", response_model=ScannerResponse)
 async def get_breakout_stocks(current_user: User = Depends(get_optional_user)):
-    """
-    Detect stocks with volume-backed breakouts using technical analysis.
+    """Detect stocks with volume-backed breakouts using technical analysis."""
+    import asyncio
+    import time
+    from fastapi.responses import JSONResponse
     
-    Breakout Types:
-    - 52W_HIGH: New 52-week high with volume
-    - RESISTANCE: Breaking 20-day high resistance
-    - CONSOLIDATION: ATR expansion after low volatility
-    """
+    start_time = time.time()
+    
+    # 1. Check Cache FIRST
+    cached = get_cached_ai_data("breakout-detector")
+    if cached:
+        logger.info(f"breakout-detector: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        return cached
+
     try:
         from services.breakout_detector import BreakoutDetector
         from services.live_price_enricher import enrich_scanner_results
         
-        detector = BreakoutDetector()
-        stocks = detector.scan_all(limit=10)
+        # Run blocking scan in thread pool with HARD TIMEOUT
+        def run_scan():
+            detector = BreakoutDetector()
+            return detector.scan_all(limit=10)
+        
+        # Execute with 8 second timeout
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=8.0  # Hard timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"breakout-detector: Timeout after 8s")
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "timeout",
+                    "count": 0,
+                    "stocks": [],
+                    "scan_type": "breakout_technical",
+                    "description": "Breakout scan is taking too long. Please try again."
+                }
+            )
         
         if stocks:
-            # Enrich with live prices from Upstox
+            # Enrich with live prices from Upstox (Now BATCH optimized)
             access_token = settings.UPSTOX_ACCESS_TOKEN
-            enriched_stocks = enrich_scanner_results(stocks, access_token)
+            enriched_stocks = await enrich_scanner_results(stocks, access_token)
             
-            return {
+            response = {
                 "status": "success",
                 "count": len(enriched_stocks),
                 "stocks": enriched_stocks,
                 "scan_type": "breakout_technical",
                 "description": "Breakout stocks with LIVE prices (52W High, Resistance, Volume)"
             }
+            # 2. Update Cache
+            set_cached_ai_data("breakout-detector", response)
+            
+            elapsed = (time.time() - start_time) * 1000
+            logger.info(f"breakout-detector: Completed in {elapsed:.0f}ms with {len(enriched_stocks)} stocks")
+            return response
         else:
             return {
                 "status": "success",
@@ -651,48 +825,73 @@ async def get_breakout_stocks(current_user: User = Depends(get_optional_user)):
             }
             
     except Exception as e:
-        print(f"Breakout detector error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        fallback_template = [
-            {"symbol": "TATAMOTORS", "name": "Tata Motors", "trend": "BULLISH", "breakout_type": "RESISTANCE", "volume_ratio": 1.5, "current_price": 0, "breakout_level": 0, "target_price": 0, "stop_loss": 0, "strength": 60, "reason": "Technical analysis service error"},
-        ]
-        access_token = settings.UPSTOX_ACCESS_TOKEN
-        fallback_stocks = _get_fallback_stocks_with_real_prices(fallback_template, access_token)
-        return {
-            "status": "success",
-            "count": len(fallback_stocks),
-            "stocks": fallback_stocks,
-            "scan_type": "breakout_fallback",
-            "description": "Technical analysis service error - showing sample data"
-        }
+        logger.error(f"Breakout detector error: {str(e)}", exc_info=True)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "error",
+                "count": 0,
+                "stocks": [],
+                "scan_type": "breakout_technical",
+                "description": f"Breakout detector temporarily unavailable: {str(e)[:100]}"
+            }
+        )
 
-@router.get("/top5-picks")
+# Route alias for backward compatibility (some clients use /breakout-stocks)
+@router.get("/breakout-stocks")
+async def get_breakout_stocks_alias(current_user: User = Depends(get_optional_user)):
+    """Alias for /breakout-detector - backward compatibility."""
+    return await get_breakout_stocks(current_user)
+
+@router.get("/top5-picks", response_model=ScannerResponse)
 async def get_top5_picks(current_user: User = Depends(get_optional_user)):
-    """
-    Get Top 10 Buy/Sell signals (5 BUY + 5 SELL) using technical analysis.
+    """Get Top 10 Buy/Sell signals (5 BUY + 5 SELL) using technical analysis."""
+    import asyncio
+    import time
     
-    Criteria:
-    - EMA alignment (9/21 crossover)
-    - RSI momentum (40-70 for BUY, inverse for SELL)
-    - Volume confirmation
-    - MACD histogram
-    """
+    start_time = time.time()
+    
+    # 1. Check Cache FIRST (fast path)
+    cached = get_cached_ai_data("top5-picks")
+    if cached:
+        logger.info(f"top5-picks: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        return cached
+
     try:
         from services.top5_buysell import Top5BuySellEngine
         from services.live_price_enricher import enrich_scanner_results
         
-        engine = Top5BuySellEngine()
-        signals = engine.scan_all(limit=5)
+        # Run blocking scan in thread pool with HARD TIMEOUT
+        def run_scan():
+            engine = Top5BuySellEngine()
+            return engine.scan_all(limit=5)
         
-        # Enrich with live prices from Upstox
+        # Execute with 8 second timeout
+        loop = asyncio.get_event_loop()
+        try:
+            signals = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=8.0  # Hard timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"top5-picks: Scan timeout after 8s")
+            return {
+                "status": "error",
+                "error_code": "TIMEOUT",
+                "message": "Scan took too long, please try again",
+                "count": 0, "stocks": [], "buy_signals": [], "sell_signals": [],
+                "scan_type": "top10_technical"
+            }
+        
+        # Parallel price enrichment for buy and sell signals
         access_token = settings.UPSTOX_ACCESS_TOKEN
-        enriched_buy = enrich_scanner_results(signals.get("buy", []), access_token)
-        enriched_sell = enrich_scanner_results(signals.get("sell", []), access_token)
+        enriched_buy, enriched_sell = await asyncio.gather(
+            enrich_scanner_results(signals.get("buy", []), access_token),
+            enrich_scanner_results(signals.get("sell", []), access_token)
+        )
         all_stocks = enriched_buy + enriched_sell
         
-        return {
+        response = {
             "status": "success",
             "count": len(all_stocks),
             "stocks": all_stocks,
@@ -701,23 +900,27 @@ async def get_top5_picks(current_user: User = Depends(get_optional_user)):
             "scan_type": "top10_technical",
             "description": "Top 10 Buy/Sell signals with LIVE prices (EMA, RSI, MACD, Volume)"
         }
+        
+        # Cache for 5 minutes
+        set_cached_ai_data("top5-picks", response)
+        
+        elapsed = (time.time() - start_time) * 1000
+        logger.info(f"top5-picks: Completed in {elapsed:.0f}ms")
+        if elapsed > 3000:
+            logger.warning(f"top5-picks: SLOW - took {elapsed:.0f}ms")
+        
+        return response
             
     except Exception as e:
-        print(f"Top 5 picks error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        fallback_template = [
-            {"symbol": "RELIANCE", "name": "Reliance Industries", "action": "BUY", "confidence": 70, "current_price": 0, "entry_range": "", "target_1": 0, "target_2": 0, "stop_loss": 0, "expected_move": "+2%", "reason": "Technical analysis service error"},
-        ]
-        access_token = settings.UPSTOX_ACCESS_TOKEN
-        fallback_stocks = _get_fallback_stocks_with_real_prices(fallback_template, access_token)
+        logger.error(f"Top 5 picks error: {str(e)}", exc_info=True)
         return {
-            "status": "success",
-            "count": len(fallback_stocks),
-            "stocks": fallback_stocks,
-            "scan_type": "top5_fallback",
-            "description": "Technical analysis service error - showing sample data"
+            "status": "error",
+            "count": 0,
+            "stocks": [],
+            "buy_signals": [],
+            "sell_signals": [],
+            "scan_type": "top10_technical",
+            "description": "Top picks engine temporarily unavailable. Please try again."
         }
 
 # Keep legacy endpoint for backwards compatibility
@@ -726,119 +929,249 @@ async def get_top3_picks(current_user: User = Depends(get_optional_user)):
     """Legacy endpoint - redirects to top5-picks"""
     return await get_top5_picks(current_user)
 
-@router.get("/momentum-scanner")
+@router.get("/momentum-scanner", response_model=ScannerResponse)
 async def get_momentum_stocks(current_user: User = Depends(get_optional_user)):
     """Momentum Scanner - ROC and MFI based with LIVE prices."""
+    import asyncio
+    import time
+    
+    start_time = time.time()
+    
+    # 1. Check Cache
+    cached = get_cached_ai_data("momentum-scanner")
+    if cached:
+        logger.info(f"momentum-scanner: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        return cached
+
     try:
         from services.momentum_scanner import MomentumScanner
         from services.live_price_enricher import enrich_scanner_results
         
-        scanner = MomentumScanner()
-        stocks = scanner.scan_all(limit=10)
+        def run_scan():
+            scanner = MomentumScanner()
+            return scanner.scan_all(limit=10)
+            
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=12.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning("momentum-scanner: Timeout after 12s")
+            return {
+                "status": "timeout",
+                "count": 0, "stocks": [], "scan_type": "momentum",
+                "description": "Momentum scan is taking too long. Please try again."
+            }
         
         access_token = settings.UPSTOX_ACCESS_TOKEN
-        enriched_stocks = enrich_scanner_results(stocks, access_token)
+        enriched_stocks = await enrich_scanner_results(stocks, access_token)
         
-        return {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
+        response = {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
                 "scan_type": "momentum", "description": "Stocks with strong price momentum (LIVE prices)"}
+        # 2. Update Cache
+        set_cached_ai_data("momentum-scanner", response)
+        
+        elapsed = (time.time() - start_time) * 1000
+        logger.info(f"momentum-scanner: Completed in {elapsed:.0f}ms")
+        return response
     except Exception as e:
-        print(f"Momentum scanner error: {e}")
+        logger.error(f"Momentum scanner error: {e}")
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "momentum", "description": str(e)}
 
-@router.get("/mean-reversion")
+@router.get("/mean-reversion", response_model=ScannerResponse)
 async def get_mean_reversion_stocks(current_user: User = Depends(get_optional_user)):
     """Mean Reversion Scanner with LIVE prices."""
+    import asyncio
+    import time
+    
+    start_time = time.time()
+    
+    # 1. Check Cache
+    cached = get_cached_ai_data("mean-reversion")
+    if cached:
+        logger.info(f"mean-reversion: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        return cached
+
     try:
         from services.mean_reversion_scanner import MeanReversionScanner
         from services.live_price_enricher import enrich_scanner_results
         
-        scanner = MeanReversionScanner()
-        stocks = scanner.scan_all(limit=10)
+        def run_scan():
+            scanner = MeanReversionScanner()
+            return scanner.scan_all(limit=10)
+            
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            return {
+                "status": "timeout",
+                "count": 0, "stocks": [], "scan_type": "mean_reversion",
+                "description": "Scan timed out. Please try again."
+            }
         
         access_token = settings.UPSTOX_ACCESS_TOKEN
-        enriched_stocks = enrich_scanner_results(stocks, access_token)
+        enriched_stocks = await enrich_scanner_results(stocks, access_token)
         
-        return {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
+        response = {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
                 "scan_type": "mean_reversion", "description": "Oversold/overbought stocks with LIVE prices"}
+        # 2. Update Cache
+        set_cached_ai_data("mean-reversion", response)
+        
+        elapsed = (time.time() - start_time) * 1000
+        logger.info(f"mean-reversion: Completed in {elapsed:.0f}ms")
+        return response
     except Exception as e:
-        print(f"Mean reversion error: {e}")
+        logger.error(f"Mean reversion error: {e}")
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "mean_reversion", "description": str(e)}
 
-@router.get("/gap-scanner")
+@router.get("/gap-scanner", response_model=ScannerResponse)
 async def get_gap_stocks(current_user: User = Depends(get_optional_user)):
-    """Gap Scanner - Overnight gap detection."""
+    """Gap Scanner - Overnight gap detection with LIVE prices."""
+    import asyncio
+    import time
+    start_time = time.time()
+    
     try:
         from services.gap_scanner import GapScanner
         from services.live_price_enricher import enrich_scanner_results
         
-        scanner = GapScanner()
-        stocks = scanner.scan_all(limit=10)
+        def run_scan():
+            scanner = GapScanner()
+            return scanner.scan_all(limit=10)
+        
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            return {
+                "status": "timeout", "count": 0, "stocks": [], 
+                "scan_type": "gap", "description": "Gap scan timed out."
+            }
         
         access_token = settings.UPSTOX_ACCESS_TOKEN
-        enriched_stocks = enrich_scanner_results(stocks, access_token)
+        enriched_stocks = await enrich_scanner_results(stocks, access_token)
         
         return {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
                 "scan_type": "gap", "description": "Gap stocks with LIVE prices"}
     except Exception as e:
-        print(f"Gap scanner error: {e}")
+        logger.error(f"Gap scanner error: {e}")
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "gap", "description": str(e)}
 
-@router.get("/relative-strength")
+@router.get("/relative-strength", response_model=ScannerResponse)
 async def get_relative_strength_stocks(current_user: User = Depends(get_optional_user)):
-    """Relative Strength Scanner - Market outperformers."""
+    """Relative Strength Scanner - Market outperformers with LIVE prices."""
+    import asyncio
+    import time
+    start_time = time.time()
+    
     try:
         from services.relative_strength_scanner import RelativeStrengthScanner
         from services.live_price_enricher import enrich_scanner_results
         
-        scanner = RelativeStrengthScanner()
-        stocks = scanner.scan_all(limit=10)
+        def run_scan():
+            scanner = RelativeStrengthScanner()
+            return scanner.scan_all(limit=10)
+        
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            return {
+                "status": "timeout", "count": 0, "stocks": [], 
+                "scan_type": "relative_strength", "description": "Scan timed out."
+            }
         
         access_token = settings.UPSTOX_ACCESS_TOKEN
-        enriched_stocks = enrich_scanner_results(stocks, access_token)
+        enriched_stocks = await enrich_scanner_results(stocks, access_token)
         
         return {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
                 "scan_type": "relative_strength", "description": "Market outperformers with LIVE prices"}
     except Exception as e:
-        print(f"Relative strength error: {e}")
+        logger.error(f"Relative strength error: {e}")
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "relative_strength", "description": str(e)}
 
-@router.get("/vwap-scanner")
+@router.get("/vwap-scanner", response_model=ScannerResponse)
 async def get_vwap_stocks(current_user: User = Depends(get_optional_user)):
-    """VWAP Scanner - Volume weighted average price trading."""
+    """VWAP Scanner - Volume weighted average price trading with LIVE prices."""
+    import asyncio
+    import time
+    start_time = time.time()
+    
     try:
         from services.vwap_scanner import VWAPScanner
         from services.live_price_enricher import enrich_scanner_results
         
-        scanner = VWAPScanner()
-        stocks = scanner.scan_all(limit=10)
+        def run_scan():
+            scanner = VWAPScanner()
+            return scanner.scan_all(limit=10)
+            
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            return {
+                "status": "timeout", "count": 0, "stocks": [], 
+                "scan_type": "vwap", "description": "Scan timed out."
+            }
         
         access_token = settings.UPSTOX_ACCESS_TOKEN
-        enriched_stocks = enrich_scanner_results(stocks, access_token)
+        enriched_stocks = await enrich_scanner_results(stocks, access_token)
         
         return {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
                 "scan_type": "vwap", "description": "VWAP trading signals with LIVE prices"}
     except Exception as e:
-        print(f"VWAP scanner error: {e}")
+        logger.error(f"VWAP scanner error: {e}")
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "vwap", "description": str(e)}
 
-@router.get("/sr-bounce")
+@router.get("/sr-bounce", response_model=ScannerResponse)
 async def get_sr_bounce_stocks(current_user: User = Depends(get_optional_user)):
     """Support/Resistance Bounce Scanner with LIVE prices."""
+    import asyncio
+    import time
+    start_time = time.time()
+    
     try:
         from services.sr_bounce_scanner import SRBounceScanner
         from services.live_price_enricher import enrich_scanner_results
         
-        scanner = SRBounceScanner()
-        stocks = scanner.scan_all(limit=10)
+        def run_scan():
+            scanner = SRBounceScanner()
+            return scanner.scan_all(limit=10)
+            
+        loop = asyncio.get_event_loop()
+        try:
+            stocks = await asyncio.wait_for(
+                loop.run_in_executor(None, run_scan),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            return {
+                "status": "timeout", "count": 0, "stocks": [], 
+                "scan_type": "sr_bounce", "description": "Scan timed out."
+            }
         
-        # Enrich with live prices from Upstox
         access_token = settings.UPSTOX_ACCESS_TOKEN
-        enriched_stocks = enrich_scanner_results(stocks, access_token)
+        enriched_stocks = await enrich_scanner_results(stocks, access_token)
         
         return {"status": "success", "count": len(enriched_stocks), "stocks": enriched_stocks,
                 "scan_type": "sr_bounce", "description": "Stocks bouncing off support/resistance levels with LIVE prices"}
     except Exception as e:
-        print(f"S/R bounce error: {e}")
+        logger.error(f"S/R bounce error: {e}")
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "sr_bounce", "description": str(e)}
 
 @router.post("/command", response_model=AICommandResponse)
@@ -881,13 +1214,13 @@ async def process_command(request: AICommandRequest, current_user: User = Depend
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Command processing failed: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Command processing failed: {str(e)}")
 
 
 @router.get("/sentiment")
 async def get_ai_sentiment(
     symbol: str,
-    current_user: User = Depends(get_optional_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Secure AI sentiment proxy endpoint.
@@ -941,7 +1274,7 @@ async def get_ai_sentiment(
         
         # Try to get real price if AI didn't provide one
         if not result.get("ltp"):
-            price = get_best_price(symbol, settings.UPSTOX_ACCESS_TOKEN)
+            price = await get_best_price(symbol, settings.UPSTOX_ACCESS_TOKEN)
             if price:
                 result["ltp"] = round(price, 2)
         
@@ -954,10 +1287,10 @@ async def get_ai_sentiment(
         }
         
     except Exception as e:
-        print(f"AI sentiment error for {symbol}: {e}")
+        logger.error(f"AI sentiment error for {symbol}: {e}")
         
         # Fallback with real price
-        price = get_best_price(symbol, settings.UPSTOX_ACCESS_TOKEN)
+        price = await get_best_price(symbol, settings.UPSTOX_ACCESS_TOKEN)
         
         return {
             "symbol": symbol,
@@ -966,4 +1299,19 @@ async def get_ai_sentiment(
             "summary": "AI service temporarily unavailable. Showing current market price.",
             "source": "fallback"
         }
+
+# ============================================
+# Alias Routes for API Consistency
+# ============================================
+
+@router.get("/momentum", response_model=ScannerResponse)
+async def get_momentum_alias(current_user: User = Depends(get_optional_user)):
+    """Alias for /momentum-scanner for API consistency."""
+    return await get_momentum_stocks(current_user)
+
+@router.get("/vwap", response_model=ScannerResponse)
+async def get_vwap_alias(current_user: User = Depends(get_optional_user)):
+    """Alias for /vwap-scanner for API consistency."""
+    return await get_vwap_stocks(current_user)
+
 
