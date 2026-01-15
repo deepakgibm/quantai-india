@@ -40,7 +40,7 @@ class VWAPScanner:
                 # Results are DESC, reverse for chronological order
                 results = results[::-1]
                 data = [{
-                    'timestamp': r.dt_timestamp, 
+                    'timestamp': r.timestamp, 
                     'high': float(r.high), 
                     'low': float(r.low),
                     'close': float(r.close), 
@@ -53,6 +53,8 @@ class VWAPScanner:
             finally:
                 session.close()
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Error fetching OHLCV for {symbol}: {e}")
             return None
     

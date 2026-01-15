@@ -40,7 +40,7 @@ class SRBounceScanner:
                 # Results are DESC, reverse for chronological order
                 results = results[::-1]
                 data = [{
-                    'timestamp': r.dt_timestamp, 
+                    'timestamp': r.timestamp, 
                     'high': float(r.high), 
                     'low': float(r.low),
                     'close': float(r.close), 
