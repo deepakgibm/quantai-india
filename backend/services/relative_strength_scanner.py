@@ -13,6 +13,7 @@ from utils.symbol_utils import get_company_name
 
 
 class RelativeStrengthScanner:
+    """
     Relative Strength Scanner - finds stocks outperforming NIFTY 50.
     """
     
@@ -39,7 +40,8 @@ class RelativeStrengthScanner:
                 return df
             finally:
                 session.close()
-        except:
+        except Exception as e:
+            print(f"RelativeStrengthScanner ohlcv error for {symbol}: {e}")
             return None
     
     def analyze_stock(self, symbol: str, benchmark_return: float = 0) -> Optional[Dict]:
@@ -77,9 +79,7 @@ class RelativeStrengthScanner:
         
         return {
             "symbol": symbol,
-            "symbol": symbol,
             "name": get_company_name(symbol),
-            "rs_rating": strength_label,
             "rs_rating": strength_label,
             "strength": round(score),
             "current_price": round(current_price, 2),
@@ -103,7 +103,8 @@ class RelativeStrengthScanner:
                 analysis = self.analyze_stock(symbol, benchmark_return=0.5)  # Assume 0.5% benchmark
                 if analysis:
                     results.append(analysis)
-            except:
+            except Exception as e:
+                print(f"RelativeStrengthScanner error for {symbol}: {e}")
                 continue
         results.sort(key=lambda x: x["strength"], reverse=True)
         return results[:limit]

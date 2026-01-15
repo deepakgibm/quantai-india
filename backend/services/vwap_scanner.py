@@ -13,6 +13,7 @@ from utils.symbol_utils import get_company_name
 
 
 class VWAPScanner:
+    """
     VWAP Scanner - finds stocks with VWAP trading opportunities.
     """
     
@@ -111,9 +112,7 @@ class VWAPScanner:
         
         return {
             "symbol": symbol,
-            "symbol": symbol,
             "name": get_company_name(symbol),
-            "signal": signal,
             "signal": signal,
             "action": action,
             "strength": round(score),
@@ -139,7 +138,8 @@ class VWAPScanner:
                 analysis = self.analyze_stock(symbol)
                 if analysis:
                     results.append(analysis)
-            except:
+            except Exception as e:
+                print(f"VWAPScanner error for {symbol}: {e}")
                 continue
         results.sort(key=lambda x: x["strength"], reverse=True)
         return results[:limit]
