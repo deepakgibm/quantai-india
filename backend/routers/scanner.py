@@ -12,12 +12,15 @@ import json
 import logging
 import sys
 
+from services.live_price_enricher import enrich_scanner_results
+
 from models import User, ScannerPreset
 from database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from utils.auth import get_current_user, get_optional_user
 from services.dragonfly_client import get_cache
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -328,7 +331,15 @@ async def get_momentum_data(current_user: User = Depends(get_current_user)):
     # Market is open - use live data
     # 1. Check Route Cache
     cached = get_cached_scanner_data("momentum")
-    if cached: return cached
+    if cached:
+        # Enrich cached stocks with live prices
+        try:
+            if isinstance(cached, dict) and "data" in cached and cached["data"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
+        except Exception as e:
+            logger.error(f"momentum: Failed to enrich cached results: {e}")
+        return cached
 
     from services.cache import get_cache_manager
     
@@ -361,14 +372,19 @@ async def get_momentum_data(current_user: User = Depends(get_current_user)):
                         "last_update": s.get("updated_at")
                     })
                 
+                # Enrich top results with LIVE prices
+                enriched_data = await enrich_scanner_results(data[:100])
+                if len(data) > 100:
+                    enriched_data.extend(data[100:])
+                
                 response = {
                     "type": "bucket_update",
                     "timestamp": datetime.now().isoformat(),
-                    "data": data,
+                    "data": enriched_data,
                     "status": {
-                        "source": "HP_ENGINE",
+                        "source": "HP_ENGINE_ENRICHED",
                         "is_healthy": True,
-                        "stock_count": len(data),
+                        "stock_count": len(enriched_data),
                         "poll_interval": 5
                     }
                 }
@@ -404,15 +420,18 @@ async def get_momentum_data(current_user: User = Depends(get_current_user)):
             })
             count += 1
     
+    # Enrich database fallback with LIVE prices
+    enriched_data = await enrich_scanner_results(data[:50])
+    
     response = {
         "type": "bucket_update",
         "timestamp": datetime.now().isoformat(),
-        "data": data,
+        "data": enriched_data,
         "status": {
-            "source": "DB",
-            "is_healthy": len(data) > 0,
+            "source": "DB_ENRICHED",
+            "is_healthy": len(enriched_data) > 0,
             "last_tick": datetime.now().isoformat(),
-            "stock_count": len(data),
+            "stock_count": len(enriched_data),
             "poll_interval": 60
         }
     }
@@ -477,6 +496,13 @@ async def get_breakout_data(current_user: User = Depends(get_optional_user)):
     cached = get_cached_scanner_data("breakout")
     if cached:
         logger.info(f"breakout: Cache hit in {(time.time()-start_time)*1000:.0f}ms")
+        # Enrich cached stocks with live prices
+        try:
+            if isinstance(cached, dict) and "data" in cached and cached["data"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
+        except Exception as e:
+            logger.error(f"breakout: Failed to enrich cached results: {e}")
         return cached
 
     from services.db_data_fetcher import get_db_data_fetcher
@@ -531,14 +557,17 @@ async def get_breakout_data(current_user: User = Depends(get_optional_user)):
     
     breakout_stocks.sort(key=lambda x: x["change_pct"], reverse=True)
     
+    # Enrich with LIVE prices
+    enriched_data = await enrich_scanner_results(breakout_stocks[:50])
+    
     response = {
         "type": "breakout_scan",
         "timestamp": datetime.now().isoformat(),
-        "data": breakout_stocks[:50],
-        "count": len(breakout_stocks),
+        "data": enriched_data,
+        "count": len(enriched_data),
         "status": {
-            "source": "DB",
-            "is_healthy": len(breakout_stocks) > 0,
+            "source": "DB_ENRICHED",
+            "is_healthy": len(enriched_data) > 0,
             "last_update": datetime.now().isoformat()
         }
     }
@@ -581,7 +610,15 @@ async def get_reversal_data(current_user: User = Depends(get_current_user)):
     
     # Market is open - use live data
     cached = get_cached_scanner_data("reversal")
-    if cached: return cached
+    if cached:
+        # Enrich cached stocks with live prices
+        try:
+            if isinstance(cached, dict) and "data" in cached and cached["data"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
+        except Exception as e:
+            logger.error(f"reversal: Failed to enrich cached results: {e}")
+        return cached
 
     from services.db_data_fetcher import get_db_data_fetcher
     from services.cache import get_cache_manager
@@ -638,14 +675,17 @@ async def get_reversal_data(current_user: User = Depends(get_current_user)):
     
     reversal_candidates.sort(key=lambda x: x["reversal_score"], reverse=True)
     
+    # Enrich with LIVE prices
+    enriched_data = await enrich_scanner_results(reversal_candidates[:50])
+    
     response = {
         "type": "reversal_scan",
         "timestamp": datetime.now().isoformat(),
-        "data": reversal_candidates[:50],
-        "count": len(reversal_candidates),
+        "data": enriched_data,
+        "count": len(enriched_data),
         "status": {
-            "source": "DB",
-            "is_healthy": len(reversal_candidates) > 0,
+            "source": "DB_ENRICHED",
+            "is_healthy": len(enriched_data) > 0,
             "last_update": datetime.now().isoformat()
         }
     }
@@ -658,7 +698,15 @@ async def get_reversal_data(current_user: User = Depends(get_current_user)):
 async def get_trendfinder_data(current_user: User = Depends(get_current_user)):
     """REST endpoint for TrendFinder AI scanner."""
     cached = get_cached_scanner_data("trendfinder")
-    if cached: return cached
+    if cached:
+        # Enrich cached stocks with live prices
+        try:
+            if isinstance(cached, dict) and "data" in cached and cached["data"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
+        except Exception as e:
+            logger.error(f"trendfinder: Failed to enrich cached results: {e}")
+        return cached
 
     from services.db_data_fetcher import get_db_data_fetcher
     from services.cache import get_cache_manager
@@ -691,14 +739,17 @@ async def get_trendfinder_data(current_user: User = Depends(get_current_user)):
     
     trending_stocks.sort(key=lambda x: x["ai_confidence"], reverse=True)
     
+    # Enrich with LIVE prices
+    enriched_data = await enrich_scanner_results(trending_stocks[:50])
+    
     response = {
         "type": "trendfinder_scan",
         "timestamp": datetime.now().isoformat(),
-        "data": trending_stocks[:50],
-        "count": len(trending_stocks),
+        "data": enriched_data,
+        "count": len(enriched_data),
         "status": {
-            "source": "AI_DB",
-            "is_healthy": len(trending_stocks) > 0,
+            "source": "AI_DB_ENRICHED",
+            "is_healthy": len(enriched_data) > 0,
             "last_update": datetime.now().isoformat(),
             "ai_model": "TrendFinder v1.0"
         }
@@ -714,7 +765,21 @@ async def get_week52_breakouts(current_user: User = Depends(get_current_user)):
     """Get stocks making new 52-week highs and 52-week low breakdowns."""
     # 1. Check Route Cache
     cached = get_cached_scanner_data("week52-breakouts")
-    if cached: return cached
+    if cached:
+        # Enrich cached stocks with live prices
+        try:
+            if isinstance(cached, dict) and "data" in cached and cached["data"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                enrich_results = await enrich_scanner_results(cached["data"], access_token)
+                
+                # Re-map high/low lists after enrichment since price changed
+                cached["data"] = enrich_results
+                cached["high_breakouts"] = [m for m in enrich_results if m.get("breakout_type") == "52W_HIGH"]
+                cached["low_breakdowns"] = [m for m in enrich_results if m.get("breakout_type") == "52W_LOW"]
+                
+        except Exception as e:
+            logger.error(f"week52-breakouts: Failed to enrich cached results: {e}")
+        return cached
 
     from services.yearly_breakout_engine import YearlyBreakoutEngine
     

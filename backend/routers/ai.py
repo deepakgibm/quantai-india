@@ -85,345 +85,12 @@ else:
     model = None
 
 
-async def get_db_price(symbol: str) -> float:
-    """Fetch latest closing price from database asynchronously"""
-    from database import AsyncSessionLocal
-    from sqlalchemy import select
-    
-    try:
-        async with AsyncSessionLocal() as db:
-            # Try Nifty100Daily first
-            from models_ml import Nifty100Daily
-            stmt = select(Nifty100Daily).where(Nifty100Daily.symbol == symbol).order_by(desc(Nifty100Daily.timestamp))
-            res = await db.execute(stmt)
-            latest = res.scalar_one_or_none()
-            
-            if latest:
-                return float(latest.close)
-            
-            # Try StockData fallback
-            from models_alpha import StockData
-            stmt = select(StockData).where(StockData.symbol == symbol).order_by(desc(StockData.timestamp))
-            res = await db.execute(stmt)
-            latest = res.scalar_one_or_none()
-            
-            if latest:
-                return float(latest.close)
-    except Exception as e:
-        logger.error(f"Async DB price error for {symbol}: {e}")
-    
-    return None
-
-
-async def get_best_price(symbol: str, access_token: str = None) -> float:
-    """Get price from best available source: Upstox -> yFinance -> Database"""
-    # Try Upstox first
-    price = await get_real_time_price_async(symbol, access_token)
-    if price and price > 0:
-        return price
-    
-    # Try Yahoo Finance
-    from services.live_price_enricher import get_yfinance_price as get_yf_price_async
-    price = await get_yf_price_async(symbol)
-    if price and price > 0:
-        return price
-    
-    # Fallback to database
-    price = await get_db_price(symbol)
-    if price and price > 0:
-        return price
-    
-    return None
-
+from services.live_price_enricher import get_live_ltp, enrich_scanner_results
 
 async def _get_fallback_stocks_with_real_prices(stocks_template: list, access_token: str = None) -> list:
     """Update fallback stocks template with real prices from best available source"""
-    updated_stocks = []
-    for stock in stocks_template:
-        stock_copy = stock.copy()
-        price = await get_best_price(stock["symbol"], access_token)
-        if price and price > 0:
-            stock_copy["current_price"] = round(price, 2)
-            # Calculate entry/target/stop_loss based on real price
-            if stock.get("trend") == "BULLISH" or stock.get("action") == "BUY":
-                stock_copy["entry_price"] = round(price * 0.99, 2)  # 1% below
-                stock_copy["target_price"] = round(price * 1.05, 2)  # 5% target
-                stock_copy["stop_loss"] = round(price * 0.97, 2)  # 3% stop loss
-            else:
-                stock_copy["entry_price"] = round(price * 1.01, 2)  # 1% above for sell
-                stock_copy["target_price"] = round(price * 0.95, 2)  # 5% target
-                stock_copy["stop_loss"] = round(price * 1.03, 2)  # 3% stop loss
-            # Also update breakout_level if present
-            if "breakout_level" in stock_copy:
-                stock_copy["breakout_level"] = round(price * 0.98, 2)
-        updated_stocks.append(stock_copy)
-    return updated_stocks
-
-async def get_real_time_price_async(symbol: str, access_token: str = None) -> float:
-    """Fetch real-time price from Upstox API using async httpx (non-blocking)"""
-    if not access_token:
-        access_token = settings.UPSTOX_ACCESS_TOKEN
-    
-    if not access_token:
-        return None
-    
-    # Map common symbols to Upstox instrument keys (NSE_EQ format)
-    instrument_key = f"NSE_EQ|INE{symbol}"  # Basic format, may need mapping
-    
-    # Comprehensive Nifty 200 symbol to instrument key mapping
-    symbol_mapping = {
-        # Nifty 50 Stocks
-        "RELIANCE": "NSE_EQ|INE002A01018",
-        "TCS": "NSE_EQ|INE467B01029",
-        "HDFCBANK": "NSE_EQ|INE040A01034",
-        "INFY": "NSE_EQ|INE009A01021",
-        "ICICIBANK": "NSE_EQ|INE090A01021",
-        "LT": "NSE_EQ|INE018A01030",
-        "SBIN": "NSE_EQ|INE062A01020",
-        "BHARTIARTL": "NSE_EQ|INE397D01024",
-        "HINDUNILVR": "NSE_EQ|INE030A01027",
-        "ITC": "NSE_EQ|INE154A01025",
-        "BAJFINANCE": "NSE_EQ|INE296A01024",
-        "KOTAKBANK": "NSE_EQ|INE237A01028",
-        "AXISBANK": "NSE_EQ|INE238A01034",
-        "ASIANPAINT": "NSE_EQ|INE021A01026",
-        "MARUTI": "NSE_EQ|INE585B01010",
-        "TITAN": "NSE_EQ|INE280A01028",
-        "SUNPHARMA": "NSE_EQ|INE044A01036",
-        "NESTLEIND": "NSE_EQ|INE239A01016",
-        "WIPRO": "NSE_EQ|INE075A01022",
-        "ULTRACEMCO": "NSE_EQ|INE481G01011",
-        "TATAMOTORS": "NSE_EQ|INE155A01022",
-        "HCLTECH": "NSE_EQ|INE860A01027",
-        "ONGC": "NSE_EQ|INE213A01029",
-        "ADANIENT": "NSE_EQ|INE423A01024",
-        "NTPC": "NSE_EQ|INE733E01010",
-        "POWERGRID": "NSE_EQ|INE752E01010",
-        "M&M": "NSE_EQ|INE101A01026",
-        "JSWSTEEL": "NSE_EQ|INE019A01038",
-        "TATASTEEL": "NSE_EQ|INE081A01020",
-        "ADANIPORTS": "NSE_EQ|INE742F01042",
-        "COALINDIA": "NSE_EQ|INE522F01014",
-        "BAJAJFINSV": "NSE_EQ|INE918I01018",
-        "HINDALCO": "NSE_EQ|INE038A01020",
-        "TECHM": "NSE_EQ|INE669C01036",
-        "DIVISLAB": "NSE_EQ|INE361B01024",
-        "INDUSINDBK": "NSE_EQ|INE095A01012",
-        "GRASIM": "NSE_EQ|INE047A01021",
-        "CIPLA": "NSE_EQ|INE059A01026",
-        "EICHERMOT": "NSE_EQ|INE066A01021",
-        "DRREDDY": "NSE_EQ|INE089A01023",
-        "HEROMOTOCO": "NSE_EQ|INE158A01026",
-        "APOLLOHOSP": "NSE_EQ|INE437A01024",
-        "TATACONSUM": "NSE_EQ|INE192A01025",
-        "BRITANNIA": "NSE_EQ|INE216A01030",
-        "SHRIRAMFIN": "NSE_EQ|INE721A01013",
-        "SBILIFE": "NSE_EQ|INE123W01016",
-        "BPCL": "NSE_EQ|INE029A01011",
-        "LTIM": "NSE_EQ|INE214T01019",
-        "ADANIGREEN": "NSE_EQ|INE364U01010",
-        "PIDILITIND": "NSE_EQ|INE318A01026",
-        
-        # Additional Nifty Next 50 & Nifty 200 Stocks
-        "HDFCLIFE": "NSE_EQ|INE795G01014",
-        "DMART": "NSE_EQ|INE192R01011",
-        "HAVELLS": "NSE_EQ|INE176B01034",
-        "GODREJCP": "NSE_EQ|INE102D01028",
-        "DABUR": "NSE_EQ|INE016A01026",
-        "TORNTPHARM": "NSE_EQ|INE685A01028",
-        "SIEMENS": "NSE_EQ|INE003A01024",
-        "MOTHERSON": "NSE_EQ|INE775A01035",
-        "BAJAJ-AUTO": "NSE_EQ|INE917I01010",
-        "AMBUJACEM": "NSE_EQ|INE079A01024",
-        "DLF": "NSE_EQ|INE271C01023",
-        "VEDL": "NSE_EQ|INE205A01025",
-        "ICICIGI": "NSE_EQ|INE765G01017",
-        "TVSMOTOR": "NSE_EQ|INE494B01023",
-        "BOSCHLTD": "NSE_EQ|INE323A01026",
-        "BERGEPAINT": "NSE_EQ|INE463A01038",
-        "MARICO": "NSE_EQ|INE196A01026",
-        "TRENT": "NSE_EQ|INE849A01020",
-        "INDIGO": "NSE_EQ|INE646L01027",
-        "ZOMATO": "NSE_EQ|INE758T01015",
-        "COLPAL": "NSE_EQ|INE259A01022",
-        "SAIL": "NSE_EQ|INE114A01011",
-        "BEL": "NSE_EQ|INE263A01024",
-        "JINDALSTEL": "NSE_EQ|INE749A01030",
-        "GAIL": "NSE_EQ|INE129A01019",
-        "CHOLAFIN": "NSE_EQ|INE121A01024",
-        "HAL": "NSE_EQ|INE066F01012",
-        "BANKBARODA": "NSE_EQ|INE028A01039",
-        "ABB": "NSE_EQ|INE117A01022",
-        "CANBK": "NSE_EQ|INE476A01022",
-        "PNB": "NSE_EQ|INE160A01022",
-        "UNIONBANK": "NSE_EQ|INE692A01016",
-        "IDFCFIRSTB": "NSE_EQ|INE092T01019",
-        "ALKEM": "NSE_EQ|INE540L01014",
-        "LUPIN": "NSE_EQ|INE326A01037",
-        "BIOCON": "NSE_EQ|INE376G01013",
-        "AUROPHARMA": "NSE_EQ|INE406A01037",
-        "PAGEIND": "NSE_EQ|INE761H01022",
-        "MCDOWELL-N": "NSE_EQ|INE254A01020",
-        "BAJAJHLDNG": "NSE_EQ|INE118A01012",
-        "IGL": "NSE_EQ|INE203G01027",
-        "MUTHOOTFIN": "NSE_EQ|INE414G01012",
-        "LICHSGFIN": "NSE_EQ|INE013A01015",
-        "PFC": "NSE_EQ|INE134E01011",
-        "RECLTD": "NSE_EQ|INE020B01018",
-        "OFSS": "NSE_EQ|INE881D01027",
-        "PERSISTENT": "NSE_EQ|INE262H01013",
-        "COFORGE": "NSE_EQ|INE591G01017",
-        "MPHASIS": "NSE_EQ|INE356A01018",
-        "LAURUSLABS": "NSE_EQ|INE947Q01028",
-        "TORNTPOWER": "NSE_EQ|INE813H01021",
-        "PIIND": "NSE_EQ|INE603J01030",
-        "VOLTAS": "NSE_EQ|INE226A01021",
-        "GODREJPROP": "NSE_EQ|INE484J01027",
-        "OBEROIRLTY": "NSE_EQ|INE093I01010",
-        "PRESTIGE": "NSE_EQ|INE811K01011",
-        "BRIGADE": "NSE_EQ|INE791I01019",
-        "SBICARD": "NSE_EQ|INE018E01016",
-        "AUBANK": "NSE_EQ|INE949L01017",
-        "BANDHANBNK": "NSE_EQ|INE545U01014",
-        "FEDERALBNK": "NSE_EQ|INE171A01029",
-        "IDFCBANK": "NSE_EQ|INE092T01019",
-        "INDUSTOWER": "NSE_EQ|INE121J01017",
-        "TATACOMM": "NSE_EQ|INE151A01013",
-        "ZEEL": "NSE_EQ|INE256A01028",
-        "PVR": "NSE_EQ|INE191H01014",
-        "DIXON": "NSE_EQ|INE935N01012",
-        "POLICYBZR": "NSE_EQ|INE417T01026",
-        "PAYTM": "NSE_EQ|INE982J01020",
-        "NYKAA": "NSE_EQ|INE388Y01029",
-        "JINDAL": "NSE_EQ|INE749A01030",
-        "ACC": "NSE_EQ|INE012A01025",
-        "AMBUJAC": "NSE_EQ|INE079A01024",
-        "SHREECEM": "NSE_EQ|INE070A01015",
-        "RAMCOCEM": "NSE_EQ|INE331A01037",
-        "CUMMINSIND": "NSE_EQ|INE298A01020",
-        "THERMAX": "NSE_EQ|INE152A01029",
-        "HONAUT": "NSE_EQ|INE671A01010",
-        "SCHAEFFLER": "NSE_EQ|INE513A01022",
-        "SKFINDIA": "NSE_EQ|INE640A01023",
-        "APLAPOLLO": "NSE_EQ|INE702C01027",
-        "ASTRAL": "NSE_EQ|INE006I01046",
-        "RELAXO": "NSE_EQ|INE131B01039",
-        "VBL": "NSE_EQ|INE200M01021",
-        "TATAELXSI": "NSE_EQ|INE670A01012",
-        "COROMANDEL": "NSE_EQ|INE169A01031",
-        "DEEPAKNI": "NSE_EQ|INE288B01029",
-        "GNFC": "NSE_EQ|INE113A01013",
-        "AARTI": "NSE_EQ|INE769A01020",
-        "SRF": "NSE_EQ|INE647A01010",
-        "BALKRISIND": "NSE_EQ|INE787D01026",
-        "APOLLOTYRE": "NSE_EQ|INE438A01022",
-        "MRF": "NSE_EQ|INE883A01011",
-        "CEAT": "NSE_EQ|INE482A01020",
-        "JKCEMENT": "NSE_EQ|INE823G01014",
-        "CROMPTON": "NSE_EQ|INE299U01018",
-        "VGUARD": "NSE_EQ|INE951I01027",
-        "WHIRLPOOL": "NSE_EQ|INE716A01013",
-        "BLUESTAR": "NSE_EQ|INE472A01039",
-        "CLEAN": "NSE_EQ|INE145O01016",
-        "GRINDWELL": "NSE_EQ|INE536A01023",
-        "CARBORUNIV": "NSE_EQ|INE120A01034",
-        "SUMICHEM": "NSE_EQ|INE258A01016",
-        "NAVINFLUOR": "NSE_EQ|INE048G01026",
-        "FLUOROCHEM": "NSE_EQ|INE09N01012",
-        "MINDACORP": "NSE_EQ|INE842C01021",
-        "INDHOTEL": "NSE_EQ|INE053A01029",
-        "LEMONTREE": "NSE_EQ|INE970X01018",
-        "MAHLOG": "NSE_EQ|INE766P01016",
-        "BLUEDART": "NSE_EQ|INE233B01017",
-        "VTL": "NSE_EQ|INE825A01012",
-        "CONCOR": "NSE_EQ|INE111A01025",
-        "APOLLOTYRE": "NSE_EQ|INE438A01022",
-        "EXIDEIND": "NSE_EQ|INE302A01020",
-        "AMARAJABAT": "NSE_EQ|INE885A01032",
-        "ASHOKLEY": "NSE_EQ|INE208A01029",
-        "ESCORTS": "NSE_EQ|INE042A01014",
-        "SWARAJENG": "NSE_EQ|INE277A01016",
-        "SONACOMS": "NSE_EQ|INE529A01010",
-        "BHARATFORG": "NSE_EQ|INE465A01025",
-        "ENDURANCE": "NSE_EQ|INE913H01037",
-        "BOMDYEING": "NSE_EQ|INE032A01023",
-        "CENTURYTEX": "NSE_EQ|INE055A01016",
-        "GUJGASLTD": "NSE_EQ|INE844O01030",
-        "MGL": "NSE_EQ|INE002S01010",
-        "PETRONET": "NSE_EQ|INE347G01014",
-        "ATGL": "NSE_EQ|INE824G01012",
-        "GSPL": "NSE_EQ|INE246F01010",
-        "IOC": "NSE_EQ|INE242A01010",
-        "HINDPETRO": "NSE_EQ|INE094A01015",
-        "MGL": "NSE_EQ|INE002S01010",
-        "JUBLFOOD": "NSE_EQ|INE797F01020",
-        "WESTLIFE": "NSE_EQ|INE274F01020",
-        "DEVYANI": "NSE_EQ|INE872J01023",
-        "VAIBHAVGBL": "NSE_EQ|INE884A01027",
-        "SHOPERSTOP": "NSE_EQ|INE498B01024",
-        "ADITYA": "NSE_EQ|INE750A01020",
-        "RAYMONDS": "NSE_EQ|INE301A01014",
-        "BATAINDIA": "NSE_EQ|INE176A01028",
-        "RELAXO": "NSE_EQ|INE131B01039",
-    }
-    
-    instrument_key = symbol_mapping.get(symbol, f"NSE_EQ|{symbol}")
-    
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/json"
-    }
-    
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(
-                f"https://api.upstox.com/v2/market-quote/ltp?symbol={instrument_key}",
-                headers=headers
-            )
-            if response.status_code == 200:
-                data = response.json()
-                # Extract LTP from response
-                if data.get("status") == "success" and data.get("data"):
-                    # Upstox might return a different key than requested (e.g. NSE_EQ:RELIANCE vs NSE_EQ|INE...)
-                    # Since we request one symbol, we can just take the first item.
-                    if data['data']:
-                        ltp_data = next(iter(data['data'].values()))
-                        return ltp_data.get("last_price")
-        return None
-    except Exception as e:
-        print(f"Error fetching price for {symbol}: {str(e)}")
-        return None
-
-
-def get_real_time_price(symbol: str, access_token: str = None) -> float:
-    """Sync wrapper for backward compatibility - calls async version"""
-    import asyncio
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If already in async context, create a new task
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, get_real_time_price_async(symbol, access_token))
-                return future.result(timeout=10)
-        else:
-            return asyncio.run(get_real_time_price_async(symbol, access_token))
-    except Exception as e:
-        print(f"Error in sync wrapper for {symbol}: {e}")
-        return None
-
-def get_yfinance_price(symbol: str) -> float:
-    """Fetch price from Yahoo Finance as fallback"""
-    try:
-        import yfinance as yf
-        # Append .NS for NSE stocks
-        ticker = f"{symbol}.NS"
-        stock = yf.Ticker(ticker)
-        price = stock.history(period="1d")['Close'].iloc[-1]
-        return float(price)
-    except Exception as e:
-        print(f"Error fetching YFinance price for {symbol}: {e}")
-        return None
+    # Batch enrichment is more efficient and now handles level calculations internally if missing
+    return await enrich_scanner_results(stocks_template, access_token) or stocks_template
 
 
 @router.post("/prompt", response_model=AIPromptResponse)
@@ -498,17 +165,10 @@ Guidelines:
                     # Fetch current price for the recommended stock
                     access_token = (current_user.upstox_access_token if current_user and getattr(current_user, "upstox_access_token", None) else None) or settings.UPSTOX_ACCESS_TOKEN
                     
-                    current_price = None
-                    if access_token:
-                        current_price = await get_real_time_price_async(stock_rec["symbol"], access_token)
-                    
-                    # Fallback to Yahoo Finance if Upstox fails
-                    if current_price is None or current_price == 0:
-                        logger.warning(f"Upstox price failed for {stock_rec['symbol']}, trying Yahoo Finance...")
-                        from services.live_price_enricher import get_yfinance_price as get_yf_price_async
-                        current_price = await get_yf_price_async(stock_rec["symbol"])
+                    price_result = await get_live_ltp(stock_rec["symbol"], access_token)
+                    current_price = price_result.get("ltp")
 
-                    if current_price is not None and current_price > 0:
+                    if current_price and current_price > 0:
                         stock_rec["price"] = current_price
                         
                         # Calculate trade levels if not provided by AI
@@ -694,6 +354,14 @@ async def get_trend_finder_stocks(current_user: User = Depends(get_optional_user
     cached = get_cached_ai_data("trend-finder")
     if cached:
         logger.info(f"trend-finder: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        # Enrich cached stocks with live prices
+        try:
+            from services.live_price_enricher import enrich_scanner_results
+            if isinstance(cached, dict) and "stocks" in cached and cached["stocks"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["stocks"] = await enrich_scanner_results(cached["stocks"], access_token)
+        except Exception as e:
+            logger.error(f"trend-finder: Failed to enrich cached results: {e}")
         return cached
 
     try:
@@ -766,6 +434,14 @@ async def get_breakout_stocks(current_user: User = Depends(get_optional_user)):
     cached = get_cached_ai_data("breakout-detector")
     if cached:
         logger.info(f"breakout-detector: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        # Enrich cached stocks with live prices
+        try:
+            from services.live_price_enricher import enrich_scanner_results
+            if isinstance(cached, dict) and "stocks" in cached and cached["stocks"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["stocks"] = await enrich_scanner_results(cached["stocks"], access_token)
+        except Exception as e:
+            logger.error(f"breakout-detector: Failed to enrich cached results: {e}")
         return cached
 
     try:
@@ -852,9 +528,42 @@ async def get_top5_picks(current_user: User = Depends(get_optional_user)):
     start_time = time.time()
     
     # 1. Check Cache FIRST (fast path)
+    # 1. Check Cache FIRST (fast path)
     cached = get_cached_ai_data("top5-picks")
     if cached:
         logger.info(f"top5-picks: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        # Enrich cached stocks with live prices
+        try:
+            from services.live_price_enricher import enrich_scanner_results
+            access_token = settings.UPSTOX_ACCESS_TOKEN
+            
+            enrich_coroutines = []
+            if isinstance(cached, dict):
+                # Enrich 'stocks' list if present
+                if "stocks" in cached and cached["stocks"]:
+                    enrich_coroutines.append(enrich_scanner_results(cached["stocks"], access_token))
+                
+                # Enrich buy/sell signal lists
+                if "buy_signals" in cached and cached["buy_signals"]:
+                    enrich_coroutines.append(enrich_scanner_results(cached["buy_signals"], access_token))
+                
+                if "sell_signals" in cached and cached["sell_signals"]:
+                    enrich_coroutines.append(enrich_scanner_results(cached["sell_signals"], access_token))
+                
+                if enrich_coroutines:
+                    results = await asyncio.gather(*enrich_coroutines)
+                    # Results assignment logic
+                    res_idx = 0
+                    if "stocks" in cached and cached["stocks"]:
+                        cached["stocks"] = results[res_idx]
+                        res_idx += 1
+                    if "buy_signals" in cached and cached["buy_signals"]:
+                        cached["buy_signals"] = results[res_idx]
+                        res_idx += 1
+                    if "sell_signals" in cached and cached["sell_signals"]:
+                        cached["sell_signals"] = results[res_idx]
+        except Exception as e:
+            logger.error(f"top5-picks: Failed to enrich cached results: {e}")
         return cached
 
     try:
@@ -938,9 +647,18 @@ async def get_momentum_stocks(current_user: User = Depends(get_optional_user)):
     start_time = time.time()
     
     # 1. Check Cache
+    # 1. Check Cache
     cached = get_cached_ai_data("momentum-scanner")
     if cached:
         logger.info(f"momentum-scanner: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        # Enrich cached stocks with live prices
+        try:
+            from services.live_price_enricher import enrich_scanner_results
+            if isinstance(cached, dict) and "stocks" in cached and cached["stocks"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["stocks"] = await enrich_scanner_results(cached["stocks"], access_token)
+        except Exception as e:
+            logger.error(f"momentum-scanner: Failed to enrich cached results: {e}")
         return cached
 
     try:
@@ -989,9 +707,18 @@ async def get_mean_reversion_stocks(current_user: User = Depends(get_optional_us
     start_time = time.time()
     
     # 1. Check Cache
+    # 1. Check Cache
     cached = get_cached_ai_data("mean-reversion")
     if cached:
         logger.info(f"mean-reversion: Cache hit, returning in {(time.time()-start_time)*1000:.0f}ms")
+        # Enrich cached stocks with live prices
+        try:
+            from services.live_price_enricher import enrich_scanner_results
+            if isinstance(cached, dict) and "stocks" in cached and cached["stocks"]:
+                access_token = settings.UPSTOX_ACCESS_TOKEN
+                cached["stocks"] = await enrich_scanner_results(cached["stocks"], access_token)
+        except Exception as e:
+            logger.error(f"mean-reversion: Failed to enrich cached results: {e}")
         return cached
 
     try:
@@ -1274,7 +1001,8 @@ async def get_ai_sentiment(
         
         # Try to get real price if AI didn't provide one
         if not result.get("ltp"):
-            price = await get_best_price(symbol, settings.UPSTOX_ACCESS_TOKEN)
+            price_data = await get_live_ltp(symbol, settings.UPSTOX_ACCESS_TOKEN)
+            price = price_data.get("ltp")
             if price:
                 result["ltp"] = round(price, 2)
         
@@ -1290,7 +1018,8 @@ async def get_ai_sentiment(
         logger.error(f"AI sentiment error for {symbol}: {e}")
         
         # Fallback with real price
-        price = await get_best_price(symbol, settings.UPSTOX_ACCESS_TOKEN)
+        price_data = await get_live_ltp(symbol, settings.UPSTOX_ACCESS_TOKEN)
+        price = price_data.get("ltp")
         
         return {
             "symbol": symbol,
