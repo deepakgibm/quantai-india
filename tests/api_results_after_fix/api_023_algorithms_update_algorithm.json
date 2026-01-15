@@ -1,0 +1,18 @@
+{
+  "api_name": "algorithms_update_algorithm",
+  "method": "PUT",
+  "path": "/api/algorithms/{algorithm_id}",
+  "status_code": 422,
+  "response_time_ms": 57,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'algorithm_id' must be a valid integer; '' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:40.413073Z",
+      "request_id": "90422c92-c305-4457-b344-76dc0de969f9"
+    }
+  }
+}

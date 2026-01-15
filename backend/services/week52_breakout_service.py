@@ -92,7 +92,8 @@ class Week52BreakoutService:
             # Get all symbols with sufficient data
             cursor.execute(f"""
                 SELECT symbol, COUNT(*) as days
-                FROM nifty100_daily
+                FROM stock_candles
+                WHERE timeframe = '1d'
                 GROUP BY symbol
                 HAVING days >= {self.MIN_TRADING_DAYS}
             """)
@@ -106,8 +107,8 @@ class Week52BreakoutService:
                     # Get the last 2 trading days for comparison
                     cursor.execute("""
                         SELECT timestamp, open, high, low, close, volume
-                        FROM nifty100_daily
-                        WHERE symbol = %s
+                        FROM stock_candles
+                        WHERE symbol = %s AND timeframe = '1d'
                         ORDER BY timestamp DESC
                         LIMIT 2
                     """, (symbol,))
@@ -125,8 +126,8 @@ class Week52BreakoutService:
                     # Get 52-week high and low (excluding today to detect NEW breakouts)
                     cursor.execute("""
                         SELECT MAX(high), MIN(low)
-                        FROM nifty100_daily
-                        WHERE symbol = %s
+                        FROM stock_candles
+                        WHERE symbol = %s AND timeframe = '1d'
                         AND timestamp < %s
                         AND timestamp >= (%s::timestamp - interval '365 days')
                     """, (symbol, timestamp, timestamp))
@@ -141,8 +142,8 @@ class Week52BreakoutService:
                     cursor.execute("""
                         SELECT AVG(volume)
                         FROM (
-                            SELECT volume FROM nifty100_daily
-                            WHERE symbol = %s
+                            SELECT volume FROM stock_candles
+                            WHERE symbol = %s AND timeframe = '1d'
                             ORDER BY timestamp DESC
                             LIMIT 20
                         ) as subquery

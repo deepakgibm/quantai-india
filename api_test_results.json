@@ -1,0 +1,775 @@
+{
+  "results": [
+    {
+      "category": "Health & Status",
+      "name": "Root",
+      "method": "GET",
+      "path": "/",
+      "url": "http://localhost:8000/",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 16.76,
+      "error": null,
+      "response_preview": "{\"message\":\"QuantAI India Trading Bot API\",\"status\":\"running\"}"
+    },
+    {
+      "category": "Health & Status",
+      "name": "Health Check",
+      "method": "GET",
+      "path": "/health",
+      "url": "http://localhost:8000/health",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 46.69,
+      "error": null,
+      "response_preview": "{\"status\":\"healthy\",\"timestamp\":\"2026-01-14T16:53:47.659590\",\"checks\":{\"dragonfly\":{\"status\":\"healthy\",\"backend\":\"dragonfly\",\"latency_ms\":0.73},\"database\":{\"status\":\"healthy\",\"backend\":\"postgresql\",\"l"
+    },
+    {
+      "category": "Health & Status",
+      "name": "Readiness Check",
+      "method": "GET",
+      "path": "/ready",
+      "url": "http://localhost:8000/ready",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 8.06,
+      "error": null,
+      "response_preview": "{\"status\":\"ready\",\"timestamp\":\"2026-01-14T16:53:47.785177\"}"
+    },
+    {
+      "category": "Trading",
+      "name": "Trading Health",
+      "method": "GET",
+      "path": "/api/trading/health",
+      "url": "http://localhost:8000/api/trading/health",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 15.18,
+      "error": null,
+      "response_preview": "{\"status\":\"healthy\",\"service\":\"quantai-trading-api\"}"
+    },
+    {
+      "category": "Trading",
+      "name": "Market Indices",
+      "method": "GET",
+      "path": "/api/trading/market-indices",
+      "url": "http://localhost:8000/api/trading/market-indices",
+      "status": "FAIL",
+      "status_code": 500,
+      "response_time_ms": 6475.85,
+      "error": null,
+      "response_preview": "{\"success\":false,\"error\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"An unexpected error occurred. Please contact support.\",\"request_id\":\"f870824e2b624315\",\"details\":[{\"error\":\"1 validation errors:\\n  "
+    },
+    {
+      "category": "Trading",
+      "name": "Instruments",
+      "method": "GET",
+      "path": "/api/trading/instruments",
+      "url": "http://localhost:8000/api/trading/instruments",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 26.77,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"instruments\":[{\"symbol\":\"360ONE\",\"name\":\"360 ONE WAM Ltd.\",\"exchange\":\"NSE\"},{\"symbol\":\"3MINDIA\",\"name\":\"3M India Ltd.\",\"exchange\":\"NSE\"},{\"symbol\":\"ABB\",\"name\":\"ABB India Ltd.\",\""
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Get AI Strategies",
+      "method": "GET",
+      "path": "/api/ai/strategies",
+      "url": "http://localhost:8000/api/ai/strategies",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 7.19,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Market Analysis",
+      "method": "GET",
+      "path": "/api/ai/market-analysis",
+      "url": "http://localhost:8000/api/ai/market-analysis",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 6348.54,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"analysis\":\"The Nifty 50 is showing signs of consolidation, trading within a narrow range after a recent rally, with 22,000 acting as a crucial psychological support. Global market"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Trend Finder",
+      "method": "GET",
+      "path": "/api/ai/trend-finder",
+      "url": "http://localhost:8000/api/ai/trend-finder",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 335.33,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"trend_technical\",\"description\":\"No stocks currently meet the trend criteria (score >= 60). Market may be in consolidation.\"}"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Breakout Stocks",
+      "method": "GET",
+      "path": "/api/ai/breakout-stocks",
+      "url": "http://localhost:8000/api/ai/breakout-stocks",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 1705.97,
+      "error": null,
+      "response_preview": "{\"status\":\"error\",\"count\":0,\"stocks\":[],\"scan_type\":\"breakout_technical\",\"description\":\"Breakout detector temporarily unavailable: name 'symbols' is not defined\"}"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Top 5 Picks",
+      "method": "GET",
+      "path": "/api/ai/top5-picks",
+      "url": "http://localhost:8000/api/ai/top5-picks",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 11.79,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"top10_technical\",\"description\":\"Top 10 Buy/Sell signals with LIVE prices (EMA, RSI, MACD, Volume)\",\"buy_signals\":[],\"sell_signals\":[],\"error_code"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Momentum Scanner",
+      "method": "GET",
+      "path": "/api/ai/momentum-scanner",
+      "url": "http://localhost:8000/api/ai/momentum-scanner",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 208.56,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"momentum\",\"description\":\"name 'symbols' is not defined\",\"buy_signals\":[],\"sell_signals\":[],\"error_code\":null,\"message\":null}"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Mean Reversion",
+      "method": "GET",
+      "path": "/api/ai/mean-reversion",
+      "url": "http://localhost:8000/api/ai/mean-reversion",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 927.48,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"mean_reversion\",\"description\":\"name 'symbols' is not defined\",\"buy_signals\":[],\"sell_signals\":[],\"error_code\":null,\"message\":null}"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Gap Scanner",
+      "method": "GET",
+      "path": "/api/ai/gap-scanner",
+      "url": "http://localhost:8000/api/ai/gap-scanner",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 11.33,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"gap\",\"description\":\"unterminated triple-quoted string literal (detected at line 142) (gap_scanner.py, line 17)\",\"buy_signals\":[],\"sell_signals\":["
+    },
+    {
+      "category": "AI Strategies",
+      "name": "Relative Strength",
+      "method": "GET",
+      "path": "/api/ai/relative-strength",
+      "url": "http://localhost:8000/api/ai/relative-strength",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 9.93,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"relative_strength\",\"description\":\"unterminated triple-quoted string literal (detected at line 110) (relative_strength_scanner.py, line 17)\",\"buy_"
+    },
+    {
+      "category": "AI Strategies",
+      "name": "VWAP Scanner",
+      "method": "GET",
+      "path": "/api/ai/vwap-scanner",
+      "url": "http://localhost:8000/api/ai/vwap-scanner",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 20.1,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"vwap\",\"description\":\"unterminated triple-quoted string literal (detected at line 146) (vwap_scanner.py, line 59)\",\"buy_signals\":[],\"sell_signals\""
+    },
+    {
+      "category": "AI Strategies",
+      "name": "S/R Bounce",
+      "method": "GET",
+      "path": "/api/ai/sr-bounce",
+      "url": "http://localhost:8000/api/ai/sr-bounce",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 16.3,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"count\":0,\"stocks\":[],\"scan_type\":\"sr_bounce\",\"description\":\"unterminated triple-quoted string literal (detected at line 165) (sr_bounce_scanner.py, line 59)\",\"buy_signals\":[],\"sel"
+    },
+    {
+      "category": "Scanner",
+      "name": "Get Strategies",
+      "method": "GET",
+      "path": "/api/scanner/strategies",
+      "url": "http://localhost:8000/api/scanner/strategies",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 8.26,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "Get Indices",
+      "method": "GET",
+      "path": "/api/scanner/indices",
+      "url": "http://localhost:8000/api/scanner/indices",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 17.73,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "Get Timeframes",
+      "method": "GET",
+      "path": "/api/scanner/timeframes",
+      "url": "http://localhost:8000/api/scanner/timeframes",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 7.05,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "Presets",
+      "method": "GET",
+      "path": "/api/scanner/presets",
+      "url": "http://localhost:8000/api/scanner/presets",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 5.91,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "Momentum Data",
+      "method": "GET",
+      "path": "/api/scanner/momentum",
+      "url": "http://localhost:8000/api/scanner/momentum",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 9.08,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "Breakout Data",
+      "method": "GET",
+      "path": "/api/scanner/breakout",
+      "url": "http://localhost:8000/api/scanner/breakout",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 13125.59,
+      "error": null,
+      "response_preview": "{\"type\":\"breakout_scan\",\"timestamp\":\"2026-01-14T16:54:19.100034\",\"data\":[],\"count\":0,\"status\":{\"source\":\"DB\",\"is_healthy\":false,\"last_update\":\"2026-01-14T16:54:19.100040\"}}"
+    },
+    {
+      "category": "Scanner",
+      "name": "Reversal Data",
+      "method": "GET",
+      "path": "/api/scanner/reversal",
+      "url": "http://localhost:8000/api/scanner/reversal",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 8.06,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "TrendFinder Data",
+      "method": "GET",
+      "path": "/api/scanner/trendfinder",
+      "url": "http://localhost:8000/api/scanner/trendfinder",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 13.38,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "52-Week Breakouts",
+      "method": "GET",
+      "path": "/api/scanner/52week-breakouts",
+      "url": "http://localhost:8000/api/scanner/52week-breakouts",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 5.94,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Scanner",
+      "name": "Momentum Status",
+      "method": "GET",
+      "path": "/api/scanner/momentum-status",
+      "url": "http://localhost:8000/api/scanner/momentum-status",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 5.75,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "HP Scanner v3",
+      "name": "Momentum",
+      "method": "GET",
+      "path": "/api/v3/scanner/momentum",
+      "url": "http://localhost:8000/api/v3/scanner/momentum",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 5.9,
+      "error": null,
+      "response_preview": "{\"type\":\"momentum\",\"timestamp\":\"2026-01-14T16:54:19.648397\",\"count\":0,\"data\":[],\"latency_ms\":0.63,\"source\":\"EMPTY\"}"
+    },
+    {
+      "category": "HP Scanner v3",
+      "name": "Breakout",
+      "method": "GET",
+      "path": "/api/v3/scanner/breakout",
+      "url": "http://localhost:8000/api/v3/scanner/breakout",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 10.12,
+      "error": null,
+      "response_preview": "{\"type\":\"breakout\",\"timestamp\":\"2026-01-14T16:54:19.758279\",\"count\":0,\"data\":[],\"latency_ms\":1.03,\"source\":\"EMPTY\"}"
+    },
+    {
+      "category": "HP Scanner v3",
+      "name": "Reversal",
+      "method": "GET",
+      "path": "/api/v3/scanner/reversal",
+      "url": "http://localhost:8000/api/v3/scanner/reversal",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 9.06,
+      "error": null,
+      "response_preview": "{\"type\":\"reversal\",\"timestamp\":\"2026-01-14T16:54:19.868317\",\"count\":0,\"data\":[],\"latency_ms\":0.87,\"source\":\"EMPTY\"}"
+    },
+    {
+      "category": "HP Scanner v3",
+      "name": "Signals",
+      "method": "GET",
+      "path": "/api/v3/scanner/signals",
+      "url": "http://localhost:8000/api/v3/scanner/signals",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 8.24,
+      "error": null,
+      "response_preview": "{\"type\":\"signals\",\"timestamp\":\"2026-01-14T16:54:19.977558\",\"count\":0,\"data\":[],\"latency_ms\":0.78,\"source\":\"EMPTY\"}"
+    },
+    {
+      "category": "HP Scanner v3",
+      "name": "Snapshots",
+      "method": "GET",
+      "path": "/api/v3/scanner/snapshots",
+      "url": "http://localhost:8000/api/v3/scanner/snapshots",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 25.78,
+      "error": null,
+      "response_preview": "{\"type\":\"snapshots\",\"timestamp\":\"2026-01-14T16:54:20.104785\",\"count\":0,\"data\":[],\"latency_ms\":0.7,\"source\":\"EMPTY\"}"
+    },
+    {
+      "category": "HP Scanner v3",
+      "name": "Status",
+      "method": "GET",
+      "path": "/api/v3/scanner/status",
+      "url": "http://localhost:8000/api/v3/scanner/status",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 13.34,
+      "error": null,
+      "response_preview": "{\"service\":{\"is_running\":true,\"symbol_count\":0,\"scan_count\":0,\"last_scan_time\":null,\"scan_interval\":5,\"cache_stats\":{\"backend\":\"dragonfly\",\"is_connected\":true,\"hits\":1,\"misses\":91,\"hit_rate\":1.09}},\"w"
+    },
+    {
+      "category": "HP Scanner v3",
+      "name": "Metrics",
+      "method": "GET",
+      "path": "/api/v3/scanner/metrics",
+      "url": "http://localhost:8000/api/v3/scanner/metrics",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 6.14,
+      "error": null,
+      "response_preview": "{\"timestamp\":\"2026-01-14T16:54:20.324318\",\"latency\":{\"p50\":0.7808208465576172,\"p95\":1.0347366333007812,\"p99\":1.0347366333007812,\"count\":5,\"avg\":0.8},\"cache\":{\"backend\":\"dragonfly\",\"is_connected\":true,"
+    },
+    {
+      "category": "Market",
+      "name": "NIFTY 100 Top Movers",
+      "method": "GET",
+      "path": "/api/market/nifty100/top-movers",
+      "url": "http://localhost:8000/api/market/nifty100/top-movers",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 4548.57,
+      "error": null,
+      "response_preview": "{\"as_of\":\"2026-01-14T16:54:24.974650\",\"trading_date\":\"2026-01-14\",\"gainers\":[],\"losers\":[],\"source\":\"unavailable\",\"is_market_open\":false,\"error\":\"Market data temporarily unavailable\",\"error_code\":\"DAT"
+    },
+    {
+      "category": "Market",
+      "name": "NIFTY 100 Status",
+      "method": "GET",
+      "path": "/api/market/nifty100/status",
+      "url": "http://localhost:8000/api/market/nifty100/status",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 5.71,
+      "error": null,
+      "response_preview": "{\"is_running\":true,\"mode\":\"EOD\",\"symbols_tracked\":0,\"tick_count\":0,\"cache_writes\":0,\"last_cache_write\":null,\"market_status\":{\"is_open\":false,\"is_trading_day\":true,\"is_pre_market\":false,\"trading_date\":"
+    },
+    {
+      "category": "Market",
+      "name": "Top Movers (Alias)",
+      "method": "GET",
+      "path": "/api/market/top-movers",
+      "url": "http://localhost:8000/api/market/top-movers",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 3656.57,
+      "error": null,
+      "response_preview": "{\"as_of\":\"2026-01-14T16:54:28.839471\",\"trading_date\":\"2026-01-14\",\"gainers\":[],\"losers\":[],\"source\":\"unavailable\",\"is_market_open\":false,\"error\":\"Market data temporarily unavailable\",\"error_code\":\"DAT"
+    },
+    {
+      "category": "Market",
+      "name": "Orchestrator Status",
+      "method": "GET",
+      "path": "/api/market/orchestrator/status",
+      "url": "http://localhost:8000/api/market/orchestrator/status",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 6.69,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"orchestrator\":{\"websocket_healthy\":false,\"rest_api_healthy\":true,\"current_source\":\"REST\",\"fallback_active\":true,\"db_fallback_enabled\":true},\"timestamp\":\"2026-01-14T16:54:28.946977"
+    },
+    {
+      "category": "Market",
+      "name": "Market Health",
+      "method": "GET",
+      "path": "/api/market/health",
+      "url": "http://localhost:8000/api/market/health",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 50.36,
+      "error": null,
+      "response_preview": "{\"status\":\"healthy\",\"services\":{\"upstox_api\":\"degraded\",\"database\":\"healthy\",\"cache\":\"healthy\"},\"timestamp\":\"2026-01-14T16:54:29.093640\"}"
+    },
+    {
+      "category": "Market",
+      "name": "Sector Heatmap",
+      "method": "GET",
+      "path": "/api/market/sector-heatmap",
+      "url": "http://localhost:8000/api/market/sector-heatmap",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 25.47,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Heatmap",
+      "name": "Get Sectors",
+      "method": "GET",
+      "path": "/api/heatmap/sectors",
+      "url": "http://localhost:8000/api/heatmap/sectors",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 24.43,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Upstox",
+      "name": "Status",
+      "method": "GET",
+      "path": "/api/upstox/status",
+      "url": "http://localhost:8000/api/upstox/status",
+      "status": "PASS",
+      "status_code": 200,
+      "response_time_ms": 5.04,
+      "error": null,
+      "response_preview": "{\"status\":\"success\",\"upstox\":{\"connected\":false,\"api_available\":true,\"service\":\"operational\"},\"message\":\"Upstox not connected\"}"
+    },
+    {
+      "category": "Upstox",
+      "name": "User Profile",
+      "method": "GET",
+      "path": "/api/upstox/user-profile",
+      "url": "http://localhost:8000/api/upstox/user-profile",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 6.12,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Upstox",
+      "name": "Portfolio",
+      "method": "GET",
+      "path": "/api/upstox/portfolio",
+      "url": "http://localhost:8000/api/upstox/portfolio",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 16.25,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Orders",
+      "name": "Get Orders",
+      "method": "GET",
+      "path": "/api/orders/",
+      "url": "http://localhost:8000/api/orders/",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 12.68,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Algorithms",
+      "name": "Get Algorithms",
+      "method": "GET",
+      "path": "/api/algorithms/",
+      "url": "http://localhost:8000/api/algorithms/",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 7.93,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Risk Management",
+      "name": "Get Risk Settings",
+      "method": "GET",
+      "path": "/api/risk/",
+      "url": "http://localhost:8000/api/risk/",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 6.63,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "Settings",
+      "name": "Get Settings",
+      "method": "GET",
+      "path": "/api/settings/",
+      "url": "http://localhost:8000/api/settings/",
+      "status": "AUTH_REQUIRED",
+      "status_code": 401,
+      "response_time_ms": 7.46,
+      "error": null,
+      "response_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "category": "User Config",
+      "name": "Get User Config",
+      "method": "GET",
+      "path": "/api/user-config/",
+      "url": "http://localhost:8000/api/user-config/",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 6.37,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Engines",
+      "name": "Analytics Engine Status",
+      "method": "GET",
+      "path": "/api/engines/analytics/status",
+      "url": "http://localhost:8000/api/engines/analytics/status",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 7.39,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Engines",
+      "name": "Paper Trading Status",
+      "method": "GET",
+      "path": "/api/engines/paper-trading/status",
+      "url": "http://localhost:8000/api/engines/paper-trading/status",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 5.28,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Strategy Lab",
+      "name": "Get Strategies",
+      "method": "GET",
+      "path": "/api/strategy-lab/strategies",
+      "url": "http://localhost:8000/api/strategy-lab/strategies",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 7.02,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Strategy Lab",
+      "name": "Strategy Status",
+      "method": "GET",
+      "path": "/api/strategy-lab/status",
+      "url": "http://localhost:8000/api/strategy-lab/status",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 6.27,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Quant",
+      "name": "Backtest Status",
+      "method": "GET",
+      "path": "/api/quant/backtest/status",
+      "url": "http://localhost:8000/api/quant/backtest/status",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 6.26,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Quant",
+      "name": "ML Models",
+      "method": "GET",
+      "path": "/api/quant/ml/models",
+      "url": "http://localhost:8000/api/quant/ml/models",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 7.65,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "category": "Portfolio",
+      "name": "Get Portfolio",
+      "method": "GET",
+      "path": "/api/portfolio/",
+      "url": "http://localhost:8000/api/portfolio/",
+      "status": "NOT_FOUND",
+      "status_code": 404,
+      "response_time_ms": 5.32,
+      "error": null,
+      "response_preview": "{\"detail\":\"Not Found\"}"
+    }
+  ],
+  "summary": {
+    "total": 56,
+    "pass": 29,
+    "fail": 1,
+    "timeout": 0,
+    "connection_error": 0,
+    "auth_required": 15,
+    "not_found": 11,
+    "validation_error": 0,
+    "error": 0,
+    "categories": {
+      "Health & Status": {
+        "pass": 3,
+        "fail": 0,
+        "total": 3
+      },
+      "Trading": {
+        "pass": 2,
+        "fail": 1,
+        "total": 3
+      },
+      "AI Strategies": {
+        "pass": 10,
+        "fail": 1,
+        "total": 11
+      },
+      "Scanner": {
+        "pass": 1,
+        "fail": 9,
+        "total": 10
+      },
+      "HP Scanner v3": {
+        "pass": 7,
+        "fail": 0,
+        "total": 7
+      },
+      "Market": {
+        "pass": 5,
+        "fail": 1,
+        "total": 6
+      },
+      "Heatmap": {
+        "pass": 0,
+        "fail": 1,
+        "total": 1
+      },
+      "Upstox": {
+        "pass": 1,
+        "fail": 2,
+        "total": 3
+      },
+      "Orders": {
+        "pass": 0,
+        "fail": 1,
+        "total": 1
+      },
+      "Algorithms": {
+        "pass": 0,
+        "fail": 1,
+        "total": 1
+      },
+      "Risk Management": {
+        "pass": 0,
+        "fail": 1,
+        "total": 1
+      },
+      "Settings": {
+        "pass": 0,
+        "fail": 1,
+        "total": 1
+      },
+      "User Config": {
+        "pass": 0,
+        "fail": 1,
+        "total": 1
+      },
+      "Engines": {
+        "pass": 0,
+        "fail": 2,
+        "total": 2
+      },
+      "Strategy Lab": {
+        "pass": 0,
+        "fail": 2,
+        "total": 2
+      },
+      "Quant": {
+        "pass": 0,
+        "fail": 2,
+        "total": 2
+      },
+      "Portfolio": {
+        "pass": 0,
+        "fail": 1,
+        "total": 1
+      }
+    }
+  },
+  "timestamp": "2026-01-14T22:24:31.088790"
+}

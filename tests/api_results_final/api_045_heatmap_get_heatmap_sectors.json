@@ -1,0 +1,11 @@
+{
+  "api_name": "heatmap_get_heatmap_sectors",
+  "method": "GET",
+  "path": "/api/heatmap/sectors",
+  "status_code": 200,
+  "response_time_ms": 42,
+  "response_payload": {
+    "status": "success",
+    "data": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "api_name": "auth_signup",
+  "method": "POST",
+  "path": "/api/auth/signup",
+  "request_payload": {
+    "email": "test@example.com",
+    "username": "testuser",
+    "full_name": "Test User",
+    "password": "password123"
+  },
+  "response_payload": {
+    "detail": "Username already taken"
+  },
+  "status_code": 400,
+  "start_time_utc": "2026-01-10T13:07:56.893428Z",
+  "end_time_utc": "2026-01-10T13:07:56.933028Z",
+  "response_time_ms": 39,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

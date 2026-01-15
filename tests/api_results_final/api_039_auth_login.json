@@ -1,0 +1,11 @@
+{
+  "api_name": "auth_login",
+  "method": "POST",
+  "path": "/api/auth/login",
+  "status_code": 200,
+  "response_time_ms": 209,
+  "response_payload": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkdGhhdDUzQGdtYWlsLmNvbSIsImV4cCI6MTc2ODE0ODA3M30.zFNqusV2KoblNir508xLUuMxccK0ZOvn4YL7j6ZPdlI",
+    "token_type": "bearer"
+  }
+}

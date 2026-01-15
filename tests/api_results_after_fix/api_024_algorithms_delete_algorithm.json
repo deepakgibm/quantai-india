@@ -1,0 +1,18 @@
+{
+  "api_name": "algorithms_delete_algorithm",
+  "method": "DELETE",
+  "path": "/api/algorithms/{algorithm_id}",
+  "status_code": 422,
+  "response_time_ms": 60,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'algorithm_id' must be a valid integer"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:40.483516Z",
+      "request_id": "7dc5b0c5-dea9-4f38-b677-e5d681475749"
+    }
+  }
+}

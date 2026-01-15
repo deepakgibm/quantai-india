@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-01-11T14:33:13.036245",
+  "total_api_tests": 2,
+  "api_passed": 0,
+  "api_failed": 2,
+  "total_price_validations": 0,
+  "price_matches": 0,
+  "price_mismatches": 0,
+  "price_errors": 0,
+  "api_results": [
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "status": "CONNECTION_ERROR",
+      "status_code": null,
+      "response_time_ms": 0,
+      "error": "Cannot connect to backend",
+      "response_data": null
+    },
+    {
+      "endpoint": "/ready",
+      "method": "GET",
+      "status": "CONNECTION_ERROR",
+      "status_code": null,
+      "response_time_ms": 0,
+      "error": "Cannot connect to backend",
+      "response_data": null
+    }
+  ],
+  "price_results": []
+}

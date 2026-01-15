@@ -1,0 +1,16 @@
+{
+  "api_name": "trading_get_dashboard_stats",
+  "method": "GET",
+  "path": "/api/trading/dashboard",
+  "status_code": 200,
+  "response_time_ms": 116,
+  "response_payload": {
+    "total_pnl": 0.0,
+    "daily_pnl": 0.0,
+    "capital_used": 0.0,
+    "total_capital": 1000000.0,
+    "active_algorithms": 2,
+    "win_rate": 70.0,
+    "total_trades": 0
+  }
+}

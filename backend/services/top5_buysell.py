@@ -31,14 +31,16 @@ class Top5BuySellEngine:
         
     def _get_ohlcv_data(self, symbol: str, days: int = 100) -> Optional[pd.DataFrame]:
         try:
-            from models_ml import Nifty100Daily
+            from models import StockCandle
             session = self._Session()
             try:
                 cutoff_date = datetime.now() - timedelta(days=days)
-                results = session.query(Nifty100Daily).filter(
-                    Nifty100Daily.symbol == symbol,
-                    Nifty100Daily.timestamp >= cutoff_date
-                ).order_by(Nifty100Daily.timestamp.asc()).all()
+                # Filter by symbol and timeframe='1d'
+                results = session.query(StockCandle).filter(
+                    StockCandle.symbol == symbol,
+                    StockCandle.timeframe == '1d',
+                    StockCandle.timestamp >= cutoff_date
+                ).order_by(StockCandle.timestamp.asc()).all()
                 
                 if not results or len(results) < 30:
                     return None
@@ -220,7 +222,7 @@ class Top5BuySellEngine:
         t0 = time.time()
         
         try:
-            from models_ml import Nifty100Daily
+            from models import StockCandle
             import numpy as np
             
             session = self._Session()
@@ -228,15 +230,16 @@ class Top5BuySellEngine:
                 # Single bulk query for ALL symbols - last 100 days
                 cutoff_date = datetime.now() - timedelta(days=100)
                 query = session.query(
-                    Nifty100Daily.symbol,
-                    Nifty100Daily.timestamp,
-                    Nifty100Daily.open,
-                    Nifty100Daily.high,
-                    Nifty100Daily.low,
-                    Nifty100Daily.close,
-                    Nifty100Daily.volume
+                    StockCandle.symbol,
+                    StockCandle.timestamp,
+                    StockCandle.open,
+                    StockCandle.high,
+                    StockCandle.low,
+                    StockCandle.close,
+                    StockCandle.volume
                 ).filter(
-                    Nifty100Daily.timestamp >= cutoff_date
+                    StockCandle.timeframe == '1d',
+                    StockCandle.timestamp >= cutoff_date
                 ).statement
                 
                 df = pd.read_sql(query, session.bind)

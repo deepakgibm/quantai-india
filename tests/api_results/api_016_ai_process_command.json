@@ -1,0 +1,17 @@
+{
+  "api_name": "ai_process_command",
+  "method": "POST",
+  "path": "/api/ai/command",
+  "request_payload": {
+    "command": "BUY RELIANCE 10"
+  },
+  "response_payload": {
+    "detail": "Command processing failed: 403 Your API key was reported as leaked. Please use another API key."
+  },
+  "status_code": 500,
+  "start_time_utc": "2026-01-10T13:07:56.226407Z",
+  "end_time_utc": "2026-01-10T13:07:56.362296Z",
+  "response_time_ms": 135,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

@@ -1,0 +1,15 @@
+{
+  "api_name": "ai_get_market_analysis",
+  "method": "GET",
+  "path": "/api/ai/market-analysis",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Market analysis temporarily unavailable. AI service error."
+  },
+  "status_code": 503,
+  "start_time_utc": "2026-01-10T13:07:34.621217Z",
+  "end_time_utc": "2026-01-10T13:07:34.788986Z",
+  "response_time_ms": 167,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

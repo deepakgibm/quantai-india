@@ -1,0 +1,14 @@
+{
+  "api_name": "ai_get_ai_sentiment",
+  "method": "GET",
+  "path": "/api/ai/sentiment",
+  "status_code": 200,
+  "response_time_ms": 2549,
+  "response_payload": {
+    "symbol": "RELIANCE",
+    "sentiment": "NEUTRAL",
+    "ltp": null,
+    "summary": "AI service temporarily unavailable. Showing current market price.",
+    "source": "fallback"
+  }
+}

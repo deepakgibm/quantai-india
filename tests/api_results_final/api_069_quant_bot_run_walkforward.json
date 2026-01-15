@@ -1,0 +1,10 @@
+{
+  "api_name": "quant_bot_run_walkforward",
+  "method": "POST",
+  "path": "/api/quant/walkforward/run",
+  "status_code": 500,
+  "response_time_ms": 17,
+  "response_payload": {
+    "detail": "WFA execution failed: No module named 'core.strategies'"
+  }
+}

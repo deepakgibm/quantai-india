@@ -168,6 +168,35 @@ async def get_top_movers_alias():
     return await get_nifty100_top_movers()
 
 
+@router.get("/status")
+async def get_market_status():
+    """Get market status - alias for /nifty100/status."""
+    return await get_nifty100_ranking_status()
+
+
+@router.get("/indices")
+async def get_market_indices():
+    """Get market indices."""
+    from services.dragonfly_client import get_cache
+    cache = get_cache()
+    
+    # Try cache first
+    cached = cache.get("qai:market:indices")
+    if cached:
+        return {"status": "success", "data": cached}
+    
+    # Return default indices
+    return {
+        "status": "success",
+        "data": [
+            {"name": "NIFTY 50", "symbol": "NSE_INDEX|Nifty 50"},
+            {"name": "NIFTY Bank", "symbol": "NSE_INDEX|Nifty Bank"},
+            {"name": "NIFTY IT", "symbol": "NSE_INDEX|Nifty IT"},
+            {"name": "NIFTY Pharma", "symbol": "NSE_INDEX|Nifty Pharma"},
+            {"name": "NIFTY Auto", "symbol": "NSE_INDEX|Nifty Auto"}
+        ]
+    }
+
 # Industry mapping for Sector Heatmap Detail
 INDUSTRY_MAPPING = {
     "Banking": ["Financial Services"],

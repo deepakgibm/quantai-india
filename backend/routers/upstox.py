@@ -47,7 +47,16 @@ async def get_upstox_auth_url(current_user: User = Depends(get_current_user)):
     auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={settings.UPSTOX_API_KEY}&redirect_uri={settings.UPSTOX_REDIRECT_URI}"
     return {"auth_url": auth_url}
 
+
+@router.get("/connect-url")
+async def get_upstox_connect_url():
+    """Get Upstox connection URL - public endpoint for initiating OAuth."""
+    auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={settings.UPSTOX_API_KEY}&redirect_uri={settings.UPSTOX_REDIRECT_URI}"
+    return {"auth_url": auth_url, "message": "Use this URL to connect to Upstox"}
+
+
 @router.get("/user-profile")
+
 async def get_user_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile with upstox status"""
     return {

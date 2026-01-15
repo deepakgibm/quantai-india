@@ -1,0 +1,18 @@
+{
+  "api_name": "agentic_bot_process_agent_request",
+  "method": "POST",
+  "path": "/api/agentic-bot/process",
+  "status_code": 422,
+  "response_time_ms": 10,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'prompt' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:09.473608Z",
+      "request_id": "fe1a517e-83fb-4248-8da1-7600ee33157d"
+    }
+  }
+}

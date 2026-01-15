@@ -1,0 +1,26 @@
+{
+  "api_name": "hp_scanner_api_get_metrics",
+  "method": "GET",
+  "path": "/api/v3/scanner/metrics",
+  "status_code": 200,
+  "response_time_ms": 14,
+  "response_payload": {
+    "timestamp": "2026-01-10T14:26:45.504874",
+    "latency": {
+      "p50": 4.218578338623047,
+      "p95": 5.372285842895508,
+      "p99": 5.372285842895508,
+      "count": 6,
+      "avg": 3.44
+    },
+    "cache": {
+      "backend": "dragonfly",
+      "is_connected": true,
+      "hits": 38,
+      "misses": 13,
+      "hit_rate": 74.51
+    },
+    "target_p95_ms": 50,
+    "target_achieved": true
+  }
+}

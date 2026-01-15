@@ -1,0 +1,13 @@
+{
+  "api_name": "settings_get_settings",
+  "method": "GET",
+  "path": "/api/settings",
+  "status_code": 200,
+  "response_time_ms": 54,
+  "response_payload": {
+    "max_capital": 1000000.0,
+    "max_risk_per_trade": 2.0,
+    "auto_trade": false,
+    "notifications": true
+  }
+}

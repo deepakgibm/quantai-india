@@ -1,0 +1,17 @@
+{
+  "api_name": "settings_update_settings",
+  "method": "PUT",
+  "path": "/api/settings",
+  "request_payload": {
+    "test": "data"
+  },
+  "response_payload": {
+    "message": "Settings updated successfully"
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:58.408806Z",
+  "end_time_utc": "2026-01-10T13:07:58.431878Z",
+  "response_time_ms": 23,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

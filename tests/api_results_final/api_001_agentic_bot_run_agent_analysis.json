@@ -1,0 +1,91 @@
+{
+  "api_name": "agentic_bot_run_agent_analysis",
+  "method": "POST",
+  "path": "/api/agentic-bot/analyze",
+  "status_code": 200,
+  "response_time_ms": 1430,
+  "response_payload": {
+    "status": "success",
+    "data": [
+      {
+        "symbol": "APLAPOLLO",
+        "buy_score": 78,
+        "final_decision": "BUY",
+        "reason_for_buy": "Strong Trend + High ML Score",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 1787.5999755859375, Low: 1690.0",
+        "ml_reasoning": "Model confidence: 69%",
+        "overall_summary": "Trend: Bullish. ML Score: 69/100.",
+        "ltp": 1764.5,
+        "trend_score": 75,
+        "ml_score": 69,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "AUBANK",
+        "buy_score": 78,
+        "final_decision": "BUY",
+        "reason_for_buy": "Strong Trend + High ML Score",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 1007.25, Low: 892.1500244140625",
+        "ml_reasoning": "Model confidence: 70%",
+        "overall_summary": "Trend: Bullish. ML Score: 70/100.",
+        "ltp": 990.2999877929688,
+        "trend_score": 75,
+        "ml_score": 70,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "360ONE",
+        "buy_score": 64,
+        "final_decision": "WATCH",
+        "reason_for_buy": "Good potential, wait for dip",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 1198.5999755859375, Low: 1056.0",
+        "ml_reasoning": "Model confidence: 53%",
+        "overall_summary": "Trend: Neutral. ML Score: 53/100.",
+        "ltp": 1126.0999755859375,
+        "trend_score": 50,
+        "ml_score": 53,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "ACC",
+        "buy_score": 63,
+        "final_decision": "WATCH",
+        "reason_for_buy": "Good potential, wait for dip",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 1987.0, Low: 1751.0",
+        "ml_reasoning": "Model confidence: 50%",
+        "overall_summary": "Trend: Neutral. ML Score: 50/100.",
+        "ltp": 1758.9000244140625,
+        "trend_score": 50,
+        "ml_score": 50,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "ABB",
+        "buy_score": 62,
+        "final_decision": "WATCH",
+        "reason_for_buy": "Good potential, wait for dip",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 5299.0, Low: 4926.0",
+        "ml_reasoning": "Model confidence: 58%",
+        "overall_summary": "Trend: Bullish. ML Score: 58/100.",
+        "ltp": 5171.0,
+        "trend_score": 65,
+        "ml_score": 58,
+        "risk_score": 20,
+        "negative_news": []
+      }
+    ],
+    "meta": {
+      "total_analyzed": 5,
+      "prompt": "Analyze RELIANCE stock"
+    }
+  }
+}

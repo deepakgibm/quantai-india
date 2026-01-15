@@ -1,0 +1,15 @@
+{
+  "api_name": "scanner_get_week52_breakouts",
+  "method": "GET",
+  "path": "/week52-breakouts",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:58.343561Z",
+  "end_time_utc": "2026-01-10T13:07:58.370192Z",
+  "response_time_ms": 26,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

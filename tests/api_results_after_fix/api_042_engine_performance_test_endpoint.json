@@ -1,0 +1,11 @@
+{
+  "api_name": "engine_performance_test_endpoint",
+  "method": "GET",
+  "path": "/api/engines/test",
+  "status_code": 200,
+  "response_time_ms": 20,
+  "response_payload": {
+    "status": "ok",
+    "message": "Engine performance router works!"
+  }
+}

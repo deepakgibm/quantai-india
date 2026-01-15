@@ -1,0 +1,15 @@
+{
+  "api_name": "analytics_get_archive_stats",
+  "method": "GET",
+  "path": "/archive/stats",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:56.800764Z",
+  "end_time_utc": "2026-01-10T13:07:56.814792Z",
+  "response_time_ms": 14,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

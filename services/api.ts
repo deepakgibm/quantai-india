@@ -474,7 +474,8 @@ export const api = {
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const res = await fetch(`${API_URL}/api/scanner/strategies`, {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: getAuthHeaders()
       });
       clearTimeout(timeoutId);
 

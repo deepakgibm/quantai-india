@@ -1,0 +1,10 @@
+{
+  "api_name": "heatmap_seed_data",
+  "method": "POST",
+  "path": "/api/heatmap/seed",
+  "status_code": 403,
+  "response_time_ms": 17,
+  "response_payload": {
+    "detail": "Only admins can seed data"
+  }
+}

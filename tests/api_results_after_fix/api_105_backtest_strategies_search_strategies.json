@@ -1,0 +1,18 @@
+{
+  "api_name": "backtest_strategies_search_strategies",
+  "method": "GET",
+  "path": "/api/v1/backtest/strategies/search",
+  "status_code": 422,
+  "response_time_ms": 20,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:28:47.922874Z",
+      "request_id": "c6a5ffca-cc3d-4f57-b5c2-45727799eda7"
+    }
+  }
+}

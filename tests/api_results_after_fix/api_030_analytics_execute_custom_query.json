@@ -1,0 +1,18 @@
+{
+  "api_name": "analytics_execute_custom_query",
+  "method": "POST",
+  "path": "/api/analytics/query",
+  "status_code": 422,
+  "response_time_ms": 36,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'sql' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:43.793206Z",
+      "request_id": "abb418c5-f1d2-4eb4-afee-2ffd686f25a9"
+    }
+  }
+}

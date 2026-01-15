@@ -1,0 +1,52 @@
+{
+  "api_name": "ai_get_ai_strategies",
+  "method": "GET",
+  "path": "/api/ai/strategies",
+  "request_payload": {},
+  "response_payload": {
+    "status": "success",
+    "strategies": [
+      {
+        "id": "trend-finder",
+        "name": "Trend Finder AI",
+        "description": "Identifies strong trend continuation setups"
+      },
+      {
+        "id": "breakout-detector",
+        "name": "Breakout Detector",
+        "description": "Detects volume-backed breakouts"
+      },
+      {
+        "id": "top5-picks",
+        "name": "Top 5 Picks",
+        "description": "Daily top 5 buy/sell recommendations"
+      },
+      {
+        "id": "momentum-scanner",
+        "name": "Momentum Scanner",
+        "description": "High momentum stocks"
+      },
+      {
+        "id": "mean-reversion",
+        "name": "Mean Reversion",
+        "description": "Oversold/Overbought reversal setups"
+      },
+      {
+        "id": "vwap-scanner",
+        "name": "VWAP Trading",
+        "description": "VWAP crossovers with LIVE prices"
+      },
+      {
+        "id": "sr-bounce",
+        "name": "Support/Resistance",
+        "description": "Bounce signals from S/R levels"
+      }
+    ]
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:34.311703Z",
+  "end_time_utc": "2026-01-10T13:07:34.338024Z",
+  "response_time_ms": 26,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

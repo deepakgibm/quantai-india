@@ -1,0 +1,15 @@
+{
+  "api_name": "scanner_get_trendfinder_data",
+  "method": "GET",
+  "path": "/trendfinder",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:58.310637Z",
+  "end_time_utc": "2026-01-10T13:07:58.341335Z",
+  "response_time_ms": 30,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

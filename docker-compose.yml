@@ -107,11 +107,70 @@ services:
       timeout: 10s
       retries: 3
 
-# ==========================================================================
-# Volumes
-# ==========================================================================
+  # ==========================================================================
+  # Monitoring Stack (Prometheus + Grafana + Exporters)
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: quantai-prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: quantai-grafana
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: quantai-postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://postgres:admin@host.docker.internal:5432/quantai?sslmode=disable
+    ports:
+      - "9187:9187"
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter
+    container_name: quantai-redis-exporter
+    environment:
+      - REDIS_ADDR=redis://dragonfly:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - dragonfly
+    restart: unless-stopped
+  # Node exporter removed as it is Linux-specific and fails on Windows host.
+
+
+  # ==========================================================================
+  # Volumes
+  # ==========================================================================
 volumes:
   dragonfly_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local
 
 # ==========================================================================

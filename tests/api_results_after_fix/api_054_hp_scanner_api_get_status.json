@@ -1,0 +1,44 @@
+{
+  "api_name": "hp_scanner_api_get_status",
+  "method": "GET",
+  "path": "/api/v3/scanner/status",
+  "status_code": 200,
+  "response_time_ms": 29,
+  "response_payload": {
+    "service": {
+      "is_running": true,
+      "symbol_count": 0,
+      "scan_count": 0,
+      "last_scan_time": null,
+      "scan_interval": 5,
+      "cache_stats": {
+        "backend": "dragonfly",
+        "is_connected": true,
+        "hits": 38,
+        "misses": 13,
+        "hit_rate": 74.51
+      }
+    },
+    "worker": {
+      "is_running": false,
+      "num_workers": 15,
+      "compute_count": 0,
+      "avg_compute_time_ms": 0,
+      "total_compute_time_ms": 0.0
+    },
+    "cache": {
+      "backend": "dragonfly",
+      "is_connected": true,
+      "hits": 38,
+      "misses": 13,
+      "hit_rate": 74.51
+    },
+    "latency": {
+      "p50": 4.218578338623047,
+      "p95": 5.372285842895508,
+      "p99": 5.372285842895508,
+      "count": 6,
+      "avg": 3.44
+    }
+  }
+}

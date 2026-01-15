@@ -1,0 +1,14 @@
+{
+  "api_name": "ml_forecast_predict_price",
+  "method": "GET",
+  "path": "/api/v1/ml/predict",
+  "status_code": 500,
+  "response_time_ms": 203,
+  "response_payload": {
+    "detail": {
+      "error": "prediction_failed",
+      "message": "type object 'TimeframeMapper' has no attribute 'to_standard'",
+      "symbol": "RELIANCE"
+    }
+  }
+}

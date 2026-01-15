@@ -1,0 +1,16 @@
+{
+  "api_name": "market_get_sector_heatmap",
+  "method": "GET",
+  "path": "/api/market/heatmap",
+  "status_code": 200,
+  "response_time_ms": 97,
+  "response_payload": {
+    "status": "success",
+    "data": [],
+    "market_outlook": {
+      "verdict": "Neutral",
+      "nifty_change": 0,
+      "timestamp": "2026-01-10T14:26:45.821906"
+    }
+  }
+}

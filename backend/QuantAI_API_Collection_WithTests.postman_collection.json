@@ -1,0 +1,558 @@
+{
+    "info": {
+        "name": "QuantAI India API Collection - With Tests",
+        "description": "Complete API collection for QuantAI India with automated test scripts for stock price validation",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_postman_id": "quantai-india-2026-tests"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "priceTolerance",
+            "value": "0.5",
+            "type": "string",
+            "description": "Price tolerance in percent for validation"
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Global pre-request script",
+                    "console.log('Testing: ' + pm.info.requestName);",
+                    "pm.variables.set('startTime', Date.now());"
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Global test script - runs after every request",
+                    "const responseTime = Date.now() - pm.variables.get('startTime');",
+                    "",
+                    "pm.test('Response time is acceptable (< 5000ms)', function() {",
+                    "    pm.expect(responseTime).to.be.below(5000);",
+                    "});",
+                    "",
+                    "pm.test('Response is JSON', function() {",
+                    "    pm.response.to.be.json;",
+                    "});"
+                ]
+            }
+        }
+    ],
+    "item": [
+        {
+            "name": "Health & Status",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Health status is healthy', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp.status).to.equal('healthy');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/health"
+                    }
+                },
+                {
+                    "name": "Readiness Check",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/ready"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Stock Price APIs",
+            "description": "Stock price endpoints for validation against external sources",
+            "item": [
+                {
+                    "name": "NIFTY 100 Top Movers",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has gainers array', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.have.property('gainers');",
+                                    "    pm.expect(resp.gainers).to.be.an('array');",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has losers array', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.have.property('losers');",
+                                    "    pm.expect(resp.losers).to.be.an('array');",
+                                    "});",
+                                    "",
+                                    "pm.test('Stock entries have required fields', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    const allStocks = [...(resp.gainers || []), ...(resp.losers || [])];",
+                                    "    if (allStocks.length > 0) {",
+                                    "        const stock = allStocks[0];",
+                                    "        pm.expect(stock).to.have.property('symbol');",
+                                    "        pm.expect(stock).to.have.property('ltp');",
+                                    "        pm.expect(stock.ltp).to.be.a('number');",
+                                    "        pm.expect(stock.ltp).to.be.above(0);",
+                                    "    }",
+                                    "});",
+                                    "",
+                                    "// Store prices for validation",
+                                    "const resp = pm.response.json();",
+                                    "const prices = {};",
+                                    "[...(resp.gainers || []), ...(resp.losers || [])].forEach(s => {",
+                                    "    if (s.symbol && s.ltp) prices[s.symbol] = s.ltp;",
+                                    "});",
+                                    "pm.collectionVariables.set('extractedPrices', JSON.stringify(prices));",
+                                    "console.log('Extracted prices for', Object.keys(prices).length, 'symbols');"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/market/nifty100/top-movers"
+                    }
+                },
+                {
+                    "name": "HP Scanner Snapshots",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has data array', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.have.property('data');",
+                                    "    pm.expect(resp.data).to.be.an('array');",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has count field', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.have.property('count');",
+                                    "    pm.expect(resp.count).to.be.a('number');",
+                                    "});",
+                                    "",
+                                    "pm.test('Response latency is under 100ms', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    if (resp.latency_ms) {",
+                                    "        pm.expect(resp.latency_ms).to.be.below(100);",
+                                    "    }",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/v3/scanner/snapshots"
+                    }
+                },
+                {
+                    "name": "Symbol Snapshot - RELIANCE",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200 or 404', function() {",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                                    "});",
+                                    "",
+                                    "if (pm.response.code === 200) {",
+                                    "    pm.test('Response has symbol field', function() {",
+                                    "        const resp = pm.response.json();",
+                                    "        pm.expect(resp).to.have.property('symbol');",
+                                    "        pm.expect(resp.symbol).to.equal('RELIANCE');",
+                                    "    });",
+                                    "    ",
+                                    "    pm.test('Response has data object', function() {",
+                                    "        const resp = pm.response.json();",
+                                    "        pm.expect(resp).to.have.property('data');",
+                                    "    });",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/v3/scanner/symbol/RELIANCE"
+                    }
+                },
+                {
+                    "name": "Market Indices",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response is an array', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.be.an('array');",
+                                    "});",
+                                    "",
+                                    "pm.test('Index entries have required fields', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    if (resp.length > 0) {",
+                                    "        const index = resp[0];",
+                                    "        pm.expect(index).to.have.property('name');",
+                                    "        pm.expect(index).to.have.property('value');",
+                                    "        pm.expect(index.value).to.be.a('number');",
+                                    "    }",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/trading/market-indices"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Edge Cases",
+            "description": "Error handling and edge case tests",
+            "item": [
+                {
+                    "name": "Invalid Symbol - Should 404",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 404 for invalid symbol', function() {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has error message', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.have.property('detail');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/v3/scanner/symbol/INVALID_SYMBOL_XYZ123"
+                    }
+                },
+                {
+                    "name": "Missing Scan Parameters - Should 422",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 422 for validation error', function() {",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([400, 422]);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": "{{baseUrl}}/api/scanner/scan",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "AI Strategies",
+            "item": [
+                {
+                    "name": "Get AI Strategies",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response is array or has strategies', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    const isArray = Array.isArray(resp);",
+                                    "    const hasStrategies = resp.strategies && Array.isArray(resp.strategies);",
+                                    "    pm.expect(isArray || hasStrategies).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/ai/strategies"
+                    }
+                },
+                {
+                    "name": "Momentum Scanner",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/ai/momentum-scanner"
+                    }
+                },
+                {
+                    "name": "Breakout Stocks",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/ai/breakout-stocks"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Scanner",
+            "item": [
+                {
+                    "name": "Get Strategies",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/scanner/strategies"
+                    }
+                },
+                {
+                    "name": "Get Indices",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/scanner/indices"
+                    }
+                },
+                {
+                    "name": "HP Scanner Momentum",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Has type field', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp.type).to.equal('momentum');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/v3/scanner/momentum"
+                    }
+                },
+                {
+                    "name": "HP Scanner Status",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Has service status', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.have.property('service');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/v3/scanner/status"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Heatmap",
+            "item": [
+                {
+                    "name": "Get Sectors",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/heatmap/sectors"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Upstox Integration",
+            "item": [
+                {
+                    "name": "Upstox Status",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function() {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Has connected status field', function() {",
+                                    "    const resp = pm.response.json();",
+                                    "    pm.expect(resp).to.have.property('connected');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/api/upstox/status"
+                    }
+                }
+            ]
+        }
+    ]
+}

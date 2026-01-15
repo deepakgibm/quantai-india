@@ -1,0 +1,113 @@
+{
+  "api_name": "market_get_top_movers_alias",
+  "method": "GET",
+  "path": "/api/market/top-movers",
+  "status_code": 200,
+  "response_time_ms": 7,
+  "response_payload": {
+    "as_of": "2026-01-10T13:29:57.137141",
+    "trading_date": "2026-01-09",
+    "gainers": [
+      {
+        "symbol": "Alkyl Amines Chemicals Ltd",
+        "ltp": 1607.5,
+        "change_pct": 4.5,
+        "prev_close": 1538.3,
+        "volume": 0,
+        "day_high": 1607.5,
+        "day_low": 1607.5
+      },
+      {
+        "symbol": "Fertilisers and Chemicals Travancore Ltd",
+        "ltp": 891.15,
+        "change_pct": 1.94,
+        "prev_close": 874.15,
+        "volume": 0,
+        "day_high": 891.15,
+        "day_low": 891.15
+      },
+      {
+        "symbol": "Dixon Technologies (India) Ltd",
+        "ltp": 11987.0,
+        "change_pct": 1.84,
+        "prev_close": 11770.0,
+        "volume": 0,
+        "day_high": 11987.0,
+        "day_low": 11987.0
+      },
+      {
+        "symbol": "Ceat Ltd",
+        "ltp": 3850.6,
+        "change_pct": 1.77,
+        "prev_close": 3783.6,
+        "volume": 0,
+        "day_high": 3850.6,
+        "day_low": 3850.6
+      },
+      {
+        "symbol": "AIA Engineering Ltd",
+        "ltp": 4059.1,
+        "change_pct": 1.75,
+        "prev_close": 3989.2,
+        "volume": 0,
+        "day_high": 4059.1,
+        "day_low": 4059.1
+      }
+    ],
+    "losers": [
+      {
+        "symbol": "Bharat Heavy Electricals Ltd",
+        "ltp": 271.75,
+        "change_pct": -10.48,
+        "prev_close": 303.55,
+        "volume": 0,
+        "day_high": 271.75,
+        "day_low": 271.75
+      },
+      {
+        "symbol": "Gujarat Mineral Development Corporation Ltd",
+        "ltp": 567.75,
+        "change_pct": -6.48,
+        "prev_close": 607.1,
+        "volume": 0,
+        "day_high": 567.75,
+        "day_low": 567.75
+      },
+      {
+        "symbol": "ABB India Ltd",
+        "ltp": 5021.0,
+        "change_pct": -5.25,
+        "prev_close": 5299.0,
+        "volume": 0,
+        "day_high": 5021.0,
+        "day_low": 5021.0
+      },
+      {
+        "symbol": "GE Vernova T&D India Ltd",
+        "ltp": 3002.6,
+        "change_pct": -4.69,
+        "prev_close": 3150.5,
+        "volume": 0,
+        "day_high": 3002.6,
+        "day_low": 3002.6
+      },
+      {
+        "symbol": "Aditya Birla Sun Life AMC Ltd",
+        "ltp": 818.65,
+        "change_pct": -4.11,
+        "prev_close": 853.7,
+        "volume": 0,
+        "day_high": 818.65,
+        "day_low": 818.65
+      }
+    ],
+    "source": "hp_scanner_cache",
+    "is_market_open": false,
+    "cache_metadata": {
+      "cached_at": "2026-01-10T13:29:57.137148",
+      "ttl_seconds": 18000,
+      "is_stale": false,
+      "symbols_from_scanner": 200
+    }
+  }
+}

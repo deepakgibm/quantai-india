@@ -1,0 +1,18 @@
+{
+  "api_name": "scanner_get_reversal_data",
+  "method": "GET",
+  "path": "/api/scanner/reversal",
+  "status_code": 200,
+  "response_time_ms": 27096,
+  "response_payload": {
+    "type": "reversal_scan",
+    "timestamp": "2026-01-10T16:16:07.581085",
+    "data": [],
+    "count": 0,
+    "status": {
+      "source": "DB",
+      "is_healthy": false,
+      "last_update": "2026-01-10T16:16:07.581102"
+    }
+  }
+}

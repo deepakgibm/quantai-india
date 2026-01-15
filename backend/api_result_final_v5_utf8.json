@@ -1,0 +1,7 @@
+﻿{
+  "status": "success",
+  "count": 0,
+  "stocks": [],
+  "scan_type": "trend_technical",
+  "description": "No stocks currently meet the trend criteria (score >= 60). Market may be in consolidation."
+}

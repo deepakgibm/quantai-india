@@ -1,0 +1,22 @@
+{
+  "api_name": "experiment_lab_get_lab_info",
+  "method": "GET",
+  "path": "/api/v1/experiment-lab",
+  "status_code": 200,
+  "response_time_ms": 37,
+  "response_payload": {
+    "name": "Strategy Experiment Lab",
+    "version": "1.0.0-beta",
+    "status": "active",
+    "disclaimer": "\u26a0\ufe0f BACKTESTING / SIMULATION ONLY - NO LIVE TRADING",
+    "total_strategies": 70,
+    "categories": 10,
+    "features": [
+      "70 predefined strategy combinations",
+      "Multiple timeframes: 5m, 15m, 30m, 1H, 1D",
+      "Comprehensive performance metrics",
+      "Multi-strategy comparison",
+      "Position sizing: Fixed, Percent, ATR-based"
+    ]
+  }
+}

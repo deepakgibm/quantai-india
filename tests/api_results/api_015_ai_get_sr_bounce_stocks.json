@@ -1,0 +1,19 @@
+{
+  "api_name": "ai_get_sr_bounce_stocks",
+  "method": "GET",
+  "path": "/api/ai/sr-bounce",
+  "request_payload": {},
+  "response_payload": {
+    "status": "success",
+    "count": 0,
+    "stocks": [],
+    "scan_type": "sr_bounce",
+    "description": "unterminated triple-quoted string literal (detected at line 165) (sr_bounce_scanner.py, line 59)"
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:56.184893Z",
+  "end_time_utc": "2026-01-10T13:07:56.225294Z",
+  "response_time_ms": 40,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

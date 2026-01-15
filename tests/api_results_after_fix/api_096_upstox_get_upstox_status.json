@@ -1,0 +1,16 @@
+{
+  "api_name": "upstox_get_upstox_status",
+  "method": "GET",
+  "path": "/api/upstox/status",
+  "status_code": 200,
+  "response_time_ms": 23,
+  "response_payload": {
+    "status": "success",
+    "upstox": {
+      "connected": false,
+      "api_available": true,
+      "service": "operational"
+    },
+    "message": "Upstox not connected"
+  }
+}

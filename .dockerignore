@@ -1,0 +1,23 @@
+# Frontend .dockerignore
+node_modules
+npm-debug.log
+.git
+.gitignore
+.DS_Store
+Thumbs.db
+*.md
+!README.md
+.env
+.env.*
+.vscode
+.idea
+dist
+build
+coverage
+*.log
+*.swp
+*.swo
+*~
+.cache
+.npm
+.eslintcache

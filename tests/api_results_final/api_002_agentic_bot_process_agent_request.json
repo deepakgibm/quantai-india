@@ -1,0 +1,94 @@
+{
+  "api_name": "agentic_bot_process_agent_request",
+  "method": "POST",
+  "path": "/api/agentic-bot/process",
+  "status_code": 200,
+  "response_time_ms": 2810,
+  "response_payload": {
+    "status": "success",
+    "data": [
+      {
+        "symbol": "ABB",
+        "buy_score": 73,
+        "final_decision": "WATCH",
+        "reason_for_buy": "Good potential, wait for dip",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 5299.0, Low: 4926.0",
+        "ml_reasoning": "Model confidence: 64%",
+        "overall_summary": "Trend: Bullish. ML Score: 64/100.",
+        "ltp": 5171.0,
+        "trend_score": 65,
+        "ml_score": 64,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "APLAPOLLO",
+        "buy_score": 71,
+        "final_decision": "WATCH",
+        "reason_for_buy": "Good potential, wait for dip",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 1787.5999755859375, Low: 1690.0",
+        "ml_reasoning": "Model confidence: 72%",
+        "overall_summary": "Trend: Bullish. ML Score: 72/100.",
+        "ltp": 1764.5,
+        "trend_score": 75,
+        "ml_score": 72,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "AUBANK",
+        "buy_score": 69,
+        "final_decision": "WATCH",
+        "reason_for_buy": "Good potential, wait for dip",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 1007.25, Low: 892.1500244140625",
+        "ml_reasoning": "Model confidence: 68%",
+        "overall_summary": "Trend: Bullish. ML Score: 68/100.",
+        "ltp": 990.2999877929688,
+        "trend_score": 75,
+        "ml_score": 68,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "360ONE",
+        "buy_score": 62,
+        "final_decision": "WATCH",
+        "reason_for_buy": "Good potential, wait for dip",
+        "news_sentiment": "Positive",
+        "52_week_analysis": "High: 1198.5999755859375, Low: 1056.0",
+        "ml_reasoning": "Model confidence: 48%",
+        "overall_summary": "Trend: Neutral. ML Score: 48/100.",
+        "ltp": 1126.0999755859375,
+        "trend_score": 50,
+        "ml_score": 48,
+        "risk_score": 20,
+        "negative_news": []
+      },
+      {
+        "symbol": "ACC",
+        "buy_score": 36,
+        "final_decision": "AVOID",
+        "reason_for_buy": "Weak signals",
+        "news_sentiment": "Negative",
+        "52_week_analysis": "High: 1987.0, Low: 1751.0",
+        "ml_reasoning": "Model confidence: 54%",
+        "overall_summary": "Trend: Neutral. ML Score: 54/100.",
+        "ltp": 1758.9000244140625,
+        "trend_score": 50,
+        "ml_score": 54,
+        "risk_score": 50,
+        "negative_news": [
+          "Analyst downgrades ACC",
+          "Regulatory concerns for ACC"
+        ]
+      }
+    ],
+    "meta": {
+      "total_analyzed": 5,
+      "prompt": "What is the trend for TCS?"
+    }
+  }
+}

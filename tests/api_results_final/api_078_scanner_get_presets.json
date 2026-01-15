@@ -1,0 +1,48 @@
+{
+  "api_name": "scanner_get_presets",
+  "method": "GET",
+  "path": "/api/scanner/presets",
+  "status_code": 200,
+  "response_time_ms": 23,
+  "response_payload": {
+    "status": "success",
+    "presets": [
+      {
+        "id": "2",
+        "name": "Test Preset",
+        "indices": [
+          "NIFTY50"
+        ],
+        "timeframe": "1d",
+        "strategies": [
+          "momentum"
+        ],
+        "created_at": "2026-01-10T14:53:55.166633"
+      },
+      {
+        "id": "3",
+        "name": "Test Preset",
+        "indices": [
+          "NIFTY50"
+        ],
+        "timeframe": "1d",
+        "strategies": [
+          "momentum"
+        ],
+        "created_at": "2026-01-10T16:03:54.667883"
+      },
+      {
+        "id": "4",
+        "name": "Test Preset",
+        "indices": [
+          "NIFTY50"
+        ],
+        "timeframe": "1d",
+        "strategies": [
+          "momentum"
+        ],
+        "created_at": "2026-01-10T16:09:38.709519"
+      }
+    ]
+  }
+}

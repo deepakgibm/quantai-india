@@ -1,0 +1,977 @@
+{
+  "api_name": "backtest_strategies_list_all_strategies",
+  "method": "GET",
+  "path": "/api/v1/backtest/strategies/list",
+  "status_code": 200,
+  "response_time_ms": 32,
+  "response_payload": {
+    "total_strategies": 30,
+    "categories": [
+      {
+        "category_name": "Mean Reversion",
+        "strategies": [
+          {
+            "name": "rsi_mean_reversion",
+            "display_name": "RSI Mean Reversion",
+            "category": "Mean Reversion",
+            "description": "Trade reversals when RSI indicates extreme conditions",
+            "parameters": {
+              "rsi_period": {
+                "type": "int",
+                "default": 14,
+                "min": 7.0,
+                "max": 21.0,
+                "description": "RSI calculation period"
+              },
+              "oversold": {
+                "type": "int",
+                "default": 30,
+                "min": 20.0,
+                "max": 40.0,
+                "description": "Oversold threshold"
+              },
+              "overbought": {
+                "type": "int",
+                "default": 70,
+                "min": 60.0,
+                "max": 80.0,
+                "description": "Overbought threshold"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "ATR multiplier for stops"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          },
+          {
+            "name": "bollinger_reversion",
+            "display_name": "Bollinger Bands Reversion",
+            "category": "Mean Reversion",
+            "description": "Trade reversals at Bollinger Band extremes",
+            "parameters": {
+              "period": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 50.0,
+                "description": "MA period for bands"
+              },
+              "std_dev": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.5,
+                "max": 3.0,
+                "description": "Standard deviation multiplier"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          },
+          {
+            "name": "zscore_reversion",
+            "display_name": "Z-Score Price Reversion",
+            "category": "Mean Reversion",
+            "description": "Statistical mean reversion using z-score of price",
+            "parameters": {
+              "lookback": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 60.0,
+                "description": "Lookback period for z-score"
+              },
+              "entry_threshold": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.5,
+                "max": 3.0,
+                "description": "Z-score entry threshold"
+              },
+              "exit_threshold": {
+                "type": "float",
+                "default": 0.5,
+                "min": 0.0,
+                "max": 1.0,
+                "description": "Z-score exit threshold"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "ATR multiplier for stops"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          }
+        ],
+        "tier": "tier_1"
+      },
+      {
+        "category_name": "Breakout & Volatility",
+        "strategies": [
+          {
+            "name": "orb",
+            "display_name": "Opening Range Breakout",
+            "category": "Breakout & Volatility",
+            "description": "Trade breakouts from the first N minutes of trading",
+            "parameters": {
+              "orb_minutes": {
+                "type": "int",
+                "default": 15,
+                "min": 5.0,
+                "max": 60.0,
+                "description": "Opening range duration in minutes"
+              },
+              "buffer_pct": {
+                "type": "float",
+                "default": 0.1,
+                "min": 0.0,
+                "max": 0.5,
+                "description": "Buffer percentage for breakout confirmation"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Intraday",
+            "tier": "tier_1",
+            "is_implemented": true
+          },
+          {
+            "name": "volume_breakout",
+            "display_name": "Volume Breakout",
+            "category": "Breakout & Volatility",
+            "description": "Trade price breakouts confirmed by volume surge",
+            "parameters": {
+              "price_period": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 50.0,
+                "description": "Period for price breakout"
+              },
+              "volume_period": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 50.0,
+                "description": "Period for volume average"
+              },
+              "volume_mult": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.2,
+                "max": 3.0,
+                "description": "Volume multiplier for confirmation"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "ATR multiplier for stops"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          },
+          {
+            "name": "atr_expansion",
+            "display_name": "ATR Volatility Expansion",
+            "category": "Breakout & Volatility",
+            "description": "Trade volatility expansion after contraction periods",
+            "parameters": {
+              "atr_period": {
+                "type": "int",
+                "default": 14,
+                "min": 7.0,
+                "max": 21.0,
+                "description": "ATR period"
+              },
+              "expansion_mult": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.2,
+                "max": 2.5,
+                "description": "ATR expansion threshold multiplier"
+              },
+              "lookback": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 50.0,
+                "description": "Lookback for ATR comparison"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          }
+        ],
+        "tier": "tier_1"
+      },
+      {
+        "category_name": "Mean Reversion & Classic Breakouts",
+        "strategies": [
+          {
+            "name": "bollinger_breakout",
+            "display_name": "Bollinger Bands Breakout",
+            "category": "Mean Reversion & Classic Breakouts",
+            "description": "Trade breakouts from Bollinger Band compression zones",
+            "parameters": {
+              "period": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 50.0,
+                "description": "MA period"
+              },
+              "std_dev": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.5,
+                "max": 3.0,
+                "description": "Standard deviation"
+              },
+              "volume_mult": {
+                "type": "float",
+                "default": 1.3,
+                "min": 1.0,
+                "max": 2.0,
+                "description": "Volume multiplier"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          },
+          {
+            "name": "head_shoulders",
+            "display_name": "Head & Shoulders Pattern",
+            "category": "Mean Reversion & Classic Breakouts",
+            "description": "Classic reversal pattern detection with neckline breaks",
+            "parameters": {
+              "lookback": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 50.0,
+                "description": "Lookback for pivot detection"
+              },
+              "pattern_tolerance": {
+                "type": "float",
+                "default": 0.02,
+                "min": 0.01,
+                "max": 0.05,
+                "description": "Pattern tolerance (%)"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "ATR multiplier"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          },
+          {
+            "name": "williams_r",
+            "display_name": "Williams %R Mean Reversion",
+            "category": "Mean Reversion & Classic Breakouts",
+            "description": "Trade reversals using Williams %R indicator",
+            "parameters": {
+              "period": {
+                "type": "int",
+                "default": 14,
+                "min": 7.0,
+                "max": 21.0,
+                "description": "Williams %R period"
+              },
+              "oversold": {
+                "type": "int",
+                "default": -80,
+                "min": -90.0,
+                "max": -70.0,
+                "description": "Oversold level"
+              },
+              "overbought": {
+                "type": "int",
+                "default": -20,
+                "min": -30.0,
+                "max": -10.0,
+                "description": "Overbought level"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "ATR multiplier"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_1",
+            "is_implemented": true
+          }
+        ],
+        "tier": "tier_1"
+      },
+      {
+        "category_name": "Trend & Momentum",
+        "strategies": [
+          {
+            "name": "ma_crossover",
+            "display_name": "Moving Average Crossover",
+            "category": "Trend & Momentum",
+            "description": "Classic SMA/EMA crossover strategy with trend confirmation",
+            "parameters": {
+              "fast_period": {
+                "type": "int",
+                "default": 9,
+                "min": 5.0,
+                "max": 50.0,
+                "description": "Fast MA period"
+              },
+              "slow_period": {
+                "type": "int",
+                "default": 21,
+                "min": 10.0,
+                "max": 200.0,
+                "description": "Slow MA period"
+              },
+              "ma_type": {
+                "type": "select",
+                "default": "EMA",
+                "min": null,
+                "max": null,
+                "description": "Moving average type"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 5.0,
+                "description": "ATR multiplier for stop-loss"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 5.0,
+                "description": "Risk-reward ratio for target"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_2",
+            "is_implemented": true
+          },
+          {
+            "name": "supertrend",
+            "display_name": "SuperTrend",
+            "category": "Trend & Momentum",
+            "description": "ATR-based trailing stop system that identifies trend direction",
+            "parameters": {
+              "period": {
+                "type": "int",
+                "default": 10,
+                "min": 5.0,
+                "max": 50.0,
+                "description": "ATR period"
+              },
+              "multiplier": {
+                "type": "float",
+                "default": 3.0,
+                "min": 1.0,
+                "max": 5.0,
+                "description": "ATR multiplier"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_2",
+            "is_implemented": true
+          },
+          {
+            "name": "adx_trend",
+            "display_name": "ADX Trend Following",
+            "category": "Trend & Momentum",
+            "description": "Enter trades only when trend strength is confirmed by ADX",
+            "parameters": {
+              "adx_period": {
+                "type": "int",
+                "default": 14,
+                "min": 7.0,
+                "max": 30.0,
+                "description": "ADX calculation period"
+              },
+              "adx_threshold": {
+                "type": "int",
+                "default": 25,
+                "min": 15.0,
+                "max": 40.0,
+                "description": "Minimum ADX for trend confirmation"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "ATR multiplier for stops"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_2",
+            "is_implemented": true
+          },
+          {
+            "name": "donchian_breakout",
+            "display_name": "Donchian Channel Breakout",
+            "category": "Trend & Momentum",
+            "description": "Classic turtle trading breakout strategy using price channels",
+            "parameters": {
+              "entry_period": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 55.0,
+                "description": "Period for entry breakout"
+              },
+              "exit_period": {
+                "type": "int",
+                "default": 10,
+                "min": 5.0,
+                "max": 30.0,
+                "description": "Period for exit (opposite breakout)"
+              },
+              "atr_period": {
+                "type": "int",
+                "default": 14,
+                "min": 7.0,
+                "max": 21.0,
+                "description": "ATR period for position sizing"
+              }
+            },
+            "time_horizon": "Positional",
+            "tier": "tier_2",
+            "is_implemented": true
+          }
+        ],
+        "tier": "tier_2"
+      },
+      {
+        "category_name": "Momentum & Trend Confirmation",
+        "strategies": [
+          {
+            "name": "macd_crossover",
+            "display_name": "MACD Bullish Crossover",
+            "category": "Momentum & Trend Confirmation",
+            "description": "Trade MACD line / signal line crossovers with histogram confirmation",
+            "parameters": {
+              "fast_period": {
+                "type": "int",
+                "default": 12,
+                "min": 8.0,
+                "max": 16.0,
+                "description": "Fast EMA period"
+              },
+              "slow_period": {
+                "type": "int",
+                "default": 26,
+                "min": 20.0,
+                "max": 35.0,
+                "description": "Slow EMA period"
+              },
+              "signal_period": {
+                "type": "int",
+                "default": 9,
+                "min": 5.0,
+                "max": 15.0,
+                "description": "Signal line period"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "ATR multiplier for stops"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_2",
+            "is_implemented": true
+          },
+          {
+            "name": "stochastic_oscillator",
+            "display_name": "Stochastic Oscillator (%K / %D)",
+            "category": "Momentum & Trend Confirmation",
+            "description": "Classic stochastic momentum indicator with %K and %D crossovers",
+            "parameters": {
+              "k_period": {
+                "type": "int",
+                "default": 14,
+                "min": 5.0,
+                "max": 21.0,
+                "description": "%K period"
+              },
+              "d_period": {
+                "type": "int",
+                "default": 3,
+                "min": 1.0,
+                "max": 5.0,
+                "description": "%D smoothing period"
+              },
+              "oversold": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 30.0,
+                "description": "Oversold threshold"
+              },
+              "overbought": {
+                "type": "int",
+                "default": 80,
+                "min": 70.0,
+                "max": 90.0,
+                "description": "Overbought threshold"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "ATR multiplier"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_2",
+            "is_implemented": true
+          },
+          {
+            "name": "price_momentum",
+            "display_name": "Price Momentum (6-month / 52-week ROC)",
+            "category": "Momentum & Trend Confirmation",
+            "description": "Trade based on rate of change over extended periods",
+            "parameters": {
+              "lookback_period": {
+                "type": "int",
+                "default": 126,
+                "min": 63.0,
+                "max": 252.0,
+                "description": "Lookback period (126=6mo, 252=1yr)"
+              },
+              "entry_threshold": {
+                "type": "float",
+                "default": 10.0,
+                "min": 5.0,
+                "max": 30.0,
+                "description": "ROC threshold for entry (%)"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "ATR multiplier"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Positional",
+            "tier": "tier_2",
+            "is_implemented": true
+          },
+          {
+            "name": "rsi_macd_confluence",
+            "display_name": "RSI + MACD Confluence",
+            "category": "Momentum & Trend Confirmation",
+            "description": "Multiple indicator confluence for higher probability trades",
+            "parameters": {
+              "rsi_period": {
+                "type": "int",
+                "default": 14,
+                "min": 7.0,
+                "max": 21.0,
+                "description": "RSI period"
+              },
+              "rsi_oversold": {
+                "type": "int",
+                "default": 30,
+                "min": 20.0,
+                "max": 40.0,
+                "description": "RSI oversold level"
+              },
+              "rsi_overbought": {
+                "type": "int",
+                "default": 70,
+                "min": 60.0,
+                "max": 80.0,
+                "description": "RSI overbought level"
+              },
+              "macd_fast": {
+                "type": "int",
+                "default": 12,
+                "min": 8.0,
+                "max": 16.0,
+                "description": "MACD fast period"
+              },
+              "macd_slow": {
+                "type": "int",
+                "default": 26,
+                "min": 20.0,
+                "max": 35.0,
+                "description": "MACD slow period"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "ATR multiplier"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_2",
+            "is_implemented": true
+          }
+        ],
+        "tier": "tier_2"
+      },
+      {
+        "category_name": "VWAP & Institutional",
+        "strategies": [
+          {
+            "name": "vwap_pullback",
+            "display_name": "VWAP Pullback",
+            "category": "VWAP & Institutional",
+            "description": "Trade pullbacks to VWAP when price is trending",
+            "parameters": {
+              "trend_ema": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 50.0,
+                "description": "EMA period for trend filter"
+              },
+              "vwap_buffer": {
+                "type": "float",
+                "default": 0.1,
+                "min": 0.05,
+                "max": 0.5,
+                "description": "VWAP touch buffer (%)"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 1.5,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "ATR multiplier for stops"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Intraday",
+            "tier": "tier_3",
+            "is_implemented": true
+          },
+          {
+            "name": "vwap_trend",
+            "display_name": "VWAP Trend Confirmation",
+            "category": "VWAP & Institutional",
+            "description": "Use VWAP as institutional reference for trend direction",
+            "parameters": {
+              "confirmation_bars": {
+                "type": "int",
+                "default": 3,
+                "min": 1.0,
+                "max": 10.0,
+                "description": "Bars above/below VWAP for confirmation"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "ATR multiplier for stops"
+              },
+              "risk_reward": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "Risk-reward ratio"
+              }
+            },
+            "time_horizon": "Intraday",
+            "tier": "tier_3",
+            "is_implemented": true
+          }
+        ],
+        "tier": "tier_3"
+      },
+      {
+        "category_name": "Advanced & Structural Strategies",
+        "strategies": [
+          {
+            "name": "atr_volatility_breakout",
+            "display_name": "ATR-Based Volatility Breakout",
+            "category": "Advanced & Structural Strategies",
+            "description": "Trade breakouts during high volatility periods using ATR",
+            "parameters": {
+              "atr_period": {
+                "type": "int",
+                "default": 14,
+                "min": 7.0,
+                "max": 21.0,
+                "description": "ATR calculation period"
+              },
+              "breakout_mult": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 4.0,
+                "description": "ATR breakout multiplier"
+              }
+            },
+            "time_horizon": "Intraday",
+            "tier": "tier_3",
+            "is_implemented": true
+          },
+          {
+            "name": "cci_deviation",
+            "display_name": "CCI Deviation",
+            "category": "Advanced & Structural Strategies",
+            "description": "Commodity Channel Index for extreme deviation trades",
+            "parameters": {
+              "period": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 40.0,
+                "description": "CCI period"
+              },
+              "overbought": {
+                "type": "int",
+                "default": 100,
+                "min": 80.0,
+                "max": 150.0,
+                "description": "Overbought threshold"
+              },
+              "oversold": {
+                "type": "int",
+                "default": -100,
+                "min": -150.0,
+                "max": -80.0,
+                "description": "Oversold threshold"
+              },
+              "atr_multiplier": {
+                "type": "float",
+                "default": 2.0,
+                "min": 1.0,
+                "max": 3.0,
+                "description": "ATR multiplier"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_3",
+            "is_implemented": true
+          },
+          {
+            "name": "donchian_mean_reversion",
+            "display_name": "Donchian Channel Mean Reversion",
+            "category": "Advanced & Structural Strategies",
+            "description": "Trade mean reversion within Donchian channels",
+            "parameters": {
+              "period": {
+                "type": "int",
+                "default": 20,
+                "min": 10.0,
+                "max": 55.0,
+                "description": "Channel period"
+              }
+            },
+            "time_horizon": "Swing",
+            "tier": "tier_3",
+            "is_implemented": true
+          },
+          {
+            "name": "fibonacci_retracement",
+            "display_name": "Fibonacci Retracement Bounce",
+            "category": "Advanced & Structural Strategies",
+            "description": "[NOT IMPLEMENTED] Trade bounces at key Fibonacci levels",
+            "parameters": {},
+            "time_horizon": "Swing",
+            "tier": "tier_3",
+            "is_implemented": false
+          },
+          {
+            "name": "flag_pennant",
+            "display_name": "Flag & Pennant Continuation",
+            "category": "Advanced & Structural Strategies",
+            "description": "[NOT IMPLEMENTED] Continuation pattern detection",
+            "parameters": {},
+            "time_horizon": "Swing",
+            "tier": "tier_3",
+            "is_implemented": false
+          },
+          {
+            "name": "ichimoku_cloud",
+            "display_name": "Ichimoku Cloud Trend",
+            "category": "Advanced & Structural Strategies",
+            "description": "[NOT IMPLEMENTED] Complex multi-indicator cloud system",
+            "parameters": {},
+            "time_horizon": "Positional",
+            "tier": "tier_3",
+            "is_implemented": false
+          },
+          {
+            "name": "golden_cross",
+            "display_name": "Moving Average Golden Cross (50 SMA / 200 SMA)",
+            "category": "Advanced & Structural Strategies",
+            "description": "Classic long-term trend following using 50/200 SMA crossover",
+            "parameters": {
+              "fast_period": {
+                "type": "int",
+                "default": 50,
+                "min": 30.0,
+                "max": 100.0,
+                "description": "Fast SMA period"
+              },
+              "slow_period": {
+                "type": "int",
+                "default": 200,
+                "min": 150.0,
+                "max": 300.0,
+                "description": "Slow SMA period"
+              }
+            },
+            "time_horizon": "Positional",
+            "tier": "tier_3",
+            "is_implemented": true
+          },
+          {
+            "name": "obv_divergence",
+            "display_name": "OBV Divergence",
+            "category": "Advanced & Structural Strategies",
+            "description": "[NOT IMPLEMENTED] On-Balance Volume divergence detection",
+            "parameters": {},
+            "time_horizon": "Swing",
+            "tier": "tier_3",
+            "is_implemented": false
+          },
+          {
+            "name": "parabolic_sar",
+            "display_name": "Parabolic SAR Reversal",
+            "category": "Advanced & Structural Strategies",
+            "description": "[NOT IMPLEMENTED] Stop and Reverse system",
+            "parameters": {},
+            "time_horizon": "Swing",
+            "tier": "tier_3",
+            "is_implemented": false
+          },
+          {
+            "name": "volume_surge",
+            "display_name": "Volume Surge Accumulation",
+            "category": "Advanced & Structural Strategies",
+            "description": "[NOT IMPLEMENTED] Detect institutional accumulation via volume",
+            "parameters": {},
+            "time_horizon": "Swing",
+            "tier": "tier_3",
+            "is_implemented": false
+          },
+          {
+            "name": "mtf_confluence",
+            "display_name": "Multi-Timeframe Confluence",
+            "category": "Advanced & Structural Strategies",
+            "description": "[NOT IMPLEMENTED] Daily trend + 4H structure + 1H entry",
+            "parameters": {},
+            "time_horizon": "Intraday",
+            "tier": "tier_3",
+            "is_implemented": false
+          }
+        ],
+        "tier": "tier_3"
+      }
+    ],
+    "tiers": {
+      "tier_1": 9,
+      "tier_2": 8,
+      "tier_3": 13
+    }
+  }
+}

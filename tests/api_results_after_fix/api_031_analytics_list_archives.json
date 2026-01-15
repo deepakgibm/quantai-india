@@ -1,0 +1,12 @@
+{
+  "api_name": "analytics_list_archives",
+  "method": "GET",
+  "path": "/api/analytics/archive/list",
+  "status_code": 200,
+  "response_time_ms": 32,
+  "response_payload": {
+    "status": "success",
+    "archives": [],
+    "count": 0
+  }
+}

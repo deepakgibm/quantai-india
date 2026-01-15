@@ -1,0 +1,17 @@
+{
+  "api_name": "analytics_get_correlation_matrix",
+  "method": "POST",
+  "path": "/api/analytics/correlation",
+  "status_code": 200,
+  "response_time_ms": 51,
+  "response_payload": {
+    "status": "success",
+    "symbols": [
+      "RELIANCE",
+      "TCS",
+      "INFY"
+    ],
+    "correlation_matrix": {},
+    "lookback_days": 60
+  }
+}

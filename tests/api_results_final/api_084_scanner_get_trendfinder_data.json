@@ -1,0 +1,19 @@
+{
+  "api_name": "scanner_get_trendfinder_data",
+  "method": "GET",
+  "path": "/api/scanner/trendfinder",
+  "status_code": 200,
+  "response_time_ms": 45293,
+  "response_payload": {
+    "type": "trendfinder_scan",
+    "timestamp": "2026-01-10T16:16:52.872063",
+    "data": [],
+    "count": 0,
+    "status": {
+      "source": "AI_DB",
+      "is_healthy": false,
+      "last_update": "2026-01-10T16:16:52.872093",
+      "ai_model": "TrendFinder v1.0"
+    }
+  }
+}

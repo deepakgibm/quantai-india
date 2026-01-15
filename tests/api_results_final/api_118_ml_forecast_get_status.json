@@ -1,0 +1,19 @@
+{
+  "api_name": "ml_forecast_get_status",
+  "method": "GET",
+  "path": "/api/v1/ml/status",
+  "status_code": 200,
+  "response_time_ms": 74,
+  "response_payload": {
+    "status": "available",
+    "model_version": "apf_v1",
+    "supported_timeframes": [
+      "5m",
+      "15m",
+      "1h",
+      "1d"
+    ],
+    "max_horizon": 50,
+    "xgboost_available": true
+  }
+}

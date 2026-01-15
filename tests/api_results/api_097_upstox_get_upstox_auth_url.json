@@ -1,0 +1,15 @@
+{
+  "api_name": "upstox_get_upstox_auth_url",
+  "method": "GET",
+  "path": "/api/upstox/auth-url",
+  "request_payload": {},
+  "response_payload": {
+    "auth_url": "https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=7498f0fe-7ae7-4fb4-b230-13f83ccea251&redirect_uri=http://localhost:3000/callback"
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:58.709476Z",
+  "end_time_utc": "2026-01-10T13:07:58.734561Z",
+  "response_time_ms": 24,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

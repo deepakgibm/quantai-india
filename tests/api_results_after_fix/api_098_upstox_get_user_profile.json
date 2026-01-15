@@ -1,0 +1,15 @@
+{
+  "api_name": "upstox_get_user_profile",
+  "method": "GET",
+  "path": "/api/upstox/user-profile",
+  "status_code": 200,
+  "response_time_ms": 29,
+  "response_payload": {
+    "id": 16,
+    "email": "dthat53@gmail.com",
+    "full_name": "Deepak53",
+    "username": "dthat35",
+    "upstox_connected": false,
+    "upstox_id": null
+  }
+}

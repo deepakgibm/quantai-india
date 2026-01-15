@@ -1,0 +1,18 @@
+{
+  "api_name": "ai_process_ai_prompt",
+  "method": "POST",
+  "path": "/api/ai/prompt",
+  "status_code": 422,
+  "response_time_ms": 24,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'prompt' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:09.525020Z",
+      "request_id": "b049cf47-7b30-46b7-8ac6-7527f563f3f6"
+    }
+  }
+}

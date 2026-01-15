@@ -1,0 +1,19 @@
+{
+  "api_name": "scanner_get_momentum_data",
+  "method": "GET",
+  "path": "/api/scanner/momentum",
+  "status_code": 200,
+  "response_time_ms": 37654,
+  "response_payload": {
+    "type": "bucket_update",
+    "timestamp": "2026-01-10T16:15:15.549649",
+    "data": [],
+    "status": {
+      "source": "DB",
+      "is_healthy": false,
+      "last_tick": "2026-01-10T16:15:15.549653",
+      "stock_count": 0,
+      "poll_interval": 60
+    }
+  }
+}

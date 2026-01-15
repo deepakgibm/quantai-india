@@ -1,0 +1,132 @@
+{
+  "api_name": "experiment_lab_run_backtest",
+  "method": "POST",
+  "path": "/api/v1/experiment-lab/backtest",
+  "status_code": 200,
+  "response_time_ms": 216,
+  "response_payload": {
+    "disclaimer": "\u26a0\ufe0f BACKTESTING / SIMULATION ONLY - Past performance does not guarantee future results",
+    "config": {
+      "symbol": "RELIANCE",
+      "timeframe": "1D",
+      "start_date": "2025-01-10",
+      "end_date": "2026-01-10",
+      "initial_capital": 1000000,
+      "risk_mode": "percent_capital",
+      "risk_percent": 2.0
+    },
+    "results": [
+      {
+        "strategy_id": 1,
+        "strategy_name": "RSI Mean Reversion",
+        "category": "A",
+        "metrics": {
+          "total_trades": 9,
+          "winning_trades": 4,
+          "losing_trades": 5,
+          "win_rate": 44.44,
+          "total_pnl": -2559.59,
+          "total_return_pct": -0.26,
+          "cagr": -0.28,
+          "max_drawdown": 2615.07,
+          "max_drawdown_pct": 0.26,
+          "sharpe_ratio": -7.58,
+          "sortino_ratio": -78.97,
+          "calmar_ratio": -1.06,
+          "profit_factor": 0.36,
+          "avg_win": 356.74,
+          "avg_loss": 797.31,
+          "avg_win_pct": 1.83,
+          "avg_loss_pct": 4.11,
+          "largest_win": 620.68,
+          "largest_loss": -846.44,
+          "avg_holding_period": 12.4,
+          "initial_capital": 1000000,
+          "final_capital": 997440.41,
+          "equity_curve": [
+            1000000,
+            999293.66,
+            998460.85,
+            999081.53,
+            999245.44,
+            998398.99,
+            997625.78,
+            998212.68,
+            997384.93,
+            997440.41
+          ],
+          "drawdown_curve": [
+            0.0,
+            0.07,
+            0.15,
+            0.09,
+            0.08,
+            0.16,
+            0.24,
+            0.18,
+            0.26,
+            0.26
+          ]
+        },
+        "config": {
+          "symbol": "RELIANCE",
+          "timeframe": "1D",
+          "start_date": "2025-01-10",
+          "end_date": "2026-01-10",
+          "initial_capital": 1000000
+        },
+        "run_time_seconds": 0.09
+      },
+      {
+        "strategy_id": 2,
+        "strategy_name": "Bollinger Bands Breakout",
+        "category": "A",
+        "metrics": {
+          "total_trades": 3,
+          "winning_trades": 1,
+          "losing_trades": 2,
+          "win_rate": 33.33,
+          "total_pnl": -414.17,
+          "total_return_pct": -0.04,
+          "cagr": -0.12,
+          "max_drawdown": 611.75,
+          "max_drawdown_pct": 0.06,
+          "sharpe_ratio": -3.6,
+          "sortino_ratio": -88.23,
+          "calmar_ratio": -2.04,
+          "profit_factor": 0.65,
+          "avg_win": 764.41,
+          "avg_loss": 589.29,
+          "avg_win_pct": 3.91,
+          "avg_loss_pct": 3.08,
+          "largest_win": 764.41,
+          "largest_loss": -611.75,
+          "avg_holding_period": 4.7,
+          "initial_capital": 1000000,
+          "final_capital": 999585.83,
+          "equity_curve": [
+            1000000,
+            999388.25,
+            1000152.66,
+            999585.83
+          ],
+          "drawdown_curve": [
+            0.0,
+            0.06,
+            0.0,
+            0.06
+          ]
+        },
+        "config": {
+          "symbol": "RELIANCE",
+          "timeframe": "1D",
+          "start_date": "2025-01-10",
+          "end_date": "2026-01-10",
+          "initial_capital": 1000000
+        },
+        "run_time_seconds": 0.07
+      }
+    ],
+    "total_strategies": 2
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "api_name": "heatmap_get_heatmap_sectors",
+  "method": "GET",
+  "path": "/api/heatmap/sectors",
+  "request_payload": {},
+  "response_payload": {
+    "status": "success",
+    "data": []
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:57.125928Z",
+  "end_time_utc": "2026-01-10T13:07:57.166807Z",
+  "response_time_ms": 40,
+  "database_state_notes": "No DB interaction defined",
+  "errors": []
+}

@@ -1,0 +1,15 @@
+{
+  "api_name": "analytics_get_archive_stats",
+  "method": "GET",
+  "path": "/api/analytics/archive/stats",
+  "status_code": 200,
+  "response_time_ms": 94,
+  "response_payload": {
+    "status": "success",
+    "archive_dir": "/app/services/../data/parquet",
+    "total_files": 0,
+    "total_size_mb": 0,
+    "total_rows": 0,
+    "archives": []
+  }
+}

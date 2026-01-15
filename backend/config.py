@@ -62,6 +62,21 @@ class Settings:
     UPSTOX_RATE_LIMIT_PER_MINUTE = int(os.getenv("UPSTOX_RATE_LIMIT_PER_MINUTE", "100"))
     UPSTOX_RATE_LIMIT_BURST = int(os.getenv("UPSTOX_RATE_LIMIT_BURST", "10"))
     
+    # Standard Timeouts (in seconds)
+    DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "10"))
+    UPSTOX_TIMEOUT = int(os.getenv("UPSTOX_TIMEOUT", "30"))
+    GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "60"))
+    DB_TIMEOUT = int(os.getenv("DB_TIMEOUT", "10"))
+    
+    # Retry Configuration
+    MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+    RETRY_BACKOFF_FACTOR = float(os.getenv("RETRY_BACKOFF_FACTOR", "0.5"))
+    
+    # Observability Settings
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    METRICS_ENABLED = os.getenv("METRICS_ENABLED", "true").lower() == "true"
+    TRACING_ENABLED = os.getenv("TRACING_ENABLED", "true").lower() == "true"
+    
     # ML Model Parameters
     ML_LOOKBACK_DAYS = int(os.getenv("ML_LOOKBACK_DAYS", "30"))
     ML_MIN_TRAINING_SAMPLES = int(os.getenv("ML_MIN_TRAINING_SAMPLES", "1000"))

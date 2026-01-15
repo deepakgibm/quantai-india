@@ -1,0 +1,14 @@
+{
+  "api_name": "ai_get_vwap_alias",
+  "method": "GET",
+  "path": "/api/ai/vwap",
+  "status_code": 200,
+  "response_time_ms": 37,
+  "response_payload": {
+    "status": "success",
+    "count": 0,
+    "stocks": [],
+    "scan_type": "vwap",
+    "description": "unterminated triple-quoted string literal (detected at line 146) (vwap_scanner.py, line 59)"
+  }
+}

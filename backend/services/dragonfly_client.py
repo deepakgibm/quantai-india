@@ -229,34 +229,75 @@ class CacheManager:
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache. Raises CacheUnavailableError if not connected."""
         self._ensure_connected()
+        import time
+        start = time.perf_counter()
         try:
             value = self._client.get(key)
-            if value is not None:
-                self._hits += 1
-                return self._deserialize(value)
-            self._misses += 1
-            return None
+            duration = time.perf_counter() - start
+            
+            # Record metrics
+            try:
+                from core.observability.metrics import get_metrics
+                metrics = get_metrics()
+                if value is not None:
+                    self._hits += 1
+                    metrics.record_cache_operation("get", "hit", duration)
+                else:
+                    self._misses += 1
+                    metrics.record_cache_operation("get", "miss", duration)
+            except ImportError:
+                if value is not None:
+                    self._hits += 1
+                else:
+                    self._misses += 1
+                    
+            return self._deserialize(value)
         except redis.ConnectionError as e:
             logger.error(f"DragonflyDB connection error: {e}")
             self._is_connected = False
             raise CacheUnavailableError(f"Cache connection lost: {e}")
         except Exception as e:
+            duration = time.perf_counter() - start
             logger.error(f"Cache get error: {e}")
+            # Record error metric
+            try:
+                from core.observability.metrics import get_metrics
+                get_metrics().record_cache_operation("get", "error", duration)
+            except ImportError:
+                pass
             self._misses += 1
             raise
     
     def set(self, key: str, value: Any, ttl: int = TTLPolicy.INDICATOR) -> bool:
         """Set value in cache with TTL. Raises CacheUnavailableError if not connected."""
         self._ensure_connected()
+        import time
+        start = time.perf_counter()
         try:
             self._client.setex(key, ttl, self._serialize(value))
+            duration = time.perf_counter() - start
+            
+            # Record metrics
+            try:
+                from core.observability.metrics import get_metrics
+                get_metrics().record_cache_operation("set", "success", duration)
+            except ImportError:
+                pass
+                
             return True
         except redis.ConnectionError as e:
             logger.error(f"DragonflyDB connection error: {e}")
             self._is_connected = False
             raise CacheUnavailableError(f"Cache connection lost: {e}")
         except Exception as e:
+            duration = time.perf_counter() - start
             logger.error(f"Cache set error: {e}")
+            # Record error metric
+            try:
+                from core.observability.metrics import get_metrics
+                get_metrics().record_cache_operation("set", "error", duration)
+            except ImportError:
+                pass
             raise
     
     def delete(self, key: str) -> bool:

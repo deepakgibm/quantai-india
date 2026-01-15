@@ -1,0 +1,34 @@
+{
+  "api_name": "trading_get_top_gainers",
+  "method": "GET",
+  "path": "/api/trading/top-gainers",
+  "status_code": 200,
+  "response_time_ms": 34,
+  "response_payload": [
+    {
+      "symbol": "Alkyl Amines Chemicals Ltd",
+      "price": 1607.5,
+      "change": 4.5
+    },
+    {
+      "symbol": "Fertilisers and Chemicals Travancore Ltd",
+      "price": 891.15,
+      "change": 1.94
+    },
+    {
+      "symbol": "Dixon Technologies (India) Ltd",
+      "price": 11987.0,
+      "change": 1.84
+    },
+    {
+      "symbol": "Ceat Ltd",
+      "price": 3850.6,
+      "change": 1.77
+    },
+    {
+      "symbol": "AIA Engineering Ltd",
+      "price": 4059.1,
+      "change": 1.75
+    }
+  ]
+}

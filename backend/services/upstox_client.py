@@ -186,9 +186,21 @@ class UpstoxClient:
             
             results = {}
             if data.get("status") == "success" and data.get("data"):
+                # Create a mapping for key normalization
+                # If we requested NSE_EQ|RELIANCE, but got NSE_EQ:RELIANCE, 
+                # we want to map it back to the requested key.
+                requested_keys_map = {}
+                for rk in instrument_keys:
+                    requested_keys_map[rk] = rk
+                    # Also map variants
+                    if "|" in rk:
+                        requested_keys_map[rk.replace("|", ":")] = rk
+                    elif ":" in rk:
+                        requested_keys_map[rk.replace(":", "|")] = rk
+
                 for key, quote_data in data["data"].items():
-                    # Upstox might use different key format in response (e.g. NSE_EQ:RELIANCE instead of NSE_EQ|RELIANCE)
-                    # We should map back if possible, or just return the data
+                    # Resolve to the requested key if possible
+                    final_key = requested_keys_map.get(key, key)
                     
                     prev_close = quote_data.get("previous_close") or quote_data.get("ohlc", {}).get("close")
                     ltp = quote_data.get("last_price", 0)
@@ -199,7 +211,7 @@ class UpstoxClient:
                     if not change_pct and prev_close and prev_close > 0:
                         change_pct = ((ltp - prev_close) / prev_close) * 100
                     
-                    results[key] = {
+                    results[final_key] = {
                         "timestamp": datetime.now(),
                         "open": quote_data.get("ohlc", {}).get("open"),
                         "high": quote_data.get("ohlc", {}).get("high"),

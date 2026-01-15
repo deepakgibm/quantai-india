@@ -1,0 +1,18 @@
+{
+  "api_name": "algorithms_get_algorithm",
+  "method": "GET",
+  "path": "/api/algorithms/{algorithm_id}",
+  "status_code": 422,
+  "response_time_ms": 38,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'algorithm_id' must be a valid integer"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:40.352751Z",
+      "request_id": "ff84068a-02c2-4a51-b9bb-e423c9e40080"
+    }
+  }
+}

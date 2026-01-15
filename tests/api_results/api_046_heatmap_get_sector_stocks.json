@@ -1,0 +1,16 @@
+{
+  "api_name": "heatmap_get_sector_stocks",
+  "method": "GET",
+  "path": "/api/heatmap/sector/IT",
+  "request_payload": {},
+  "response_payload": {
+    "status": "success",
+    "stocks": []
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:57.168058Z",
+  "end_time_utc": "2026-01-10T13:07:57.179398Z",
+  "response_time_ms": 11,
+  "database_state_notes": "No DB interaction defined",
+  "errors": []
+}

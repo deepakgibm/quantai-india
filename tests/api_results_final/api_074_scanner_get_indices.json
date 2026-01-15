@@ -1,0 +1,28 @@
+{
+  "api_name": "scanner_get_indices",
+  "method": "GET",
+  "path": "/api/scanner/indices",
+  "status_code": 200,
+  "response_time_ms": 27,
+  "response_payload": {
+    "status": "success",
+    "indices": [
+      {
+        "name": "NIFTY 50",
+        "stocks": 50
+      },
+      {
+        "name": "NIFTY 100",
+        "stocks": 100
+      },
+      {
+        "name": "NIFTY 200",
+        "stocks": 200
+      },
+      {
+        "name": "NIFTY 500",
+        "stocks": 500
+      }
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "api_name": "auth_get_me",
+  "method": "GET",
+  "path": "/api/auth/me",
+  "request_payload": {},
+  "response_payload": {
+    "email": "dthat53@gmail.com",
+    "username": "dthat35",
+    "full_name": "Deepak53",
+    "id": 16,
+    "is_active": true,
+    "is_upstox_connected": false,
+    "created_at": "2026-01-10T09:09:55.549363"
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:56.985157Z",
+  "end_time_utc": "2026-01-10T13:07:57.003333Z",
+  "response_time_ms": 18,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

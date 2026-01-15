@@ -1,0 +1,45 @@
+{
+  "api_name": "trading_get_gainers_losers",
+  "method": "GET",
+  "path": "/api/trading/gainers-losers",
+  "status_code": 200,
+  "response_time_ms": 13,
+  "response_payload": [
+    {
+      "ticker": "Alkyl Amines Chemicals Ltd",
+      "change": 4.5,
+      "color": "bg-green-500",
+      "price": 1607.5
+    },
+    {
+      "ticker": "Fertilisers and Chemicals Travancore Ltd",
+      "change": 1.94,
+      "color": "bg-green-500",
+      "price": 891.15
+    },
+    {
+      "ticker": "Dixon Technologies (India) Ltd",
+      "change": 1.84,
+      "color": "bg-green-500",
+      "price": 11987.0
+    },
+    {
+      "ticker": "Bharat Heavy Electricals Ltd",
+      "change": -10.48,
+      "color": "bg-red-500",
+      "price": 271.75
+    },
+    {
+      "ticker": "Gujarat Mineral Development Corporation Ltd",
+      "change": -6.48,
+      "color": "bg-red-500",
+      "price": 567.75
+    },
+    {
+      "ticker": "ABB India Ltd",
+      "change": -5.25,
+      "color": "bg-red-500",
+      "price": 5021.0
+    }
+  ]
+}

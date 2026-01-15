@@ -1,0 +1,379 @@
+{
+  "api_name": "ai_get_top3_picks",
+  "method": "GET",
+  "path": "/api/ai/top3-picks",
+  "status_code": 200,
+  "response_time_ms": 50,
+  "response_payload": {
+    "status": "success",
+    "count": 10,
+    "stocks": [
+      {
+        "symbol": "MINDACORP",
+        "name": "Minda Corporation Ltd.",
+        "action": "BUY",
+        "confidence": 90,
+        "current_price": 596.05,
+        "entry_range": "593.07-599.03",
+        "target_1": 612.46,
+        "target_2": 628.86,
+        "stop_loss": 571.44,
+        "expected_move": "+2.8%",
+        "indicators": {
+          "rsi": 56.08,
+          "volume_ratio": 2.8,
+          "macd_histogram": 0.65
+        },
+        "reason": "Bullish EMA crossover. 2.8x volume"
+      },
+      {
+        "symbol": "PRAJIND",
+        "name": "Praj Industries Ltd.",
+        "action": "BUY",
+        "confidence": 90,
+        "current_price": 332.6,
+        "entry_range": "330.94-334.26",
+        "target_1": 346.01,
+        "target_2": 359.41,
+        "stop_loss": 312.49,
+        "expected_move": "+4.0%",
+        "indicators": {
+          "rsi": 54.66,
+          "volume_ratio": 1.68,
+          "macd_histogram": 3.54
+        },
+        "reason": "Bullish EMA crossover. 1.7x volume"
+      },
+      {
+        "symbol": "SYNGENE",
+        "name": "Syngene International Ltd.",
+        "action": "BUY",
+        "confidence": 90,
+        "current_price": 657.1,
+        "entry_range": "653.81-660.39",
+        "target_1": 670.91,
+        "target_2": 684.72,
+        "stop_loss": 636.38,
+        "expected_move": "+2.1%",
+        "indicators": {
+          "rsi": 54.81,
+          "volume_ratio": 2.02,
+          "macd_histogram": 1.95
+        },
+        "reason": "Bullish EMA crossover. 2.0x volume"
+      },
+      {
+        "symbol": "MANAPPURAM",
+        "name": "Manappuram Finance Ltd.",
+        "action": "BUY",
+        "confidence": 84,
+        "current_price": 286.25,
+        "entry_range": "284.82-287.68",
+        "target_1": 293.03,
+        "target_2": 299.81,
+        "stop_loss": 276.08,
+        "expected_move": "+2.4%",
+        "indicators": {
+          "rsi": 50.63,
+          "volume_ratio": 1.34,
+          "macd_histogram": 0.89
+        },
+        "reason": "Bullish EMA crossover"
+      },
+      {
+        "symbol": "SWANCORP",
+        "name": "Swan Corp Ltd.",
+        "action": "BUY",
+        "confidence": 84,
+        "current_price": 471.1,
+        "entry_range": "468.74-473.46",
+        "target_1": 485.87,
+        "target_2": 500.64,
+        "stop_loss": 448.95,
+        "expected_move": "+3.1%",
+        "indicators": {
+          "rsi": 63.7,
+          "volume_ratio": 1.06,
+          "macd_histogram": 2.47
+        },
+        "reason": "Bullish EMA crossover. momentum RSI"
+      },
+      {
+        "symbol": "CESC",
+        "name": "CESC Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 165.82,
+        "entry_range": "164.99-166.65",
+        "target_1": 162.21,
+        "target_2": 158.61,
+        "stop_loss": 171.23,
+        "expected_move": "-2.2%",
+        "indicators": {
+          "rsi": 40.25,
+          "volume_ratio": 1.05,
+          "macd_histogram": -0.43
+        },
+        "reason": "Bearish EMA crossover"
+      },
+      {
+        "symbol": "GUJGASLTD",
+        "name": "Gujarat Gas Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 385.6,
+        "entry_range": "383.67-387.53",
+        "target_1": 376.48,
+        "target_2": 367.36,
+        "stop_loss": 399.28,
+        "expected_move": "-2.4%",
+        "indicators": {
+          "rsi": 35.84,
+          "volume_ratio": 1.23,
+          "macd_histogram": -1.15
+        },
+        "reason": "Bearish EMA crossover. oversold RSI"
+      },
+      {
+        "symbol": "KOTAKBANK",
+        "name": "Kotak Mahindra Bank Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 2069.9,
+        "entry_range": "2059.55-2080.25",
+        "target_1": 2043.11,
+        "target_2": 2016.33,
+        "stop_loss": 2110.08,
+        "expected_move": "-1.3%",
+        "indicators": {
+          "rsi": 39.46,
+          "volume_ratio": 1.04,
+          "macd_histogram": -1.03
+        },
+        "reason": "Bearish EMA crossover. oversold RSI"
+      },
+      {
+        "symbol": "RBLBANK",
+        "name": "RBL Bank Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 296.95,
+        "entry_range": "295.47-298.43",
+        "target_1": 288.85,
+        "target_2": 280.75,
+        "stop_loss": 309.1,
+        "expected_move": "-2.7%",
+        "indicators": {
+          "rsi": 37.97,
+          "volume_ratio": 1.25,
+          "macd_histogram": -0.79
+        },
+        "reason": "Bearish EMA crossover. oversold RSI"
+      },
+      {
+        "symbol": "RADICO",
+        "name": "Radico Khaitan Ltd",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 3163.4,
+        "entry_range": "3147.58-3179.22",
+        "target_1": 3082.31,
+        "target_2": 3001.23,
+        "stop_loss": 3285.03,
+        "expected_move": "-2.6%",
+        "indicators": {
+          "rsi": 46.06,
+          "volume_ratio": 1.46,
+          "macd_histogram": -13.44
+        },
+        "reason": "Bearish EMA crossover"
+      }
+    ],
+    "buy_signals": [
+      {
+        "symbol": "MINDACORP",
+        "name": "Minda Corporation Ltd.",
+        "action": "BUY",
+        "confidence": 90,
+        "current_price": 596.05,
+        "entry_range": "593.07-599.03",
+        "target_1": 612.46,
+        "target_2": 628.86,
+        "stop_loss": 571.44,
+        "expected_move": "+2.8%",
+        "indicators": {
+          "rsi": 56.08,
+          "volume_ratio": 2.8,
+          "macd_histogram": 0.65
+        },
+        "reason": "Bullish EMA crossover. 2.8x volume"
+      },
+      {
+        "symbol": "PRAJIND",
+        "name": "Praj Industries Ltd.",
+        "action": "BUY",
+        "confidence": 90,
+        "current_price": 332.6,
+        "entry_range": "330.94-334.26",
+        "target_1": 346.01,
+        "target_2": 359.41,
+        "stop_loss": 312.49,
+        "expected_move": "+4.0%",
+        "indicators": {
+          "rsi": 54.66,
+          "volume_ratio": 1.68,
+          "macd_histogram": 3.54
+        },
+        "reason": "Bullish EMA crossover. 1.7x volume"
+      },
+      {
+        "symbol": "SYNGENE",
+        "name": "Syngene International Ltd.",
+        "action": "BUY",
+        "confidence": 90,
+        "current_price": 657.1,
+        "entry_range": "653.81-660.39",
+        "target_1": 670.91,
+        "target_2": 684.72,
+        "stop_loss": 636.38,
+        "expected_move": "+2.1%",
+        "indicators": {
+          "rsi": 54.81,
+          "volume_ratio": 2.02,
+          "macd_histogram": 1.95
+        },
+        "reason": "Bullish EMA crossover. 2.0x volume"
+      },
+      {
+        "symbol": "MANAPPURAM",
+        "name": "Manappuram Finance Ltd.",
+        "action": "BUY",
+        "confidence": 84,
+        "current_price": 286.25,
+        "entry_range": "284.82-287.68",
+        "target_1": 293.03,
+        "target_2": 299.81,
+        "stop_loss": 276.08,
+        "expected_move": "+2.4%",
+        "indicators": {
+          "rsi": 50.63,
+          "volume_ratio": 1.34,
+          "macd_histogram": 0.89
+        },
+        "reason": "Bullish EMA crossover"
+      },
+      {
+        "symbol": "SWANCORP",
+        "name": "Swan Corp Ltd.",
+        "action": "BUY",
+        "confidence": 84,
+        "current_price": 471.1,
+        "entry_range": "468.74-473.46",
+        "target_1": 485.87,
+        "target_2": 500.64,
+        "stop_loss": 448.95,
+        "expected_move": "+3.1%",
+        "indicators": {
+          "rsi": 63.7,
+          "volume_ratio": 1.06,
+          "macd_histogram": 2.47
+        },
+        "reason": "Bullish EMA crossover. momentum RSI"
+      }
+    ],
+    "sell_signals": [
+      {
+        "symbol": "CESC",
+        "name": "CESC Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 165.82,
+        "entry_range": "164.99-166.65",
+        "target_1": 162.21,
+        "target_2": 158.61,
+        "stop_loss": 171.23,
+        "expected_move": "-2.2%",
+        "indicators": {
+          "rsi": 40.25,
+          "volume_ratio": 1.05,
+          "macd_histogram": -0.43
+        },
+        "reason": "Bearish EMA crossover"
+      },
+      {
+        "symbol": "GUJGASLTD",
+        "name": "Gujarat Gas Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 385.6,
+        "entry_range": "383.67-387.53",
+        "target_1": 376.48,
+        "target_2": 367.36,
+        "stop_loss": 399.28,
+        "expected_move": "-2.4%",
+        "indicators": {
+          "rsi": 35.84,
+          "volume_ratio": 1.23,
+          "macd_histogram": -1.15
+        },
+        "reason": "Bearish EMA crossover. oversold RSI"
+      },
+      {
+        "symbol": "KOTAKBANK",
+        "name": "Kotak Mahindra Bank Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 2069.9,
+        "entry_range": "2059.55-2080.25",
+        "target_1": 2043.11,
+        "target_2": 2016.33,
+        "stop_loss": 2110.08,
+        "expected_move": "-1.3%",
+        "indicators": {
+          "rsi": 39.46,
+          "volume_ratio": 1.04,
+          "macd_histogram": -1.03
+        },
+        "reason": "Bearish EMA crossover. oversold RSI"
+      },
+      {
+        "symbol": "RBLBANK",
+        "name": "RBL Bank Ltd.",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 296.95,
+        "entry_range": "295.47-298.43",
+        "target_1": 288.85,
+        "target_2": 280.75,
+        "stop_loss": 309.1,
+        "expected_move": "-2.7%",
+        "indicators": {
+          "rsi": 37.97,
+          "volume_ratio": 1.25,
+          "macd_histogram": -0.79
+        },
+        "reason": "Bearish EMA crossover. oversold RSI"
+      },
+      {
+        "symbol": "RADICO",
+        "name": "Radico Khaitan Ltd",
+        "action": "SELL",
+        "confidence": 84,
+        "current_price": 3163.4,
+        "entry_range": "3147.58-3179.22",
+        "target_1": 3082.31,
+        "target_2": 3001.23,
+        "stop_loss": 3285.03,
+        "expected_move": "-2.6%",
+        "indicators": {
+          "rsi": 46.06,
+          "volume_ratio": 1.46,
+          "macd_histogram": -13.44
+        },
+        "reason": "Bearish EMA crossover"
+      }
+    ],
+    "scan_type": "top10_technical",
+    "description": "Top 10 Buy/Sell signals with LIVE prices (EMA, RSI, MACD, Volume)"
+  }
+}

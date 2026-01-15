@@ -1,0 +1,15 @@
+{
+  "api_name": "algorithms_delete_algorithm",
+  "method": "DELETE",
+  "path": "/api/algorithms/1",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Algorithm not found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:56.605332Z",
+  "end_time_utc": "2026-01-10T13:07:56.645276Z",
+  "response_time_ms": 39,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

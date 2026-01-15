@@ -1,0 +1,11 @@
+{
+  "api_name": "trading_unknown",
+  "method": "GET",
+  "path": "/api/trading/health",
+  "status_code": 200,
+  "response_time_ms": 22,
+  "response_payload": {
+    "status": "healthy",
+    "service": "quantai-trading-api"
+  }
+}

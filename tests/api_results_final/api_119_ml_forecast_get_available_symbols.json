@@ -1,0 +1,11 @@
+{
+  "api_name": "ml_forecast_get_available_symbols",
+  "method": "GET",
+  "path": "/api/v1/ml/symbols",
+  "status_code": 200,
+  "response_time_ms": 80,
+  "response_payload": {
+    "symbols": [],
+    "note": "No trained models yet. Run trainer first."
+  }
+}

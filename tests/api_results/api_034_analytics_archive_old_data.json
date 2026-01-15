@@ -1,0 +1,17 @@
+{
+  "api_name": "analytics_archive_old_data",
+  "method": "POST",
+  "path": "/archive/old",
+  "request_payload": {
+    "test": "data"
+  },
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:56.824026Z",
+  "end_time_utc": "2026-01-10T13:07:56.830393Z",
+  "response_time_ms": 6,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

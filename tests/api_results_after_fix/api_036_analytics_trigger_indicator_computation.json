@@ -1,0 +1,13 @@
+{
+  "api_name": "analytics_trigger_indicator_computation",
+  "method": "POST",
+  "path": "/api/analytics/indicators/compute",
+  "status_code": 200,
+  "response_time_ms": 41,
+  "response_payload": {
+    "status": "started",
+    "message": "Indicator computation started in background",
+    "interval": "1d",
+    "symbol_limit": null
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "api_name": "settings_update_settings",
+  "method": "PUT",
+  "path": "/api/settings",
+  "status_code": 200,
+  "response_time_ms": 71,
+  "response_payload": {
+    "message": "Settings updated successfully"
+  }
+}

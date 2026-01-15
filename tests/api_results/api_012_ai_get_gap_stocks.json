@@ -1,0 +1,19 @@
+{
+  "api_name": "ai_get_gap_stocks",
+  "method": "GET",
+  "path": "/api/ai/gap-scanner",
+  "request_payload": {},
+  "response_payload": {
+    "status": "success",
+    "count": 0,
+    "stocks": [],
+    "scan_type": "gap",
+    "description": "unterminated triple-quoted string literal (detected at line 142) (gap_scanner.py, line 17)"
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:56.086574Z",
+  "end_time_utc": "2026-01-10T13:07:56.123213Z",
+  "response_time_ms": 36,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

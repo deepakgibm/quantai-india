@@ -1,0 +1,11 @@
+{
+  "api_name": "analytics_archive_month",
+  "method": "POST",
+  "path": "/api/analytics/archive/month",
+  "status_code": 200,
+  "response_time_ms": 99,
+  "response_payload": {
+    "status": "error",
+    "error": "(psycopg2.errors.UndefinedFunction) operator does not exist: text >= timestamp without time zone\nLINE 4:                 WHERE timestamp >= '2025-12-01T00:00:00'::ti...\n                                        ^\nHINT:  No operator matches the given name and argument types. You might need to add explicit type casts.\n\n[SQL: \n                SELECT symbol, instrument_key, timeframe, timestamp, open, high, low, close, volume\n                FROM stock_candles\n                WHERE timestamp >= %(start_date)s AND timestamp < %(end_date)s\n                ORDER BY instrument_key, timestamp\n            ]\n[parameters: {'start_date': datetime.datetime(2025, 12, 1, 0, 0), 'end_date': datetime.datetime(2026, 1, 1, 0, 0)}]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+  }
+}

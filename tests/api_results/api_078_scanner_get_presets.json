@@ -1,0 +1,15 @@
+{
+  "api_name": "scanner_get_presets",
+  "method": "GET",
+  "path": "/presets",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:58.196995Z",
+  "end_time_utc": "2026-01-10T13:07:58.205092Z",
+  "response_time_ms": 8,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

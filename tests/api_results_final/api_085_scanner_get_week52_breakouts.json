@@ -1,0 +1,13 @@
+{
+  "api_name": "scanner_get_week52_breakouts",
+  "method": "GET",
+  "path": "/api/scanner/week52-breakouts",
+  "status_code": 200,
+  "response_time_ms": 23,
+  "response_payload": {
+    "status": "error",
+    "message": "DragonflyDB/Redis is not available",
+    "high_breakouts": [],
+    "low_breakdowns": []
+  }
+}

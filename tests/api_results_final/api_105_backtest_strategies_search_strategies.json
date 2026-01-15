@@ -1,0 +1,85 @@
+{
+  "api_name": "backtest_strategies_search_strategies",
+  "method": "GET",
+  "path": "/api/v1/backtest/strategies/search",
+  "status_code": 200,
+  "response_time_ms": 82,
+  "response_payload": {
+    "query": "momentum",
+    "total_matches": 8,
+    "results": [
+      {
+        "name": "price_momentum",
+        "display_name": "Price Momentum (6-month / 52-week ROC)",
+        "category": "Momentum & Trend Confirmation",
+        "tier": "tier_2",
+        "description": "Trade based on rate of change over extended periods",
+        "relevance_score": 23,
+        "is_implemented": true
+      },
+      {
+        "name": "stochastic_oscillator",
+        "display_name": "Stochastic Oscillator (%K / %D)",
+        "category": "Momentum & Trend Confirmation",
+        "tier": "tier_2",
+        "description": "Classic stochastic momentum indicator with %K and %D crossovers",
+        "relevance_score": 8,
+        "is_implemented": true
+      },
+      {
+        "name": "ma_crossover",
+        "display_name": "Moving Average Crossover",
+        "category": "Trend & Momentum",
+        "tier": "tier_2",
+        "description": "Classic SMA/EMA crossover strategy with trend confirmation",
+        "relevance_score": 5,
+        "is_implemented": true
+      },
+      {
+        "name": "supertrend",
+        "display_name": "SuperTrend",
+        "category": "Trend & Momentum",
+        "tier": "tier_2",
+        "description": "ATR-based trailing stop system that identifies trend direction",
+        "relevance_score": 5,
+        "is_implemented": true
+      },
+      {
+        "name": "adx_trend",
+        "display_name": "ADX Trend Following",
+        "category": "Trend & Momentum",
+        "tier": "tier_2",
+        "description": "Enter trades only when trend strength is confirmed by ADX",
+        "relevance_score": 5,
+        "is_implemented": true
+      },
+      {
+        "name": "donchian_breakout",
+        "display_name": "Donchian Channel Breakout",
+        "category": "Trend & Momentum",
+        "tier": "tier_2",
+        "description": "Classic turtle trading breakout strategy using price channels",
+        "relevance_score": 5,
+        "is_implemented": true
+      },
+      {
+        "name": "macd_crossover",
+        "display_name": "MACD Bullish Crossover",
+        "category": "Momentum & Trend Confirmation",
+        "tier": "tier_2",
+        "description": "Trade MACD line / signal line crossovers with histogram confirmation",
+        "relevance_score": 5,
+        "is_implemented": true
+      },
+      {
+        "name": "rsi_macd_confluence",
+        "display_name": "RSI + MACD Confluence",
+        "category": "Momentum & Trend Confirmation",
+        "tier": "tier_2",
+        "description": "Multiple indicator confluence for higher probability trades",
+        "relevance_score": 5,
+        "is_implemented": true
+      }
+    ]
+  }
+}

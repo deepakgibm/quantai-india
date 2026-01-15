@@ -1,0 +1,54 @@
+{
+  "api_name": "orders_create_order",
+  "method": "POST",
+  "path": "/api/orders",
+  "request_payload": {
+    "test": "data"
+  },
+  "response_payload": {
+    "detail": [
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "symbol"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      },
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "order_type"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      },
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "quantity"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      }
+    ]
+  },
+  "status_code": 422,
+  "start_time_utc": "2026-01-10T13:07:57.690588Z",
+  "end_time_utc": "2026-01-10T13:07:57.763793Z",
+  "response_time_ms": 73,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

@@ -1,0 +1,15 @@
+{
+  "api_name": "backtest_strategies_get_strategy_details",
+  "method": "GET",
+  "path": "/api/v1/backtest/strategies/{strategy_name}",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Strategy '{strategy_name}' not found. Use /api/v1/backtest/strategies/list to see available strategies."
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:59.043168Z",
+  "end_time_utc": "2026-01-10T13:07:59.068233Z",
+  "response_time_ms": 25,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

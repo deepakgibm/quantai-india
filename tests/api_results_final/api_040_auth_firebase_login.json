@@ -1,0 +1,10 @@
+{
+  "api_name": "auth_firebase_login",
+  "method": "POST",
+  "path": "/api/auth/firebase-login",
+  "status_code": 401,
+  "response_time_ms": 2993,
+  "response_payload": {
+    "detail": "Invalid Firebase token: A project ID is required to access the auth service.\n            1. Use a service account credential, or\n            2. set the project ID explicitly via Firebase App options, or\n            3. set the project ID via the GOOGLE_CLOUD_PROJECT environment variable."
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "api_name": "ai_get_ai_sentiment",
+  "method": "GET",
+  "path": "/api/ai/sentiment",
+  "status_code": 422,
+  "response_time_ms": 17,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'symbol' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:40.114841Z",
+      "request_id": "ceceba7b-1b25-4c23-be40-5c5bd55eb382"
+    }
+  }
+}

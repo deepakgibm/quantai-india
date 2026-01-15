@@ -1,20 +1,31 @@
-﻿from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import traceback
 import logging
 from datetime import datetime
 
-# Configure logging
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Configure structured logging (replaces basic logging)
+try:
+    from core.observability.logging import configure_logging, get_logger
+    from core.observability.middleware import setup_observability_middleware
+    from core.observability.metrics import get_metrics
+    from core.observability.correlation import get_correlation_id
+    configure_logging()
+    logger = get_logger(__name__)
+    _observability_available = True
+except ImportError as e:
+    # Fallback to basic logging if observability module not available
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    _observability_available = False
+    print(f"Observability module not available: {e}")
 
-from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, scanner, market
+from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, scanner, market, metrics
 from api.v1.endpoints import walk_forward_backtest  # Walk-Forward Backtest
 # from api.v1.endpoints import experiment_lab  # MOVED TO /review - Strategy Experiment Lab (Beta)
 from api.v1.endpoints import backtest_strategies  # Enhanced Strategy API with Tiers
@@ -75,6 +86,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
         "http://localhost:8000",
         "http://127.0.0.1:8000"
@@ -83,6 +96,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add observability middleware (correlation IDs, structured logging, metrics)
+if _observability_available:
+    setup_observability_middleware(app)
+    logger.info("Observability middleware configured")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -193,7 +211,7 @@ async def startup_event():
         try:
             await asyncio.sleep(10)  # Wait for DB connections to stabilize
             
-            logger.info("🔥 AI Signal Warmup: Starting pre-computation...")
+            logger.info("?? AI Signal Warmup: Starting pre-computation...")
             start = time.time()
             
             # Pre-compute top5-picks
@@ -216,15 +234,29 @@ async def startup_event():
                     "description": "Top 10 Buy/Sell signals with LIVE prices (EMA, RSI, MACD, Volume)"
                 }
                 cache.set("qai:ai:strategy:top5-picks", response, ttl=300)
-                logger.info(f"✅ AI Signal Warmup: Cached {len(response['stocks'])} signals")
+                logger.info(f"? AI Signal Warmup: Cached {len(response['stocks'])} signals")
             
             elapsed = time.time() - start
-            logger.info(f"🔥 AI Signal Warmup: Completed in {elapsed:.2f}s")
+            logger.info(f"?? AI Signal Warmup: Completed in {elapsed:.2f}s")
             
         except Exception as e:
             logger.error(f"AI Signal Warmup failed (non-blocking): {e}")
     
     asyncio.create_task(warmup_ai_signals())
+
+    # Metadata Cache Warmup - Pre-populate symbol and strategy data
+    async def warmup_metadata_cache():
+        """Pre-populate symbol and strategy metadata cache."""
+        try:
+            await asyncio.sleep(5)  # Wait for cache connection
+            from services.metadata_cache_service import get_metadata_cache_service
+            service = get_metadata_cache_service()
+            result = service.warm_cache()
+            logger.info(f"?? Metadata Cache Warmup: {result}")
+        except Exception as e:
+            logger.error(f"Metadata Cache Warmup failed (non-blocking): {e}")
+    
+    asyncio.create_task(warmup_metadata_cache())
 
     logger.info("Server startup complete - API reads from cache only")
     logger.info("NOTE: Run 'python hp_scanner_worker.py' separately for cache population")
@@ -245,6 +277,7 @@ app.include_router(engine_performance.router, prefix="/api/engines", tags=["Engi
 app.include_router(quant_bot.router, prefix="/api/quant", tags=["Quant Bot"])
 app.include_router(scanner.router)  # Scanner router (already has full prefix)
 app.include_router(market.router, prefix="/api/market", tags=["Market"])
+app.include_router(metrics.router)  # Metrics & Metadata API (already has prefix)
 app.include_router(walk_forward_backtest.router)  # Walk-Forward Backtest (already has full prefix)
 
 # Experiment Lab (Beta) - Re-enabled for testing
@@ -300,18 +333,27 @@ async def health_check():
     Comprehensive health check - checks all dependencies.
     Returns 200 if all dependencies are healthy, 503 otherwise.
     """
+    import time
     health = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "checks": {}
     }
     
-    # Check DragonflyDB/Redis
+    # Check DragonflyDB/Redis with latency
     try:
         from services.dragonfly_client import get_cache
+        start = time.perf_counter()
         cache = get_cache()
         if cache.is_available():
-            health["checks"]["dragonfly"] = {"status": "healthy", "backend": "dragonfly"}
+            # Test ping
+            cache.get("health_ping")
+            latency = (time.perf_counter() - start) * 1000
+            health["checks"]["dragonfly"] = {
+                "status": "healthy", 
+                "backend": "dragonfly",
+                "latency_ms": round(latency, 2)
+            }
         else:
             health["checks"]["dragonfly"] = {"status": "unhealthy", "error": "Not connected"}
             health["status"] = "degraded"
@@ -319,17 +361,44 @@ async def health_check():
         health["checks"]["dragonfly"] = {"status": "unhealthy", "error": str(e)}
         health["status"] = "degraded"
     
-    # Check Database (PostgreSQL)
+    # Check Database (PostgreSQL) with latency
     try:
         from database import AsyncSessionLocal
+        start = time.perf_counter()
         async with AsyncSessionLocal() as session:
             from sqlalchemy import text
             result = await session.execute(text("SELECT 1"))
             result.scalar()
-            health["checks"]["database"] = {"status": "healthy", "backend": "postgresql"}
+            latency = (time.perf_counter() - start) * 1000
+            health["checks"]["database"] = {
+                "status": "healthy", 
+                "backend": "postgresql",
+                "latency_ms": round(latency, 2)
+            }
     except Exception as e:
         health["checks"]["database"] = {"status": "unhealthy", "error": str(e)}
         health["status"] = "degraded"
+
+    # Check Upstox API (via Circuit Breaker)
+    try:
+        from utils.circuit_breaker import UPSTOX_CIRCUIT_BREAKER
+        health["checks"]["upstox_api"] = {
+            "status": "healthy" if UPSTOX_CIRCUIT_BREAKER.state == "closed" else "degraded",
+            "circuit": UPSTOX_CIRCUIT_BREAKER.state,
+            "failures": UPSTOX_CIRCUIT_BREAKER.get_stats().get("failed_calls", 0)
+        }
+    except Exception:
+        health["checks"]["upstox_api"] = {"status": "unknown"}
+
+    # Check Gemini AI (via Circuit Breaker)
+    try:
+        from utils.circuit_breaker import GEMINI_CIRCUIT_BREAKER
+        health["checks"]["gemini_api"] = {
+            "status": "healthy" if GEMINI_CIRCUIT_BREAKER.state == "closed" else "degraded",
+            "circuit": GEMINI_CIRCUIT_BREAKER.state
+        }
+    except Exception:
+        health["checks"]["gemini_api"] = {"status": "unknown"}
     
     # Return 503 if any critical dependency is down
     from fastapi.responses import JSONResponse
@@ -358,5 +427,22 @@ async def readiness_check():
         
     return {"status": "ready", "timestamp": datetime.now().isoformat()}
 
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """
+    Prometheus metrics endpoint.
+    Exposes application metrics for scraping.
+    """
+    if _observability_available:
+        metrics = get_metrics()
+        return Response(
+            content=metrics.get_metrics_output(),
+            media_type=metrics.get_content_type()
+        )
+    return Response(content=b"# observability not available\n", media_type="text/plain")
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+

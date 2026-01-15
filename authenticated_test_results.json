@@ -1,0 +1,160 @@
+[
+  {
+    "category": "AI Strategies",
+    "name": "Get AI Strategies",
+    "method": "GET",
+    "path": "/api/ai/strategies",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 26.29,
+    "error": null
+  },
+  {
+    "category": "Scanner",
+    "name": "Get Strategies",
+    "method": "GET",
+    "path": "/api/scanner/strategies",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 22.32,
+    "error": null
+  },
+  {
+    "category": "Scanner",
+    "name": "Get Indices",
+    "method": "GET",
+    "path": "/api/scanner/indices",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 28.23,
+    "error": null
+  },
+  {
+    "category": "Scanner",
+    "name": "Get Timeframes",
+    "method": "GET",
+    "path": "/api/scanner/timeframes",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 18.66,
+    "error": null
+  },
+  {
+    "category": "Scanner",
+    "name": "Presets",
+    "method": "GET",
+    "path": "/api/scanner/presets",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 50.2,
+    "error": null
+  },
+  {
+    "category": "Scanner",
+    "name": "Momentum Data",
+    "method": "GET",
+    "path": "/api/scanner/momentum",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 10659.4,
+    "error": null
+  },
+  {
+    "category": "Scanner",
+    "name": "Reversal Data",
+    "method": "GET",
+    "path": "/api/scanner/reversal",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 11687.56,
+    "error": null
+  },
+  {
+    "category": "Scanner",
+    "name": "TrendFinder Data",
+    "method": "GET",
+    "path": "/api/scanner/trendfinder",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 11034.07,
+    "error": null
+  },
+  {
+    "category": "Heatmap",
+    "name": "Get Sectors",
+    "method": "GET",
+    "path": "/api/heatmap/sectors",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 16.69,
+    "error": null
+  },
+  {
+    "category": "Upstox",
+    "name": "User Profile",
+    "method": "GET",
+    "path": "/api/upstox/user-profile",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 14.53,
+    "error": null
+  },
+  {
+    "category": "Upstox",
+    "name": "Portfolio",
+    "method": "GET",
+    "path": "/api/upstox/portfolio",
+    "status": "FAIL",
+    "status_code": 400,
+    "response_time_ms": 27.33,
+    "error": {
+      "success": false,
+      "error": {
+        "code": "BROKER_NOT_CONNECTED",
+        "message": "Upstox broker is not connected. Please login via /api/upstox/auth-url.",
+        "request_id": "7504713811fc48df",
+        "details": []
+      }
+    }
+  },
+  {
+    "category": "Orders",
+    "name": "Get Orders",
+    "method": "GET",
+    "path": "/api/orders/",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 41.27,
+    "error": null
+  },
+  {
+    "category": "Algorithms",
+    "name": "Get Algorithms",
+    "method": "GET",
+    "path": "/api/algorithms/",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 43.32,
+    "error": null
+  },
+  {
+    "category": "Risk Management",
+    "name": "Get Risk Settings",
+    "method": "GET",
+    "path": "/api/risk/",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 65.72,
+    "error": null
+  },
+  {
+    "category": "Settings",
+    "name": "Get Settings",
+    "method": "GET",
+    "path": "/api/settings/",
+    "status": "PASS",
+    "status_code": 200,
+    "response_time_ms": 36.6,
+    "error": null
+  }
+]

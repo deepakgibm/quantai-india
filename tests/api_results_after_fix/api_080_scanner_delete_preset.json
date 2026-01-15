@@ -1,0 +1,18 @@
+{
+  "api_name": "scanner_delete_preset",
+  "method": "DELETE",
+  "path": "/api/scanner/presets/{preset_id}",
+  "status_code": 422,
+  "response_time_ms": 77,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'preset_id' must be a valid integer"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:46.799261Z",
+      "request_id": "19bc2f84-a11f-48e2-a29b-db7f9e2de26b"
+    }
+  }
+}

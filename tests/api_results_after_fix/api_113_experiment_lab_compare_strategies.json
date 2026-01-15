@@ -1,0 +1,18 @@
+{
+  "api_name": "experiment_lab_compare_strategies",
+  "method": "POST",
+  "path": "/api/v1/experiment-lab/compare",
+  "status_code": 422,
+  "response_time_ms": 29,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'symbol' is required; 'strategy_ids' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:28:48.098138Z",
+      "request_id": "12fb808c-991b-44ea-abc4-7453946cc46f"
+    }
+  }
+}

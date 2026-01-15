@@ -126,7 +126,12 @@ async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, f
         inst_key = get_instrument_key(symbol)
         if inst_key:
             instrument_keys.append(inst_key)
+            # Map all possible key formats that Upstox might return
             key_to_symbol[inst_key] = symbol
+            # Standard Upstox V2 response format: NSE_EQ:SYMBOL
+            key_to_symbol[f"NSE_EQ:{symbol}"] = symbol
+            key_to_symbol[f"BSE_EQ:{symbol}"] = symbol
+            
             symbol_part = inst_key.split('|')[-1]
             key_to_symbol[f"NSE_EQ:{symbol_part}"] = symbol
             key_to_symbol[symbol_part] = symbol
@@ -152,7 +157,14 @@ async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, f
                         for key, quote_data in data["data"].items():
                             ltp = quote_data.get("last_price")
                             if ltp and ltp > 0:
-                                symbol = key_to_symbol.get(key) or key_to_symbol.get(key.split(':')[-1])
+                                # Try full key, then split parts
+                                symbol = key_to_symbol.get(key)
+                                if not symbol:
+                                    # Try extracting symbol from NSE_EQ:SYMBOL
+                                    if ":" in key:
+                                        parts = key.split(':')
+                                        symbol = key_to_symbol.get(parts[-1])
+                                        
                                 if symbol:
                                     prices[symbol] = ltp
         except Exception as e:
@@ -167,8 +179,10 @@ async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, f
             import yfinance as yf
             
             def _fetch_yf_batch():
+                # Use period="2d" to ensure we get data even if market hasn't opened today
+                # interval="1m" is fine if we check multiple rows
                 tickers = " ".join([f"{s}.NS" for s in missing_symbols])
-                return yf.download(tickers, period="1d", interval="1m", progress=False, group_by='ticker')
+                return yf.download(tickers, period="2d", interval="1m", progress=False, group_by='ticker')
             
             data = await asyncio.to_thread(_fetch_yf_batch)
             
@@ -176,10 +190,23 @@ async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, f
                 ticker = f"{s}.NS"
                 try:
                     if len(missing_symbols) == 1:
-                        price = data['Close'].iloc[-1]
+                        # For single symbol, yf returns simple columns
+                        if not data.empty:
+                            price = data['Close'].iloc[-1]
+                        else:
+                            # Fallback to Ticker info for very fresh price
+                            tick = yf.Ticker(ticker)
+                            price = tick.info.get('currentPrice') or tick.info.get('regularMarketPrice')
                     else:
-                        price = data[ticker]['Close'].iloc[-1]
-                        
+                        # For multiple symbols, yf returns MultiIndex
+                        symbol_data = data[ticker]
+                        if not symbol_data.empty:
+                            price = symbol_data['Close'].dropna().iloc[-1]
+                        else:
+                            # Try info fallback
+                            tick = yf.Ticker(ticker)
+                            price = tick.info.get('currentPrice') or tick.info.get('regularMarketPrice')
+                            
                     if price and price > 0:
                         prices[s] = float(price)
                 except:
@@ -194,28 +221,48 @@ async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, f
 
 async def enrich_scanner_results(results: List[Dict], access_token: str = None) -> List[Dict]:
     """
-    Enrich scanner results with live prices from Upstox.
+    Enrich scanner results with live prices.
+    Fallback logic: 
+    1. MarketDataOrchestrator (WebSocket Cache)
+    2. Upstox REST API
+    3. yFinance (built into fetch_live_ltp)
+    4. Database Fallback
     """
     if not results:
         return results
     
+    symbols = [r.get("symbol") for r in results if r.get("symbol")]
+    if not symbols:
+        return results
+        
     from utils.market_state import is_market_open
+    from services.market_data_orchestrator import get_market_data_orchestrator
+    
     market_open = is_market_open()
+    live_prices = {}
     
-    if not market_open:
-        # After hours: Keep prices from snapshots if they exist (already synced via ETL)
-        # Only fetch for missing prices
-        missing_symbols = [s for s in symbols if not any(r.get("symbol") == s and r.get("ltp") for r in results)]
-        if not missing_symbols:
-            return results
-        live_prices = await fetch_live_ltp(missing_symbols, access_token)
-    else:
-        # Market open: Fetch live prices for all
-        live_prices = await fetch_live_ltp(symbols, access_token)
-    
+    # 1. Try MarketDataOrchestrator Cache (WebSocket-fed)
+    try:
+        orchestrator = get_market_data_orchestrator()
+        for symbol in symbols:
+            tick = orchestrator._data_cache.get(symbol)
+            if tick and tick.ltp and tick.ltp > 0:
+                live_prices[symbol] = tick.ltp
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Orchestrator cache access failed: {e}")
+
+    # 2. Fetch missing prices from Upstox REST / yFinance
     missing_symbols = [s for s in symbols if s not in live_prices]
     if missing_symbols:
-        db_prices = await get_database_prices(missing_symbols)
+        rest_prices = await fetch_live_ltp(missing_symbols, access_token)
+        live_prices.update(rest_prices)
+    
+    # 3. Final Fallback to Database for anything still missing
+    still_missing = [s for s in symbols if s not in live_prices]
+    if still_missing:
+        db_prices = await get_database_prices(still_missing)
         live_prices.update(db_prices)
     
     if not live_prices:
@@ -228,19 +275,28 @@ async def enrich_scanner_results(results: List[Dict], access_token: str = None) 
         
         if live_price and live_price > 0:
             enriched_result = result.copy()
-            enriched_result["current_price"] = round(live_price, 2)
+            rounded_price = round(live_price, 2)
             
-            trend = enriched_result.get("trend", "BULLISH")
-            action = enriched_result.get("action", "BUY")
+            # Update all common price fields for consistency across different models
+            enriched_result["current_price"] = rounded_price
+            if "ltp" in enriched_result: enriched_result["ltp"] = rounded_price
+            if "price" in enriched_result: enriched_result["price"] = rounded_price
             
-            if trend == "BULLISH" or action == "BUY":
-                enriched_result["entry_price"] = round(live_price * 0.995, 2)
-                enriched_result["target_price"] = round(live_price * 1.05, 2)
-                enriched_result["stop_loss"] = round(live_price * 0.97, 2)
-            else:
-                enriched_result["entry_price"] = round(live_price * 1.005, 2)
-                enriched_result["target_price"] = round(live_price * 0.95, 2)
-                enriched_result["stop_loss"] = round(live_price * 1.03, 2)
+            trend = enriched_result.get("trend") or enriched_result.get("signal_type", "BULLISH")
+            action = enriched_result.get("action") or enriched_result.get("signal", "BUY")
+            
+            # Only calculate trade levels if they are missing or 0
+            # This preserves ATR or Swings based levels from the underlying engines
+            is_bullish = trend == "BULLISH" or action == "BUY" or "BUY" in str(action).upper()
+            
+            if not enriched_result.get("entry_price"):
+                enriched_result["entry_price"] = round(rounded_price * (0.995 if is_bullish else 1.005), 2)
+                
+            if not enriched_result.get("target_price") and not enriched_result.get("target_1"):
+                enriched_result["target_price"] = round(rounded_price * (1.05 if is_bullish else 0.95), 2)
+                
+            if not enriched_result.get("stop_loss"):
+                enriched_result["stop_loss"] = round(rounded_price * (0.97 if is_bullish else 1.03), 2)
             
             enriched.append(enriched_result)
         else:

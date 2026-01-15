@@ -1,0 +1,36 @@
+{
+  "api_name": "experiment_lab_get_available_timeframes",
+  "method": "GET",
+  "path": "/api/v1/experiment-lab/timeframes",
+  "status_code": 200,
+  "response_time_ms": 27,
+  "response_payload": {
+    "timeframes": [
+      {
+        "id": "5m",
+        "name": "5 Minutes",
+        "description": "Intraday - High frequency"
+      },
+      {
+        "id": "15m",
+        "name": "15 Minutes",
+        "description": "Intraday - Medium frequency"
+      },
+      {
+        "id": "30m",
+        "name": "30 Minutes",
+        "description": "Intraday - Lower frequency"
+      },
+      {
+        "id": "1H",
+        "name": "1 Hour",
+        "description": "Intraday/Swing"
+      },
+      {
+        "id": "1D",
+        "name": "Daily",
+        "description": "Daily candles - Most reliable"
+      }
+    ]
+  }
+}

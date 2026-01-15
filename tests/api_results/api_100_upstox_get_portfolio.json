@@ -1,0 +1,15 @@
+{
+  "api_name": "upstox_get_portfolio",
+  "method": "GET",
+  "path": "/api/upstox/portfolio",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Upstox not connected. Please login to Upstox."
+  },
+  "status_code": 400,
+  "start_time_utc": "2026-01-10T13:07:58.887148Z",
+  "end_time_utc": "2026-01-10T13:07:58.910779Z",
+  "response_time_ms": 23,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

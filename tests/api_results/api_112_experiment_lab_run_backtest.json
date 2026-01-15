@@ -1,0 +1,17 @@
+{
+  "api_name": "experiment_lab_run_backtest",
+  "method": "POST",
+  "path": "/api/v1/experiment/backtest",
+  "request_payload": {
+    "test": "data"
+  },
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:59.142961Z",
+  "end_time_utc": "2026-01-10T13:07:59.148961Z",
+  "response_time_ms": 5,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

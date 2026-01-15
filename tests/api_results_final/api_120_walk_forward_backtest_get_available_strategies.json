@@ -1,0 +1,385 @@
+{
+  "api_name": "walk_forward_backtest_get_available_strategies",
+  "method": "GET",
+  "path": "/api/v1/walk-forward/strategies",
+  "status_code": 200,
+  "response_time_ms": 48,
+  "response_payload": {
+    "Trend & Momentum": [
+      {
+        "name": "ma_crossover",
+        "display_name": "Moving Average Crossover",
+        "description": "Classic SMA/EMA crossover strategy with trend confirmation",
+        "parameters": {
+          "fast_period": {
+            "type": "int",
+            "default": 9,
+            "min": 5,
+            "max": 50
+          },
+          "slow_period": {
+            "type": "int",
+            "default": 21,
+            "min": 10,
+            "max": 200
+          },
+          "ma_type": {
+            "type": "select",
+            "default": "EMA",
+            "options": [
+              "SMA",
+              "EMA"
+            ]
+          },
+          "atr_multiplier": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 5.0
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 5.0
+          }
+        },
+        "time_horizon": "Swing"
+      },
+      {
+        "name": "supertrend",
+        "display_name": "SuperTrend",
+        "description": "ATR-based trailing stop system that identifies trend direction",
+        "parameters": {
+          "period": {
+            "type": "int",
+            "default": 10,
+            "min": 5,
+            "max": 50
+          },
+          "multiplier": {
+            "type": "float",
+            "default": 3.0,
+            "min": 1.0,
+            "max": 5.0
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Swing"
+      },
+      {
+        "name": "adx_trend",
+        "display_name": "ADX Trend Following",
+        "description": "Enter trades only when trend strength is confirmed by ADX",
+        "parameters": {
+          "adx_period": {
+            "type": "int",
+            "default": 14,
+            "min": 7,
+            "max": 30
+          },
+          "adx_threshold": {
+            "type": "int",
+            "default": 25,
+            "min": 15,
+            "max": 40
+          },
+          "atr_multiplier": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Swing"
+      },
+      {
+        "name": "donchian_breakout",
+        "display_name": "Donchian Channel Breakout",
+        "description": "Classic turtle trading breakout strategy using price channels",
+        "parameters": {
+          "entry_period": {
+            "type": "int",
+            "default": 20,
+            "min": 10,
+            "max": 55
+          },
+          "exit_period": {
+            "type": "int",
+            "default": 10,
+            "min": 5,
+            "max": 30
+          },
+          "atr_period": {
+            "type": "int",
+            "default": 14,
+            "min": 7,
+            "max": 21
+          }
+        },
+        "time_horizon": "Positional"
+      }
+    ],
+    "Mean Reversion": [
+      {
+        "name": "rsi_mean_reversion",
+        "display_name": "RSI Mean Reversion",
+        "description": "Trade reversals when RSI indicates extreme conditions",
+        "parameters": {
+          "rsi_period": {
+            "type": "int",
+            "default": 14,
+            "min": 7,
+            "max": 21
+          },
+          "oversold": {
+            "type": "int",
+            "default": 30,
+            "min": 20,
+            "max": 40
+          },
+          "overbought": {
+            "type": "int",
+            "default": 70,
+            "min": 60,
+            "max": 80
+          },
+          "atr_multiplier": {
+            "type": "float",
+            "default": 1.5,
+            "min": 1.0,
+            "max": 3.0
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 1.5,
+            "min": 1.0,
+            "max": 3.0
+          }
+        },
+        "time_horizon": "Swing"
+      },
+      {
+        "name": "bollinger_reversion",
+        "display_name": "Bollinger Bands Reversion",
+        "description": "Trade reversals at Bollinger Band extremes",
+        "parameters": {
+          "period": {
+            "type": "int",
+            "default": 20,
+            "min": 10,
+            "max": 50
+          },
+          "std_dev": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.5,
+            "max": 3.0
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 1.5,
+            "min": 1.0,
+            "max": 3.0
+          }
+        },
+        "time_horizon": "Swing"
+      },
+      {
+        "name": "zscore_reversion",
+        "display_name": "Z-Score Price Reversion",
+        "description": "Statistical mean reversion using z-score of price",
+        "parameters": {
+          "lookback": {
+            "type": "int",
+            "default": 20,
+            "min": 10,
+            "max": 60
+          },
+          "entry_threshold": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.5,
+            "max": 3.0
+          },
+          "exit_threshold": {
+            "type": "float",
+            "default": 0.5,
+            "min": 0.0,
+            "max": 1.0
+          },
+          "atr_multiplier": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Swing"
+      }
+    ],
+    "Breakout & Volatility": [
+      {
+        "name": "orb",
+        "display_name": "Opening Range Breakout",
+        "description": "Trade breakouts from the first N minutes of trading",
+        "parameters": {
+          "orb_minutes": {
+            "type": "int",
+            "default": 15,
+            "min": 5,
+            "max": 60
+          },
+          "buffer_pct": {
+            "type": "float",
+            "default": 0.1,
+            "min": 0.0,
+            "max": 0.5
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Intraday"
+      },
+      {
+        "name": "volume_breakout",
+        "display_name": "Volume Breakout",
+        "description": "Trade price breakouts confirmed by volume surge",
+        "parameters": {
+          "price_period": {
+            "type": "int",
+            "default": 20,
+            "min": 10,
+            "max": 50
+          },
+          "volume_period": {
+            "type": "int",
+            "default": 20,
+            "min": 10,
+            "max": 50
+          },
+          "volume_mult": {
+            "type": "float",
+            "default": 1.5,
+            "min": 1.2,
+            "max": 3.0
+          },
+          "atr_multiplier": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Swing"
+      },
+      {
+        "name": "atr_expansion",
+        "display_name": "ATR Volatility Expansion",
+        "description": "Trade volatility expansion after contraction periods",
+        "parameters": {
+          "atr_period": {
+            "type": "int",
+            "default": 14,
+            "min": 7,
+            "max": 21
+          },
+          "expansion_mult": {
+            "type": "float",
+            "default": 1.5,
+            "min": 1.2,
+            "max": 2.5
+          },
+          "lookback": {
+            "type": "int",
+            "default": 20,
+            "min": 10,
+            "max": 50
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Swing"
+      }
+    ],
+    "VWAP & Institutional": [
+      {
+        "name": "vwap_pullback",
+        "display_name": "VWAP Pullback",
+        "description": "Trade pullbacks to VWAP when price is trending",
+        "parameters": {
+          "trend_ema": {
+            "type": "int",
+            "default": 20,
+            "min": 10,
+            "max": 50
+          },
+          "vwap_buffer": {
+            "type": "float",
+            "default": 0.1,
+            "min": 0.05,
+            "max": 0.5
+          },
+          "atr_multiplier": {
+            "type": "float",
+            "default": 1.5,
+            "min": 1.0,
+            "max": 3.0
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Intraday"
+      },
+      {
+        "name": "vwap_trend",
+        "display_name": "VWAP Trend Confirmation",
+        "description": "Use VWAP as institutional reference for trend direction",
+        "parameters": {
+          "confirmation_bars": {
+            "type": "int",
+            "default": 3,
+            "min": 1,
+            "max": 10
+          },
+          "atr_multiplier": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          },
+          "risk_reward": {
+            "type": "float",
+            "default": 2.0,
+            "min": 1.0,
+            "max": 4.0
+          }
+        },
+        "time_horizon": "Intraday"
+      }
+    ]
+  }
+}

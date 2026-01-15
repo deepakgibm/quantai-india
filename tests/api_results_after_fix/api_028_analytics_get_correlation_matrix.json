@@ -1,0 +1,18 @@
+{
+  "api_name": "analytics_get_correlation_matrix",
+  "method": "POST",
+  "path": "/api/analytics/correlation",
+  "status_code": 422,
+  "response_time_ms": 43,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'' must be a list"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:43.716431Z",
+      "request_id": "e9afc948-f2c0-4243-8010-177a950e9a30"
+    }
+  }
+}

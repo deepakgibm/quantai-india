@@ -1,0 +1,48 @@
+{
+  "api_name": "algorithms_get_algorithms",
+  "method": "GET",
+  "path": "/api/algorithms",
+  "status_code": 200,
+  "response_time_ms": 55,
+  "response_payload": [
+    {
+      "id": 7,
+      "name": "Trend Finder AI",
+      "description": "Identifies strong trend continuation setups",
+      "is_active": true,
+      "performance": 12.4,
+      "config": {
+        "timeframe": "15m",
+        "indicators": [
+          "EMA",
+          "RSI"
+        ]
+      },
+      "created_at": "2026-01-10T13:04:44.670669"
+    },
+    {
+      "id": 8,
+      "name": "Breakout Detector",
+      "description": "Catches volume-backed breakouts in real-time",
+      "is_active": false,
+      "performance": 8.2,
+      "config": {
+        "volume_threshold": 1.5,
+        "breakout_percentage": 2.0
+      },
+      "created_at": "2026-01-10T13:04:44.670688"
+    },
+    {
+      "id": 9,
+      "name": "Top 3 Buy/Sell Engine",
+      "description": "Auto-picks 3 best stocks daily 9:30-3:15",
+      "is_active": true,
+      "performance": 18.7,
+      "config": {
+        "max_stocks": 3,
+        "scan_interval": "5m"
+      },
+      "created_at": "2026-01-10T13:04:44.670688"
+    }
+  ]
+}

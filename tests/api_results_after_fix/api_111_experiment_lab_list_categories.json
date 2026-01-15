@@ -1,0 +1,59 @@
+{
+  "api_name": "experiment_lab_list_categories",
+  "method": "GET",
+  "path": "/api/v1/experiment-lab/categories",
+  "status_code": 200,
+  "response_time_ms": 30,
+  "response_payload": [
+    {
+      "id": "A",
+      "name": "Single-Logic Baselines",
+      "count": 10
+    },
+    {
+      "id": "B",
+      "name": "Price + Momentum",
+      "count": 8
+    },
+    {
+      "id": "C",
+      "name": "Breakout + Filter",
+      "count": 7
+    },
+    {
+      "id": "D",
+      "name": "Trend + Momentum Confluence",
+      "count": 9
+    },
+    {
+      "id": "E",
+      "name": "Volume-Confirmed",
+      "count": 6
+    },
+    {
+      "id": "F",
+      "name": "Mean Reversion",
+      "count": 6
+    },
+    {
+      "id": "G",
+      "name": "Multi-Indicator Confluence",
+      "count": 7
+    },
+    {
+      "id": "H",
+      "name": "Multi-Timeframe",
+      "count": 6
+    },
+    {
+      "id": "I",
+      "name": "Pattern + Indicator",
+      "count": 6
+    },
+    {
+      "id": "J",
+      "name": "Experimental / Quant",
+      "count": 5
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "api_name": "analytics_archive_month",
+  "method": "POST",
+  "path": "/api/analytics/archive/month",
+  "status_code": 422,
+  "response_time_ms": 77,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'year' is required; 'month' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:44.005004Z",
+      "request_id": "7c14edb2-80f3-4bba-ad8a-a50b177f68fb"
+    }
+  }
+}

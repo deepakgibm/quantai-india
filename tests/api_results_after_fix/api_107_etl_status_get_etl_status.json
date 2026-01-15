@@ -1,0 +1,14 @@
+{
+  "api_name": "etl_status_get_etl_status",
+  "method": "GET",
+  "path": "/api/v1/etl/status",
+  "status_code": 200,
+  "response_time_ms": 7,
+  "response_payload": {
+    "last_start": "2024-12-09T00:00:00",
+    "last_end": "2024-12-15T00:00:00",
+    "status": "loading",
+    "current_symbol_index": 5,
+    "total_symbols": 20
+  }
+}

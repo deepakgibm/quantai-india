@@ -1,0 +1,11 @@
+{
+  "api_name": "scanner_get_scan_progress",
+  "method": "GET",
+  "path": "/api/scanner/progress/{scan_id}",
+  "status_code": 200,
+  "response_time_ms": 21,
+  "response_payload": {
+    "status": "not_found",
+    "scan_id": "{scan_id}"
+  }
+}

@@ -1,0 +1,219 @@
+{
+  "api_name": "experiment_lab_compare_strategies",
+  "method": "POST",
+  "path": "/api/v1/experiment-lab/compare",
+  "status_code": 200,
+  "response_time_ms": 167,
+  "response_payload": {
+    "disclaimer": "\u26a0\ufe0f BACKTESTING / SIMULATION ONLY",
+    "config": {
+      "symbol": "RELIANCE",
+      "timeframe": "1D",
+      "start_date": "2025-01-10",
+      "end_date": "2026-01-10"
+    },
+    "comparison": {
+      "summary": {
+        "total_strategies_compared": 3,
+        "best_by_return": {
+          "rank": 1,
+          "strategy_id": 3,
+          "strategy_name": "Donchian Channel Breakout",
+          "value": -0.04
+        },
+        "best_by_risk_adjusted": {
+          "rank": 1,
+          "strategy_id": 3,
+          "strategy_name": "Donchian Channel Breakout",
+          "value": -3.27
+        },
+        "lowest_drawdown": {
+          "rank": 1,
+          "strategy_id": 2,
+          "strategy_name": "Bollinger Bands Breakout",
+          "value": 0.06
+        },
+        "best_overall": {
+          "strategy_id": 3,
+          "strategy_name": "Donchian Channel Breakout",
+          "composite_score": 89.64,
+          "return_pct": -0.04,
+          "sharpe": -3.27,
+          "max_dd": 0.06
+        }
+      },
+      "rankings": {
+        "by_return": [
+          {
+            "rank": 1,
+            "strategy_id": 3,
+            "strategy_name": "Donchian Channel Breakout",
+            "value": -0.04
+          },
+          {
+            "rank": 2,
+            "strategy_id": 2,
+            "strategy_name": "Bollinger Bands Breakout",
+            "value": -0.04
+          },
+          {
+            "rank": 3,
+            "strategy_id": 1,
+            "strategy_name": "RSI Mean Reversion",
+            "value": -0.26
+          }
+        ],
+        "by_sharpe": [
+          {
+            "rank": 1,
+            "strategy_id": 3,
+            "strategy_name": "Donchian Channel Breakout",
+            "value": -3.27
+          },
+          {
+            "rank": 2,
+            "strategy_id": 2,
+            "strategy_name": "Bollinger Bands Breakout",
+            "value": -3.6
+          },
+          {
+            "rank": 3,
+            "strategy_id": 1,
+            "strategy_name": "RSI Mean Reversion",
+            "value": -7.58
+          }
+        ],
+        "by_drawdown": [
+          {
+            "rank": 1,
+            "strategy_id": 2,
+            "strategy_name": "Bollinger Bands Breakout",
+            "value": 0.06
+          },
+          {
+            "rank": 2,
+            "strategy_id": 3,
+            "strategy_name": "Donchian Channel Breakout",
+            "value": 0.06
+          },
+          {
+            "rank": 3,
+            "strategy_id": 1,
+            "strategy_name": "RSI Mean Reversion",
+            "value": 0.26
+          }
+        ],
+        "by_win_rate": [
+          {
+            "rank": 1,
+            "strategy_id": 1,
+            "strategy_name": "RSI Mean Reversion",
+            "value": 44.44
+          },
+          {
+            "rank": 2,
+            "strategy_id": 2,
+            "strategy_name": "Bollinger Bands Breakout",
+            "value": 33.33
+          },
+          {
+            "rank": 3,
+            "strategy_id": 3,
+            "strategy_name": "Donchian Channel Breakout",
+            "value": 33.33
+          }
+        ],
+        "by_profit_factor": [
+          {
+            "rank": 1,
+            "strategy_id": 3,
+            "strategy_name": "Donchian Channel Breakout",
+            "value": 0.69
+          },
+          {
+            "rank": 2,
+            "strategy_id": 2,
+            "strategy_name": "Bollinger Bands Breakout",
+            "value": 0.65
+          },
+          {
+            "rank": 3,
+            "strategy_id": 1,
+            "strategy_name": "RSI Mean Reversion",
+            "value": 0.36
+          }
+        ]
+      },
+      "composite_ranking": [
+        {
+          "strategy_id": 3,
+          "strategy_name": "Donchian Channel Breakout",
+          "composite_score": 89.64,
+          "return_pct": -0.04,
+          "sharpe": -3.27,
+          "max_dd": 0.06
+        },
+        {
+          "strategy_id": 2,
+          "strategy_name": "Bollinger Bands Breakout",
+          "composite_score": 85.77,
+          "return_pct": -0.04,
+          "sharpe": -3.6,
+          "max_dd": 0.06
+        },
+        {
+          "strategy_id": 1,
+          "strategy_name": "RSI Mean Reversion",
+          "composite_score": 10.0,
+          "return_pct": -0.26,
+          "sharpe": -7.58,
+          "max_dd": 0.26
+        }
+      ],
+      "detailed_results": [
+        {
+          "strategy_id": 1,
+          "strategy_name": "RSI Mean Reversion",
+          "category": "A",
+          "total_return_pct": -0.2559588085961833,
+          "cagr": -0.27656597987789633,
+          "max_drawdown_pct": 0.2615068756825989,
+          "sharpe_ratio": -7.5837719927381295,
+          "sortino_ratio": -78.97456899563988,
+          "win_rate": 44.44444444444444,
+          "profit_factor": 0.3579457392503017,
+          "total_trades": 9,
+          "avg_holding_period": 12.444444444444445
+        },
+        {
+          "strategy_id": 2,
+          "strategy_name": "Bollinger Bands Breakout",
+          "category": "A",
+          "total_return_pct": -0.04141704718748673,
+          "cagr": -0.12496903906074053,
+          "max_drawdown_pct": 0.06117517003252869,
+          "sharpe_ratio": -3.604989213796682,
+          "sortino_ratio": -88.234405903452,
+          "win_rate": 33.33333333333333,
+          "profit_factor": 0.6485855242020667,
+          "total_trades": 3,
+          "avg_holding_period": 4.666666666666667
+        },
+        {
+          "strategy_id": 3,
+          "strategy_name": "Donchian Channel Breakout",
+          "category": "A",
+          "total_return_pct": -0.03614584856020386,
+          "cagr": -0.10906987881259544,
+          "max_drawdown_pct": 0.06479331392413006,
+          "sharpe_ratio": -3.269349174496617,
+          "sortino_ratio": -28.313506479200385,
+          "win_rate": 33.33333333333333,
+          "profit_factor": 0.6872201855194766,
+          "total_trades": 3,
+          "avg_holding_period": 4.666666666666667
+        }
+      ]
+    }
+  }
+}

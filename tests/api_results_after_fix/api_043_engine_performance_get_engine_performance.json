@@ -1,0 +1,33 @@
+{
+  "api_name": "engine_performance_get_engine_performance",
+  "method": "GET",
+  "path": "/api/engines/performance",
+  "status_code": 200,
+  "response_time_ms": 260,
+  "response_payload": {
+    "status": "success",
+    "engines": {
+      "Trend Finder AI": {
+        "performance": 12.4,
+        "win_rate": 60.0,
+        "data_source": "default_baseline"
+      },
+      "Breakout Detector": {
+        "performance": 8.2,
+        "win_rate": 60.0,
+        "data_source": "default_baseline"
+      },
+      "Top 3 Buy/Sell Engine": {
+        "performance": 18.7,
+        "win_rate": 60.0,
+        "data_source": "default_baseline"
+      },
+      "Earnings Reaction": {
+        "performance": -2.1,
+        "win_rate": 60.0,
+        "data_source": "default_baseline"
+      }
+    },
+    "calculated_at": "2026-01-10T14:26:44.746703"
+  }
+}

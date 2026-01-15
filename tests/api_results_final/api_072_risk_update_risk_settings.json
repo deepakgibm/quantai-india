@@ -1,0 +1,10 @@
+{
+  "api_name": "risk_update_risk_settings",
+  "method": "PUT",
+  "path": "/api/risk",
+  "status_code": 200,
+  "response_time_ms": 22,
+  "response_payload": {
+    "message": "Risk settings updated successfully"
+  }
+}

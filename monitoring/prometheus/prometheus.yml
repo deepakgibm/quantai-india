@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'quantai-monitor'
+
+scrape_configs:
+  # QuantAI Backend API
+  - job_name: 'quantai-backend'
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: '/metrics'
+
+  # QuantAI Workers (If exposed, currently backend:8000 handles worker metrics via shared registry in-process)
+  # - job_name: 'quantai-worker'
+  #   static_configs:
+  #     - targets: ['worker:8000']
+
+  # PostgreSQL Stats
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # DragonflyDB Stats (Redis-compatible)
+  - job_name: 'dragonfly'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Host Metrics removed for Windows compatibility
+

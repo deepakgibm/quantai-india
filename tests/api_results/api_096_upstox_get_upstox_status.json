@@ -1,0 +1,21 @@
+{
+  "api_name": "upstox_get_upstox_status",
+  "method": "GET",
+  "path": "/api/upstox/status",
+  "request_payload": {},
+  "response_payload": {
+    "status": "success",
+    "upstox": {
+      "connected": false,
+      "api_available": true,
+      "service": "operational"
+    },
+    "message": "Upstox not connected"
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:58.695391Z",
+  "end_time_utc": "2026-01-10T13:07:58.708920Z",
+  "response_time_ms": 13,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

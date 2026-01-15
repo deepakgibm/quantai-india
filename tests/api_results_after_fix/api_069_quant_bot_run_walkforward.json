@@ -1,0 +1,18 @@
+{
+  "api_name": "quant_bot_run_walkforward",
+  "method": "POST",
+  "path": "/api/quant/walkforward/run",
+  "status_code": 422,
+  "response_time_ms": 21,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'symbol' is required; 'start_date' is required; 'end_date' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:46.076539Z",
+      "request_id": "99464be8-1bab-4034-beba-4bb8693a3507"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "api_name": "scanner_save_preset",
+  "method": "POST",
+  "path": "/presets",
+  "request_payload": {
+    "test": "data"
+  },
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:58.206683Z",
+  "end_time_utc": "2026-01-10T13:07:58.232919Z",
+  "response_time_ms": 26,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

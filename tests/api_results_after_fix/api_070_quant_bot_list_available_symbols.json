@@ -1,0 +1,1614 @@
+{
+  "api_name": "quant_bot_list_available_symbols",
+  "method": "GET",
+  "path": "/api/quant/symbols",
+  "status_code": 200,
+  "response_time_ms": 179,
+  "response_payload": {
+    "status": "success",
+    "symbols": [
+      {
+        "symbol": "360ONE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ABB",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ABCAPITAL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ACC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ADANIENSOL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ADANIENT",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ADANIGREEN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ADANIPORTS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ADANIPOWER",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ALKEM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "AMBUJACEM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "APLAPOLLO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "APOLLOHOSP",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ASHOKLEY",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ASIANPAINT",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ASTRAL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ATGL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "AUBANK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "AUROPHARMA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "AXISBANK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BAJAJ-AUTO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BAJAJFINSV",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BAJAJHFL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BAJAJHLDNG",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BAJFINANCE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BANKBARODA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BANKINDIA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BDL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BEL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BHARATFORG",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BHARTIARTL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "BHARTIHEXA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BHEL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BIOCON",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BLUESTARCO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BOSCHLTD",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BPCL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BRITANNIA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "BSE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "CANBK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "CGPOWER",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "CHOLAFIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "CIPLA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "COALINDIA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "COCHINSHIP",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "COFORGE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "COLPAL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "CONCOR",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "COROMANDEL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "CUMMINSIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "DABUR",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "DIVISLAB",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "DIXON",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "DLF",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "DMART",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "DRREDDY",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "EICHERMOT",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ENRIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ETERNAL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "EXIDEIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "FEDERALBNK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "FORTIS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "GAIL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "GLENMARK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "GMRAIRPORT",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "GODFRYPHLP",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "GODREJCP",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "GODREJPROP",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "GRASIM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HAL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HAVELLS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HCLTECH",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HDFCAMC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HDFCBANK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "HDFCLIFE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HEROMOTOCO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HINDALCO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HINDPETRO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HINDUNILVR",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "HINDZINC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HUDCO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "HYUNDAI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ICICIBANK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "ICICIGI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "IDEA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "IDFCFIRSTB",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "IGL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "INDHOTEL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "INDIANB",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "INDIGO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "INDUSINDBK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "INDUSTOWER",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "INFY",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "IOC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "IRB",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "IRCTC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "IREDA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "IRFC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ITC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "ITCHOTELS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "JINDALSTEL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "JIOFIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "JSWENERGY",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "JSWSTEEL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "JUBLFOOD",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "KALYANKJIL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "KEI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "KOTAKBANK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "KPITTECH",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "LICHSGFIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "LICI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "LODHA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "LT",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "LTF",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "LTIM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "LUPIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "M&M",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "M&MFIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MANKIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MARICO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MARUTI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MAXHEALTH",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MAZDOCK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MFSL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MOTHERSON",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MOTILALOFS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MPHASIS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MRF",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "MUTHOOTFIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NATIONALUM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NAUKRI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NESTLEIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NHPC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NMDC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NTPC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NTPCGREEN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "NYKAA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "OBEROIRLTY",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "OFSS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "OIL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ONGC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PAGEIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PATANJALI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PAYTM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PERSISTENT",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PFC",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PHOENIXLTD",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PIDILITIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PIIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PNB",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "POLICYBZR",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "POLYCAB",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "POWERGRID",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "POWERINDIA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PREMIERENE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "PRESTIGE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "RECLTD",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "RELIANCE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "RVNL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SAIL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SBICARD",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SBILIFE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SBIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "SHREECEM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SHRIRAMFIN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SIEMENS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SOLARINDS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SONACOMS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SRF",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SUNPHARMA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SUPREMEIND",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SUZLON",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "SWIGGY",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TATACOMM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TATACONSUM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TATAELXSI",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TATAPOWER",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TATASTEEL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TATATECH",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TCS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 4935,
+        "start_date": "2005-11-25T00:00:00",
+        "end_date": "2025-11-25T00:00:00"
+      },
+      {
+        "symbol": "TECHM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TIINDIA",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TITAN",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TMPV",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TORNTPHARM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TORNTPOWER",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TRENT",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "TVSMOTOR",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ULTRACEMCO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "UNIONBANK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "UNITDSPR",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "UPL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "VBL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "VEDL",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "VMM",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "VOLTAS",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "WAAREEENER",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "WIPRO",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "YESBANK",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      },
+      {
+        "symbol": "ZYDUSLIFE",
+        "in_nifty200": true,
+        "has_data": true,
+        "bar_count": 23,
+        "start_date": "2025-11-17T00:00:00",
+        "end_date": "2025-12-17T00:00:00"
+      }
+    ],
+    "count": 200,
+    "with_data_count": 200
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "api_name": "algorithms_create_algorithm",
+  "method": "POST",
+  "path": "/api/algorithms",
+  "status_code": 200,
+  "response_time_ms": 107,
+  "response_payload": {
+    "id": 13,
+    "name": "Test Strategy",
+    "description": "Test",
+    "is_active": false,
+    "performance": 0.0,
+    "config": {
+      "rsi_period": 14,
+      "threshold": 70
+    },
+    "created_at": "2026-01-10T16:14:29.680229"
+  }
+}

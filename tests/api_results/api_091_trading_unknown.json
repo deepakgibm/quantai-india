@@ -1,0 +1,16 @@
+{
+  "api_name": "trading_unknown",
+  "method": "GET",
+  "path": "/api/trading/health",
+  "request_payload": {},
+  "response_payload": {
+    "status": "healthy",
+    "service": "quantai-trading-api"
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:58.493727Z",
+  "end_time_utc": "2026-01-10T13:07:58.508656Z",
+  "response_time_ms": 14,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

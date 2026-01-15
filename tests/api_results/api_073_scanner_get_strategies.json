@@ -1,0 +1,15 @@
+{
+  "api_name": "scanner_get_strategies",
+  "method": "GET",
+  "path": "/strategies",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:58.098938Z",
+  "end_time_utc": "2026-01-10T13:07:58.125201Z",
+  "response_time_ms": 26,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

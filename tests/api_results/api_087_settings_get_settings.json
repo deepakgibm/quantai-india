@@ -1,0 +1,18 @@
+{
+  "api_name": "settings_get_settings",
+  "method": "GET",
+  "path": "/api/settings",
+  "request_payload": {},
+  "response_payload": {
+    "max_capital": 1000000.0,
+    "max_risk_per_trade": 2.0,
+    "auto_trade": false,
+    "notifications": true
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:58.385571Z",
+  "end_time_utc": "2026-01-10T13:07:58.407153Z",
+  "response_time_ms": 21,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

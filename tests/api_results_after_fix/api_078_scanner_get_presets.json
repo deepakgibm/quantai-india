@@ -1,0 +1,11 @@
+{
+  "api_name": "scanner_get_presets",
+  "method": "GET",
+  "path": "/api/scanner/presets",
+  "status_code": 200,
+  "response_time_ms": 133,
+  "response_payload": {
+    "status": "success",
+    "presets": []
+  }
+}

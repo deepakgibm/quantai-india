@@ -1,0 +1,185 @@
+{
+  "api_name": "ai_get_breakout_stocks",
+  "method": "GET",
+  "path": "/api/ai/breakout-detector",
+  "status_code": 200,
+  "response_time_ms": 8851,
+  "response_payload": {
+    "status": "success",
+    "count": 10,
+    "stocks": [
+      {
+        "symbol": "INDIACEM",
+        "name": "India Cements Ltd.",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 5.46,
+        "strength": 96,
+        "current_price": 441.05,
+        "breakout_level": 445.0,
+        "target_price": 476.33,
+        "stop_loss": 431.65,
+        "indicators": {
+          "rsi": 66.27,
+          "atr_expansion": 1.16,
+          "high_52w": 445.0
+        },
+        "reason": "New 52-week high. 5.5x volume. strong momentum"
+      },
+      {
+        "symbol": "KIRLOSENG",
+        "name": "Kirloskar Oil Eng Ltd.",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 5.48,
+        "strength": 96,
+        "current_price": 1281.4,
+        "breakout_level": 1290.0,
+        "target_price": 1383.91,
+        "stop_loss": 1251.3,
+        "indicators": {
+          "rsi": 66.32,
+          "atr_expansion": 1.18,
+          "high_52w": 1290.0
+        },
+        "reason": "New 52-week high. 5.5x volume. strong momentum"
+      },
+      {
+        "symbol": "SYNGENE",
+        "name": "Syngene International Ltd.",
+        "breakout_type": "RESISTANCE",
+        "volume_ratio": 2.02,
+        "strength": 85,
+        "current_price": 657.1,
+        "breakout_level": 661.2,
+        "target_price": 709.67,
+        "stop_loss": 641.36,
+        "indicators": {
+          "rsi": 54.81,
+          "atr_expansion": 1.14,
+          "high_52w": 728.6
+        },
+        "reason": "Breaking 20-day resistance. 2.0x volume"
+      },
+      {
+        "symbol": "RELIANCE",
+        "name": "Reliance Industries Ltd.",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 1.52,
+        "strength": 83,
+        "current_price": 1539.7,
+        "breakout_level": 1559.6,
+        "target_price": 1662.88,
+        "stop_loss": 1512.81,
+        "indicators": {
+          "rsi": 75.11,
+          "atr_expansion": 1.14,
+          "high_52w": 1559.6
+        },
+        "reason": "New 52-week high. 1.5x volume. strong momentum"
+      },
+      {
+        "symbol": "GRANULES",
+        "name": "Granules India Ltd.",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 1.5,
+        "strength": 81,
+        "current_price": 579.7,
+        "breakout_level": 587.2,
+        "target_price": 626.08,
+        "stop_loss": 569.58,
+        "indicators": {
+          "rsi": 65.34,
+          "atr_expansion": 0.93,
+          "high_52w": 587.2
+        },
+        "reason": "New 52-week high. strong momentum"
+      },
+      {
+        "symbol": "CENTURYPLY",
+        "name": "Century Plyboards (India) Ltd.",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 0.31,
+        "strength": 71,
+        "current_price": 840.95,
+        "breakout_level": 857.9,
+        "target_price": 908.23,
+        "stop_loss": 832.16,
+        "indicators": {
+          "rsi": 60.63,
+          "atr_expansion": 0.87,
+          "high_52w": 857.9
+        },
+        "reason": "New 52-week high. strong momentum"
+      },
+      {
+        "symbol": "CANFINHOME",
+        "name": "Can Fin Homes Ltd.",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 0.47,
+        "strength": 69,
+        "current_price": 924.1,
+        "breakout_level": 932.0,
+        "target_price": 998.03,
+        "stop_loss": 904.04,
+        "indicators": {
+          "rsi": 68.31,
+          "atr_expansion": 0.74,
+          "high_52w": 932.0
+        },
+        "reason": "New 52-week high. strong momentum"
+      },
+      {
+        "symbol": "SBIN",
+        "name": "State Bank of India",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 0.91,
+        "strength": 69,
+        "current_price": 983.6,
+        "breakout_level": 988.95,
+        "target_price": 1062.29,
+        "stop_loss": 959.28,
+        "indicators": {
+          "rsi": 66.75,
+          "atr_expansion": 0.98,
+          "high_52w": 988.95
+        },
+        "reason": "New 52-week high. strong momentum"
+      },
+      {
+        "symbol": "MANAPPURAM",
+        "name": "Manappuram Finance Ltd.",
+        "breakout_type": "RESISTANCE",
+        "volume_ratio": 1.34,
+        "strength": 68,
+        "current_price": 286.25,
+        "breakout_level": 292.0,
+        "target_price": 309.15,
+        "stop_loss": 283.24,
+        "indicators": {
+          "rsi": 50.63,
+          "atr_expansion": 0.8,
+          "high_52w": 297.46
+        },
+        "reason": "Breaking 20-day resistance"
+      },
+      {
+        "symbol": "BHARTIARTL",
+        "name": "Bharti Airtel Ltd.",
+        "breakout_type": "52W_HIGH",
+        "volume_ratio": 0.69,
+        "strength": 66,
+        "current_price": 2161.6,
+        "breakout_level": 2174.5,
+        "target_price": 2334.53,
+        "stop_loss": 2109.26,
+        "indicators": {
+          "rsi": 58.14,
+          "atr_expansion": 0.7,
+          "high_52w": 2174.5
+        },
+        "reason": "New 52-week high"
+      }
+    ],
+    "scan_type": "breakout_technical",
+    "description": "Breakout stocks with LIVE prices (52W High, Resistance, Volume)"
+  }
+}

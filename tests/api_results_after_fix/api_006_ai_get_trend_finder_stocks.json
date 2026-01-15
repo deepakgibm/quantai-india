@@ -1,0 +1,335 @@
+{
+  "api_name": "ai_get_trend_finder_stocks",
+  "method": "GET",
+  "path": "/api/ai/trend-finder",
+  "status_code": 200,
+  "response_time_ms": 6896,
+  "response_payload": {
+    "status": "success",
+    "count": 10,
+    "stocks": [
+      {
+        "symbol": "3M India Ltd",
+        "name": "3M India Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 34830.0,
+        "entry_price": 34655.85,
+        "target_price": 36571.5,
+        "stop_loss": 33785.1,
+        "indicators": {
+          "sma_20": 35174.75,
+          "sma_50": 34864.9,
+          "ema_9": 35233.8706,
+          "ema_21": 35125.4329,
+          "ema_50": 34352.7174,
+          "rsi_14": 48.4038,
+          "macd_line": 193.1336,
+          "macd_signal": 173.8202,
+          "macd_histogram": 19.3134,
+          "bb_upper": 36253.075,
+          "bb_lower": 34096.425,
+          "bb_middle": 35174.75,
+          "atr_14": 945.7143,
+          "current_close": 34830.0,
+          "prev_close": 34875.0,
+          "change_pct": -0.129
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Aurobindo Pharma Ltd",
+        "name": "Aurobindo Pharma Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 1206.1,
+        "entry_price": 1200.07,
+        "target_price": 1266.4,
+        "stop_loss": 1169.92,
+        "indicators": {
+          "sma_20": 1203.86,
+          "sma_50": 1195.076,
+          "ema_9": 1212.0062,
+          "ema_21": 1205.9195,
+          "ema_50": 1187.8133,
+          "rsi_14": 48.9717,
+          "macd_line": 6.7784,
+          "macd_signal": 6.1006,
+          "macd_histogram": 0.6778,
+          "bb_upper": 1238.8228,
+          "bb_lower": 1168.8972,
+          "bb_middle": 1203.86,
+          "atr_14": 25.8571,
+          "current_close": 1206.1,
+          "prev_close": 1235.4,
+          "change_pct": -2.3717
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Bharat Heavy Electricals Ltd",
+        "name": "Bharat Heavy Electricals Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 271.75,
+        "entry_price": 270.39,
+        "target_price": 285.34,
+        "stop_loss": 263.6,
+        "indicators": {
+          "sma_20": 284.43,
+          "sma_50": 280.4034,
+          "ema_9": 289.1273,
+          "ema_21": 285.6823,
+          "ema_50": 276.6284,
+          "rsi_14": 47.8873,
+          "macd_line": 4.0321,
+          "macd_signal": 3.6289,
+          "macd_histogram": 0.4032,
+          "bb_upper": 302.3196,
+          "bb_lower": 266.5404,
+          "bb_middle": 284.43,
+          "atr_14": 9.7857,
+          "current_close": 271.75,
+          "prev_close": 303.55,
+          "change_pct": -10.476
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Bharat Petroleum Corporation Ltd",
+        "name": "Bharat Petroleum Corporation Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 354.55,
+        "entry_price": 352.78,
+        "target_price": 372.28,
+        "stop_loss": 343.91,
+        "indicators": {
+          "sma_20": 369.0225,
+          "sma_50": 365.653,
+          "ema_9": 369.444,
+          "ema_21": 368.495,
+          "ema_50": 362.1139,
+          "rsi_14": 42.96,
+          "macd_line": 2.1086,
+          "macd_signal": 1.8977,
+          "macd_histogram": 0.2109,
+          "bb_upper": 384.7122,
+          "bb_lower": 353.3328,
+          "bb_middle": 369.0225,
+          "atr_14": 9.0214,
+          "current_close": 354.55,
+          "prev_close": 368.2,
+          "change_pct": -3.7072
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Bharti Hexacom Ltd",
+        "name": "Bharti Hexacom Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 1753.6,
+        "entry_price": 1744.83,
+        "target_price": 1841.28,
+        "stop_loss": 1700.99,
+        "indicators": {
+          "sma_20": 1778.615,
+          "sma_50": 1783.906,
+          "ema_9": 1787.6559,
+          "ema_21": 1783.2936,
+          "ema_50": 1776.7453,
+          "rsi_14": 47.9432,
+          "macd_line": 6.293,
+          "macd_signal": 5.6637,
+          "macd_histogram": 0.6293,
+          "bb_upper": 1865.0931,
+          "bb_lower": 1692.1369,
+          "bb_middle": 1778.615,
+          "atr_14": 46.6643,
+          "current_close": 1753.6,
+          "prev_close": 1780.7,
+          "change_pct": -1.5219
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Birlasoft Ltd",
+        "name": "Birlasoft Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 431.65,
+        "entry_price": 429.49,
+        "target_price": 453.23,
+        "stop_loss": 418.7,
+        "indicators": {
+          "sma_20": 435.1175,
+          "sma_50": 409.365,
+          "ema_9": 433.0696,
+          "ema_21": 429.8033,
+          "ema_50": 414.4365,
+          "rsi_14": 49.2301,
+          "macd_line": 5.9668,
+          "macd_signal": 5.3701,
+          "macd_histogram": 0.5967,
+          "bb_upper": 453.6419,
+          "bb_lower": 416.5931,
+          "bb_middle": 435.1175,
+          "atr_14": 13.6536,
+          "current_close": 431.65,
+          "prev_close": 443.4,
+          "change_pct": -2.65
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Britannia Industries Ltd",
+        "name": "Britannia Industries Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 6033.5,
+        "entry_price": 6003.33,
+        "target_price": 6335.18,
+        "stop_loss": 5852.49,
+        "indicators": {
+          "sma_20": 6038.325,
+          "sma_50": 5942.83,
+          "ema_9": 6062.5898,
+          "ema_21": 6025.0327,
+          "ema_50": 5972.2996,
+          "rsi_14": 49.4088,
+          "macd_line": 40.3901,
+          "macd_signal": 36.3511,
+          "macd_histogram": 4.039,
+          "bb_upper": 6177.614,
+          "bb_lower": 5899.036,
+          "bb_middle": 6038.325,
+          "atr_14": 106.5,
+          "current_close": 6033.5,
+          "prev_close": 6185.0,
+          "change_pct": -2.4495
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Can Fin Homes Ltd",
+        "name": "Can Fin Homes Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 895.15,
+        "entry_price": 890.67,
+        "target_price": 939.91,
+        "stop_loss": 868.3,
+        "indicators": {
+          "sma_20": 926.3525,
+          "sma_50": 902.741,
+          "ema_9": 925.907,
+          "ema_21": 921.8768,
+          "ema_50": 897.1878,
+          "rsi_14": 42.8354,
+          "macd_line": 7.7086,
+          "macd_signal": 6.9378,
+          "macd_histogram": 0.7709,
+          "bb_upper": 955.2359,
+          "bb_lower": 897.4691,
+          "bb_middle": 926.3525,
+          "atr_14": 31.8321,
+          "current_close": 895.15,
+          "prev_close": 926.5,
+          "change_pct": -3.3837
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Grasim Industries Ltd",
+        "name": "Grasim Industries Ltd",
+        "trend": "BULLISH",
+        "strength": 90,
+        "current_price": 2792.0,
+        "entry_price": 2778.04,
+        "target_price": 2931.6,
+        "stop_loss": 2708.24,
+        "indicators": {
+          "sma_20": 2826.495,
+          "sma_50": 2793.702,
+          "ema_9": 2831.8828,
+          "ema_21": 2819.4903,
+          "ema_50": 2804.5958,
+          "rsi_14": 46.15,
+          "macd_line": 14.7425,
+          "macd_signal": 13.2682,
+          "macd_histogram": 1.4742,
+          "bb_upper": 2867.3793,
+          "bb_lower": 2785.6107,
+          "bb_middle": 2826.495,
+          "atr_14": 42.2286,
+          "current_close": 2792.0,
+          "prev_close": 2837.1,
+          "change_pct": -1.5897
+        },
+        "scores": {
+          "total": 90
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      },
+      {
+        "symbol": "Federal Bank Ltd",
+        "name": "Federal Bank Ltd",
+        "trend": "BULLISH",
+        "strength": 80,
+        "current_price": 255.75,
+        "entry_price": 254.47,
+        "target_price": 268.54,
+        "stop_loss": 248.08,
+        "indicators": {
+          "sma_20": 263.5225,
+          "sma_50": 253.458,
+          "ema_9": 261.1333,
+          "ema_21": 261.0068,
+          "ema_50": 251.4471,
+          "rsi_14": 35.7879,
+          "macd_line": 1.8426,
+          "macd_signal": 1.6583,
+          "macd_histogram": 0.1843,
+          "bb_upper": 270.7359,
+          "bb_lower": 256.3091,
+          "bb_middle": 263.5225,
+          "atr_14": 5.0286,
+          "current_close": 255.75,
+          "prev_close": 258.55,
+          "change_pct": -1.083
+        },
+        "scores": {
+          "total": 80
+        },
+        "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+      }
+    ],
+    "scan_type": "trend_technical",
+    "description": "Stocks identified using technical analysis with LIVE prices (EMA, RSI, ADX, Volume, Pullback)"
+  }
+}

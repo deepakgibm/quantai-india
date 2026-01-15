@@ -1,0 +1,10 @@
+{
+  "api_name": "experiment_lab_clear_cache",
+  "method": "DELETE",
+  "path": "/api/v1/experiment-lab/cache",
+  "status_code": 200,
+  "response_time_ms": 22,
+  "response_payload": {
+    "message": "Cache cleared successfully"
+  }
+}

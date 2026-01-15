@@ -1,0 +1,18 @@
+{
+  "api_name": "auth_firebase_login",
+  "method": "POST",
+  "path": "/api/auth/firebase-login",
+  "status_code": 422,
+  "response_time_ms": 19,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'id_token' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:44.368876Z",
+      "request_id": "37542f40-b97e-458f-927c-1972b84f286c"
+    }
+  }
+}

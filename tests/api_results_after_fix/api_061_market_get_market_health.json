@@ -1,0 +1,16 @@
+{
+  "api_name": "market_get_market_health",
+  "method": "GET",
+  "path": "/api/market/health",
+  "status_code": 200,
+  "response_time_ms": 140,
+  "response_payload": {
+    "status": "healthy",
+    "services": {
+      "upstox_api": "degraded",
+      "database": "healthy",
+      "cache": "healthy"
+    },
+    "timestamp": "2026-01-10T14:26:45.724962"
+  }
+}

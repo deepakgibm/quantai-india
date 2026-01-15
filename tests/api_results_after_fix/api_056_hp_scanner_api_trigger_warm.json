@@ -1,0 +1,12 @@
+{
+  "api_name": "hp_scanner_api_trigger_warm",
+  "method": "POST",
+  "path": "/api/v3/scanner/warm",
+  "status_code": 200,
+  "response_time_ms": 13,
+  "response_payload": {
+    "status": "warming",
+    "message": "Cache warm-up triggered",
+    "symbol_count": 0
+  }
+}

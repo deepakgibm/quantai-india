@@ -1,0 +1,1828 @@
+{
+  "api_name": "hp_scanner_api_get_active_signals",
+  "method": "GET",
+  "path": "/api/v3/scanner/signals",
+  "status_code": 200,
+  "response_time_ms": 35,
+  "response_payload": {
+    "type": "signals",
+    "timestamp": "2026-01-10T16:14:36.734118",
+    "count": 200,
+    "data": [
+      {
+        "symbol": "360 ONE WAM Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.75,
+        "updated_at": "2026-01-10T16:14:34.361712"
+      },
+      {
+        "symbol": "3M India Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.13,
+        "updated_at": "2026-01-10T16:14:34.361846"
+      },
+      {
+        "symbol": "Aadhar Housing Finance Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.65,
+        "updated_at": "2026-01-10T16:14:34.361967"
+      },
+      {
+        "symbol": "Aarti Industries Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -1.93,
+        "updated_at": "2026-01-10T16:14:34.362079"
+      },
+      {
+        "symbol": "Aavas Financiers Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.5,
+        "updated_at": "2026-01-10T16:14:34.361762"
+      },
+      {
+        "symbol": "ABB India Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -5.25,
+        "updated_at": "2026-01-10T16:14:34.361867"
+      },
+      {
+        "symbol": "Abbott India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.51,
+        "updated_at": "2026-01-10T16:14:34.361972"
+      },
+      {
+        "symbol": "ACC Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.82,
+        "updated_at": "2026-01-10T16:14:34.362070"
+      },
+      {
+        "symbol": "ACME Solar Holdings Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.72,
+        "updated_at": "2026-01-10T16:14:34.362297"
+      },
+      {
+        "symbol": "Action Construction Equipment Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.23,
+        "updated_at": "2026-01-10T16:14:34.362469"
+      },
+      {
+        "symbol": "Adani Energy Solutions Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -3.79,
+        "updated_at": "2026-01-10T16:14:34.362644"
+      },
+      {
+        "symbol": "Adani Enterprises Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.64,
+        "updated_at": "2026-01-10T16:14:34.362796"
+      },
+      {
+        "symbol": "Adani Green Energy Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.98,
+        "updated_at": "2026-01-10T16:14:34.362838"
+      },
+      {
+        "symbol": "Adani Ports and Special Economic Zone Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -0.01,
+        "updated_at": "2026-01-10T16:14:34.363002"
+      },
+      {
+        "symbol": "Adani Power Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -2.38,
+        "updated_at": "2026-01-10T16:14:34.363156"
+      },
+      {
+        "symbol": "Adani Total Gas Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.29,
+        "updated_at": "2026-01-10T16:14:34.363312"
+      },
+      {
+        "symbol": "Aditya Birla Capital Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.71,
+        "updated_at": "2026-01-10T16:14:34.363496"
+      },
+      {
+        "symbol": "Aditya Birla Fashion and Retail Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.78,
+        "updated_at": "2026-01-10T16:14:34.363656"
+      },
+      {
+        "symbol": "Aditya Birla Lifestyle Brands Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.25,
+        "updated_at": "2026-01-10T16:14:34.363768"
+      },
+      {
+        "symbol": "Aditya Birla Real Estate Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.09,
+        "updated_at": "2026-01-10T16:14:34.363910"
+      },
+      {
+        "symbol": "Aditya Birla Sun Life AMC Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -4.11,
+        "updated_at": "2026-01-10T16:14:34.364427"
+      },
+      {
+        "symbol": "Aegis Logistics Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.29,
+        "updated_at": "2026-01-10T16:14:34.364521"
+      },
+      {
+        "symbol": "Aegis Vopak Terminals Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.63,
+        "updated_at": "2026-01-10T16:14:34.364594"
+      },
+      {
+        "symbol": "Afcons Infrastructure Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.65,
+        "updated_at": "2026-01-10T16:14:34.364682"
+      },
+      {
+        "symbol": "Affle 3i Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH"
+        ],
+        "change_pct": -0.36,
+        "updated_at": "2026-01-10T16:14:34.365106"
+      },
+      {
+        "symbol": "AIA Engineering Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": 1.75,
+        "updated_at": "2026-01-10T16:14:34.365199"
+      },
+      {
+        "symbol": "Ajanta Pharmaceuticals Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.55,
+        "updated_at": "2026-01-10T16:14:34.365284"
+      },
+      {
+        "symbol": "Akums Drugs and Pharmaceuticals Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.75,
+        "updated_at": "2026-01-10T16:14:34.365393"
+      },
+      {
+        "symbol": "Akzo Nobel India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.33,
+        "updated_at": "2026-01-10T16:14:34.365893"
+      },
+      {
+        "symbol": "Alembic Pharmaceuticals Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.09,
+        "updated_at": "2026-01-10T16:14:34.365981"
+      },
+      {
+        "symbol": "Alkem Laboratories Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK",
+          "BB_OVERBOUGHT"
+        ],
+        "change_pct": -0.23,
+        "updated_at": "2026-01-10T16:14:34.366064"
+      },
+      {
+        "symbol": "Alkyl Amines Chemicals Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 4.5,
+        "updated_at": "2026-01-10T16:14:34.366146"
+      },
+      {
+        "symbol": "Alok Industries Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 1.45,
+        "updated_at": "2026-01-10T16:14:34.366599"
+      },
+      {
+        "symbol": "Amara Raja Energy & Mobility Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.55,
+        "updated_at": "2026-01-10T16:14:34.366780"
+      },
+      {
+        "symbol": "Amber Enterprises India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.89,
+        "updated_at": "2026-01-10T16:14:34.366949"
+      },
+      {
+        "symbol": "Ambuja Cements Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -2.72,
+        "updated_at": "2026-01-10T16:14:34.367103"
+      },
+      {
+        "symbol": "Anand Rathi Wealth Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.75,
+        "updated_at": "2026-01-10T16:14:34.366890"
+      },
+      {
+        "symbol": "Anant Raj Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -3.46,
+        "updated_at": "2026-01-10T16:14:34.367042"
+      },
+      {
+        "symbol": "Angel One Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.35,
+        "updated_at": "2026-01-10T16:14:34.367186"
+      },
+      {
+        "symbol": "Apar Industries Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.21,
+        "updated_at": "2026-01-10T16:14:34.367329"
+      },
+      {
+        "symbol": "APL Apollo Tubes Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.84,
+        "updated_at": "2026-01-10T16:14:34.366997"
+      },
+      {
+        "symbol": "Apollo Hospitals Enterprise Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.11,
+        "updated_at": "2026-01-10T16:14:34.367090"
+      },
+      {
+        "symbol": "Apollo Tyres Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": 0.46,
+        "updated_at": "2026-01-10T16:14:34.367182"
+      },
+      {
+        "symbol": "Aptus Value Housing Finance India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -3.25,
+        "updated_at": "2026-01-10T16:14:34.367262"
+      },
+      {
+        "symbol": "Asahi India Glass Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -3.14,
+        "updated_at": "2026-01-10T16:14:34.367911"
+      },
+      {
+        "symbol": "Ashok Leyland Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.86,
+        "updated_at": "2026-01-10T16:14:34.368089"
+      },
+      {
+        "symbol": "Asian Paints Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -0.82,
+        "updated_at": "2026-01-10T16:14:34.368258"
+      },
+      {
+        "symbol": "Aster DM Healthcare Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.96,
+        "updated_at": "2026-01-10T16:14:34.368467"
+      },
+      {
+        "symbol": "Astral Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.75,
+        "updated_at": "2026-01-10T16:14:34.367928"
+      },
+      {
+        "symbol": "AstraZenca Pharma India Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.54,
+        "updated_at": "2026-01-10T16:14:34.368069"
+      },
+      {
+        "symbol": "Ather Energy Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.85,
+        "updated_at": "2026-01-10T16:14:34.368188"
+      },
+      {
+        "symbol": "Atul Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": 0.96,
+        "updated_at": "2026-01-10T16:14:34.368383"
+      },
+      {
+        "symbol": "AU Small Finance Bank Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.24,
+        "updated_at": "2026-01-10T16:14:34.368739"
+      },
+      {
+        "symbol": "Aurobindo Pharma Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.37,
+        "updated_at": "2026-01-10T16:14:34.368859"
+      },
+      {
+        "symbol": "Authum Investment & Infrastructure Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": 0.88,
+        "updated_at": "2026-01-10T16:14:34.368997"
+      },
+      {
+        "symbol": "Avenue Supermarts Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.35,
+        "updated_at": "2026-01-10T16:14:34.369083"
+      },
+      {
+        "symbol": "AWL Agri Business Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.52,
+        "updated_at": "2026-01-10T16:14:34.369322"
+      },
+      {
+        "symbol": "Axis Bank Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.67,
+        "updated_at": "2026-01-10T16:14:34.369415"
+      },
+      {
+        "symbol": "Bajaj Auto Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.3,
+        "updated_at": "2026-01-10T16:14:34.369500"
+      },
+      {
+        "symbol": "Bajaj Finance Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.33,
+        "updated_at": "2026-01-10T16:14:34.369582"
+      },
+      {
+        "symbol": "Bajaj Finserv Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.13,
+        "updated_at": "2026-01-10T16:14:34.370006"
+      },
+      {
+        "symbol": "Bajaj Holdings & Investment Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.1,
+        "updated_at": "2026-01-10T16:14:34.370101"
+      },
+      {
+        "symbol": "Bajaj Housing Finance Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.02,
+        "updated_at": "2026-01-10T16:14:34.370202"
+      },
+      {
+        "symbol": "Balkrishna Industries Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.91,
+        "updated_at": "2026-01-10T16:14:34.370306"
+      },
+      {
+        "symbol": "Balrampur Chini Mills Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.66,
+        "updated_at": "2026-01-10T16:14:34.370345"
+      },
+      {
+        "symbol": "Bandhan Bank Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.8,
+        "updated_at": "2026-01-10T16:14:34.370460"
+      },
+      {
+        "symbol": "Bank of Baroda",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.82,
+        "updated_at": "2026-01-10T16:14:34.370609"
+      },
+      {
+        "symbol": "Bank of India",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -3.01,
+        "updated_at": "2026-01-10T16:14:34.370760"
+      },
+      {
+        "symbol": "Bank of Maharashtra",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.07,
+        "updated_at": "2026-01-10T16:14:34.371509"
+      },
+      {
+        "symbol": "BASF India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -0.37,
+        "updated_at": "2026-01-10T16:14:34.371677"
+      },
+      {
+        "symbol": "Bata India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -0.94,
+        "updated_at": "2026-01-10T16:14:34.371834"
+      },
+      {
+        "symbol": "Bayer Cropscience Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BEARISH"
+        ],
+        "change_pct": -0.89,
+        "updated_at": "2026-01-10T16:14:34.371991"
+      },
+      {
+        "symbol": "BEML Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -2.18,
+        "updated_at": "2026-01-10T16:14:34.372038"
+      },
+      {
+        "symbol": "Berger Paints India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.23,
+        "updated_at": "2026-01-10T16:14:34.372136"
+      },
+      {
+        "symbol": "Bharat Dynamics Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH"
+        ],
+        "change_pct": -0.38,
+        "updated_at": "2026-01-10T16:14:34.372219"
+      },
+      {
+        "symbol": "Bharat Electronics Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH"
+        ],
+        "change_pct": 0.0,
+        "updated_at": "2026-01-10T16:14:34.372373"
+      },
+      {
+        "symbol": "Bharat Forge Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.98,
+        "updated_at": "2026-01-10T16:14:34.372604"
+      },
+      {
+        "symbol": "Bharat Heavy Electricals Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -10.48,
+        "updated_at": "2026-01-10T16:14:34.372708"
+      },
+      {
+        "symbol": "Bharat Petroleum Corporation Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -3.71,
+        "updated_at": "2026-01-10T16:14:34.372808"
+      },
+      {
+        "symbol": "Bharti Airtel Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -0.86,
+        "updated_at": "2026-01-10T16:14:34.372953"
+      },
+      {
+        "symbol": "Bharti Hexacom Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.52,
+        "updated_at": "2026-01-10T16:14:34.373135"
+      },
+      {
+        "symbol": "Bikaji Foods International Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.31,
+        "updated_at": "2026-01-10T16:14:34.373309"
+      },
+      {
+        "symbol": "Biocon Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.35,
+        "updated_at": "2026-01-10T16:14:34.373470"
+      },
+      {
+        "symbol": "Birlasoft Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.65,
+        "updated_at": "2026-01-10T16:14:34.373630"
+      },
+      {
+        "symbol": "BLS International Services Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.21,
+        "updated_at": "2026-01-10T16:14:34.373782"
+      },
+      {
+        "symbol": "Blue Dart Express Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.35,
+        "updated_at": "2026-01-10T16:14:34.373955"
+      },
+      {
+        "symbol": "Blue Jet Healthcare Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.7,
+        "updated_at": "2026-01-10T16:14:34.374114"
+      },
+      {
+        "symbol": "Blue Star Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.28,
+        "updated_at": "2026-01-10T16:14:34.374272"
+      },
+      {
+        "symbol": "Bombay Burmah Trading Corporation Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -3.59,
+        "updated_at": "2026-01-10T16:14:34.374015"
+      },
+      {
+        "symbol": "Bosch Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.24,
+        "updated_at": "2026-01-10T16:14:34.374143"
+      },
+      {
+        "symbol": "Brainbees Solutions Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.39,
+        "updated_at": "2026-01-10T16:14:34.374283"
+      },
+      {
+        "symbol": "Brigade Enterprises Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.05,
+        "updated_at": "2026-01-10T16:14:34.374404"
+      },
+      {
+        "symbol": "Britannia Industries Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.45,
+        "updated_at": "2026-01-10T16:14:34.374412"
+      },
+      {
+        "symbol": "BSE Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -1.85,
+        "updated_at": "2026-01-10T16:14:34.374583"
+      },
+      {
+        "symbol": "Campus Activewear Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.46,
+        "updated_at": "2026-01-10T16:14:34.374731"
+      },
+      {
+        "symbol": "Can Fin Homes Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -3.38,
+        "updated_at": "2026-01-10T16:14:34.374876"
+      },
+      {
+        "symbol": "Canara Bank",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.63,
+        "updated_at": "2026-01-10T16:14:34.374654"
+      },
+      {
+        "symbol": "Caplin Point Laboratories Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.03,
+        "updated_at": "2026-01-10T16:14:34.374809"
+      },
+      {
+        "symbol": "Capri Global Capital Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": 0.19,
+        "updated_at": "2026-01-10T16:14:34.374949"
+      },
+      {
+        "symbol": "Carborundum Universal Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -0.64,
+        "updated_at": "2026-01-10T16:14:34.375083"
+      },
+      {
+        "symbol": "Castrol India Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -0.74,
+        "updated_at": "2026-01-10T16:14:34.376332"
+      },
+      {
+        "symbol": "CCL Products (I) Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.59,
+        "updated_at": "2026-01-10T16:14:34.376440"
+      },
+      {
+        "symbol": "CE Info Systems Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -3.29,
+        "updated_at": "2026-01-10T16:14:34.376527"
+      },
+      {
+        "symbol": "Ceat Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": 1.77,
+        "updated_at": "2026-01-10T16:14:34.376611"
+      },
+      {
+        "symbol": "Central Bank of India",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -2.68,
+        "updated_at": "2026-01-10T16:14:34.375832"
+      },
+      {
+        "symbol": "Central Depository Services (India) Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.53,
+        "updated_at": "2026-01-10T16:14:34.375920"
+      },
+      {
+        "symbol": "Century Plyboards (India) Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.92,
+        "updated_at": "2026-01-10T16:14:34.376002"
+      },
+      {
+        "symbol": "Cera Sanitaryware Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.34,
+        "updated_at": "2026-01-10T16:14:34.376080"
+      },
+      {
+        "symbol": "CESC Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -2.38,
+        "updated_at": "2026-01-10T16:14:34.377692"
+      },
+      {
+        "symbol": "CG Power and Industrial Solutions Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -3.56,
+        "updated_at": "2026-01-10T16:14:34.377869"
+      },
+      {
+        "symbol": "Chalet Hotels Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.56,
+        "updated_at": "2026-01-10T16:14:34.378038"
+      },
+      {
+        "symbol": "Chambal Fertilizers & Chemicals Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -3.03,
+        "updated_at": "2026-01-10T16:14:34.378204"
+      },
+      {
+        "symbol": "Chennai Petroleum Corporation Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -3.2,
+        "updated_at": "2026-01-10T16:14:34.377807"
+      },
+      {
+        "symbol": "Choice International Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.05,
+        "updated_at": "2026-01-10T16:14:34.377968"
+      },
+      {
+        "symbol": "Cholamandalam Financial Holdings Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -1.48,
+        "updated_at": "2026-01-10T16:14:34.378090"
+      },
+      {
+        "symbol": "Cholamandalam Investment and Finance Company Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.82,
+        "updated_at": "2026-01-10T16:14:34.378188"
+      },
+      {
+        "symbol": "Cipla Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -0.5,
+        "updated_at": "2026-01-10T16:14:34.378292"
+      },
+      {
+        "symbol": "City Union Bank Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -3.94,
+        "updated_at": "2026-01-10T16:14:34.378391"
+      },
+      {
+        "symbol": "Clean Science and Technology Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.32,
+        "updated_at": "2026-01-10T16:14:34.378498"
+      },
+      {
+        "symbol": "Coal India Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.48,
+        "updated_at": "2026-01-10T16:14:34.378610"
+      },
+      {
+        "symbol": "Cochin Shipyard Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.73,
+        "updated_at": "2026-01-10T16:14:34.378880"
+      },
+      {
+        "symbol": "Coforge Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -3.2,
+        "updated_at": "2026-01-10T16:14:34.378973"
+      },
+      {
+        "symbol": "Cohance Lifesciences Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.07,
+        "updated_at": "2026-01-10T16:14:34.379069"
+      },
+      {
+        "symbol": "Colgate Palmolive (India) Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.44,
+        "updated_at": "2026-01-10T16:14:34.379198"
+      },
+      {
+        "symbol": "Computer Age Management Services Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.44,
+        "updated_at": "2026-01-10T16:14:34.379327"
+      },
+      {
+        "symbol": "Concord Biotech Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.79,
+        "updated_at": "2026-01-10T16:14:34.379501"
+      },
+      {
+        "symbol": "Container Corporation of India Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -2.68,
+        "updated_at": "2026-01-10T16:14:34.379610"
+      },
+      {
+        "symbol": "Coromandel International Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -2.0,
+        "updated_at": "2026-01-10T16:14:34.379697"
+      },
+      {
+        "symbol": "Craftsman Automation Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.78,
+        "updated_at": "2026-01-10T16:14:34.380228"
+      },
+      {
+        "symbol": "CreditAccess Grameen Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -0.25,
+        "updated_at": "2026-01-10T16:14:34.380436"
+      },
+      {
+        "symbol": "CRISIL Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "BB_OVERBOUGHT"
+        ],
+        "change_pct": -0.14,
+        "updated_at": "2026-01-10T16:14:34.380600"
+      },
+      {
+        "symbol": "Crompton Greaves Consumer Electricals Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.2,
+        "updated_at": "2026-01-10T16:14:34.380766"
+      },
+      {
+        "symbol": "Cummins India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -0.72,
+        "updated_at": "2026-01-10T16:14:34.380573"
+      },
+      {
+        "symbol": "Cyient Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": 0.31,
+        "updated_at": "2026-01-10T16:14:34.380669"
+      },
+      {
+        "symbol": "Dabur India Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.28,
+        "updated_at": "2026-01-10T16:14:34.380754"
+      },
+      {
+        "symbol": "Dalmia Bharat Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -2.59,
+        "updated_at": "2026-01-10T16:14:34.380836"
+      },
+      {
+        "symbol": "Data Patterns (India) Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.33,
+        "updated_at": "2026-01-10T16:14:34.380886"
+      },
+      {
+        "symbol": "DCM Shriram Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -3.17,
+        "updated_at": "2026-01-10T16:14:34.381016"
+      },
+      {
+        "symbol": "Deepak Fertilisers & Petrochemicals Corp Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.16,
+        "updated_at": "2026-01-10T16:14:34.381158"
+      },
+      {
+        "symbol": "Deepak Nitrite Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.45,
+        "updated_at": "2026-01-10T16:14:34.381258"
+      },
+      {
+        "symbol": "Delhivery Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -1.14,
+        "updated_at": "2026-01-10T16:14:34.381435"
+      },
+      {
+        "symbol": "Devyani International Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.82,
+        "updated_at": "2026-01-10T16:14:34.381521"
+      },
+      {
+        "symbol": "Divi's Laboratories Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.63,
+        "updated_at": "2026-01-10T16:14:34.381601"
+      },
+      {
+        "symbol": "Dixon Technologies (India) Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 1.84,
+        "updated_at": "2026-01-10T16:14:34.381680"
+      },
+      {
+        "symbol": "DLF Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.54,
+        "updated_at": "2026-01-10T16:14:34.382298"
+      },
+      {
+        "symbol": "DOMS Industries Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.8,
+        "updated_at": "2026-01-10T16:14:34.382455"
+      },
+      {
+        "symbol": "Dr Agarwal's Health Care Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.92,
+        "updated_at": "2026-01-10T16:14:34.382598"
+      },
+      {
+        "symbol": "Dr Lal Path Labs Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -1.38,
+        "updated_at": "2026-01-10T16:14:34.382740"
+      },
+      {
+        "symbol": "Dr Reddy's Laboratories Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.89,
+        "updated_at": "2026-01-10T16:14:34.382980"
+      },
+      {
+        "symbol": "eClerx Services Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.43,
+        "updated_at": "2026-01-10T16:14:34.383079"
+      },
+      {
+        "symbol": "Eicher Motors Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.42,
+        "updated_at": "2026-01-10T16:14:34.383171"
+      },
+      {
+        "symbol": "EID Parry (India) Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -3.6,
+        "updated_at": "2026-01-10T16:14:34.383267"
+      },
+      {
+        "symbol": "EIH Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -1.28,
+        "updated_at": "2026-01-10T16:14:34.383256"
+      },
+      {
+        "symbol": "Elecon Engineering Co Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -2.8,
+        "updated_at": "2026-01-10T16:14:34.383401"
+      },
+      {
+        "symbol": "Elgi Equipments Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -3.27,
+        "updated_at": "2026-01-10T16:14:34.383538"
+      },
+      {
+        "symbol": "Emami Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.96,
+        "updated_at": "2026-01-10T16:14:34.383670"
+      },
+      {
+        "symbol": "Emcure Pharmaceuticals Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.35,
+        "updated_at": "2026-01-10T16:14:34.383731"
+      },
+      {
+        "symbol": "Endurance Technologies Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.72,
+        "updated_at": "2026-01-10T16:14:34.383828"
+      },
+      {
+        "symbol": "Engineers India Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -3.51,
+        "updated_at": "2026-01-10T16:14:34.383913"
+      },
+      {
+        "symbol": "Eris Lifesciences Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.2,
+        "updated_at": "2026-01-10T16:14:34.383996"
+      },
+      {
+        "symbol": "Escorts Kubota Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.21,
+        "updated_at": "2026-01-10T16:14:34.384431"
+      },
+      {
+        "symbol": "Eternal Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": 0.93,
+        "updated_at": "2026-01-10T16:14:34.384619"
+      },
+      {
+        "symbol": "Exide Industries Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -1.84,
+        "updated_at": "2026-01-10T16:14:34.384728"
+      },
+      {
+        "symbol": "Federal Bank Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -1.08,
+        "updated_at": "2026-01-10T16:14:34.384821"
+      },
+      {
+        "symbol": "Fertilisers and Chemicals Travancore Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": 1.94,
+        "updated_at": "2026-01-10T16:14:34.384794"
+      },
+      {
+        "symbol": "Finolex Cables Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -0.83,
+        "updated_at": "2026-01-10T16:14:34.384887"
+      },
+      {
+        "symbol": "Finolex Industries Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH"
+        ],
+        "change_pct": -1.37,
+        "updated_at": "2026-01-10T16:14:34.384972"
+      },
+      {
+        "symbol": "Firstsource Solutions Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.47,
+        "updated_at": "2026-01-10T16:14:34.385055"
+      },
+      {
+        "symbol": "Five-Star Business Finance Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.87,
+        "updated_at": "2026-01-10T16:14:34.385518"
+      },
+      {
+        "symbol": "Force Motors Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -3.07,
+        "updated_at": "2026-01-10T16:14:34.385694"
+      },
+      {
+        "symbol": "Fortis Healthcare Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -2.53,
+        "updated_at": "2026-01-10T16:14:34.385906"
+      },
+      {
+        "symbol": "FSN E-Commerce Ventures Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -3.64,
+        "updated_at": "2026-01-10T16:14:34.386072"
+      },
+      {
+        "symbol": "GAIL (India) Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.94,
+        "updated_at": "2026-01-10T16:14:34.385570"
+      },
+      {
+        "symbol": "Garden Reach Shipbuilders & Engineers Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BEARISH"
+        ],
+        "change_pct": -1.77,
+        "updated_at": "2026-01-10T16:14:34.385657"
+      },
+      {
+        "symbol": "GE Vernova T&D India Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -4.69,
+        "updated_at": "2026-01-10T16:14:34.385739"
+      },
+      {
+        "symbol": "General Insurance Corporation of India",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.66,
+        "updated_at": "2026-01-10T16:14:34.385819"
+      },
+      {
+        "symbol": "Gillette India Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -1.41,
+        "updated_at": "2026-01-10T16:14:34.386441"
+      },
+      {
+        "symbol": "Gland Pharma Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.8,
+        "updated_at": "2026-01-10T16:14:34.386534"
+      },
+      {
+        "symbol": "Glaxosmithkline Pharmaceuticals Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.48,
+        "updated_at": "2026-01-10T16:14:34.386619"
+      },
+      {
+        "symbol": "Glenmark Pharmaceuticals Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.58,
+        "updated_at": "2026-01-10T16:14:34.386711"
+      },
+      {
+        "symbol": "Global Health Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -3.03,
+        "updated_at": "2026-01-10T16:14:34.387560"
+      },
+      {
+        "symbol": "GMR Airports Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.91,
+        "updated_at": "2026-01-10T16:14:34.387748"
+      },
+      {
+        "symbol": "Go Digit General Insurance Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -0.84,
+        "updated_at": "2026-01-10T16:14:34.387905"
+      },
+      {
+        "symbol": "Godawari Power & Ispat Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.29,
+        "updated_at": "2026-01-10T16:14:34.388061"
+      },
+      {
+        "symbol": "Godfrey Phillips India Ltd",
+        "signals": [
+          "RSI_OVERSOLD",
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -0.64,
+        "updated_at": "2026-01-10T16:14:34.388017"
+      },
+      {
+        "symbol": "Godrej Agrovet Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.12,
+        "updated_at": "2026-01-10T16:14:34.388189"
+      },
+      {
+        "symbol": "Godrej Consumer Products Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.36,
+        "updated_at": "2026-01-10T16:14:34.388392"
+      },
+      {
+        "symbol": "Godrej Industries Ltd",
+        "signals": [
+          "MACD_BEARISH"
+        ],
+        "change_pct": -2.9,
+        "updated_at": "2026-01-10T16:14:34.388561"
+      },
+      {
+        "symbol": "Godrej Properties Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": -2.02,
+        "updated_at": "2026-01-10T16:14:34.388350"
+      },
+      {
+        "symbol": "Granules India Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.59,
+        "updated_at": "2026-01-10T16:14:34.388528"
+      },
+      {
+        "symbol": "Graphite India Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -2.47,
+        "updated_at": "2026-01-10T16:14:34.388671"
+      },
+      {
+        "symbol": "Grasim Industries Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.59,
+        "updated_at": "2026-01-10T16:14:34.388810"
+      },
+      {
+        "symbol": "Gravita India Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -3.23,
+        "updated_at": "2026-01-10T16:14:34.388765"
+      },
+      {
+        "symbol": "Great Eastern Shipping Co Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "BB_OVERSOLD"
+        ],
+        "change_pct": -2.12,
+        "updated_at": "2026-01-10T16:14:34.388919"
+      },
+      {
+        "symbol": "Gujarat Fluorochemicals Ltd",
+        "signals": [
+          "MACD_BULLISH"
+        ],
+        "change_pct": 0.01,
+        "updated_at": "2026-01-10T16:14:34.389055"
+      },
+      {
+        "symbol": "Gujarat Gas Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -1.26,
+        "updated_at": "2026-01-10T16:14:34.389194"
+      },
+      {
+        "symbol": "Gujarat Mineral Development Corporation Ltd",
+        "signals": [
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -6.48,
+        "updated_at": "2026-01-10T16:14:34.389189"
+      },
+      {
+        "symbol": "Gujarat State Petronet Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH",
+          "EMA_BULLISH_STACK"
+        ],
+        "change_pct": -0.51,
+        "updated_at": "2026-01-10T16:14:34.389337"
+      },
+      {
+        "symbol": "Happiest Minds Technologies Ltd",
+        "signals": [
+          "MACD_BEARISH",
+          "EMA_BEARISH_STACK"
+        ],
+        "change_pct": -2.52,
+        "updated_at": "2026-01-10T16:14:34.389497"
+      },
+      {
+        "symbol": "Havells India Ltd",
+        "signals": [
+          "RSI_OVERBOUGHT",
+          "MACD_BULLISH"
+        ],
+        "change_pct": -0.84,
+        "updated_at": "2026-01-10T16:14:34.389628"
+      }
+    ],
+    "latency_ms": 2.94,
+    "source": "MEMCACHED"
+  }
+}

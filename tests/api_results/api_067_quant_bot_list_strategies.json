@@ -1,0 +1,21 @@
+{
+  "api_name": "quant_bot_list_strategies",
+  "method": "GET",
+  "path": "/api/quant/strategies",
+  "request_payload": {},
+  "response_payload": {
+    "strategies": [
+      {
+        "name": "ML Trend Continuation",
+        "description": "Uses ML to predict trend continuation based on SMA crossover and other factors.",
+        "params": {}
+      }
+    ]
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:57.841312Z",
+  "end_time_utc": "2026-01-10T13:07:57.858636Z",
+  "response_time_ms": 17,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

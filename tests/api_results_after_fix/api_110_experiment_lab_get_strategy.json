@@ -1,0 +1,18 @@
+{
+  "api_name": "experiment_lab_get_strategy",
+  "method": "GET",
+  "path": "/api/v1/experiment-lab/strategies/{strategy_id}",
+  "status_code": 422,
+  "response_time_ms": 19,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'strategy_id' must be a valid integer"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:28:48.004915Z",
+      "request_id": "1562126d-f803-4d43-a3d6-be14163c8f85"
+    }
+  }
+}

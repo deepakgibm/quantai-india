@@ -1,0 +1,147 @@
+{
+  "api_name": "scanner_get_strategies",
+  "method": "GET",
+  "path": "/api/scanner/strategies",
+  "status_code": 200,
+  "response_time_ms": 24,
+  "response_payload": {
+    "status": "success",
+    "strategies": {
+      "Tier 1 - Highest Win Rate": [
+        {
+          "name": "Bollinger Bands Breakout",
+          "description": "Detects breakouts above upper or below lower Bollinger Bands",
+          "tier": "Tier 1 - Highest Win Rate",
+          "min_bars": 30
+        },
+        {
+          "name": "Donchian Channel Breakout",
+          "description": "Turtle trading style breakout using Donchian Channels",
+          "tier": "Tier 1 - Highest Win Rate",
+          "min_bars": 25
+        },
+        {
+          "name": "Head & Shoulders Pattern",
+          "description": "Detects Head & Shoulders reversal patterns",
+          "tier": "Tier 1 - Highest Win Rate",
+          "min_bars": 50
+        },
+        {
+          "name": "RSI Mean Reversion",
+          "description": "Identifies oversold/overbought conditions using RSI for mean reversion trades",
+          "tier": "Tier 1 - Highest Win Rate",
+          "min_bars": 30
+        },
+        {
+          "name": "Williams %R Mean Reversion",
+          "description": "Identifies overbought/oversold using Williams %R oscillator",
+          "tier": "Tier 1 - Highest Win Rate",
+          "min_bars": 20
+        }
+      ],
+      "Tier 2 - Solid Strategies": [
+        {
+          "name": "ADX Trend Strength",
+          "description": "Identifies strong trends using ADX with +DI/-DI crossovers",
+          "tier": "Tier 2 - Solid Strategies",
+          "min_bars": 30
+        },
+        {
+          "name": "MACD Bullish Crossover",
+          "description": "MACD line crossing signal line",
+          "tier": "Tier 2 - Solid Strategies",
+          "min_bars": 35
+        },
+        {
+          "name": "Price Momentum",
+          "description": "6-month/52-week momentum based on rate of change",
+          "tier": "Tier 2 - Solid Strategies",
+          "min_bars": 130
+        },
+        {
+          "name": "RSI + MACD Confluence",
+          "description": "Combined RSI and MACD for high-probability signals",
+          "tier": "Tier 2 - Solid Strategies",
+          "min_bars": 35
+        },
+        {
+          "name": "Stochastic Oscillator",
+          "description": "Identifies overbought/oversold using Stochastic %K/%D crossovers",
+          "tier": "Tier 2 - Solid Strategies",
+          "min_bars": 20
+        }
+      ],
+      "Tier 3 - Advanced Strategies": [
+        {
+          "name": "ATR-Based Volatility Breakout",
+          "description": "Breakout when price moves beyond ATR threshold",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 25
+        },
+        {
+          "name": "CCI Deviation",
+          "description": "CCI extreme deviation mean reversion",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 25
+        },
+        {
+          "name": "Donchian Channel Mean Reversion",
+          "description": "Mean reversion from Donchian channel extremes",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 25
+        },
+        {
+          "name": "Fibonacci Retracement Bounce",
+          "description": "Price bouncing at Fibonacci retracement levels",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 50
+        },
+        {
+          "name": "Flag & Pennant Continuation",
+          "description": "Detects flag/pennant consolidation patterns",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 30
+        },
+        {
+          "name": "Ichimoku Cloud Trend",
+          "description": "Trend following using Ichimoku Cloud",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 60
+        },
+        {
+          "name": "Moving Average Golden Cross",
+          "description": "50 SMA crossing above 200 SMA",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 210
+        },
+        {
+          "name": "OBV Divergence",
+          "description": "Detects divergence between price and On-Balance Volume",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 30
+        },
+        {
+          "name": "Parabolic SAR Reversal",
+          "description": "Trend reversal signals from Parabolic SAR",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 25
+        },
+        {
+          "name": "Volume Surge Accumulation",
+          "description": "Detects unusual volume spikes indicating accumulation/distribution",
+          "tier": "Tier 3 - Advanced Strategies",
+          "min_bars": 25
+        }
+      ],
+      "Multi-Timeframe Confluence": [
+        {
+          "name": "Multi-Timeframe Confluence",
+          "description": "3-layer confluence: Daily trend + 4H structure + 1H entry trigger",
+          "tier": "Multi-Timeframe Confluence",
+          "min_bars": 210
+        }
+      ]
+    },
+    "total_count": 21
+  }
+}

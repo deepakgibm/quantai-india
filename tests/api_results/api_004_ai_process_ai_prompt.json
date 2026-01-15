@@ -1,0 +1,17 @@
+{
+  "api_name": "ai_process_ai_prompt",
+  "method": "POST",
+  "path": "/api/ai/prompt",
+  "request_payload": {
+    "prompt": "Analyze RELIANCE"
+  },
+  "response_payload": {
+    "detail": "AI processing failed: 403 Your API key was reported as leaked. Please use another API key."
+  },
+  "status_code": 500,
+  "start_time_utc": "2026-01-10T13:07:34.339117Z",
+  "end_time_utc": "2026-01-10T13:07:34.619534Z",
+  "response_time_ms": 280,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

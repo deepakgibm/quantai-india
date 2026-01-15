@@ -1,0 +1,16 @@
+{
+  "api_name": "trading_get_gainers_losers",
+  "method": "GET",
+  "path": "/api/trading/gainers-losers",
+  "request_payload": {},
+  "response_payload": {
+    "message": "An unexpected error occurred.",
+    "detail": "cannot import name 'get_nifty_symbols' from 'utils.symbol_utils' (/app/utils/symbol_utils.py)"
+  },
+  "status_code": 500,
+  "start_time_utc": "2026-01-10T13:07:58.674548Z",
+  "end_time_utc": "2026-01-10T13:07:58.694778Z",
+  "response_time_ms": 20,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

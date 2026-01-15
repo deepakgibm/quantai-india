@@ -1,0 +1,10 @@
+{
+  "api_name": "upstox_get_positions",
+  "method": "GET",
+  "path": "/api/upstox/positions",
+  "status_code": 400,
+  "response_time_ms": 31,
+  "response_payload": {
+    "detail": "Upstox not connected"
+  }
+}

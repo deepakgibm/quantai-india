@@ -1,0 +1,36 @@
+{
+  "api_name": "scanner_get_timeframes",
+  "method": "GET",
+  "path": "/api/scanner/timeframes",
+  "status_code": 200,
+  "response_time_ms": 14,
+  "response_payload": {
+    "status": "success",
+    "timeframes": [
+      {
+        "value": "3m",
+        "label": "3 Minutes"
+      },
+      {
+        "value": "5m",
+        "label": "5 Minutes"
+      },
+      {
+        "value": "15m",
+        "label": "15 Minutes"
+      },
+      {
+        "value": "30m",
+        "label": "30 Minutes"
+      },
+      {
+        "value": "60m",
+        "label": "60 Minutes"
+      },
+      {
+        "value": "1d",
+        "label": "1 Day"
+      }
+    ]
+  }
+}

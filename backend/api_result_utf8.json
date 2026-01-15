@@ -1,0 +1,328 @@
+﻿{
+  "status": "success",
+  "count": 10,
+  "stocks": [
+    {
+      "symbol": "Adani Energy Solutions Ltd",
+      "name": "Adani Energy Solutions Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 960.6,
+      "entry_price": 955.8,
+      "target_price": 1008.63,
+      "stop_loss": 931.78,
+      "indicators": {
+        "sma_20": 1010.5525,
+        "sma_50": 996.313,
+        "ema_9": 1011.6032,
+        "ema_21": 1008.8793,
+        "ema_50": 987.4055,
+        "rsi_14": 43.8678,
+        "macd_line": 6.6446,
+        "macd_signal": 5.9801,
+        "macd_histogram": 0.6645,
+        "bb_upper": 1062.0306,
+        "bb_lower": 959.0744,
+        "bb_middle": 1010.5525,
+        "atr_14": 27.25,
+        "current_close": 960.6,
+        "prev_close": 994.3,
+        "change_pct": -3.3893
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "Apollo Tyres Ltd",
+      "name": "Apollo Tyres Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 504.4,
+      "entry_price": 501.88,
+      "target_price": 529.62,
+      "stop_loss": 489.27,
+      "indicators": {
+        "sma_20": 505.9225,
+        "sma_50": 514.093,
+        "ema_9": 508.9871,
+        "ema_21": 508.8257,
+        "ema_50": 507.5685,
+        "rsi_14": 48.3427,
+        "macd_line": -0.6411,
+        "macd_signal": -0.577,
+        "macd_histogram": -0.0641,
+        "bb_upper": 521.8442,
+        "bb_lower": 490.0008,
+        "bb_middle": 505.9225,
+        "atr_14": 11.9071,
+        "current_close": 504.4,
+        "prev_close": 519.95,
+        "change_pct": -2.9907
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BEARISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "Aurobindo Pharma Ltd",
+      "name": "Aurobindo Pharma Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 1198.7,
+      "entry_price": 1192.71,
+      "target_price": 1258.63,
+      "stop_loss": 1162.74,
+      "indicators": {
+        "sma_20": 1205.185,
+        "sma_50": 1196.816,
+        "ema_9": 1209.345,
+        "ema_21": 1205.2632,
+        "ema_50": 1188.2414,
+        "rsi_14": 41.0326,
+        "macd_line": 5.365,
+        "macd_signal": 4.8285,
+        "macd_histogram": 0.5365,
+        "bb_upper": 1237.126,
+        "bb_lower": 1173.244,
+        "bb_middle": 1205.185,
+        "atr_14": 25.2857,
+        "current_close": 1198.7,
+        "prev_close": 1206.1,
+        "change_pct": -0.6135
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "Balkrishna Industries Ltd",
+      "name": "Balkrishna Industries Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 2360.1,
+      "entry_price": 2348.3,
+      "target_price": 2478.11,
+      "stop_loss": 2289.3,
+      "indicators": {
+        "sma_20": 2350.955,
+        "sma_50": 2339.992,
+        "ema_9": 2363.6286,
+        "ema_21": 2352.6121,
+        "ema_50": 2348.4304,
+        "rsi_14": 48.9126,
+        "macd_line": 9.1564,
+        "macd_signal": 8.2408,
+        "macd_histogram": 0.9156,
+        "bb_upper": 2420.9425,
+        "bb_lower": 2280.9675,
+        "bb_middle": 2350.955,
+        "atr_14": 39.9714,
+        "current_close": 2360.1,
+        "prev_close": 2375.7,
+        "change_pct": -0.6566
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "Bharat Heavy Electricals Ltd",
+      "name": "Bharat Heavy Electricals Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 274.25,
+      "entry_price": 272.88,
+      "target_price": 287.96,
+      "stop_loss": 266.02,
+      "indicators": {
+        "sma_20": 284.3175,
+        "sma_50": 280.9806,
+        "ema_9": 286.1518,
+        "ema_21": 284.643,
+        "ema_50": 276.5353,
+        "rsi_14": 49.0613,
+        "macd_line": 2.6152,
+        "macd_signal": 2.3536,
+        "macd_histogram": 0.2615,
+        "bb_upper": 302.4321,
+        "bb_lower": 266.2029,
+        "bb_middle": 284.3175,
+        "atr_14": 10.3893,
+        "current_close": 274.25,
+        "prev_close": 271.75,
+        "change_pct": 0.92
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "Bharti Hexacom Ltd",
+      "name": "Bharti Hexacom Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 1761.6,
+      "entry_price": 1752.79,
+      "target_price": 1849.68,
+      "stop_loss": 1708.75,
+      "indicators": {
+        "sma_20": 1781.805,
+        "sma_50": 1780.852,
+        "ema_9": 1782.4447,
+        "ema_21": 1781.3214,
+        "ema_50": 1776.153,
+        "rsi_14": 43.5523,
+        "macd_line": 3.7467,
+        "macd_signal": 3.3721,
+        "macd_histogram": 0.3747,
+        "bb_upper": 1860.4781,
+        "bb_lower": 1703.1319,
+        "bb_middle": 1781.805,
+        "atr_14": 45.45,
+        "current_close": 1761.6,
+        "prev_close": 1753.6,
+        "change_pct": 0.4562
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "Birlasoft Ltd",
+      "name": "Birlasoft Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 422.05,
+      "entry_price": 419.94,
+      "target_price": 443.15,
+      "stop_loss": 409.39,
+      "indicators": {
+        "sma_20": 434.8225,
+        "sma_50": 410.3,
+        "ema_9": 430.8656,
+        "ema_21": 429.0984,
+        "ema_50": 414.7339,
+        "rsi_14": 45.246,
+        "macd_line": 4.6516,
+        "macd_signal": 4.1864,
+        "macd_histogram": 0.4652,
+        "bb_upper": 453.9715,
+        "bb_lower": 415.6735,
+        "bb_middle": 434.8225,
+        "atr_14": 14.0,
+        "current_close": 422.05,
+        "prev_close": 431.65,
+        "change_pct": -2.224
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "eClerx Services Ltd",
+      "name": "eClerx Services Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 4616.0,
+      "entry_price": 4592.92,
+      "target_price": 4846.8,
+      "stop_loss": 4477.52,
+      "indicators": {
+        "sma_20": 4655.09,
+        "sma_50": 4596.696,
+        "ema_9": 4687.2951,
+        "ema_21": 4664.0366,
+        "ema_50": 4574.3318,
+        "rsi_14": 48.2074,
+        "macd_line": 33.8002,
+        "macd_signal": 30.4202,
+        "macd_histogram": 3.38,
+        "bb_upper": 4898.251,
+        "bb_lower": 4411.929,
+        "bb_middle": 4655.09,
+        "atr_14": 158.6,
+        "current_close": 4616.0,
+        "prev_close": 4598.5,
+        "change_pct": 0.3806
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "Engineers India Ltd",
+      "name": "Engineers India Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 193.44,
+      "entry_price": 192.47,
+      "target_price": 203.11,
+      "stop_loss": 187.64,
+      "indicators": {
+        "sma_20": 199.5965,
+        "sma_50": 198.476,
+        "ema_9": 200.4873,
+        "ema_21": 200.0676,
+        "ema_50": 199.6226,
+        "rsi_14": 41.1675,
+        "macd_line": 0.7433,
+        "macd_signal": 0.669,
+        "macd_histogram": 0.0743,
+        "bb_upper": 208.5799,
+        "bb_lower": 190.6131,
+        "bb_middle": 199.5965,
+        "atr_14": 5.0993,
+        "current_close": 193.44,
+        "prev_close": 197.53,
+        "change_pct": -2.0706
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    },
+    {
+      "symbol": "GE Vernova T&D India Ltd",
+      "name": "GE Vernova T&D India Ltd",
+      "trend": "BULLISH",
+      "strength": 90,
+      "current_price": 2898.1,
+      "entry_price": 2883.61,
+      "target_price": 3043.01,
+      "stop_loss": 2811.16,
+      "indicators": {
+        "sma_20": 3056.27,
+        "sma_50": 3007.088,
+        "ema_9": 3045.5613,
+        "ema_21": 3038.8598,
+        "ema_50": 2998.3362,
+        "rsi_14": 48.3109,
+        "macd_line": 17.9334,
+        "macd_signal": 16.1401,
+        "macd_histogram": 1.7933,
+        "bb_upper": 3228.9471,
+        "bb_lower": 2883.5929,
+        "bb_middle": 3056.27,
+        "atr_14": 130.5929,
+        "current_close": 2898.1,
+        "prev_close": 3002.6,
+        "change_pct": -3.4803
+      },
+      "scores": {
+        "total": 90
+      },
+      "reason": "Trend: BULLISH, Signals: MACD_BULLISH, EMA_BULLISH_STACK"
+    }
+  ],
+  "scan_type": "trend_technical",
+  "description": "Stocks identified using technical analysis with LIVE prices (EMA, RSI, ADX, Volume, Pullback)"
+}

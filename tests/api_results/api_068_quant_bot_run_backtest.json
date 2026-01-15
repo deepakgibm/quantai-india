@@ -1,0 +1,54 @@
+{
+  "api_name": "quant_bot_run_backtest",
+  "method": "POST",
+  "path": "/api/quant/backtest/run",
+  "request_payload": {
+    "test": "data"
+  },
+  "response_payload": {
+    "detail": [
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "symbol"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      },
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "start_date"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      },
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "end_date"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      }
+    ]
+  },
+  "status_code": 422,
+  "start_time_utc": "2026-01-10T13:07:57.859708Z",
+  "end_time_utc": "2026-01-10T13:07:57.877149Z",
+  "response_time_ms": 17,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

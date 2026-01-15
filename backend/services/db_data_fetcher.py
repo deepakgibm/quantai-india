@@ -2,6 +2,10 @@
 Database Data Fetcher Service
 Tertiary fallback for when WebSocket and REST API are unavailable.
 Uses historical data from the database to provide momentum data during market hours.
+
+Supports both:
+- Legacy: stock_candles (symbol, instrument_key, timeframe TEXT)
+- New: stock_candle (instrument_id, timeframe SMALLINT, candle_ts)
 """
 
 import logging
@@ -13,7 +17,14 @@ import pandas as pd
 from config import settings
 from urllib.parse import urlparse
 
+# Import new schema utilities
+from services.instrument_resolver import resolve_instrument_id, get_symbol_for_instrument_id
+from services.timeframe_converter import text_to_minutes, minutes_to_text
+
 logger = logging.getLogger(__name__)
+
+# Flag to control which schema to query
+USE_NEW_SCHEMA = True
 
 
 @dataclass
@@ -93,7 +104,7 @@ class DatabaseDataFetcher:
     def fetch_latest_data(self, symbols: List[str] = None) -> Dict[str, DatabaseTick]:
         """
         Fetch latest available data from database.
-        Uses stock_candles table for price data - FAST query.
+        Tries new stock_candle schema first, falls back to legacy stock_candles.
         
         Args:
             symbols: List of symbols to fetch. If None, fetches all available.
@@ -111,9 +122,40 @@ class DatabaseDataFetcher:
         try:
             cursor = conn.cursor()
             
-            logger.info("Fetching momentum data from stock_candles table (V3)")
+            # Try new schema first if enabled
+            if USE_NEW_SCHEMA:
+                logger.info("Fetching momentum data from stock_candle table (NEW SCHEMA)")
+                
+                # Get latest date from new schema
+                cursor.execute("SELECT MAX(candle_ts::date) FROM stock_candle")
+                max_date_row = cursor.fetchone()
+                
+                if max_date_row and max_date_row[0]:
+                    max_date = max_date_row[0]
+                    logger.info(f"Latest date in stock_candle: {max_date}")
+                    
+                    # Query using new schema with instrument_master join
+                    cursor.execute("""
+                        SELECT im.symbol, sc.candle_ts::date as trade_date, sc.close
+                        FROM stock_candle sc
+                        JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                        WHERE sc.timeframe = 1440  -- Daily candles (1440 minutes)
+                        AND im.is_active = TRUE
+                        AND sc.candle_ts >= %s::timestamp - interval '10 days'
+                        ORDER BY im.symbol, sc.candle_ts DESC
+                        LIMIT 10000
+                    """, (max_date,))
+                    
+                    rows = cursor.fetchall()
+                    logger.info(f"stock_candle query returned {len(rows)} rows")
+                    
+                    if rows:
+                        # Process new schema results
+                        return self._process_momentum_rows(rows, conn)
             
-            # Step 1: Get the latest date from stock_candles (fastest)
+            # Fallback to legacy schema
+            logger.info("Fetching momentum data from stock_candles table (LEGACY)")
+            
             cursor.execute("SELECT MAX(timestamp::date) FROM stock_candles")
             max_date_row = cursor.fetchone()
             if not max_date_row or not max_date_row[0]:
@@ -123,81 +165,25 @@ class DatabaseDataFetcher:
             max_date = max_date_row[0]
             logger.info(f"Latest date in stock_candles: {max_date}")
             
-            # Step 2: Get latest close prices for the most recent trading days
-            # JOIN with stock_master to get the ACTUAL trading symbol (e.g. RELIANCE) 
-            # instead of the full company name stored in stock_candles.symbol
+            # Legacy query with stock_master join
             cursor.execute("""
-                SELECT sm.symbol, sc.timestamp::date as trade_date, sc.close
+                SELECT sm.symbol, sc.timestamp::timestamp::date as trade_date, sc.close
                 FROM stock_candles sc
                 JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
-                WHERE sc.timeframe = '1d' 
-                AND sc.timestamp >= %s::timestamp - interval '10 days'
-                ORDER BY sm.symbol, sc.timestamp DESC
+                WHERE sc.timeframe IN ('1d', '1day')
+                AND sc.timestamp::timestamp >= %s::timestamp - interval '10 days'
+                ORDER BY sm.symbol, sc.timestamp::timestamp DESC
                 LIMIT 10000
             """, (max_date,))
             
             rows = cursor.fetchall()
-            logger.info(f"stock_candles query returned {len(rows)} rows with symbol mapping join")
+            logger.info(f"stock_candles query returned {len(rows)} rows")
             
             if not rows:
-                logger.warning("No 1d data in stock_candles for the specified date range")
+                logger.warning("No 1d data found")
                 return {}
             
-            # Process rows to get latest and previous close per symbol
-            symbol_data = {}
-            for row in rows:
-                symbol = row[0]
-                trade_date = row[1]
-                close = float(row[2])
-                
-                if symbol not in symbol_data:
-                    symbol_data[symbol] = []
-                
-                # Only keep up to 2 unique dates per symbol
-                dates_seen = [d['date'] for d in symbol_data[symbol]]
-                if trade_date not in dates_seen and len(symbol_data[symbol]) < 2:
-                    symbol_data[symbol].append({'date': trade_date, 'close': close})
-            
-            logger.info(f"Processed {len(symbol_data)} unique symbols")
-            
-            # Create DatabaseTick objects
-            count = 0
-            for symbol, data_list in symbol_data.items():
-                if count >= 200:
-                    break
-                    
-                if len(data_list) >= 1:
-                    latest_close = data_list[0]['close']
-                    data_date = data_list[0]['date']
-                    prev_close = data_list[1]['close'] if len(data_list) >= 2 else latest_close
-                    
-                    # Calculate daily change percentage
-                    if prev_close > 0:
-                        change_pct = ((latest_close - prev_close) / prev_close) * 100
-                    else:
-                        change_pct = 0.0
-                    
-                    bucket, direction = calculate_bucket(change_pct)
-                    
-                    tick = DatabaseTick(
-                        symbol=symbol,
-                        ltp=round(latest_close, 2),
-                        prev_close=round(prev_close, 2),
-                        change_pct=round(change_pct, 2),
-                        bucket=bucket,
-                        direction=direction,
-                        source="DB",
-                        confidence="LOW",
-                        timestamp=datetime.now().isoformat(),
-                        data_date=str(data_date)
-                    )
-                    
-                    results[symbol] = tick
-                    self._cache[symbol] = tick
-                    count += 1
-            
-            self._last_fetch = datetime.now()
-            logger.info(f"Database fetcher loaded {len(results)} symbols")
+            return self._process_momentum_rows(rows, conn)
             
         except Exception as e:
             logger.error(f"Database fetch error: {e}")
@@ -207,6 +193,69 @@ class DatabaseDataFetcher:
             conn.close()
         
         return results
+    
+    def _process_momentum_rows(self, rows: List, conn) -> Dict[str, DatabaseTick]:
+        """Process rows from either schema into DatabaseTick objects."""
+        results = {}
+        
+        # Process rows to get latest and previous close per symbol
+        symbol_data = {}
+        for row in rows:
+            symbol = row[0]
+            trade_date = row[1]
+            close = float(row[2])
+            
+            if symbol not in symbol_data:
+                symbol_data[symbol] = []
+            
+            # Only keep up to 2 unique dates per symbol
+            dates_seen = [d['date'] for d in symbol_data[symbol]]
+            if trade_date not in dates_seen and len(symbol_data[symbol]) < 2:
+                symbol_data[symbol].append({'date': trade_date, 'close': close})
+        
+        logger.info(f"Processed {len(symbol_data)} unique symbols")
+        
+        # Create DatabaseTick objects
+        count = 0
+        for symbol, data_list in symbol_data.items():
+            if count >= 200:
+                break
+                
+            if len(data_list) >= 1:
+                latest_close = data_list[0]['close']
+                data_date = data_list[0]['date']
+                prev_close = data_list[1]['close'] if len(data_list) >= 2 else latest_close
+                
+                # Calculate daily change percentage
+                if prev_close > 0:
+                    change_pct = ((latest_close - prev_close) / prev_close) * 100
+                else:
+                    change_pct = 0.0
+                
+                bucket, direction = calculate_bucket(change_pct)
+                
+                tick = DatabaseTick(
+                    symbol=symbol,
+                    ltp=round(latest_close, 2),
+                    prev_close=round(prev_close, 2),
+                    change_pct=round(change_pct, 2),
+                    bucket=bucket,
+                    direction=direction,
+                    source="DB",
+                    confidence="LOW",
+                    timestamp=datetime.now().isoformat(),
+                    data_date=str(data_date)
+                )
+                
+                results[symbol] = tick
+                self._cache[symbol] = tick
+                count += 1
+        
+        self._last_fetch = datetime.now()
+        logger.info(f"Database fetcher loaded {len(results)} symbols")
+        
+        return results
+
     
     def get_cached_data(self) -> List[Dict]:
         """Return all cached data."""
@@ -262,9 +311,9 @@ class DatabaseDataFetcher:
                     SELECT timestamp, open, high, low, close, volume
                     FROM stock_candles
                     WHERE instrument_key = %s AND timeframe = %s
-                    AND timestamp::date >= %s::date
-                    AND timestamp::date <= %s::date
-                    ORDER BY timestamp ASC
+                    AND timestamp::timestamp::date >= %s::date
+                    AND timestamp::timestamp::date <= %s::date
+                    ORDER BY timestamp::timestamp ASC
                 """
                 params = (instrument_key, db_tf, start_date, end_date)
             else:
@@ -272,9 +321,9 @@ class DatabaseDataFetcher:
                     SELECT timestamp, open, high, low, close, volume
                     FROM stock_candles
                     WHERE symbol = %s AND timeframe = %s
-                    AND timestamp::date >= %s::date
-                    AND timestamp::date <= %s::date
-                    ORDER BY timestamp ASC
+                    AND timestamp::timestamp::date >= %s::date
+                    AND timestamp::timestamp::date <= %s::date
+                    ORDER BY timestamp::timestamp ASC
                 """
                 params = (symbol, db_tf, start_date, end_date)
 

@@ -1,0 +1,10 @@
+{
+  "api_name": "analytics_get_volatility_analysis",
+  "method": "GET",
+  "path": "/api/analytics/volatility/{symbol}",
+  "status_code": 404,
+  "response_time_ms": 33,
+  "response_payload": {
+    "detail": "No data found for {symbol}"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "api_name": "scanner_save_preset",
+  "method": "POST",
+  "path": "/api/scanner/presets",
+  "status_code": 422,
+  "response_time_ms": 101,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "'name' is required; 'indices' is required; 'timeframe' is required; 'strategies' is required"
+    },
+    "meta": {
+      "timestamp": "2026-01-10T14:26:46.719356Z",
+      "request_id": "50e5cf43-ab23-470d-bfc0-87aaf2ef8108"
+    }
+  }
+}

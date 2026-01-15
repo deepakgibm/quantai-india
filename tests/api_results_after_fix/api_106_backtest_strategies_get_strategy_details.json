@@ -1,0 +1,10 @@
+{
+  "api_name": "backtest_strategies_get_strategy_details",
+  "method": "GET",
+  "path": "/api/v1/backtest/strategies/{strategy_name}",
+  "status_code": 404,
+  "response_time_ms": 28,
+  "response_payload": {
+    "detail": "Strategy '{strategy_name}' not found. Use /api/v1/backtest/strategies/list to see available strategies."
+  }
+}

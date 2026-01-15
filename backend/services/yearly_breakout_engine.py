@@ -200,7 +200,29 @@ class YearlyBreakoutEngine:
             batch = symbols[i:i + batch_size]
             tasks = [self.process_stock(s) for s in batch]
             batch_results = await asyncio.gather(*tasks)
-            results.extend([res.dict() for res in batch_results if res])
+            
+            # Enrich batch with LIVE prices for absolute accuracy before caching
+            valid_batch_results = [res.dict() for res in batch_results if res]
+            if valid_batch_results:
+                from services.live_price_enricher import enrich_scanner_results
+                enriched_batch = await enrich_scanner_results(valid_batch_results)
+                
+                # Recalculate breakout_pct based on enriched price if it changed
+                for res in enriched_batch:
+                    current_price = res.get("current_price", 0)
+                    if current_price > 0:
+                        if res.get("breakout_type") == "Breakout":
+                            # Use high_52w from engine if available,不然 from res
+                            high = res.get("yearly_high", 0)
+                            if high > 0:
+                                res["breakout_pct"] = round(((current_price - high) / high) * 100, 2)
+                        elif res.get("breakout_type") == "Yearly Low":
+                            low = res.get("yearly_low", 0)
+                            if low > 0:
+                                res["breakout_pct"] = round(((current_price - low) / low) * 100, 2)
+                    
+                results.extend(enriched_batch)
+            
             await asyncio.sleep(0.1)
 
         if results:

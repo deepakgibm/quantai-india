@@ -1,0 +1,17 @@
+{
+  "api_name": "scanner_get_momentum_status",
+  "method": "GET",
+  "path": "/api/scanner/momentum/status",
+  "status_code": 200,
+  "response_time_ms": 21,
+  "response_payload": {
+    "source": "DB",
+    "is_healthy": false,
+    "last_tick": null,
+    "symbol_count": 0,
+    "poll_interval": 60,
+    "rest_error_count": 0,
+    "stock_count": 0,
+    "is_initialized": true
+  }
+}

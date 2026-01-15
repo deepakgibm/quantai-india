@@ -17,7 +17,37 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a plain password against a hashed password.
+    
+    Handles edge cases:
+    - Empty or None passwords
+    - Malformed bcrypt hashes
+    - Password byte length limits (bcrypt max 72 bytes)
+    """
+    try:
+        # Handle edge cases
+        if not plain_password or not hashed_password:
+            return False
+        
+        # Check if the hash looks like a valid bcrypt hash
+        if not hashed_password.startswith('$2'):
+            # Not a bcrypt hash - might be Firebase auth marker or corrupted
+            if hashed_password == "firebase_auth_no_password":
+                return False  # Firebase users should use Firebase auth
+            # Try anyway, will likely fail
+            return False
+        
+        # Truncate password to 72 bytes if needed (bcrypt limitation)
+        # This prevents "password cannot be longer than 72 bytes" error
+        password_bytes = plain_password.encode('utf-8')[:72]
+        truncated_password = password_bytes.decode('utf-8', errors='ignore')
+        
+        return pwd_context.verify(truncated_password, hashed_password)
+    except Exception as e:
+        # Log but don't expose the error details
+        import logging
+        logging.getLogger(__name__).error(f"Password verification error: {type(e).__name__}")
+        return False
 
 async def verify_password_async(plain_password: str, hashed_password: str) -> bool:
     """Async version of verify_password to avoid blocking event loop."""
@@ -27,6 +57,7 @@ async def verify_password_async(plain_password: str, hashed_password: str) -> bo
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()

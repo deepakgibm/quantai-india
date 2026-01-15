@@ -1,0 +1,10 @@
+{
+  "api_name": "upstox_get_market_quote",
+  "method": "GET",
+  "path": "/api/upstox/market-quote/{symbol}",
+  "status_code": 400,
+  "response_time_ms": 22,
+  "response_payload": {
+    "detail": "Upstox not connected"
+  }
+}

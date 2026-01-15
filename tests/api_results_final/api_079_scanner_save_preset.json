@@ -1,0 +1,11 @@
+{
+  "api_name": "scanner_save_preset",
+  "method": "POST",
+  "path": "/api/scanner/presets",
+  "status_code": 200,
+  "response_time_ms": 28,
+  "response_payload": {
+    "status": "success",
+    "preset_id": "5"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "api_name": "experiment_lab_get_strategy",
+  "method": "GET",
+  "path": "/api/v1/experiment-lab/strategies/{strategy_id}",
+  "status_code": 200,
+  "response_time_ms": 29,
+  "response_payload": {
+    "id": 1,
+    "name": "RSI Mean Reversion",
+    "category": "A",
+    "description": "Buy when RSI is oversold (<30), sell when overbought (>70)",
+    "indicators_used": [
+      "RSI"
+    ],
+    "min_bars_required": 20
+  }
+}

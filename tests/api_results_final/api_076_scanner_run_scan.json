@@ -1,0 +1,15 @@
+{
+  "api_name": "scanner_run_scan",
+  "method": "POST",
+  "path": "/api/scanner/run",
+  "status_code": 200,
+  "response_time_ms": 14,
+  "response_payload": {
+    "status": "success",
+    "scan_id": "scan_1768061677",
+    "results": [],
+    "total_stocks": 0,
+    "signals_found": 0,
+    "duration_seconds": 0.0
+  }
+}

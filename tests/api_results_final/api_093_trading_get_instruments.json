@@ -1,0 +1,113 @@
+{
+  "api_name": "trading_get_instruments",
+  "method": "GET",
+  "path": "/api/trading/instruments",
+  "status_code": 200,
+  "response_time_ms": 23,
+  "response_payload": {
+    "status": "success",
+    "instruments": [
+      {
+        "symbol": "360ONE",
+        "name": "360 ONE WAM Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "3MINDIA",
+        "name": "3M India Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ABB",
+        "name": "ABB India Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ACC",
+        "name": "ACC Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ACMESOLAR",
+        "name": "ACME Solar Holdings Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "AIAENG",
+        "name": "AIA Engineering Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "APLAPOLLO",
+        "name": "APL Apollo Tubes Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "AUBANK",
+        "name": "AU Small Finance Bank Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "AWL",
+        "name": "AWL Agri Business Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "AADHARHFC",
+        "name": "Aadhar Housing Finance Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "AARTIIND",
+        "name": "Aarti Industries Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "AAVAS",
+        "name": "Aavas Financiers Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ABBOTINDIA",
+        "name": "Abbott India Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ACE",
+        "name": "Action Construction Equipment Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ADANIENSOL",
+        "name": "Adani Energy Solutions Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ADANIENT",
+        "name": "Adani Enterprises Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ADANIGREEN",
+        "name": "Adani Green Energy Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ADANIPORTS",
+        "name": "Adani Ports and Special Economic Zone Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ADANIPOWER",
+        "name": "Adani Power Ltd.",
+        "exchange": "NSE"
+      },
+      {
+        "symbol": "ATGL",
+        "name": "Adani Total Gas Ltd.",
+        "exchange": "NSE"
+      }
+    ],
+    "count": 20
+  }
+}

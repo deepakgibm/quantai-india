@@ -1,0 +1,13 @@
+{
+  "api_name": "analytics_get_analytics_overview",
+  "method": "GET",
+  "path": "/api/analytics/overview",
+  "status_code": 200,
+  "response_time_ms": 36,
+  "response_payload": {
+    "status": "success",
+    "market_sentiment": "Neutral",
+    "active_alerts": 5,
+    "daily_volume_status": "High"
+  }
+}

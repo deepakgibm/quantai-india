@@ -1,0 +1,15 @@
+{
+  "api_name": "hp_scanner_api_get_reversal",
+  "method": "GET",
+  "path": "/reversal",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:57.249499Z",
+  "end_time_utc": "2026-01-10T13:07:57.257649Z",
+  "response_time_ms": 8,
+  "database_state_notes": "No DB interaction defined",
+  "errors": []
+}

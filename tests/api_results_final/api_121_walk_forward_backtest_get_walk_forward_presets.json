@@ -1,0 +1,21 @@
+{
+  "api_name": "walk_forward_backtest_get_walk_forward_presets",
+  "method": "GET",
+  "path": "/api/v1/walk-forward/presets",
+  "status_code": 200,
+  "response_time_ms": 76,
+  "response_payload": {
+    "intraday": {
+      "train_window": 60,
+      "test_window": 10,
+      "step_size": 10,
+      "description": "60 sessions train, 10 sessions test, frequent re-optimization"
+    },
+    "swing": {
+      "train_window": 252,
+      "test_window": 63,
+      "step_size": 21,
+      "description": "1 year train, 3 months test, monthly step"
+    }
+  }
+}

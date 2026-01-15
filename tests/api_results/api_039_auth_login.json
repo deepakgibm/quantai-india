@@ -1,0 +1,42 @@
+{
+  "api_name": "auth_login",
+  "method": "POST",
+  "path": "/api/auth/login",
+  "request_payload": {
+    "test": "data"
+  },
+  "response_payload": {
+    "detail": [
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "email"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      },
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "password"
+        ],
+        "msg": "Field required",
+        "input": {
+          "test": "data"
+        },
+        "url": "https://errors.pydantic.dev/2.5/v/missing"
+      }
+    ]
+  },
+  "status_code": 422,
+  "start_time_utc": "2026-01-10T13:07:56.934641Z",
+  "end_time_utc": "2026-01-10T13:07:56.953641Z",
+  "response_time_ms": 18,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

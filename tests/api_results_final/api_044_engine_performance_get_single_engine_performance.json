@@ -1,0 +1,11 @@
+{
+  "api_name": "engine_performance_get_single_engine_performance",
+  "method": "GET",
+  "path": "/api/engines/performance/{engine_name}",
+  "status_code": 200,
+  "response_time_ms": 63,
+  "response_payload": {
+    "status": "error",
+    "message": "Engine '{engine_name}' not found"
+  }
+}

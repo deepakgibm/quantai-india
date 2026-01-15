@@ -1,0 +1,15 @@
+{
+  "api_name": "hp_scanner_api_get_metrics",
+  "method": "GET",
+  "path": "/metrics",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:57.311330Z",
+  "end_time_utc": "2026-01-10T13:07:57.343090Z",
+  "response_time_ms": 31,
+  "database_state_notes": "No DB interaction defined",
+  "errors": []
+}

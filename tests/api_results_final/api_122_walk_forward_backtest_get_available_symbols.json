@@ -1,0 +1,18 @@
+{
+  "api_name": "walk_forward_backtest_get_available_symbols",
+  "method": "GET",
+  "path": "/api/v1/walk-forward/symbols",
+  "status_code": 500,
+  "response_time_ms": 161,
+  "response_payload": {
+    "status": "error",
+    "error": {
+      "code": "SERVICE_ERROR",
+      "message": "An internal error occurred. Please try again later."
+    },
+    "meta": {
+      "timestamp": "2026-01-10T16:16:56.368692Z",
+      "request_id": "8f081438-05d1-4209-8c60-6a6d08f6e386"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "api_name": "market_get_nifty100_ranking_status",
+  "method": "GET",
+  "path": "/api/market/nifty100/status",
+  "status_code": 200,
+  "response_time_ms": 12,
+  "response_payload": {
+    "is_running": true,
+    "mode": "EOD",
+    "symbols_tracked": 0,
+    "tick_count": 0,
+    "cache_writes": 0,
+    "last_cache_write": null,
+    "market_status": {
+      "is_open": false,
+      "is_trading_day": false,
+      "is_pre_market": false,
+      "trading_date": "2026-01-09",
+      "time_to_open": 134294,
+      "time_to_close": 0,
+      "current_time_ist": "19:56:45"
+    }
+  }
+}

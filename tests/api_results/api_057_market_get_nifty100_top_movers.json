@@ -1,0 +1,16 @@
+{
+  "api_name": "market_get_nifty100_top_movers",
+  "method": "GET",
+  "path": "/api/market/nifty100/top-movers",
+  "request_payload": {},
+  "response_payload": {
+    "message": "An unexpected error occurred.",
+    "detail": "cannot import name 'get_nifty_symbols' from 'utils.symbol_utils' (/app/utils/symbol_utils.py)"
+  },
+  "status_code": 500,
+  "start_time_utc": "2026-01-10T13:07:57.375428Z",
+  "end_time_utc": "2026-01-10T13:07:57.408788Z",
+  "response_time_ms": 33,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

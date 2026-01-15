@@ -1,0 +1,23 @@
+{
+  "api_name": "analytics_execute_custom_query",
+  "method": "POST",
+  "path": "/api/analytics/query",
+  "status_code": 200,
+  "response_time_ms": 51,
+  "response_payload": {
+    "status": "success",
+    "data": [],
+    "columns": [
+      "symbol",
+      "instrument_key",
+      "timeframe",
+      "timestamp",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume"
+    ],
+    "row_count": 0
+  }
+}

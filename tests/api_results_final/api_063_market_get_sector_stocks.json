@@ -1,0 +1,13 @@
+{
+  "api_name": "market_get_sector_stocks",
+  "method": "GET",
+  "path": "/api/market/sector-stocks/{sector_name}",
+  "status_code": 200,
+  "response_time_ms": 36,
+  "response_payload": {
+    "status": "success",
+    "sector": "{sector_name}",
+    "stocks": [],
+    "note": "Market data for this sector is still warming up"
+  }
+}

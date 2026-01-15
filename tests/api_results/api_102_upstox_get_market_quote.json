@@ -1,0 +1,15 @@
+{
+  "api_name": "upstox_get_market_quote",
+  "method": "GET",
+  "path": "/api/upstox/market-quote/RELIANCE",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Upstox not connected"
+  },
+  "status_code": 400,
+  "start_time_utc": "2026-01-10T13:07:58.935684Z",
+  "end_time_utc": "2026-01-10T13:07:58.950415Z",
+  "response_time_ms": 14,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

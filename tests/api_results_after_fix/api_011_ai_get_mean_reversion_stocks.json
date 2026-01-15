@@ -1,0 +1,14 @@
+{
+  "api_name": "ai_get_mean_reversion_stocks",
+  "method": "GET",
+  "path": "/api/ai/mean-reversion",
+  "status_code": 200,
+  "response_time_ms": 18,
+  "response_payload": {
+    "status": "success",
+    "count": 0,
+    "stocks": [],
+    "scan_type": "mean_reversion",
+    "description": "unterminated triple-quoted string literal (detected at line 133) (mean_reversion_scanner.py, line 17)"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "api_name": "market_get_orchestrator_status",
+  "method": "GET",
+  "path": "/api/market/orchestrator/status",
+  "status_code": 200,
+  "response_time_ms": 11,
+  "response_payload": {
+    "status": "success",
+    "orchestrator": {
+      "websocket_healthy": false,
+      "rest_api_healthy": true,
+      "current_source": "REST",
+      "fallback_active": true,
+      "db_fallback_enabled": true
+    },
+    "timestamp": "2026-01-10T14:26:45.580730",
+    "note": "Orchestrator not initialized, using fallback data"
+  }
+}

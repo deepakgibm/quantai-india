@@ -1,0 +1,15 @@
+{
+  "api_name": "experiment_lab_list_categories",
+  "method": "GET",
+  "path": "/api/v1/experiment/categories",
+  "request_payload": {},
+  "response_payload": {
+    "detail": "Not Found"
+  },
+  "status_code": 404,
+  "start_time_utc": "2026-01-10T13:07:59.134424Z",
+  "end_time_utc": "2026-01-10T13:07:59.140723Z",
+  "response_time_ms": 6,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

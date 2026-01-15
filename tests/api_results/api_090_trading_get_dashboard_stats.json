@@ -1,0 +1,21 @@
+{
+  "api_name": "trading_get_dashboard_stats",
+  "method": "GET",
+  "path": "/api/trading/stats",
+  "request_payload": {},
+  "response_payload": {
+    "total_pnl": 0.0,
+    "daily_pnl": 0.0,
+    "capital_used": 0.0,
+    "total_capital": 1000000.0,
+    "active_algorithms": 2,
+    "win_rate": 70.0,
+    "total_trades": 0
+  },
+  "status_code": 200,
+  "start_time_utc": "2026-01-10T13:07:58.471106Z",
+  "end_time_utc": "2026-01-10T13:07:58.493178Z",
+  "response_time_ms": 22,
+  "database_state_notes": "Observed interaction with DB",
+  "errors": []
+}

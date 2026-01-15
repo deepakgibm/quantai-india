@@ -1,0 +1,18 @@
+{
+  "api_name": "scanner_get_breakout_data",
+  "method": "GET",
+  "path": "/api/scanner/breakout",
+  "status_code": 200,
+  "response_time_ms": 24930,
+  "response_payload": {
+    "type": "breakout_scan",
+    "timestamp": "2026-01-10T16:15:40.482455",
+    "data": [],
+    "count": 0,
+    "status": {
+      "source": "DB",
+      "is_healthy": false,
+      "last_update": "2026-01-10T16:15:40.482464"
+    }
+  }
+}

@@ -5,7 +5,7 @@ Production-grade SQLAlchemy models for the Smart Beta Multi-Factor trading syste
 Follows Udacity AI Trading curriculum principles with institutional engineering practices.
 """
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Index, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, SmallInteger, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Index, UniqueConstraint, PrimaryKeyConstraint, Numeric
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -13,9 +13,88 @@ from database import Base
 
 print(f"Loading models_alpha: {__name__}")
 
+
+# =============================================================================
+# NEW SCHEMA MODELS (Partitioned table with instrument_id)
+# =============================================================================
+
+class InstrumentMaster(Base):
+    """
+    Master table for all traded instruments.
+    Source of truth for instrument_id resolution.
+    """
+    __tablename__ = "instrument_master"
+    
+    instrument_id = Column(BigInteger, primary_key=True)
+    instrument_key = Column(String(100), unique=True, nullable=True)
+    
+    symbol = Column(String(20), nullable=False, index=True)
+    series = Column(String(10), nullable=False, default='EQ')
+    exchange = Column(String(10), nullable=False, default='NSE')
+    
+    company_name = Column(Text, nullable=True)
+    sector = Column(Text, nullable=True)
+    isin_code = Column(String(20), nullable=True)
+    
+    is_active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint('symbol', 'series', 'exchange', name='uq_instrument'),
+        Index('idx_instrument_symbol', 'symbol'),
+        Index('idx_instrument_active', 'is_active'),
+        {'extend_existing': True}
+    )
+    
+    def __repr__(self):
+        return f"<InstrumentMaster(id={self.instrument_id}, symbol={self.symbol})>"
+
+
+class StockCandleV2(Base):
+    """
+    NEW: Partitioned OHLCV candle table with instrument_id-based design.
+    
+    Key differences from legacy StockCandle:
+    - Uses instrument_id (BIGINT FK) instead of symbol/instrument_key
+    - Uses timeframe (SMALLINT minutes) instead of TEXT
+    - Uses candle_ts (TIMESTAMP) instead of timestamp
+    - Partitioned by RANGE(candle_ts), monthly
+    
+    Note: This model maps to the 'stock_candle' table (not 'stock_candles').
+    """
+    __tablename__ = "stock_candle"
+    
+    # Composite primary key
+    instrument_id = Column(BigInteger, ForeignKey('instrument_master.instrument_id'), nullable=False)
+    timeframe = Column(SmallInteger, nullable=False)  # Minutes: 1, 5, 15, 30, 60, 1440
+    candle_ts = Column(DateTime, nullable=False)
+    
+    # OHLCV data
+    open = Column(Numeric(12, 4), nullable=True)
+    high = Column(Numeric(12, 4), nullable=True)
+    low = Column(Numeric(12, 4), nullable=True)
+    close = Column(Numeric(12, 4), nullable=True)
+    volume = Column(BigInteger, nullable=True)
+    
+    __table_args__ = (
+        PrimaryKeyConstraint('instrument_id', 'timeframe', 'candle_ts'),
+        Index('idx_candle_lookup', 'instrument_id', 'timeframe', 'candle_ts'),
+        {'extend_existing': True}
+    )
+    
+    def __repr__(self):
+        return f"<StockCandleV2(instrument_id={self.instrument_id}, tf={self.timeframe}, ts={self.candle_ts})>"
+
+
+# =============================================================================
+# LEGACY MODELS (Preserved for backward compatibility)
+# =============================================================================
+
 class StockData(Base):
     """
-    Time-series OHLCV data storage for Nifty 200 stocks.
+    LEGACY: Time-series OHLCV data storage for Nifty 200 stocks.
     Optimized for range queries with composite index on (symbol, timestamp).
     """
     __tablename__ = "stock_data"
@@ -55,8 +134,10 @@ class StockData(Base):
 
 class StockCandle(Base):
     """
-    Unified OHLCV storage for multi-timeframe data.
+    LEGACY: Unified OHLCV storage for multi-timeframe data.
     Supports 1m, 5m, 15m, 1h, 1d timeframes.
+    
+    Note: This is the OLD schema. New code should use StockCandleV2.
     """
     __tablename__ = "stock_candles"
     
@@ -90,7 +171,9 @@ class StockCandle(Base):
 class TimeframeMapper:
     """
     Utility class to map UI timeframes to database timeframe values.
+    Supports both legacy (TEXT) and new (SMALLINT minutes) formats.
     """
+    # Legacy TEXT mapping
     MAPPING = {
         '1m': '1minute',
         '5m': '5minute', 
@@ -106,16 +189,60 @@ class TimeframeMapper:
         '1day': '1day',
     }
     
+    # NEW: Numeric minutes mapping
+    MINUTES_MAP = {
+        '1m': 1,
+        '5m': 5,
+        '15m': 15,
+        '30m': 30,
+        '1h': 60,
+        '1d': 1440,
+        '1D': 1440,
+        'day': 1440,
+        '1minute': 1,
+        '5minute': 5,
+        '15minute': 15,
+        '30minute': 30,
+        '1hour': 60,
+        '1day': 1440,
+    }
+    
     @classmethod
     def to_db(cls, ui_tf: str) -> str:
-        """Convert UI timeframe to database timeframe"""
+        """Convert UI timeframe to database timeframe (legacy TEXT)"""
         return cls.MAPPING.get(ui_tf, ui_tf)
+    
+    @classmethod
+    def to_standard(cls, ui_tf: str) -> str:
+        """Alias for to_db - used by db_data_fetcher"""
+        # Map to simple format for stock_candles table
+        simple_map = {
+            '1m': '1m', '1minute': '1m',
+            '5m': '5m', '5minute': '5m',
+            '15m': '15m', '15minute': '15m',
+            '30m': '30m', '30minute': '30m',
+            '1h': '1h', '1hour': '1h',
+            '1d': '1d', '1day': '1d', '1D': '1d', 'day': '1d',
+        }
+        return simple_map.get(ui_tf, ui_tf)
+    
+    @classmethod
+    def to_minutes(cls, ui_tf: str) -> int:
+        """Convert UI timeframe to minutes (new schema)"""
+        return cls.MINUTES_MAP.get(ui_tf, 1440)  # Default to daily
+    
+    @classmethod
+    def from_minutes(cls, minutes: int) -> str:
+        """Convert minutes to UI timeframe"""
+        reverse = {v: k for k, v in cls.MINUTES_MAP.items() if len(k) <= 3}
+        return reverse.get(minutes, '1d')
     
     @classmethod
     def from_db(cls, db_tf: str) -> str:
         """Convert database timeframe to UI timeframe"""
         reverse = {v: k for k, v in cls.MAPPING.items() if len(k) <= 3}
         return reverse.get(db_tf, db_tf)
+
 
 class AlphaSignal(Base):
     """

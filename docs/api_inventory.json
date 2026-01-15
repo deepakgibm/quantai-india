@@ -1,0 +1,1822 @@
+[
+  {
+    "api_name": "agentic_bot_run_agent_analysis",
+    "method": "POST",
+    "path": "/api/agentic-bot/analyze",
+    "handler": "agentic_bot.run_agent_analysis",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: agentic_bot.py"
+  },
+  {
+    "api_name": "agentic_bot_process_agent_request",
+    "method": "POST",
+    "path": "/api/agentic-bot/process",
+    "handler": "agentic_bot.process_agent_request",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: agentic_bot.py"
+  },
+  {
+    "api_name": "ai_get_ai_strategies",
+    "method": "GET",
+    "path": "/api/ai/strategies",
+    "handler": "ai.get_ai_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_process_ai_prompt",
+    "method": "POST",
+    "path": "/api/ai/prompt",
+    "handler": "ai.process_ai_prompt",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_market_analysis",
+    "method": "GET",
+    "path": "/api/ai/market-analysis",
+    "handler": "ai.get_market_analysis",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_trend_finder_stocks",
+    "method": "GET",
+    "path": "/api/ai/trend-finder",
+    "handler": "ai.get_trend_finder_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_breakout_stocks",
+    "method": "GET",
+    "path": "/api/ai/breakout-detector",
+    "handler": "ai.get_breakout_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_top5_picks",
+    "method": "GET",
+    "path": "/api/ai/top5-picks",
+    "handler": "ai.get_top5_picks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_top3_picks",
+    "method": "GET",
+    "path": "/api/ai/top3-picks",
+    "handler": "ai.get_top3_picks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_momentum_stocks",
+    "method": "GET",
+    "path": "/api/ai/momentum-scanner",
+    "handler": "ai.get_momentum_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_mean_reversion_stocks",
+    "method": "GET",
+    "path": "/api/ai/mean-reversion",
+    "handler": "ai.get_mean_reversion_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_gap_stocks",
+    "method": "GET",
+    "path": "/api/ai/gap-scanner",
+    "handler": "ai.get_gap_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_relative_strength_stocks",
+    "method": "GET",
+    "path": "/api/ai/relative-strength",
+    "handler": "ai.get_relative_strength_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_vwap_stocks",
+    "method": "GET",
+    "path": "/api/ai/vwap-scanner",
+    "handler": "ai.get_vwap_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_sr_bounce_stocks",
+    "method": "GET",
+    "path": "/api/ai/sr-bounce",
+    "handler": "ai.get_sr_bounce_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_process_command",
+    "method": "POST",
+    "path": "/api/ai/command",
+    "handler": "ai.process_command",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_ai_sentiment",
+    "method": "GET",
+    "path": "/api/ai/sentiment",
+    "handler": "ai.get_ai_sentiment",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_momentum_alias",
+    "method": "GET",
+    "path": "/api/ai/momentum",
+    "handler": "ai.get_momentum_alias",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "ai_get_vwap_alias",
+    "method": "GET",
+    "path": "/api/ai/vwap",
+    "handler": "ai.get_vwap_alias",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: ai.py"
+  },
+  {
+    "api_name": "algorithms_create_algorithm",
+    "method": "POST",
+    "path": "/api/algorithms",
+    "handler": "algorithms.create_algorithm",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: algorithms.py"
+  },
+  {
+    "api_name": "algorithms_get_algorithms",
+    "method": "GET",
+    "path": "/api/algorithms",
+    "handler": "algorithms.get_algorithms",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: algorithms.py"
+  },
+  {
+    "api_name": "algorithms_get_algorithm",
+    "method": "GET",
+    "path": "/api/algorithms/{algorithm_id}",
+    "handler": "algorithms.get_algorithm",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: algorithms.py"
+  },
+  {
+    "api_name": "algorithms_update_algorithm",
+    "method": "PUT",
+    "path": "/api/algorithms/{algorithm_id}",
+    "handler": "algorithms.update_algorithm",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: algorithms.py"
+  },
+  {
+    "api_name": "algorithms_delete_algorithm",
+    "method": "DELETE",
+    "path": "/api/algorithms/{algorithm_id}",
+    "handler": "algorithms.delete_algorithm",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: algorithms.py"
+  },
+  {
+    "api_name": "analytics_get_analytics_overview",
+    "method": "GET",
+    "path": "/api/analytics/overview",
+    "handler": "analytics.get_analytics_overview",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_get_top_momentum",
+    "method": "GET",
+    "path": "/api/analytics/momentum/top",
+    "handler": "analytics.get_top_momentum",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_get_volatility_analysis",
+    "method": "GET",
+    "path": "/api/analytics/volatility/{symbol}",
+    "handler": "analytics.get_volatility_analysis",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_get_correlation_matrix",
+    "method": "POST",
+    "path": "/api/analytics/correlation",
+    "handler": "analytics.get_correlation_matrix",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_get_support_resistance",
+    "method": "GET",
+    "path": "/api/analytics/support-resistance/{symbol}",
+    "handler": "analytics.get_support_resistance",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_execute_custom_query",
+    "method": "POST",
+    "path": "/api/analytics/query",
+    "handler": "analytics.execute_custom_query",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_list_archives",
+    "method": "GET",
+    "path": "/api/analytics/archive/list",
+    "handler": "analytics.list_archives",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_get_archive_stats",
+    "method": "GET",
+    "path": "/api/analytics/archive/stats",
+    "handler": "analytics.get_archive_stats",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_archive_month",
+    "method": "POST",
+    "path": "/api/analytics/archive/month",
+    "handler": "analytics.archive_month",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_archive_old_data",
+    "method": "POST",
+    "path": "/api/analytics/archive/old",
+    "handler": "analytics.archive_old_data",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_restore_from_archive",
+    "method": "POST",
+    "path": "/api/analytics/archive/restore",
+    "handler": "analytics.restore_from_archive",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_trigger_indicator_computation",
+    "method": "POST",
+    "path": "/api/analytics/indicators/compute",
+    "handler": "analytics.trigger_indicator_computation",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "analytics_get_latest_indicators",
+    "method": "GET",
+    "path": "/api/analytics/indicators/latest/{symbol}",
+    "handler": "analytics.get_latest_indicators",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: analytics.py"
+  },
+  {
+    "api_name": "auth_signup",
+    "method": "POST",
+    "path": "/api/auth/signup",
+    "handler": "auth.signup",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: auth.py"
+  },
+  {
+    "api_name": "auth_login",
+    "method": "POST",
+    "path": "/api/auth/login",
+    "handler": "auth.login",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: auth.py"
+  },
+  {
+    "api_name": "auth_firebase_login",
+    "method": "POST",
+    "path": "/api/auth/firebase-login",
+    "handler": "auth.firebase_login",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: auth.py"
+  },
+  {
+    "api_name": "auth_get_me",
+    "method": "GET",
+    "path": "/api/auth/me",
+    "handler": "auth.get_me",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: auth.py"
+  },
+  {
+    "api_name": "engine_performance_test_endpoint",
+    "method": "GET",
+    "path": "/api/engines/test",
+    "handler": "engine_performance.test_endpoint",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: engine_performance.py"
+  },
+  {
+    "api_name": "engine_performance_get_engine_performance",
+    "method": "GET",
+    "path": "/api/engines/performance",
+    "handler": "engine_performance.get_engine_performance",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: engine_performance.py"
+  },
+  {
+    "api_name": "engine_performance_get_single_engine_performance",
+    "method": "GET",
+    "path": "/api/engines/performance/{engine_name}",
+    "handler": "engine_performance.get_single_engine_performance",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: engine_performance.py"
+  },
+  {
+    "api_name": "heatmap_get_heatmap_sectors",
+    "method": "GET",
+    "path": "/api/heatmap/sectors",
+    "handler": "heatmap.get_heatmap_sectors",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: heatmap.py"
+  },
+  {
+    "api_name": "heatmap_get_sector_stocks",
+    "method": "GET",
+    "path": "/api/heatmap/sector/{sector_name}",
+    "handler": "heatmap.get_sector_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: heatmap.py"
+  },
+  {
+    "api_name": "heatmap_seed_data",
+    "method": "POST",
+    "path": "/api/heatmap/seed",
+    "handler": "heatmap.seed_data",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: heatmap.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_momentum",
+    "method": "GET",
+    "path": "/api/v3/scanner/momentum",
+    "handler": "hp_scanner_api.get_momentum",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_breakout",
+    "method": "GET",
+    "path": "/api/v3/scanner/breakout",
+    "handler": "hp_scanner_api.get_breakout",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_reversal",
+    "method": "GET",
+    "path": "/api/v3/scanner/reversal",
+    "handler": "hp_scanner_api.get_reversal",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_active_signals",
+    "method": "GET",
+    "path": "/api/v3/scanner/signals",
+    "handler": "hp_scanner_api.get_active_signals",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_all_snapshots",
+    "method": "GET",
+    "path": "/api/v3/scanner/snapshots",
+    "handler": "hp_scanner_api.get_all_snapshots",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_symbol_snapshot",
+    "method": "GET",
+    "path": "/api/v3/scanner/symbol/{symbol}",
+    "handler": "hp_scanner_api.get_symbol_snapshot",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_status",
+    "method": "GET",
+    "path": "/api/v3/scanner/status",
+    "handler": "hp_scanner_api.get_status",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_get_metrics",
+    "method": "GET",
+    "path": "/api/v3/scanner/metrics",
+    "handler": "hp_scanner_api.get_metrics",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "hp_scanner_api_trigger_warm",
+    "method": "POST",
+    "path": "/api/v3/scanner/warm",
+    "handler": "hp_scanner_api.trigger_warm",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: hp_scanner_api.py"
+  },
+  {
+    "api_name": "market_get_nifty100_top_movers",
+    "method": "GET",
+    "path": "/api/market/nifty100/top-movers",
+    "handler": "market.get_nifty100_top_movers",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: market.py"
+  },
+  {
+    "api_name": "market_get_nifty100_ranking_status",
+    "method": "GET",
+    "path": "/api/market/nifty100/status",
+    "handler": "market.get_nifty100_ranking_status",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: market.py"
+  },
+  {
+    "api_name": "market_get_top_movers_alias",
+    "method": "GET",
+    "path": "/api/market/top-movers",
+    "handler": "market.get_top_movers_alias",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: market.py"
+  },
+  {
+    "api_name": "market_get_orchestrator_status",
+    "method": "GET",
+    "path": "/api/market/orchestrator/status",
+    "handler": "market.get_orchestrator_status",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: market.py"
+  },
+  {
+    "api_name": "market_get_market_health",
+    "method": "GET",
+    "path": "/api/market/health",
+    "handler": "market.get_market_health",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: market.py"
+  },
+  {
+    "api_name": "market_get_sector_heatmap",
+    "method": "GET",
+    "path": "/api/market/heatmap",
+    "handler": "market.get_sector_heatmap",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: market.py"
+  },
+  {
+    "api_name": "market_get_sector_stocks",
+    "method": "GET",
+    "path": "/api/market/sector-stocks/{sector_name}",
+    "handler": "market.get_sector_stocks",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: market.py"
+  },
+  {
+    "api_name": "orders_create_order",
+    "method": "POST",
+    "path": "/api/orders",
+    "handler": "orders.create_order",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: orders.py"
+  },
+  {
+    "api_name": "orders_get_orders",
+    "method": "GET",
+    "path": "/api/orders",
+    "handler": "orders.get_orders",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: orders.py"
+  },
+  {
+    "api_name": "orders_get_order",
+    "method": "GET",
+    "path": "/api/orders/{order_id}",
+    "handler": "orders.get_order",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: orders.py"
+  },
+  {
+    "api_name": "quant_bot_list_strategies",
+    "method": "GET",
+    "path": "/api/quant/strategies",
+    "handler": "quant_bot.list_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: quant_bot.py"
+  },
+  {
+    "api_name": "quant_bot_run_backtest",
+    "method": "POST",
+    "path": "/api/quant/backtest/run",
+    "handler": "quant_bot.run_backtest",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: quant_bot.py"
+  },
+  {
+    "api_name": "quant_bot_run_walkforward",
+    "method": "POST",
+    "path": "/api/quant/walkforward/run",
+    "handler": "quant_bot.run_walkforward",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: quant_bot.py"
+  },
+  {
+    "api_name": "quant_bot_list_available_symbols",
+    "method": "GET",
+    "path": "/api/quant/symbols",
+    "handler": "quant_bot.list_available_symbols",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: quant_bot.py"
+  },
+  {
+    "api_name": "risk_get_risk_settings",
+    "method": "GET",
+    "path": "/api/risk",
+    "handler": "risk.get_risk_settings",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: risk.py"
+  },
+  {
+    "api_name": "risk_update_risk_settings",
+    "method": "PUT",
+    "path": "/api/risk",
+    "handler": "risk.update_risk_settings",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: risk.py"
+  },
+  {
+    "api_name": "scanner_get_strategies",
+    "method": "GET",
+    "path": "/api/scanner/strategies",
+    "handler": "scanner.get_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_indices",
+    "method": "GET",
+    "path": "/api/scanner/indices",
+    "handler": "scanner.get_indices",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_timeframes",
+    "method": "GET",
+    "path": "/api/scanner/timeframes",
+    "handler": "scanner.get_timeframes",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_run_scan",
+    "method": "POST",
+    "path": "/api/scanner/run",
+    "handler": "scanner.run_scan",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_scan_progress",
+    "method": "GET",
+    "path": "/api/scanner/progress/{scan_id}",
+    "handler": "scanner.get_scan_progress",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_presets",
+    "method": "GET",
+    "path": "/api/scanner/presets",
+    "handler": "scanner.get_presets",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_save_preset",
+    "method": "POST",
+    "path": "/api/scanner/presets",
+    "handler": "scanner.save_preset",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_delete_preset",
+    "method": "DELETE",
+    "path": "/api/scanner/presets/{preset_id}",
+    "handler": "scanner.delete_preset",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_momentum_data",
+    "method": "GET",
+    "path": "/api/scanner/momentum",
+    "handler": "scanner.get_momentum_data",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_breakout_data",
+    "method": "GET",
+    "path": "/api/scanner/breakout",
+    "handler": "scanner.get_breakout_data",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_reversal_data",
+    "method": "GET",
+    "path": "/api/scanner/reversal",
+    "handler": "scanner.get_reversal_data",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_trendfinder_data",
+    "method": "GET",
+    "path": "/api/scanner/trendfinder",
+    "handler": "scanner.get_trendfinder_data",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_week52_breakouts",
+    "method": "GET",
+    "path": "/api/scanner/week52-breakouts",
+    "handler": "scanner.get_week52_breakouts",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "scanner_get_momentum_status",
+    "method": "GET",
+    "path": "/api/scanner/momentum/status",
+    "handler": "scanner.get_momentum_status",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: scanner.py"
+  },
+  {
+    "api_name": "settings_get_settings",
+    "method": "GET",
+    "path": "/api/settings",
+    "handler": "settings.get_settings",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: settings.py"
+  },
+  {
+    "api_name": "settings_update_settings",
+    "method": "PUT",
+    "path": "/api/settings",
+    "handler": "settings.update_settings",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: settings.py"
+  },
+  {
+    "api_name": "trading_get_dashboard_stats",
+    "method": "GET",
+    "path": "/api/trading/dashboard",
+    "handler": "trading.get_dashboard_stats",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: trading.py"
+  },
+  {
+    "api_name": "trading_get_dashboard_stats",
+    "method": "GET",
+    "path": "/api/trading/stats",
+    "handler": "trading.get_dashboard_stats",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: trading.py"
+  },
+  {
+    "api_name": "trading_unknown",
+    "method": "GET",
+    "path": "/api/trading/health",
+    "handler": "trading.unknown",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: trading.py"
+  },
+  {
+    "api_name": "trading_get_market_indices",
+    "method": "GET",
+    "path": "/api/trading/market-indices",
+    "handler": "trading.get_market_indices",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: trading.py"
+  },
+  {
+    "api_name": "trading_get_instruments",
+    "method": "GET",
+    "path": "/api/trading/instruments",
+    "handler": "trading.get_instruments",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: trading.py"
+  },
+  {
+    "api_name": "trading_get_top_gainers",
+    "method": "GET",
+    "path": "/api/trading/top-gainers",
+    "handler": "trading.get_top_gainers",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: trading.py"
+  },
+  {
+    "api_name": "trading_get_gainers_losers",
+    "method": "GET",
+    "path": "/api/trading/gainers-losers",
+    "handler": "trading.get_gainers_losers",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: trading.py"
+  },
+  {
+    "api_name": "upstox_get_upstox_status",
+    "method": "GET",
+    "path": "/api/upstox/status",
+    "handler": "upstox.get_upstox_status",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: upstox.py"
+  },
+  {
+    "api_name": "upstox_get_upstox_auth_url",
+    "method": "GET",
+    "path": "/api/upstox/auth-url",
+    "handler": "upstox.get_upstox_auth_url",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: upstox.py"
+  },
+  {
+    "api_name": "upstox_get_user_profile",
+    "method": "GET",
+    "path": "/api/upstox/user-profile",
+    "handler": "upstox.get_user_profile",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: upstox.py"
+  },
+  {
+    "api_name": "upstox_upstox_callback",
+    "method": "POST",
+    "path": "/api/upstox/callback",
+    "handler": "upstox.upstox_callback",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: upstox.py"
+  },
+  {
+    "api_name": "upstox_get_portfolio",
+    "method": "GET",
+    "path": "/api/upstox/portfolio",
+    "handler": "upstox.get_portfolio",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: upstox.py"
+  },
+  {
+    "api_name": "upstox_get_positions",
+    "method": "GET",
+    "path": "/api/upstox/positions",
+    "handler": "upstox.get_positions",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: upstox.py"
+  },
+  {
+    "api_name": "upstox_get_market_quote",
+    "method": "GET",
+    "path": "/api/upstox/market-quote/{symbol}",
+    "handler": "upstox.get_market_quote",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: upstox.py"
+  },
+  {
+    "api_name": "backtest_strategies_list_all_strategies",
+    "method": "GET",
+    "path": "/api/v1/backtest/strategies/list",
+    "handler": "backtest_strategies.list_all_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: backtest_strategies.py"
+  },
+  {
+    "api_name": "backtest_strategies_get_strategies_by_tier",
+    "method": "GET",
+    "path": "/api/v1/backtest/strategies/by-tier",
+    "handler": "backtest_strategies.get_strategies_by_tier",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: backtest_strategies.py"
+  },
+  {
+    "api_name": "backtest_strategies_search_strategies",
+    "method": "GET",
+    "path": "/api/v1/backtest/strategies/search",
+    "handler": "backtest_strategies.search_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: backtest_strategies.py"
+  },
+  {
+    "api_name": "backtest_strategies_get_strategy_details",
+    "method": "GET",
+    "path": "/api/v1/backtest/strategies/{strategy_name}",
+    "handler": "backtest_strategies.get_strategy_details",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: backtest_strategies.py"
+  },
+  {
+    "api_name": "etl_status_get_etl_status",
+    "method": "GET",
+    "path": "/api/v1/etl/status",
+    "handler": "etl_status.get_etl_status",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: etl_status.py"
+  },
+  {
+    "api_name": "experiment_lab_get_lab_info",
+    "method": "GET",
+    "path": "/api/v1/experiment-lab",
+    "handler": "experiment_lab.get_lab_info",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_list_strategies",
+    "method": "GET",
+    "path": "/api/v1/experiment-lab/strategies",
+    "handler": "experiment_lab.list_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_get_strategy",
+    "method": "GET",
+    "path": "/api/v1/experiment-lab/strategies/{strategy_id}",
+    "handler": "experiment_lab.get_strategy",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_list_categories",
+    "method": "GET",
+    "path": "/api/v1/experiment-lab/categories",
+    "handler": "experiment_lab.list_categories",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_run_backtest",
+    "method": "POST",
+    "path": "/api/v1/experiment-lab/backtest",
+    "handler": "experiment_lab.run_backtest",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_compare_strategies",
+    "method": "POST",
+    "path": "/api/v1/experiment-lab/compare",
+    "handler": "experiment_lab.compare_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_get_available_symbols",
+    "method": "GET",
+    "path": "/api/v1/experiment-lab/symbols",
+    "handler": "experiment_lab.get_available_symbols",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_get_available_timeframes",
+    "method": "GET",
+    "path": "/api/v1/experiment-lab/timeframes",
+    "handler": "experiment_lab.get_available_timeframes",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "experiment_lab_clear_cache",
+    "method": "DELETE",
+    "path": "/api/v1/experiment-lab/cache",
+    "handler": "experiment_lab.clear_cache",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [
+      "Dragonfly/Redis"
+    ],
+    "expected_response_time_ms": null,
+    "notes": "File: experiment_lab.py"
+  },
+  {
+    "api_name": "ml_forecast_predict_price",
+    "method": "GET",
+    "path": "/api/v1/ml/predict",
+    "handler": "ml_forecast.predict_price",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: ml_forecast.py"
+  },
+  {
+    "api_name": "ml_forecast_get_status",
+    "method": "GET",
+    "path": "/api/v1/ml/status",
+    "handler": "ml_forecast.get_status",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: ml_forecast.py"
+  },
+  {
+    "api_name": "ml_forecast_get_available_symbols",
+    "method": "GET",
+    "path": "/api/v1/ml/symbols",
+    "handler": "ml_forecast.get_available_symbols",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: ml_forecast.py"
+  },
+  {
+    "api_name": "walk_forward_backtest_get_available_strategies",
+    "method": "GET",
+    "path": "/api/v1/walk-forward/strategies",
+    "handler": "walk_forward_backtest.get_available_strategies",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: walk_forward_backtest.py"
+  },
+  {
+    "api_name": "walk_forward_backtest_get_walk_forward_presets",
+    "method": "GET",
+    "path": "/api/v1/walk-forward/presets",
+    "handler": "walk_forward_backtest.get_walk_forward_presets",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: walk_forward_backtest.py"
+  },
+  {
+    "api_name": "walk_forward_backtest_get_available_symbols",
+    "method": "GET",
+    "path": "/api/v1/walk-forward/symbols",
+    "handler": "walk_forward_backtest.get_available_symbols",
+    "request_schema": {},
+    "response_schema": {},
+    "database_dependencies": [
+      "PostgreSQL"
+    ],
+    "cache_dependencies": [],
+    "expected_response_time_ms": null,
+    "notes": "File: walk_forward_backtest.py"
+  }
+]

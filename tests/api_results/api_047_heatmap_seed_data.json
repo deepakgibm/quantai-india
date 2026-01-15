@@ -1,0 +1,21 @@
+{
+  "api_name": "heatmap_seed_data",
+  "method": "POST",
+  "path": "/api/heatmap/seed",
+  "request_payload": {
+    "sector_name": "IT",
+    "symbols": [
+      "TCS",
+      "INFY"
+    ]
+  },
+  "response_payload": {
+    "detail": "Only admins can seed data"
+  },
+  "status_code": 403,
+  "start_time_utc": "2026-01-10T13:07:57.180522Z",
+  "end_time_utc": "2026-01-10T13:07:57.213409Z",
+  "response_time_ms": 32,
+  "database_state_notes": "No DB interaction defined",
+  "errors": []
+}

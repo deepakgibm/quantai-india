@@ -1,0 +1,12 @@
+{
+  "api_name": "analytics_archive_old_data",
+  "method": "POST",
+  "path": "/api/analytics/archive/old",
+  "status_code": 200,
+  "response_time_ms": 26,
+  "response_payload": {
+    "status": "started",
+    "message": "Archiving data older than 12 months",
+    "delete_after": false
+  }
+}

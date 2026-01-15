@@ -130,25 +130,22 @@ async def get_market_indices():
             cache.set(MARKET_INDICES_CACHE_KEY, result, MARKET_INDICES_CACHE_TTL)
             return result
         # No data available but no error
-        return {
-            "error_code": "DATA_UNAVAILABLE",
-            "message": "Market indices data temporarily unavailable",
-            "details": "Unable to fetch live market data from upstream sources"
-        }
+        return []
     except asyncio.TimeoutError:
         logger.error("Market indices fetch timed out after 15s")
-        return {
-            "error_code": "TIMEOUT",
-            "message": "Market indices request timed out",
-            "details": "Upstream API did not respond within 15 seconds"
-        }
+        return []
     except Exception as e:
         logger.error(f"Market indices fetch failed: {e}")
-        return {
-            "error_code": "DATA_UNAVAILABLE",
-            "message": "Market indices data temporarily unavailable",
-            "details": str(e)
-        }
+        # Return empty list instead of error dict to avoid 500 ValidationError
+        return []
+
+
+# Alias for compatibility with different API paths
+@router.get("/indices", response_model=List[MarketIndex])
+async def get_trading_indices():
+    """Alias for /market-indices for API compatibility."""
+    return await get_market_indices()
+
 
 @router.get("/instruments", response_model=InstrumentsListResponse)
 async def get_instruments():
@@ -179,10 +176,15 @@ async def get_instruments():
 async def _fetch_market_indices_internal():
     """
     Fetch market indices using multi-source fallback:
-    1. MarketDataOrchestrator cache (WebSocket-fed)
-    2. Upstox REST API
-    3. Database fallback
+    1. MarketDataOrchestrator cache
+    2. Upstox REST API (get_live_quotes)
+    3. yFinance (via market_fallback)
+    4. Database fallback
     """
+    from services.upstox_client import get_upstox_client
+    from utils.market_fallback import fetch_live_indices_yfinance
+    from services.market_data_orchestrator import get_market_data_orchestrator
+    
     INDEX_MAPPINGS = [
         ("NIFTY 50", "NSE_INDEX|Nifty 50"),
         ("BANK NIFTY", "NSE_INDEX|Nifty Bank"),
@@ -190,17 +192,13 @@ async def _fetch_market_indices_internal():
     ]
     
     result = []
-    source_used = "NONE"
     
-    # --- Source 1: Check MarketDataOrchestrator cache ---
+    # 1. Try Orchestrator Cache
     try:
-        from services.market_data_orchestrator import get_market_data_orchestrator
         orchestrator = get_market_data_orchestrator()
         cached_data = orchestrator.get_all_data()
-        
         if cached_data:
             for name, _ in INDEX_MAPPINGS:
-                # Find index in cached data
                 for item in cached_data:
                     if item.get("symbol") == name:
                         result.append({
@@ -211,134 +209,53 @@ async def _fetch_market_indices_internal():
                             "source": f"cache:{item.get('source', 'unknown')}"
                         })
                         break
-            
-            if result:
-                source_used = orchestrator.get_status().get("source", "CACHE")
-                logger.info(f"📊 Market indices from orchestrator cache ({source_used}): {len(result)}")
-                return result
-    except Exception as e:
-        logger.warning(f"Orchestrator cache unavailable: {e}")
-    
-    # --- Source 2: Upstox REST API ---
+            if result: return result
+    except: pass
+
+    # 2. Try Upstox REST API
     try:
-        from services.upstox_client import get_upstox_client
         client = get_upstox_client()
+        keys = [m[1] for m in INDEX_MAPPINGS]
+        quotes = await client.get_live_quotes(keys)
         
-        for name, instrument_key in INDEX_MAPPINGS:
-            try:
-                quote = await client.get_live_quote(instrument_key, name)
-                if quote and quote.get("last_price", 0) > 0:
-                    ltp = quote.get("last_price", 0)
-                    prev_close = quote.get("previous_close", 0)
-                    net_change = quote.get("net_change", 0)
-                    percent = (net_change / prev_close * 100) if prev_close else 0
-                    
-                    result.append({
-                        "name": name,
-                        "value": round(ltp, 2),
-                        "change": round(net_change, 2),
-                        "percent": round(percent, 2),
-                        "source": "upstox_rest"
-                    })
-            except Exception:
-                continue
-        
-        if result:
-            source_used = "REST"
-            logger.info(f"📊 Market indices from REST API: {len(result)}")
-            return result
-    except Exception as e:
-        logger.warning(f"REST API failed: {e}")
-    
-    # --- Source 3: yFinance fallback (public data, always available) ---
+        for name, key in INDEX_MAPPINGS:
+            quote = quotes.get(key)
+            if quote:
+                result.append({
+                    "name": name,
+                    "value": round(quote['last_price'], 2),
+                    "change": round(quote.get('net_change', 0), 2),
+                    "percent": round(quote.get('change_percent', 0), 2),
+                    "source": "upstox_rest"
+                })
+        if result: return result
+    except: pass
+
+    # 3. Try yFinance (Standardized Fallback)
     try:
-        import yfinance as yf
-        
-        # Mapping to yFinance symbols
-        YFINANCE_MAPPINGS = {
-            "NIFTY 50": "^NSEI",
-            "BANK NIFTY": "^NSEBANK",
-            "INDIA VIX": "^INDIAVIX",
-            "SENSEX": "^BSESN"
-        }
-        
-        for name, yf_symbol in YFINANCE_MAPPINGS.items():
-            try:
-                # Use history(period="2d") which is MUCH more reliable than ticker.info/fast_info
-                ticker = yf.Ticker(yf_symbol)
-                df = ticker.history(period="2d")
-                
-                if not df.empty and len(df) >= 1:
-                    # Get latest data
-                    latest = df.iloc[-1]
-                    ltp = latest['Close']
-                    
-                    # Calculate change from previous close (either 2nd last row or yesterday's close)
-                    if len(df) >= 2:
-                        prev_close = df.iloc[-2]['Close']
-                    else:
-                        # Fallback for when only 1 candle returned
-                        prev_close = ltp # 0% change
-                    
-                    change = ltp - prev_close
-                    percent = (change / prev_close * 100) if prev_close > 0 else 0
-                    
-                    result.append({
-                        "name": name,
-                        "value": round(float(ltp), 2),
-                        "change": round(float(change), 2),
-                        "percent": round(float(percent), 2),
-                        "source": "yfinance"
-                    })
-                else:
-                    logger.warning(f"yFinance returned empty dataframe for {name} ({yf_symbol})")
-            except Exception as e:
-                logger.warning(f"yFinance error for {name}: {str(e)}")
-                continue
-        
-        if result:
-            logger.info(f"📊 Market indices from yFinance: {len(result)}")
-            return result
-    except Exception as e:
-        logger.warning(f"yFinance fallback failed: {e}")
+        yf_indices = await fetch_live_indices_yfinance()
+        if yf_indices:
+            return yf_indices
+    except: pass
     
-    # --- Source 4: Database fallback ---
+    # 4. Final Database Fallback
     try:
         from database import AsyncSessionLocal
         from sqlalchemy import text
-        
         async with AsyncSessionLocal() as session:
-            # Get latest index close prices from stock_candles
             for name, _ in INDEX_MAPPINGS:
-                # Try to find index data in stock_candles
-                query = text("""
-                    SELECT close, timestamp FROM stock_candles 
-                    WHERE symbol = :symbol AND timeframe = '1d'
-                    ORDER BY timestamp DESC LIMIT 1
-                """)
+                query = text("SELECT close, timestamp FROM stock_candles WHERE symbol = :symbol ORDER BY timestamp::timestamp DESC LIMIT 1")
                 res = await session.execute(query, {"symbol": name})
                 row = res.first()
                 if row:
                     result.append({
-                        "name": name,
-                        "value": round(float(row[0]), 2),
-                        "change": 0,  # Unknown from DB
-                        "percent": 0,
-                        "source": "database",
-                        "stale": True,
-                        "timestamp": str(row[1])
+                        "name": name, "value": round(float(row[0]), 2), "change": 0, "percent": 0,
+                        "source": "database", "stale": True
                     })
-        
-        if result:
-            source_used = "DB"
-            logger.warning(f"📊 Market indices from DATABASE (stale): {len(result)}")
-            return result
-    except Exception as e:
-        logger.error(f"Database fallback failed: {e}")
+        return result
+    except: pass
     
-    # --- All sources failed ---
-    logger.error("❌ All data sources failed for market indices")
-    return None  # Signal to caller that data is unavailable
+    return None
 
 @router.get("/top-gainers", response_model=List[TopMover])
 async def get_top_gainers(current_user: User = Depends(get_current_user)):

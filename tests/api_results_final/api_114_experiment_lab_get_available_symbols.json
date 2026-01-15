@@ -1,0 +1,32 @@
+{
+  "api_name": "experiment_lab_get_available_symbols",
+  "method": "GET",
+  "path": "/api/v1/experiment-lab/symbols",
+  "status_code": 200,
+  "response_time_ms": 21,
+  "response_payload": {
+    "symbols": [
+      "RELIANCE",
+      "TCS",
+      "HDFCBANK",
+      "INFY",
+      "ICICIBANK",
+      "HINDUNILVR",
+      "SBIN",
+      "BHARTIARTL",
+      "ITC",
+      "KOTAKBANK",
+      "LT",
+      "AXISBANK",
+      "ASIANPAINT",
+      "MARUTI",
+      "BAJFINANCE",
+      "HCLTECH",
+      "WIPRO",
+      "ULTRACEMCO",
+      "TITAN",
+      "NESTLEIND"
+    ],
+    "source": "default"
+  }
+}

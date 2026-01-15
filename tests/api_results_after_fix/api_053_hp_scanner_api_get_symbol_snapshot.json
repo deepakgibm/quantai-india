@@ -1,0 +1,10 @@
+{
+  "api_name": "hp_scanner_api_get_symbol_snapshot",
+  "method": "GET",
+  "path": "/api/v3/scanner/symbol/{symbol}",
+  "status_code": 404,
+  "response_time_ms": 14,
+  "response_payload": {
+    "detail": "Symbol {symbol} not found in cache"
+  }
+}
