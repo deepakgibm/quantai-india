@@ -13,6 +13,7 @@ from utils.symbol_utils import get_company_name
 
 
 class GapScanner:
+    """
     Gap Up/Down Scanner - detects significant overnight gaps.
     """
     
@@ -40,7 +41,8 @@ class GapScanner:
                 return df
             finally:
                 session.close()
-        except:
+        except Exception as e:
+            print(f"GapScanner ohlcv error for {symbol}: {e}")
             return None
     
     def analyze_stock(self, symbol: str) -> Optional[Dict]:
@@ -107,9 +109,7 @@ class GapScanner:
         
         return {
             "symbol": symbol,
-            "symbol": symbol,
             "name": get_company_name(symbol),
-            "gap_type": gap_type,
             "gap_type": gap_type,
             "gap_pct": float(round(gap_pct, 2)),
             "trade_type": trade_type,
@@ -135,7 +135,8 @@ class GapScanner:
                 analysis = self.analyze_stock(symbol)
                 if analysis:
                     results.append(analysis)
-            except:
+            except Exception as e:
+                print(f"GapScanner error for {symbol}: {e}")
                 continue
         results.sort(key=lambda x: abs(x["gap_pct"]), reverse=True)
         return results[:limit]
