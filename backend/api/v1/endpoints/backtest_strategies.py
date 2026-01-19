@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from models import User
-from utils.auth import get_current_user
+from utils.auth import get_current_user, get_current_user
+from typing import Optional as TypingOptional
 
 # Import StrategyRegistry
 from core.backtest.strategies_impl import StrategyRegistry
@@ -234,7 +235,7 @@ async def get_strategies_by_tier(current_user: User = Depends(get_current_user))
 async def search_strategies(
     query: str = Query(..., min_length=2, description="Search term"),
     limit: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user)
+    current_user: TypingOptional[User] = Depends(get_current_user)
 ):
     """
     Search for strategies
@@ -273,7 +274,7 @@ async def search_strategies(
 @router.get("/strategies/{strategy_name}")
 async def get_strategy_details(
     strategy_name: str,
-    current_user: User = Depends(get_current_user)
+    current_user: TypingOptional[User] = Depends(get_current_user)
 ):
     """
     Get detailed information about a specific strategy

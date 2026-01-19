@@ -35,8 +35,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
+
+            // Sync with backend when Firebase user is detected
+            if (currentUser) {
+                try {
+                    // Check if we already have a valid token
+                    const existingToken = localStorage.getItem('access_token');
+                    if (!existingToken || existingToken === 'null' || existingToken === 'undefined') {
+                        // Fetch a new backend token using Firebase ID token
+                        const idToken = await currentUser.getIdToken();
+                        await api.firebaseLogin(idToken, currentUser.email!, currentUser.displayName || undefined);
+                        console.log('[Auth] Backend token synced successfully');
+                    }
+                } catch (err) {
+                    console.error('[Auth] Failed to sync with backend:', err);
+                    // Clear potentially stale token
+                    localStorage.removeItem('access_token');
+                }
+            } else {
+                // User logged out - clear token
+                localStorage.removeItem('access_token');
+            }
+
             setLoading(false);
         });
         return () => unsubscribe();

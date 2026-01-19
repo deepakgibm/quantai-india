@@ -11,7 +11,7 @@ from schemas import (
     ScannerResponse, MarketAnalysisResponse
 )
 from services.dragonfly_client import get_cache
-from utils.auth import get_current_user, get_optional_user
+from utils.auth import get_current_user, get_current_user
 import logging
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ async def _get_fallback_stocks_with_real_prices(stocks_template: list, access_to
 
 
 @router.post("/prompt", response_model=AIPromptResponse)
-async def process_ai_prompt(request: AIPromptRequest, current_user: User = Depends(get_optional_user)):
+async def process_ai_prompt(request: AIPromptRequest, current_user: User = Depends(get_current_user)):
     if not settings.GEMINI_API_KEY:
         raise HTTPException(status_code=503, detail="Gemini API key not configured")
     
@@ -247,7 +247,7 @@ Guidelines:
         raise HTTPException(status_code=503, detail=f"AI service temporarily unavailable: {str(e)}")
 
 @router.get("/market-analysis", response_model=MarketAnalysisResponse)
-async def get_market_analysis(current_user: User = Depends(get_optional_user)):
+async def get_market_analysis(current_user: User = Depends(get_current_user)):
     """AI Market Analysis - Summarizes current market state using technicals + Gemini."""
     import asyncio
     import time
@@ -342,7 +342,7 @@ async def get_market_analysis(current_user: User = Depends(get_optional_user)):
 # Sentiment analysis consolidated below at /sentiment
 
 @router.get("/trend-finder")
-async def get_trend_finder_stocks(current_user: User = Depends(get_optional_user)):
+async def get_trend_finder_stocks(current_user: User = Depends(get_current_user)):
     """Identify stocks with strong trend continuation setups using technical analysis."""
     import asyncio
     import time
@@ -422,7 +422,7 @@ async def get_trend_finder_stocks(current_user: User = Depends(get_optional_user
         }
 
 @router.get("/breakout-detector", response_model=ScannerResponse)
-async def get_breakout_stocks(current_user: User = Depends(get_optional_user)):
+async def get_breakout_stocks(current_user: User = Depends(get_current_user)):
     """Detect stocks with volume-backed breakouts using technical analysis."""
     import asyncio
     import time
@@ -515,12 +515,12 @@ async def get_breakout_stocks(current_user: User = Depends(get_optional_user)):
 
 # Route alias for backward compatibility (some clients use /breakout-stocks)
 @router.get("/breakout-stocks")
-async def get_breakout_stocks_alias(current_user: User = Depends(get_optional_user)):
+async def get_breakout_stocks_alias(current_user: User = Depends(get_current_user)):
     """Alias for /breakout-detector - backward compatibility."""
     return await get_breakout_stocks(current_user)
 
 @router.get("/top5-picks", response_model=ScannerResponse)
-async def get_top5_picks(current_user: User = Depends(get_optional_user)):
+async def get_top5_picks(current_user: User = Depends(get_current_user)):
     """Get Top 10 Buy/Sell signals (5 BUY + 5 SELL) using technical analysis."""
     import asyncio
     import time
@@ -634,12 +634,12 @@ async def get_top5_picks(current_user: User = Depends(get_optional_user)):
 
 # Keep legacy endpoint for backwards compatibility
 @router.get("/top3-picks")
-async def get_top3_picks(current_user: User = Depends(get_optional_user)):
+async def get_top3_picks(current_user: User = Depends(get_current_user)):
     """Legacy endpoint - redirects to top5-picks"""
     return await get_top5_picks(current_user)
 
 @router.get("/momentum-scanner", response_model=ScannerResponse)
-async def get_momentum_stocks(current_user: User = Depends(get_optional_user)):
+async def get_momentum_stocks(current_user: User = Depends(get_current_user)):
     """Momentum Scanner - ROC and MFI based with LIVE prices."""
     import asyncio
     import time
@@ -699,7 +699,7 @@ async def get_momentum_stocks(current_user: User = Depends(get_optional_user)):
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "momentum", "description": str(e)}
 
 @router.get("/mean-reversion", response_model=ScannerResponse)
-async def get_mean_reversion_stocks(current_user: User = Depends(get_optional_user)):
+async def get_mean_reversion_stocks(current_user: User = Depends(get_current_user)):
     """Mean Reversion Scanner with LIVE prices."""
     import asyncio
     import time
@@ -758,7 +758,7 @@ async def get_mean_reversion_stocks(current_user: User = Depends(get_optional_us
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "mean_reversion", "description": str(e)}
 
 @router.get("/gap-scanner", response_model=ScannerResponse)
-async def get_gap_stocks(current_user: User = Depends(get_optional_user)):
+async def get_gap_stocks(current_user: User = Depends(get_current_user)):
     """Gap Scanner - Overnight gap detection with LIVE prices."""
     import asyncio
     import time
@@ -794,7 +794,7 @@ async def get_gap_stocks(current_user: User = Depends(get_optional_user)):
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "gap", "description": str(e)}
 
 @router.get("/relative-strength", response_model=ScannerResponse)
-async def get_relative_strength_stocks(current_user: User = Depends(get_optional_user)):
+async def get_relative_strength_stocks(current_user: User = Depends(get_current_user)):
     """Relative Strength Scanner - Market outperformers with LIVE prices."""
     import asyncio
     import time
@@ -830,7 +830,7 @@ async def get_relative_strength_stocks(current_user: User = Depends(get_optional
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "relative_strength", "description": str(e)}
 
 @router.get("/vwap-scanner", response_model=ScannerResponse)
-async def get_vwap_stocks(current_user: User = Depends(get_optional_user)):
+async def get_vwap_stocks(current_user: User = Depends(get_current_user)):
     """VWAP Scanner - Volume weighted average price trading with LIVE prices."""
     import asyncio
     import time
@@ -866,7 +866,7 @@ async def get_vwap_stocks(current_user: User = Depends(get_optional_user)):
         return {"status": "success", "count": 0, "stocks": [], "scan_type": "vwap", "description": str(e)}
 
 @router.get("/sr-bounce", response_model=ScannerResponse)
-async def get_sr_bounce_stocks(current_user: User = Depends(get_optional_user)):
+async def get_sr_bounce_stocks(current_user: User = Depends(get_current_user)):
     """Support/Resistance Bounce Scanner with LIVE prices."""
     import asyncio
     import time
@@ -1034,12 +1034,12 @@ async def get_ai_sentiment(
 # ============================================
 
 @router.get("/momentum", response_model=ScannerResponse)
-async def get_momentum_alias(current_user: User = Depends(get_optional_user)):
+async def get_momentum_alias(current_user: User = Depends(get_current_user)):
     """Alias for /momentum-scanner for API consistency."""
     return await get_momentum_stocks(current_user)
 
 @router.get("/vwap", response_model=ScannerResponse)
-async def get_vwap_alias(current_user: User = Depends(get_optional_user)):
+async def get_vwap_alias(current_user: User = Depends(get_current_user)):
     """Alias for /vwap-scanner for API consistency."""
     return await get_vwap_stocks(current_user)
 

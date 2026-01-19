@@ -18,7 +18,7 @@ from models import User, ScannerPreset
 from database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from utils.auth import get_current_user, get_optional_user
+from utils.auth import get_current_user, get_current_user
 from services.dragonfly_client import get_cache
 from config import settings
 
@@ -117,7 +117,7 @@ saved_presets: Dict[str, Dict] = {}
 
 
 @router.get("/strategies")
-async def get_strategies(current_user: Optional[User] = Depends(get_optional_user)):
+async def get_strategies(current_user: User = Depends(get_current_user)):
     """Get all available scanning strategies grouped by tier."""
     # Check if StrategyRegistry is available (set to None if import failed)
     if StrategyRegistry is None:
@@ -192,7 +192,7 @@ async def get_timeframes(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/run", response_model=ScanResponse)
-async def run_scan(request: ScanRequest, current_user: Optional[User] = Depends(get_optional_user)):
+async def run_scan(request: ScanRequest, current_user: User = Depends(get_current_user)):
     """
     Execute scanner with selected parameters.
     Returns scan results sorted by confidence.
@@ -462,7 +462,7 @@ def _map_bucket_to_legacy(change_pct: float) -> str:
 
 
 @router.get("/breakout")
-async def get_breakout_data(current_user: User = Depends(get_optional_user)):
+async def get_breakout_data(current_user: User = Depends(get_current_user)):
     """
     REST endpoint for breakout scanner.
     
