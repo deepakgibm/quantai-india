@@ -192,7 +192,7 @@ async def get_timeframes(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/run", response_model=ScanResponse)
-async def run_scan(request: ScanRequest, current_user: User = Depends(get_current_user)):
+async def run_scan(request: ScanRequest, current_user: Optional[User] = Depends(get_optional_user)):
     """
     Execute scanner with selected parameters.
     Returns scan results sorted by confidence.
