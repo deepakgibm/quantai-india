@@ -244,7 +244,14 @@ async def _fetch_market_indices_internal():
         from sqlalchemy import text
         async with AsyncSessionLocal() as session:
             for name, _ in INDEX_MAPPINGS:
-                query = text("SELECT close, timestamp FROM stock_candles WHERE symbol = :symbol ORDER BY timestamp::timestamp DESC LIMIT 1")
+                # Use stock_candle table with new schema
+                query = text("""
+                    SELECT sc.close, sc.candle_ts 
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = :symbol AND sc.timeframe = 1440
+                    ORDER BY sc.candle_ts DESC LIMIT 1
+                """)
                 res = await session.execute(query, {"symbol": name})
                 row = res.first()
                 if row:

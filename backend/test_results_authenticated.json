@@ -1,0 +1,115 @@
+{
+  "timestamp": "2026-01-18T23:05:20.413575",
+  "authenticated": true,
+  "user": "dthat53@gmail.com",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "pass_rate": "100.0%"
+  },
+  "api_results": [
+    {
+      "endpoint": "Scanner Strategies",
+      "url": "http://localhost:8000/api/scanner/strategies",
+      "status_code": 200,
+      "response_time_ms": 52.62,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"strategies\":{\"Tier 1 - Highest Win Rate\":[{\"name\":\"Bollinger Bands Breakout\",\"description\":\"Detects breakouts above upper or below lower Bollinger Bands\",\"tier\":\"Tier 1 - Highest Win Rate\",\"min_bars\":30},{\"name\":\"Donchian Channel Breakout\",\"description\":\"Turtle trading style bre"
+    },
+    {
+      "endpoint": "Scanner Timeframes",
+      "url": "http://localhost:8000/api/scanner/timeframes",
+      "status_code": 200,
+      "response_time_ms": 24.3,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"timeframes\":[{\"value\":\"3m\",\"label\":\"3 Minutes\"},{\"value\":\"5m\",\"label\":\"5 Minutes\"},{\"value\":\"15m\",\"label\":\"15 Minutes\"},{\"value\":\"30m\",\"label\":\"30 Minutes\"},{\"value\":\"60m\",\"label\":\"60 Minutes\"},{\"value\":\"1d\",\"label\":\"1 Day\"}]}"
+    },
+    {
+      "endpoint": "Scanner Indices",
+      "url": "http://localhost:8000/api/scanner/indices",
+      "status_code": 200,
+      "response_time_ms": 24.36,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"indices\":[{\"name\":\"NIFTY 50\",\"stocks\":50},{\"name\":\"NIFTY 100\",\"stocks\":100},{\"name\":\"NIFTY 200\",\"stocks\":200},{\"name\":\"NIFTY 500\",\"stocks\":500}]}"
+    },
+    {
+      "endpoint": "Scanner Momentum",
+      "url": "http://localhost:8000/api/scanner/momentum",
+      "status_code": 200,
+      "response_time_ms": 5296.93,
+      "pass": true,
+      "data_preview": "{\"type\":\"bucket_update\",\"timestamp\":\"2026-01-18T17:34:44.233030\",\"data\":[{\"symbol\":\"360ONE\",\"ltp\":1197.7,\"prev_close\":1149.2,\"change_pct\":4.22,\"momentum_score\":92,\"bucket\":\"STRONG_BULLISH\",\"pct_bucket\":\"STRONG_BULLISH\",\"direction\":\"Bullish\",\"correlation\":0.5,\"source\":\"DB\",\"confidence\":\"LOW\",\"last_up"
+    },
+    {
+      "endpoint": "Scanner Breakout",
+      "url": "http://localhost:8000/api/scanner/breakout",
+      "status_code": 200,
+      "response_time_ms": 9000.86,
+      "pass": true,
+      "data_preview": "{\"type\":\"breakout_scan\",\"timestamp\":\"2026-01-18T17:34:53.215925\",\"data\":[{\"symbol\":\"ANGELONE\",\"ltp\":2752.2,\"prev_close\":2525.4,\"change_pct\":8.98,\"breakout_score\":100,\"pattern\":\"BULLISH_BREAKOUT\",\"strength\":\"STRONG\",\"source\":\"DB\",\"last_update\":\"2026-01-18T17:34:50.971313\",\"current_price\":2752.2,\"entr"
+    },
+    {
+      "endpoint": "Week52 Breakouts",
+      "url": "http://localhost:8000/api/scanner/week52-breakouts",
+      "status_code": 200,
+      "response_time_ms": 31.1,
+      "pass": true,
+      "data_preview": "{\"status\":\"error\",\"message\":\"DragonflyDB/Redis is not available\",\"high_breakouts\":[],\"low_breakdowns\":[]}"
+    },
+    {
+      "endpoint": "Scanner Reversal",
+      "url": "http://localhost:8000/api/scanner/reversal",
+      "status_code": 200,
+      "response_time_ms": 4834.53,
+      "pass": true,
+      "data_preview": "{\"type\":\"reversal_scan\",\"timestamp\":\"2026-01-18T17:34:58.109093\",\"data\":[{\"symbol\":\"AUBANK\",\"ltp\":1025.4,\"prev_close\":976.35,\"change_pct\":5.02,\"reversal_score\":75,\"pattern\":\"BEARISH_REVERSAL\",\"type\":\"OVERBOUGHT_CORRECTION\",\"strength\":\"STRONG\",\"source\":\"DB\",\"last_update\":\"2026-01-18T17:34:58.107729\","
+    },
+    {
+      "endpoint": "Scanner TrendFinder",
+      "url": "http://localhost:8000/api/scanner/trendfinder",
+      "status_code": 200,
+      "response_time_ms": 4731.63,
+      "pass": true,
+      "data_preview": "{\"type\":\"trendfinder_scan\",\"timestamp\":\"2026-01-18T17:35:02.842365\",\"data\":[{\"symbol\":\"360ONE\",\"ltp\":1197.7,\"prev_close\":1149.2,\"change_pct\":4.22,\"trend_direction\":\"BULLISH\",\"trend_strength\":\"STRONG\",\"ai_confidence\":95,\"momentum_score\":92,\"signal\":\"BUY\",\"source\":\"DB\",\"last_update\":\"2026-01-18T17:35:"
+    },
+    {
+      "endpoint": "Trading Dashboard",
+      "url": "http://localhost:8000/api/trading/dashboard",
+      "status_code": 200,
+      "response_time_ms": 69.95,
+      "pass": true,
+      "data_preview": "{\"total_pnl\":0.0,\"daily_pnl\":0.0,\"capital_used\":0.0,\"total_capital\":1000000.0,\"active_algorithms\":2,\"win_rate\":70.0,\"total_trades\":0}"
+    },
+    {
+      "endpoint": "Top Gainers",
+      "url": "http://localhost:8000/api/trading/top-gainers",
+      "status_code": 200,
+      "response_time_ms": 63.37,
+      "pass": true,
+      "data_preview": "[{\"symbol\":\"IFCI\",\"price\":56.43,\"change\":15.14},{\"symbol\":\"FORCEMOT\",\"price\":19900.0,\"change\":6.36},{\"symbol\":\"HINDCOPPER\",\"price\":545.7,\"change\":4.78},{\"symbol\":\"BSE\",\"price\":2790.6,\"change\":4.54},{\"symbol\":\"PREMIERENE\",\"price\":745.6,\"change\":3.92},{\"symbol\":\"HINDZINC\",\"price\":628.25,\"change\":3.59}"
+    },
+    {
+      "endpoint": "Gainers Losers",
+      "url": "http://localhost:8000/api/trading/gainers-losers",
+      "status_code": 200,
+      "response_time_ms": 3200.42,
+      "pass": true,
+      "data_preview": "[]"
+    },
+    {
+      "endpoint": "AI Breakout Stocks",
+      "url": "http://localhost:8000/api/ai/breakout-stocks",
+      "status_code": 200,
+      "response_time_ms": 10906.45,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"count\":10,\"stocks\":[{\"symbol\":\"MANAPPURAM\",\"name\":\"MANAPPURAM\",\"breakout_type\":\"RESISTANCE\",\"volume_ratio\":5.29,\"strength\":89,\"current_price\":308.05,\"breakout_level\":292.0,\"target_price\":332.69,\"stop_loss\":298.81,\"indicators\":{\"rsi\":66.86,\"atr_expansion\":1.1,\"high_52w\":0.0},\"rea"
+    }
+  ],
+  "db_validations": {
+    "instrument_count": 501,
+    "daily_candle_count": 456494,
+    "latest_daily_candle": "2026-01-16 00:00:00",
+    "symbols_with_daily_candles": 494
+  }
+}

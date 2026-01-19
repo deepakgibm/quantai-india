@@ -53,23 +53,22 @@ class SymbolManager:
         """Force refresh of symbol and name cache from DB."""
         session = self._Session()
         try:
-            # Query stock_master for official list
-            # Fallback to stock_candles/Nifty100Daily if stock_master incomplete
+            # Query instrument_master for official list
             logger.info("Refreshing symbol cache from database...")
             
-            # Try stock_master first (V3 schema)
+            # Try instrument_master (new schema)
             try:
-                query = text("SELECT symbol, company_name, sector FROM stock_master")
+                query = text("SELECT symbol, company_name, sector FROM instrument_master WHERE is_active = TRUE")
                 results = session.execute(query).fetchall()
                 
                 if results:
                     self._symbol_cache = [r.symbol for r in results]
                     self._name_cache = {r.symbol: r.company_name or r.symbol for r in results}
                     self._last_refresh = datetime.now()
-                    logger.info(f"Loaded {len(results)} symbols from stock_master")
+                    logger.info(f"Loaded {len(results)} symbols from instrument_master")
                     return
             except Exception as e:
-                logger.warning(f"stock_master query failed: {e}")
+                logger.warning(f"instrument_master query failed: {e}")
                 
             # Fallback to Nifty100Daily (V2 Schema compat)
             try:

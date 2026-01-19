@@ -155,22 +155,6 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Account Type</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button type="button" className="py-2 text-sm font-medium rounded-lg border border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900 dark:text-brand-300">Manual</button>
-                  <button type="button" className="py-2 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">Hybrid AI</button>
-                  <button type="button" className="py-2 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">Full Algo</button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 py-2">
-                <div className="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full w-2/3 bg-yellow-400"></div>
-                </div>
-                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">KYC Pending</span>
-              </div>
-
               {error && (
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                   <p className="text-sm text-red-600 dark:text-red-400">{error}</p>

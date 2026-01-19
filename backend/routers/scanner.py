@@ -31,26 +31,31 @@ get_realtime_scanner_engine = None
 _scanner_available = False
 scanner = None
 
+# 1. Robust Strategy Registry Loading
 try:
     from strategies import StrategyRegistry
+    # Explicitly import all tiers to force registration
+    import strategies.tier1
+    import strategies.tier2
+    import strategies.tier3
+    import strategies.multi_timeframe
+    
+    if StrategyRegistry:
+        logger.info(f"StrategyRegistry loaded successfully with {len(StrategyRegistry.get_all())} strategies")
+except Exception as e:
+    logger.error(f"StrategyRegistry initialization failed: {e}")
+
+# 2. Scanner Engine Loading (Independent of Registry)
+try:
     from core.scanner.scanner_engine import ScannerEngine
     from core.scanner.realtime_scanner_engine import get_realtime_scanner_engine
     
-    _scanner_available = True
-    
     if ScannerEngine is not None:
         scanner = ScannerEngine()
-        logger.info(f"Scanner engine initialized with {len(StrategyRegistry._strategies) if StrategyRegistry else 0} strategies")
+        _scanner_available = True
+        logger.info("Scanner Engine initialized successfully")
 except Exception as e:
-    logger.warning(f"Scanner components initialization failed: {e}")
-    
-    # Second attempt to at least get the registry for the strategy list
-    if StrategyRegistry is None:
-        try:
-            from strategies import StrategyRegistry
-        except Exception:
-            StrategyRegistry = None
-    
+    logger.warning(f"Scanner engine initialization failed: {e}")
     _scanner_available = False
 
 router = APIRouter(prefix="/api/scanner", tags=["Scanner"])
@@ -112,7 +117,7 @@ saved_presets: Dict[str, Dict] = {}
 
 
 @router.get("/strategies")
-async def get_strategies(current_user: User = Depends(get_current_user)):
+async def get_strategies(current_user: Optional[User] = Depends(get_optional_user)):
     """Get all available scanning strategies grouped by tier."""
     # Check if StrategyRegistry is available (set to None if import failed)
     if StrategyRegistry is None:

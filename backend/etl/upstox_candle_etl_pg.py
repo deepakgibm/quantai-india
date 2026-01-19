@@ -293,35 +293,167 @@ def fetch_candles(instrument_key, unit, interval, from_date, to_date):
     raise RuntimeError("Max retries exceeded")
 
 # ==========================
-# LOAD SYMBOLS
+# LOAD SYMBOLS FROM INSTRUMENT_MASTER
 # ==========================
 
+def load_symbols_from_db(conn):
+    """
+    Load symbols from instrument_master table instead of CSV.
+    This ensures we use the database as the source of truth.
+    
+    Returns:
+        List of dicts with symbol, instrument_key, instrument_id
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT 
+            symbol, 
+            instrument_key, 
+            instrument_id,
+            company_name
+        FROM instrument_master
+        WHERE is_active = TRUE 
+          AND exchange = 'NSE' 
+          AND series = 'EQ'
+        ORDER BY symbol
+    """)
+    
+    rows = cur.fetchall()
+    symbols = []
+    for row in rows:
+        symbols.append({
+            "symbol": row[0],
+            "instrument_key": row[1],
+            "instrument_id": row[2],
+            "company_name": row[3] or row[0]
+        })
+    
+    return symbols
+
+
 def load_symbols():
-    """Load symbols from CSV file."""
+    """Load symbols from CSV file (legacy fallback)."""
     if not SYMBOL_FILE.exists():
-        raise FileNotFoundError(f"Symbol file not found: {SYMBOL_FILE}")
+        return []
     
     with open(SYMBOL_FILE, newline="") as f:
         return list(csv.DictReader(f))
 
-# ==========================
-# ETL
-# ==========================
 
-def run_etl(symbols_filter=None, intervals_filter=None):
+def find_missing_symbols(conn, tf_minutes: int = 1440):
+    """
+    Find symbols in instrument_master that have NO data in stock_candle.
+    
+    Args:
+        conn: Database connection
+        tf_minutes: Timeframe to check (default: 1d = 1440 minutes)
+    
+    Returns:
+        List of symbols with no candle data
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT 
+            im.symbol, 
+            im.instrument_key, 
+            im.instrument_id,
+            im.company_name
+        FROM instrument_master im
+        LEFT JOIN (
+            SELECT DISTINCT instrument_id 
+            FROM stock_candle 
+            WHERE timeframe = %s
+        ) sc ON im.instrument_id = sc.instrument_id
+        WHERE im.is_active = TRUE 
+          AND im.exchange = 'NSE' 
+          AND im.series = 'EQ'
+          AND sc.instrument_id IS NULL
+        ORDER BY im.symbol
+    """, (tf_minutes,))
+    
+    rows = cur.fetchall()
+    missing = []
+    for row in rows:
+        missing.append({
+            "symbol": row[0],
+            "instrument_key": row[1],
+            "instrument_id": row[2],
+            "company_name": row[3] or row[0]
+        })
+    
+    return missing
+
+
+def find_stale_symbols(conn, tf_minutes: int = 1440, days_threshold: int = 14):
+    """
+    Find symbols in stock_candle that have stale data (older than threshold).
+    
+    Args:
+        conn: Database connection
+        tf_minutes: Timeframe to check (default: 1d = 1440 minutes)
+        days_threshold: Data older than this is considered stale
+    
+    Returns:
+        List of symbols with stale data and their last candle date
+    """
+    cur = conn.cursor()
+    threshold_date = date.today() - timedelta(days=days_threshold)
+    
+    cur.execute("""
+        SELECT 
+            im.symbol, 
+            im.instrument_key, 
+            im.instrument_id,
+            MAX(sc.candle_ts) as last_candle
+        FROM instrument_master im
+        JOIN stock_candle sc ON im.instrument_id = sc.instrument_id
+        WHERE im.is_active = TRUE 
+          AND im.exchange = 'NSE' 
+          AND im.series = 'EQ'
+          AND sc.timeframe = %s
+        GROUP BY im.symbol, im.instrument_key, im.instrument_id
+        HAVING MAX(sc.candle_ts) < %s
+        ORDER BY MAX(sc.candle_ts)
+    """, (tf_minutes, threshold_date))
+    
+    rows = cur.fetchall()
+    stale = []
+    for row in rows:
+        stale.append({
+            "symbol": row[0],
+            "instrument_key": row[1],
+            "instrument_id": row[2],
+            "last_candle": row[3]
+        })
+    
+    return stale
+
+def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, missing_only=False):
     """
     Run the ETL process.
     
     Args:
         symbols_filter: Optional list of symbols to process (e.g., ["RELIANCE", "TCS"])
         intervals_filter: Optional list of intervals to process (e.g., ["1d", "1h"])
+        use_db_source: If True, load symbols from instrument_master (recommended)
+        missing_only: If True, only process symbols with missing candle data
     """
     conn = get_connection()
     cur = init_db(conn)
     today = date.today()
 
-    symbols = load_symbols()
-    print(f"[INFO] Loaded {len(symbols)} symbols from {SYMBOL_FILE}")
+    # Load symbols - prefer instrument_master over CSV
+    if use_db_source:
+        if missing_only:
+            symbols = find_missing_symbols(conn, tf_minutes=1440)
+            print(f"[INFO] Found {len(symbols)} symbols with MISSING data in stock_candle")
+        else:
+            symbols = load_symbols_from_db(conn)
+            print(f"[INFO] Loaded {len(symbols)} active symbols from instrument_master")
+    else:
+        symbols = load_symbols()
+        print(f"[INFO] Loaded {len(symbols)} symbols from {SYMBOL_FILE} (legacy mode)")
+    
     print(f"[INFO] Token length: {len(ACCESS_TOKEN)} chars")
     print(f"[INFO] Two weeks ago: {TWO_WEEKS_AGO}")
     print(f"[INFO] Today: {today}")
@@ -340,14 +472,16 @@ def run_etl(symbols_filter=None, intervals_filter=None):
     for sym in symbols:
         symbol = sym["symbol"]
         instrument_key = sym["instrument_key"]
+        
+        # Use pre-loaded instrument_id if available (from instrument_master query)
+        instrument_id = sym.get("instrument_id")
 
         print(f"\n{'='*50}")
         print(f"Processing: {symbol}")
         print(f"Instrument: {instrument_key}")
         
-        # Resolve instrument_id for new schema
-        instrument_id = None
-        if USE_NEW_SCHEMA:
+        # If instrument_id not in dict (legacy CSV mode), resolve it
+        if USE_NEW_SCHEMA and not instrument_id:
             try:
                 instrument_id = resolve_by_instrument_key(instrument_key)
                 if instrument_id:
@@ -356,6 +490,8 @@ def run_etl(symbols_filter=None, intervals_filter=None):
                     print(f"[WARN] Could not resolve instrument_id, will use legacy table")
             except Exception as resolve_error:
                 print(f"[WARN] instrument_id resolution failed: {resolve_error}")
+        elif instrument_id:
+            print(f"Using instrument_id: {instrument_id} (from instrument_master)")
         
         print(f"{'='*50}")
 
@@ -485,28 +621,89 @@ def run_etl(symbols_filter=None, intervals_filter=None):
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="NIFTY 500 Candle ETL to PostgreSQL (stock_candles table)")
+    parser = argparse.ArgumentParser(description="NIFTY 500 Candle ETL to PostgreSQL (stock_candle table)")
     parser.add_argument("--symbols", nargs="+", help="Specific symbols to process (e.g., RELIANCE TCS)")
     parser.add_argument("--intervals", nargs="+", help="Specific intervals to process (e.g., 1d 1h)")
     parser.add_argument("--check-only", action="store_true", help="Only check data freshness, don't load")
+    parser.add_argument("--use-csv", action="store_true", help="Use CSV file instead of instrument_master (legacy mode)")
+    parser.add_argument("--missing-only", action="store_true", help="Only process symbols with NO candle data")
+    parser.add_argument("--show-missing", action="store_true", help="Show symbols with missing data and exit")
+    parser.add_argument("--show-stale", action="store_true", help="Show symbols with stale data and exit")
     
     args = parser.parse_args()
     
-    if args.check_only:
+    if args.show_missing:
+        # Show symbols with missing data
+        conn = get_connection()
+        cur = init_db(conn)
+        
+        print("\n[MISSING SYMBOLS - No data in stock_candle for 1d timeframe]")
+        print("="*60)
+        
+        missing = find_missing_symbols(conn, tf_minutes=1440)
+        print(f"Found {len(missing)} symbols with NO candle data:\n")
+        
+        for sym in missing[:50]:  # Show first 50
+            print(f"  - {sym['symbol']:15} (ID: {sym['instrument_id']})")
+        
+        if len(missing) > 50:
+            print(f"\n  ... and {len(missing) - 50} more")
+        
+        conn.close()
+        
+    elif args.show_stale:
+        # Show symbols with stale data
+        conn = get_connection()
+        cur = init_db(conn)
+        
+        print("\n[STALE SYMBOLS - Data older than 14 days in stock_candle]")
+        print("="*60)
+        
+        stale = find_stale_symbols(conn, tf_minutes=1440, days_threshold=14)
+        print(f"Found {len(stale)} symbols with STALE candle data:\n")
+        
+        for sym in stale[:50]:  # Show first 50
+            print(f"  - {sym['symbol']:15} Last: {sym['last_candle']}")
+        
+        if len(stale) > 50:
+            print(f"\n  ... and {len(stale) - 50} more")
+        
+        conn.close()
+        
+    elif args.check_only:
         # Just check data freshness
         conn = get_connection()
         cur = init_db(conn)
-        symbols = load_symbols()
         
-        print("\n[DATA FRESHNESS CHECK - stock_candles table]")
+        # Use DB source by default
+        if args.use_csv:
+            symbols = load_symbols()
+        else:
+            symbols = load_symbols_from_db(conn)
+        
+        print("\n[DATA FRESHNESS CHECK - stock_candle table]")
         print("="*60)
         
         for sym in symbols[:10]:  # Check first 10
             symbol = sym["symbol"]
             instrument_key = sym["instrument_key"]
+            instrument_id = sym.get("instrument_id")
+            
             for cfg in INTERVALS:
+                tf_minutes = cfg["tf_minutes"]
                 db_timeframe = cfg["db_timeframe"]
-                last_date = get_last_data_date(cur, instrument_key, db_timeframe)
+                
+                # Check new schema first
+                if instrument_id and USE_NEW_SCHEMA:
+                    cur.execute("""
+                        SELECT MAX(candle_ts)::date FROM stock_candle 
+                        WHERE instrument_id = %s AND timeframe = %s
+                    """, (instrument_id, tf_minutes))
+                    result = cur.fetchone()
+                    last_date = result[0] if result else None
+                else:
+                    last_date = get_last_data_date(cur, instrument_key, db_timeframe)
+                
                 status = "✓" if last_date and last_date >= TWO_WEEKS_AGO else "✗"
                 print(f"{status} {symbol}/{db_timeframe}: {last_date or 'NO DATA'}")
         
@@ -514,5 +711,8 @@ if __name__ == "__main__":
     else:
         run_etl(
             symbols_filter=args.symbols,
-            intervals_filter=args.intervals
+            intervals_filter=args.intervals,
+            use_db_source=not args.use_csv,
+            missing_only=args.missing_only
         )
+

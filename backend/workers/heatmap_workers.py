@@ -83,7 +83,7 @@ class SectorAggregationWorker:
         asyncio.create_task(self._loop())
 
     async def _load_metadata(self):
-        """Load symbol->sector mapping from stock_master."""
+        """Load symbol->sector mapping from instrument_master."""
         import psycopg2
         from config import settings
         
@@ -99,7 +99,8 @@ class SectorAggregationWorker:
         from config import settings
         conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("SELECT symbol, sector, instrument_key FROM stock_master WHERE is_active = TRUE")
+        # Use instrument_master instead of stock_master
+        cur.execute("SELECT symbol, sector, instrument_key FROM instrument_master WHERE is_active = TRUE")
         rows = cur.fetchall()
         conn.close()
         

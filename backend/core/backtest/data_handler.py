@@ -93,40 +93,58 @@ class DataHandler:
         
         db_tf = TimeframeMapper.to_standard(timeframe)
         
-        # Step 1: Resolve instrument_key using raw SQL to avoid ORM metadata collisions
-        sql = text("SELECT instrument_key FROM stock_master WHERE symbol = :symbol")
+        # Step 1: Resolve instrument_id using raw SQL from instrument_master (new schema)
+        sql = text("SELECT instrument_id FROM instrument_master WHERE symbol = :symbol AND is_active = TRUE")
         result = db_session.execute(sql, {"symbol": symbol}).fetchone()
-        instrument_key = result[0] if result else None
+        instrument_id = result[0] if result else None
         
-        if not instrument_key:
-            logger.warning(f"Could not resolve instrument_key for {symbol}, trying fallback symbol query")
+        if not instrument_id:
+            logger.warning(f"Could not resolve instrument_id for {symbol}, trying fallback symbol query")
 
-        # Step 2: Query stock_candles using ORM for the OHLCV data
-        if instrument_key:
-            query = db_session.query(StockCandle).filter(
-                and_(
-                    StockCandle.instrument_key == instrument_key,
-                    StockCandle.timeframe == db_tf,
-                    cast(StockCandle.timestamp, TIMESTAMP) >= start_date,
-                    cast(StockCandle.timestamp, TIMESTAMP) <= end_date
-                )
-            ).order_by(cast(StockCandle.timestamp, TIMESTAMP).asc())
+        # Step 2: Query stock_candle using ORM for OHLCV data (new schema uses stock_candle)
+        # Note: StockCandle ORM model must map to stock_candle table with instrument_id FK
+        if instrument_id:
+            # Use raw SQL for compatibility with new schema
+            sql = text("""
+                SELECT candle_ts as timestamp, open, high, low, close, volume
+                FROM stock_candle
+                WHERE instrument_id = :instrument_id
+                AND timeframe = :timeframe
+                AND candle_ts >= :start_date
+                AND candle_ts <= :end_date
+                ORDER BY candle_ts ASC
+            """)
+            result = db_session.execute(sql, {
+                "instrument_id": instrument_id,
+                "timeframe": TimeframeMapper.to_minutes(db_tf),  # Convert to minutes for new schema
+                "start_date": start_date,
+                "end_date": end_date
+            })
+            records = result.fetchall()
         else:
-            query = db_session.query(StockCandle).filter(
-                and_(
-                    StockCandle.symbol == symbol,
-                    StockCandle.timeframe == db_tf,
-                    cast(StockCandle.timestamp, TIMESTAMP) >= start_date,
-                    cast(StockCandle.timestamp, TIMESTAMP) <= end_date
-                )
-            ).order_by(cast(StockCandle.timestamp, TIMESTAMP).asc())
-        
-        records = query.all()
+            # Fallback: try by symbol via join
+            sql = text("""
+                SELECT sc.candle_ts as timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = :symbol
+                AND sc.timeframe = :timeframe
+                AND sc.candle_ts >= :start_date
+                AND sc.candle_ts <= :end_date
+                ORDER BY sc.candle_ts ASC
+            """)
+            result = db_session.execute(sql, {
+                "symbol": symbol,
+                "timeframe": TimeframeMapper.to_minutes(db_tf),
+                "start_date": start_date,
+                "end_date": end_date
+            })
+            records = result.fetchall()
         
         if not records:
             # Fallback to Nifty100Daily for daily data if candles missing
             if db_tf == "1d":
-                logger.info(f"No {db_tf} data in StockCandle for {symbol}, trying Nifty100Daily fallback")
+                logger.info(f"No {db_tf} data in stock_candle for {symbol}, trying Nifty100Daily fallback")
                 from models_ml import Nifty100Daily
                 query = db_session.query(Nifty100Daily).filter(
                     and_(
@@ -135,14 +153,24 @@ class DataHandler:
                         Nifty100Daily.timestamp <= end_date
                     )
                 ).order_by(Nifty100Daily.timestamp.asc())
-                records = query.all()
+                orm_records = query.all()
+                # Convert ORM records to same format as raw SQL
+                records = [(r.timestamp, r.open, r.high, r.low, r.close, r.volume or 0) for r in orm_records]
         
         if not records:
             raise ValueError(f"No data found for {symbol} ({db_tf}) between {start_date} and {end_date}")
         
         data = []
         for r in records:
-            ts_raw = r.timestamp
+            # Handle both raw SQL tuples and ORM objects
+            if hasattr(r, 'timestamp'):
+                # ORM object
+                ts_raw = r.timestamp
+                o, h, l, c, v = r.open, r.high, r.low, r.close, r.volume or 0
+            else:
+                # Raw SQL tuple: (timestamp, open, high, low, close, volume)
+                ts_raw, o, h, l, c, v = r
+            
             if isinstance(ts_raw, str):
                 ts = dt.datetime.fromisoformat(ts_raw)
             else:
@@ -150,11 +178,11 @@ class DataHandler:
                 
             data.append({
                 'date': ts,
-                'open': float(r.open),
-                'high': float(r.high),
-                'low': float(r.low),
-                'close': float(r.close),
-                'volume': float(r.volume or 0)
+                'open': float(o),
+                'high': float(h),
+                'low': float(l),
+                'close': float(c),
+                'volume': float(v)
             })
         
         df = pd.DataFrame(data)

@@ -117,8 +117,8 @@ class DailySnapshotETL:
         """Load NIFTY 500 symbols and instrument keys synchronously from DB."""
         try:
             session = self.Session()
-            # Try to get from stock_master first
-            res = session.execute(text("SELECT symbol, instrument_key FROM stock_master"))
+            # Try to get from instrument_master first
+            res = session.execute(text("SELECT symbol, instrument_key FROM instrument_master WHERE is_active = TRUE"))
             data = [{"symbol": r[0], "instrument_key": r[1]} for r in res]
             session.close()
             if data:
@@ -656,13 +656,13 @@ class DailySnapshotETL:
         sync_count = 0
         all_snapshots = []
         
-        # 1. Load Symbol -> Instrument Key map from stock_master
+        # 1. Load Symbol -> ID map from instrument_master
         try:
-            res = session.execute(text("SELECT symbol, instrument_key FROM stock_master"))
-            inst_map = {r[0]: r[1] for r in res}
+            res = session.execute(text("SELECT symbol, instrument_id, instrument_key FROM instrument_master WHERE is_active = TRUE"))
+            inst_info = {r[0]: (r[1], r[2]) for r in res}
         except Exception as e:
-            logger.warning(f"Could not load instrument key map: {e}")
-            inst_map = {}
+            logger.warning(f"Could not load instrument info map: {e}")
+            inst_info = {}
 
         # 2. Fetch current qai:snap:all to preserve indicators but update price
         try:
@@ -685,13 +685,30 @@ class DailySnapshotETL:
                 volume = q.get("volume") or 0
                 timestamp = datetime.combine(trade_date, datetime.min.time())
                 
-                # Get instrument key from map or use symbol as fallback
-                instrument_key = inst_map.get(symbol, f"NSE_EQ|{symbol}")
+                # Get instrument info from map
+                info = inst_info.get(symbol)
+                if not info:
+                    logger.warning(f"Symbol {symbol} not found in instrument_master. Skipping sync.")
+                    continue
+                
+                inst_id, instrument_key = info
                 
                 if symbol == "MINDACORP":
-                    logger.info(f"DEBUG: Syncing MINDACORP - Close: {close_price}, Prev Close: {prev_close}, Instrument: {instrument_key}")
+                    logger.info(f"DEBUG: Syncing MINDACORP - Close: {close_price}, Prev Close: {prev_close}, ID: {inst_id}")
                 
-                # A. Update/Upsert stock_candles table
+                # A. Update/Upsert stock_candle table (NEW SCHEMA)
+                # timeframe = 1440 for daily
+                session.execute(
+                    text("""
+                        INSERT INTO stock_candle (instrument_id, timeframe, candle_ts, open, high, low, close, volume)
+                        VALUES (:iid, 1440, :ts, :close, :close, :close, :close, :vol)
+                        ON CONFLICT (instrument_id, timeframe, candle_ts) 
+                        DO UPDATE SET close = EXCLUDED.close, volume = EXCLUDED.volume
+                    """),
+                    {"iid": inst_id, "ts": timestamp, "close": close_price, "vol": volume}
+                )
+
+                # A.1 Update/Upsert legacy stock_candles table (for backward compatibility during transition)
                 session.execute(
                     text("""
                         INSERT INTO stock_candles (symbol, instrument_key, timeframe, timestamp, open, high, low, close, volume)
@@ -701,8 +718,8 @@ class DailySnapshotETL:
                     """),
                     {"symbol": symbol, "inst": instrument_key, "ts": timestamp, "close": close_price, "vol": volume}
                 )
-
-                # A.1 Update/Upsert legacy nifty100_daily table (for backward compatibility)
+                
+                # A.2 Update/Upsert legacy nifty100_daily table (for backward compatibility)
                 session.execute(
                     text("""
                         INSERT INTO nifty100_daily (symbol, timestamp, open, high, low, close, volume, source)
@@ -795,7 +812,7 @@ class DailySnapshotETL:
         session = self.Session()
         try:
             result = session.execute(
-                text("SELECT symbol, sector FROM stock_master WHERE sector IS NOT NULL")
+                text("SELECT symbol, sector FROM instrument_master WHERE sector IS NOT NULL AND is_active = TRUE")
             )
             rows = result.fetchall()
             return {r[0]: r[1] for r in rows}

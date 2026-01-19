@@ -24,28 +24,35 @@ class SRBounceScanner:
         
     def _get_ohlcv_data(self, symbol: str, days: int = 60) -> Optional[pd.DataFrame]:
         try:
-            from models_alpha import StockCandle
-            from sqlalchemy import desc
+            from sqlalchemy import text
             session = self._Session()
             try:
-                # Filter by symbol and '1d' timeframe
-                results = session.query(StockCandle).filter(
-                    StockCandle.symbol == symbol,
-                    StockCandle.timeframe == '1d'
-                ).order_by(desc(StockCandle.timestamp)).limit(days).all()
+                # Use new schema: stock_candle joined with instrument_master
+                # timeframe = 1440 for daily candles (minutes)
+                query = text("""
+                    SELECT sc.candle_ts as timestamp, sc.high, sc.low, sc.close, sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = :symbol
+                    AND sc.timeframe = 1440
+                    ORDER BY sc.candle_ts DESC
+                    LIMIT :days
+                """)
+                result = session.execute(query, {"symbol": symbol, "days": days})
+                rows = result.fetchall()
                 
-                if not results or len(results) < 20:
+                if not rows or len(rows) < 20:
                     return None
                 
                 # Results are DESC, reverse for chronological order
-                results = results[::-1]
+                rows = rows[::-1]
                 data = [{
-                    'timestamp': r.timestamp, 
-                    'high': float(r.high), 
-                    'low': float(r.low),
-                    'close': float(r.close), 
-                    'volume': int(r.volume)
-                } for r in results]
+                    'timestamp': r[0], 
+                    'high': float(r[1]), 
+                    'low': float(r[2]),
+                    'close': float(r[3]), 
+                    'volume': int(r[4] or 0)
+                } for r in rows]
                 
                 df = pd.DataFrame(data)
                 df.set_index('timestamp', inplace=True)

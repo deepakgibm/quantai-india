@@ -90,11 +90,14 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
         "http://localhost:8000",
-        "http://127.0.0.1:8000"
+        "http://127.0.0.1:8000",
+        "http://0.0.0.0:3000",
+        "http://0.0.0.0:5173"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Add observability middleware (correlation IDs, structured logging, metrics)
@@ -258,6 +261,20 @@ async def startup_event():
     
     asyncio.create_task(warmup_metadata_cache())
 
+    # Final strategy check for debugging
+    try:
+        from strategies.base import StrategyRegistry
+        count = len(StrategyRegistry.get_all())
+        logger.info(f"?? SYSTEM READY: {count} strategies registered in StrategyRegistry")
+        if count == 0:
+            logger.warning("?? WARNING: No strategies found in Registry. Checking manual triggers...")
+            # Trigger imports if registry is empty
+            import strategies.tier1, strategies.tier2, strategies.tier3, strategies.multi_timeframe
+            count = len(StrategyRegistry.get_all())
+            logger.info(f"?? Post-import strategy count: {count}")
+    except Exception as e:
+        logger.error(f"Failed to verify StrategyRegistry: {e}")
+
     logger.info("Server startup complete - API reads from cache only")
     logger.info("NOTE: Run 'python hp_scanner_worker.py' separately for cache population")
 
@@ -275,6 +292,7 @@ app.include_router(algorithms.router, prefix="/api/algorithms", tags=["Algorithm
 app.include_router(agentic_bot.router, prefix="/api/agentic-bot", tags=["Agentic Bot"])
 app.include_router(engine_performance.router, prefix="/api/engines", tags=["Engine Performance"])
 app.include_router(quant_bot.router, prefix="/api/quant", tags=["Quant Bot"])
+app.include_router(quant_bot.router, prefix="/api/quant-bot", tags=["Quant Bot"]) # Alias to fix 404s reported in tests
 app.include_router(scanner.router)  # Scanner router (already has full prefix)
 app.include_router(market.router, prefix="/api/market", tags=["Market"])
 app.include_router(metrics.router)  # Metrics & Metadata API (already has prefix)

@@ -105,11 +105,11 @@ class CacheWarmer:
             conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
             cur = conn.cursor()
             
-            # Get all symbols via stock_master mapping
+            # Get all symbols via instrument_master
             cur.execute("""
-                SELECT DISTINCT sm.symbol 
-                FROM stock_candles sc
-                JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
+                SELECT DISTINCT im.symbol 
+                FROM instrument_master im
+                WHERE im.is_active = TRUE AND im.exchange = 'NSE' AND im.series = 'EQ'
                 LIMIT 500
             """)
             symbols = [row[0] for row in cur.fetchall()]
@@ -118,13 +118,13 @@ class CacheWarmer:
             # Build compute tasks
             tasks = []
             for symbol in symbols:
-                # Fetch last 200 candles from stock_candles
+                # Fetch last 200 candles from stock_candle using new schema
                 cur.execute("""
-                    SELECT sc.timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
-                    FROM stock_candles sc
-                    JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
-                    WHERE sm.symbol = %s AND sc.timeframe = '1d'
-                    ORDER BY sc.timestamp DESC
+                    SELECT sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = %s AND sc.timeframe = 1440
+                    ORDER BY sc.candle_ts DESC
                     LIMIT 200
                 """, (symbol,))
                 

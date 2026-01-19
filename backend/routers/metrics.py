@@ -238,12 +238,13 @@ async def get_data_freshness():
         
         cur.execute("""
             SELECT 
-                timeframe,
-                COUNT(DISTINCT symbol) as symbols,
-                MAX(timestamp) as latest
-            FROM stock_candles
-            GROUP BY timeframe
-            ORDER BY timeframe
+                sc.timeframe,
+                COUNT(DISTINCT im.symbol) as symbols,
+                MAX(sc.candle_ts) as latest
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            GROUP BY sc.timeframe
+            ORDER BY sc.timeframe
         """)
         
         rows = cur.fetchall()
@@ -252,11 +253,15 @@ async def get_data_freshness():
         now = datetime.now()
         timeframes = {}
         
+        # Map timeframe minutes back to readable format
+        tf_map = {1440: '1d', 60: '1h', 30: '30m', 15: '15m', 5: '5m'}
+        
         for row in rows:
-            tf, symbols, latest = row
+            tf_minutes, symbols, latest = row
+            tf_label = tf_map.get(tf_minutes, f'{tf_minutes}m')
             if latest:
                 age_hours = (now - latest).total_seconds() / 3600
-                timeframes[tf] = {
+                timeframes[tf_label] = {
                     "latest": latest.isoformat() if isinstance(latest, datetime) else str(latest),
                     "symbols": symbols,
                     "age_hours": round(age_hours, 2)

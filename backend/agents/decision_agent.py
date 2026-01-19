@@ -19,8 +19,6 @@ class DecisionAgent:
             risk = risk_map.get(symbol, {})
             
             # Multi-factor Ranking Score
-            # High Trend + High ML + Low Risk + Positive Sentiment
-            
             trend_score = stock.get("trend_score", 50)
             ml_score = stock.get("ml_score", 50)
             risk_score = risk.get("risk_score", 50)
@@ -34,13 +32,13 @@ class DecisionAgent:
             
             if buy_score > 75:
                 decision = "BUY"
-                reason = "Strong Trend + High ML Score"
+                reason = "Strong signals from Tech + ML"
             elif buy_score > 60:
                 decision = "WATCH"
-                reason = "Good potential, wait for dip"
+                reason = "Neutral bias, wait for signal"
             elif risk_score > 70:
-                decision = "SELL/AVOID"
-                reason = "High Risk Detected"
+                decision = "AVOID"
+                reason = "Risk exceeds thresholds"
                 
             merged.append({
                 "symbol": symbol,
@@ -51,8 +49,6 @@ class DecisionAgent:
                 "52_week_analysis": f"High: {stock['52_week_high']}, Low: {stock['52_week_low']}",
                 "ml_reasoning": f"Model confidence: {ml_score}%",
                 "overall_summary": stock["overall_research_summary"],
-                
-                # Include details for UI
                 "ltp": stock["ltp"],
                 "trend_score": trend_score,
                 "ml_score": ml_score,
@@ -63,4 +59,28 @@ class DecisionAgent:
         # Sort by Buy Score
         merged.sort(key=lambda x: x["buy_score"], reverse=True)
         
+        # AI SYNTHESIS: Use Gemini to summarize the top 3 recommendations
+        top_3 = merged[:3]
+        if top_3:
+            try:
+                from config import settings
+                import google.generativeai as genai
+                
+                if settings.GEMINI_API_KEY:
+                    genai.configure(api_key=settings.GEMINI_API_KEY)
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
+                    summary_prompt = "You are a professional trader. Summarize these recommendations into a short actionable insight (2 sentences):\n"
+                    for t in top_3:
+                        summary_prompt += f"Stock: {t['symbol']}, Action: {t['final_decision']}, Reason: {t['reason_for_buy']}, ML Score: {t['ml_score']}\n"
+                    
+                    response = model.generate_content(summary_prompt)
+                    ai_reason = response.text.strip()
+                    
+                    # Update the top recommendation with AI insight
+                    top_3[0]["ai_synthesis"] = ai_reason
+                    print(f"🤖 AI Synthesis: {ai_reason[:50]}...")
+            except Exception as e:
+                print(f"⚠️ AI Synthesis failed: {e}")
+                
         return merged

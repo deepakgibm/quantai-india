@@ -337,7 +337,8 @@ class UpstoxClient:
             
             engine = create_engine(settings.SYNC_DATABASE_URL)
             with engine.connect() as conn:
-                result = conn.execute(text("SELECT symbol, instrument_key FROM stock_master LIMIT 200"))
+                # Use instrument_master (new schema) instead of stock_master
+                result = conn.execute(text("SELECT symbol, instrument_key FROM instrument_master WHERE is_active = TRUE LIMIT 200"))
                 db_data = [(row.symbol, row.instrument_key) for row in result]
                 
             if db_data:

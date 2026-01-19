@@ -1,0 +1,35 @@
+# Test Dependencies for QuantAI Backend API Test Suite
+
+# Core Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-html>=4.0.0
+pytest-xdist>=3.3.0  # Parallel test execution
+pytest-cov>=4.1.0    # Code coverage
+
+# HTTP Client
+requests>=2.31.0
+httpx>=0.25.0
+
+# Validation
+pydantic>=2.0.0
+jsonschema>=4.19.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Reporting
+jinja2>=3.1.0
+
+# Date/Time
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# Database (for consistency tests)
+psycopg2-binary>=2.9.0
+sqlalchemy>=2.0.0
+asyncpg>=0.28.0

@@ -160,22 +160,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onSwitchToSignup, onForgotPasswo
               </button>
             </form>
 
-            <div className="mt-8">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white dark:bg-slate-900 text-slate-500">Demo Account</span>
-                </div>
-              </div>
 
-              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/50 rounded-xl">
-                <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
-                  <strong>Demo Login:</strong> demo@example.com / demo123
-                </p>
-              </div>
-            </div>
 
             <p className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
               Don't have an account? <button onClick={onSwitchToSignup} className="text-brand-600 font-semibold hover:underline">Sign up</button>

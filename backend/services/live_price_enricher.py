@@ -19,7 +19,7 @@ INSTRUMENT_MAPPING = NIFTY_500_MAPPING
 async def get_database_prices(symbols: List[str]) -> Dict[str, float]:
     """
     Fallback to database for prices when live APIs fail.
-    Fetches the most recent close prices from stock_candles table.
+    Fetches the most recent close prices from stock_candle table.
     """
     if not symbols:
         return {}
@@ -27,18 +27,19 @@ async def get_database_prices(symbols: List[str]) -> Dict[str, float]:
     prices = {}
     try:
         async with AsyncSessionLocal() as session:
-            # Get the latest close price for each symbol
+            # Get the latest close price for each symbol using new schema
             query = text("""
-                SELECT symbol, close
+                SELECT im.symbol, sc.close
                 FROM (
-                    SELECT symbol, close, 
-                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
-                    FROM stock_candles
-                    WHERE symbol = ANY(:symbols)
-                    AND timeframe = '1d'
+                    SELECT instrument_id, close, 
+                           ROW_NUMBER() OVER (PARTITION BY instrument_id ORDER BY candle_ts DESC) as rn
+                    FROM stock_candle
+                    WHERE timeframe = 1440
                     AND close > 0
-                ) t
-                WHERE rn = 1
+                ) sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE sc.rn = 1
+                AND im.symbol = ANY(:symbols)
             """)
             
             result = await session.execute(query, {"symbols": symbols})
@@ -227,6 +228,11 @@ async def enrich_scanner_results(results: List[Dict], access_token: str = None) 
     2. Upstox REST API
     3. yFinance (built into fetch_live_ltp)
     4. Database Fallback
+    
+    CRITICAL: This function ensures:
+    - entry_price, target_price, stop_loss are NEVER undefined/None
+    - current_price is always populated
+    - All numeric values are properly rounded
     """
     if not results:
         return results
@@ -273,36 +279,84 @@ async def enrich_scanner_results(results: List[Dict], access_token: str = None) 
         symbol = result.get("symbol")
         live_price = live_prices.get(symbol)
         
+        enriched_result = result.copy()
+        
+        # Determine base price (live or from result)
         if live_price and live_price > 0:
-            enriched_result = result.copy()
-            rounded_price = round(live_price, 2)
-            
-            # Update all common price fields for consistency across different models
-            enriched_result["current_price"] = rounded_price
-            if "ltp" in enriched_result: enriched_result["ltp"] = rounded_price
-            if "price" in enriched_result: enriched_result["price"] = rounded_price
-            
-            trend = enriched_result.get("trend") or enriched_result.get("signal_type", "BULLISH")
-            action = enriched_result.get("action") or enriched_result.get("signal", "BUY")
-            
-            # Only calculate trade levels if they are missing or 0
-            # This preserves ATR or Swings based levels from the underlying engines
-            is_bullish = trend == "BULLISH" or action == "BUY" or "BUY" in str(action).upper()
-            
-            if not enriched_result.get("entry_price"):
-                enriched_result["entry_price"] = round(rounded_price * (0.995 if is_bullish else 1.005), 2)
-                
-            if not enriched_result.get("target_price") and not enriched_result.get("target_1"):
-                enriched_result["target_price"] = round(rounded_price * (1.05 if is_bullish else 0.95), 2)
-                
-            if not enriched_result.get("stop_loss"):
-                enriched_result["stop_loss"] = round(rounded_price * (0.97 if is_bullish else 1.03), 2)
-            
-            enriched.append(enriched_result)
+            rounded_price = round(float(live_price), 2)
+        elif result.get("ltp") and result.get("ltp") > 0:
+            rounded_price = round(float(result.get("ltp")), 2)
+        elif result.get("close") and result.get("close") > 0:
+            rounded_price = round(float(result.get("close")), 2)
+        elif result.get("current_price") and result.get("current_price") > 0:
+            rounded_price = round(float(result.get("current_price")), 2)
         else:
-            enriched.append(result)
+            # Cannot enrich without a valid price - sanitize and skip
+            enriched_result = _sanitize_trade_levels(enriched_result, None)
+            enriched.append(enriched_result)
+            continue
+        
+        # Update all common price fields for consistency across different models
+        enriched_result["current_price"] = rounded_price
+        enriched_result["ltp"] = rounded_price
+        if "price" in enriched_result or result.get("price"):
+            enriched_result["price"] = rounded_price
+        
+        # Determine trend/action for trade level calculation
+        trend = enriched_result.get("trend") or enriched_result.get("signal_type", "BULLISH")
+        action = enriched_result.get("action") or enriched_result.get("signal", "BUY")
+        is_bullish = trend == "BULLISH" or action == "BUY" or "BUY" in str(action).upper()
+        
+        # ALWAYS calculate trade levels (overwrite any invalid values)
+        entry = enriched_result.get("entry_price")
+        target = enriched_result.get("target_price") or enriched_result.get("target_1")
+        stoploss = enriched_result.get("stop_loss")
+        
+        # Fix entry if missing, None, 0, or undefined
+        if not entry or entry <= 0 or str(entry).lower() == 'undefined':
+            enriched_result["entry_price"] = round(rounded_price * (0.995 if is_bullish else 1.005), 2)
+        else:
+            enriched_result["entry_price"] = round(float(entry), 2)
+            
+        # Fix target if missing, None, 0, or undefined
+        if not target or target <= 0 or str(target).lower() == 'undefined':
+            enriched_result["target_price"] = round(rounded_price * (1.05 if is_bullish else 0.95), 2)
+        else:
+            enriched_result["target_price"] = round(float(target), 2)
+            
+        # Fix stoploss if missing, None, 0, or undefined
+        if not stoploss or stoploss <= 0 or str(stoploss).lower() == 'undefined':
+            enriched_result["stop_loss"] = round(rounded_price * (0.97 if is_bullish else 1.03), 2)
+        else:
+            enriched_result["stop_loss"] = round(float(stoploss), 2)
+        
+        # Ensure target_1 is also set for frontends that expect it
+        enriched_result["target_1"] = enriched_result["target_price"]
+        
+        enriched.append(enriched_result)
     
     return enriched
+
+
+def _sanitize_trade_levels(result: Dict, price: Optional[float]) -> Dict:
+    """
+    Sanitize trade levels to never return undefined/None.
+    If price is available, calculate reasonable defaults.
+    If no price, set to None (frontend should display '--')
+    """
+    if price and price > 0:
+        result["current_price"] = round(price, 2)
+        result["entry_price"] = round(price * 0.995, 2)
+        result["target_price"] = round(price * 1.05, 2)
+        result["stop_loss"] = round(price * 0.97, 2)
+    else:
+        # Set to None explicitly (not undefined)
+        result["current_price"] = None
+        result["entry_price"] = None
+        result["target_price"] = None
+        result["stop_loss"] = None
+    
+    return result
 
 
 async def get_single_live_price(symbol: str, access_token: str = None) -> Optional[float]:

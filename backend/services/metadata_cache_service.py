@@ -167,7 +167,7 @@ class MetadataCacheService:
         }
     
     def _load_symbols_from_db(self) -> List[Dict[str, Any]]:
-        """Load symbol master from PostgreSQL."""
+        """Load symbol master from PostgreSQL using instrument_master table."""
         import psycopg2
         from config import settings
         
@@ -177,9 +177,11 @@ class MetadataCacheService:
             conn = psycopg2.connect(db_url)
             cur = conn.cursor()
             
+            # Use instrument_master (new schema) instead of stock_master
             cur.execute("""
                 SELECT symbol, company_name, sector, instrument_key
-                FROM stock_master
+                FROM instrument_master
+                WHERE is_active = TRUE
                 ORDER BY symbol
             """)
             
@@ -193,7 +195,7 @@ class MetadataCacheService:
                 })
             
             conn.close()
-            logger.info(f"Loaded {len(symbols)} symbols from database")
+            logger.info(f"Loaded {len(symbols)} symbols from instrument_master")
             return symbols
             
         except Exception as e:

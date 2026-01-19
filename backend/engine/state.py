@@ -194,7 +194,7 @@ class StateManager:
             })
         return snapshot
     
-    def warm_up_from_db(self, symbols: List[str], interval: str = "1d", candle_count: int = 200):
+    def warm_up_from_db(self, symbols: List[str], interval: str = "1day", candle_count: int = 200):
         """
         One-time warm-up from database on service startup.
         This is the ONLY place DB access is allowed for scanner data.
@@ -208,19 +208,24 @@ class StateManager:
         # Import here to avoid circular dependency
         import psycopg2
         from config import settings
+        from models_alpha import TimeframeMapper
+        
+        db_tf = TimeframeMapper.to_minutes(interval)
         
         try:
             conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
             cur = conn.cursor()
             
             for symbol in symbols:
+                # Query using new schema: stock_candle joined with instrument_master
                 cur.execute("""
-                    SELECT timestamp, "open", high, low, "close", volume
-                    FROM stock_candles
-                    WHERE symbol = %s AND timeframe = %s
-                    ORDER BY timestamp DESC
+                    SELECT sc.candle_ts, sc."open", sc.high, sc.low, sc."close", sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = %s AND sc.timeframe = %s
+                    ORDER BY sc.candle_ts DESC
                     LIMIT %s
-                """, (symbol, interval, candle_count))
+                """, (symbol, db_tf, candle_count))
                 
                 rows = cur.fetchall()
                 
@@ -234,7 +239,7 @@ class StateManager:
                             high=float(row[2]),
                             low=float(row[3]),
                             close=float(row[4]),
-                            volume=int(row[5])
+                            volume=int(row[5] or 0)
                         )
                         state.add_candle(interval, candle)
                     

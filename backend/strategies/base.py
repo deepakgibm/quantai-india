@@ -113,10 +113,11 @@ class StrategyRegistry:
     _strategies: Dict[str, Type[BaseStrategy]] = {}
     
     @classmethod
-    def register(cls, strategy_class: Type[BaseStrategy]) -> Type[BaseStrategy]:
+    def register(cls, strategy_class: Type['BaseStrategy']) -> Type['BaseStrategy']:
         """Decorator to register a strategy."""
-        instance = strategy_class()
-        cls._strategies[instance.name] = strategy_class
+        # Use class attributes instead of instantiating
+        name = getattr(strategy_class, "name", strategy_class.__name__)
+        cls._strategies[name] = strategy_class
         return strategy_class
     
     @classmethod
@@ -132,12 +133,12 @@ class StrategyRegistry:
         """List all strategies with metadata."""
         result = []
         for name, strategy_cls in cls._strategies.items():
-            instance = strategy_cls()
+            # Use class attributes directly
             result.append({
-                "name": instance.name,
-                "description": instance.description,
-                "tier": instance.tier.value,
-                "min_bars": instance.min_bars_required
+                "name": getattr(strategy_cls, "name", name),
+                "description": getattr(strategy_cls, "description", "No description"),
+                "tier": getattr(strategy_cls, "tier", StrategyTier.TIER_3).value,
+                "min_bars": getattr(strategy_cls, "min_bars_required", 0)
             })
         return sorted(result, key=lambda x: (x["tier"], x["name"]))
 

@@ -56,17 +56,23 @@ def signal_handler(signum, frame):
 
 
 def load_symbols() -> List[str]:
-    """Load symbols from database."""
+    """Load symbols from database using instrument_master."""
     import psycopg2
     from config import settings
     
     try:
         conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("SELECT DISTINCT symbol FROM stock_candles LIMIT 200")
+        # Use instrument_master as source of truth for active symbols
+        cur.execute("""
+            SELECT symbol FROM instrument_master 
+            WHERE is_active = TRUE AND exchange = 'NSE' AND series = 'EQ'
+            ORDER BY symbol
+            LIMIT 200
+        """)
         symbols = [row[0] for row in cur.fetchall()]
         conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols from database")
+        logger.info(f"Loaded {len(symbols)} symbols from instrument_master")
         return symbols
     except Exception as e:
         logger.error(f"Failed to load symbols: {e}")
@@ -74,7 +80,7 @@ def load_symbols() -> List[str]:
 
 
 def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
-    """Load candles for all symbols using batch query (replaces N+1 pattern)."""
+    """Load candles for all symbols using batch query from stock_candle + instrument_master."""
     import psycopg2
     from config import settings
     
@@ -87,13 +93,14 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
         conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
         cur = conn.cursor()
         
-        # Single batch query for ALL symbols at once - replaces N+1 pattern
-        # This reduces 200 round trips to 1 round trip
+        # Single batch query using NEW SCHEMA: stock_candle + instrument_master
+        # timeframe = 1440 means daily (1d = 1440 minutes)
         cur.execute("""
-            SELECT symbol, timestamp, "open", high, low, "close", volume
-            FROM stock_candles
-            WHERE symbol = ANY(%s) AND timeframe = '1d'
-            ORDER BY symbol, timestamp DESC
+            SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE im.symbol = ANY(%s) AND sc.timeframe = 1440
+            ORDER BY im.symbol, sc.candle_ts DESC
         """, (symbols,))
         
         rows = cur.fetchall()
@@ -121,7 +128,7 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
                     for r in reversed(recent_rows)  # Reverse to chronological order
                 ]
         
-        logger.info(f"Loaded candles for {len(candles_map)} symbols using batch query (1 round trip)")
+        logger.info(f"Loaded candles for {len(candles_map)} symbols using stock_candle (1 round trip)")
         return candles_map
         
     except Exception as e:

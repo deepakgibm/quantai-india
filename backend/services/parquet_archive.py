@@ -77,12 +77,14 @@ class ParquetArchiveService:
         
         session = self._Session()
         try:
-            # Fetch data for the month from stock_candles
+            # Fetch data for the month from stock_candle with instrument_master join
             query = text("""
-                SELECT symbol, instrument_key, timeframe, timestamp, open, high, low, close, volume
-                FROM stock_candles
-                WHERE timestamp >= :start_date AND timestamp < :end_date
-                ORDER BY instrument_key, timestamp
+                SELECT im.symbol, im.instrument_key, sc.timeframe, sc.candle_ts as timestamp, 
+                       sc.open, sc.high, sc.low, sc.close, sc.volume
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE sc.candle_ts >= :start_date AND sc.candle_ts < :end_date
+                ORDER BY sc.instrument_id, sc.candle_ts
             """)
             
             result = session.execute(query, {
@@ -93,7 +95,7 @@ class ParquetArchiveService:
             rows = result.fetchall()
             
             if not rows:
-                logger.warning(f"No data found in stock_candles for {year}-{month:02d}")
+                logger.warning(f"No data found in stock_candle for {year}-{month:02d}")
                 return {"status": "no_data", "rows": 0}
             
             # Convert to DataFrame
@@ -137,8 +139,8 @@ class ParquetArchiveService:
             # Optionally delete from database
             if delete_after:
                 delete_query = text("""
-                    DELETE FROM stock_candles
-                    WHERE timestamp >= :start_date AND timestamp < :end_date
+                    DELETE FROM stock_candle
+                    WHERE candle_ts >= :start_date AND candle_ts < :end_date
                 """)
                 result = session.execute(delete_query, {
                     'start_date': start_date,
@@ -146,7 +148,7 @@ class ParquetArchiveService:
                 })
                 session.commit()
                 stats["rows_deleted"] = result.rowcount
-                logger.info(f"Deleted {result.rowcount} rows from stock_candles")
+                logger.info(f"Deleted {result.rowcount} rows from stock_candle")
             
             return stats
             
@@ -176,10 +178,10 @@ class ParquetArchiveService:
         try:
             query = text("""
                 SELECT DISTINCT 
-                    EXTRACT(YEAR FROM timestamp)::int as year,
-                    EXTRACT(MONTH FROM timestamp)::int as month
-                FROM stock_candles
-                WHERE timestamp < :cutoff_date
+                    EXTRACT(YEAR FROM candle_ts)::int as year,
+                    EXTRACT(MONTH FROM candle_ts)::int as month
+                FROM stock_candle
+                WHERE candle_ts < :cutoff_date
                 ORDER BY year, month
             """)
             

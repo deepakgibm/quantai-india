@@ -1,0 +1,6 @@
+{
+    "stock_candles_legacy": 54745889,
+    "stock_candle_new": 54995324,
+    "ingestion_checkpoint": 2471,
+    "last_candle_ts": "2026-01-16 15:25:00"
+}

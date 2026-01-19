@@ -3,9 +3,9 @@ Database Data Fetcher Service
 Tertiary fallback for when WebSocket and REST API are unavailable.
 Uses historical data from the database to provide momentum data during market hours.
 
-Supports both:
-- Legacy: stock_candles (symbol, instrument_key, timeframe TEXT)
-- New: stock_candle (instrument_id, timeframe SMALLINT, candle_ts)
+Uses NEW SCHEMA:
+- stock_candle (instrument_id, timeframe SMALLINT, candle_ts)
+- instrument_master (instrument_id, symbol, ...)
 """
 
 import logging
@@ -22,9 +22,6 @@ from services.instrument_resolver import resolve_instrument_id, get_symbol_for_i
 from services.timeframe_converter import text_to_minutes, minutes_to_text
 
 logger = logging.getLogger(__name__)
-
-# Flag to control which schema to query
-USE_NEW_SCHEMA = True
 
 
 @dataclass
@@ -103,8 +100,7 @@ class DatabaseDataFetcher:
     
     def fetch_latest_data(self, symbols: List[str] = None) -> Dict[str, DatabaseTick]:
         """
-        Fetch latest available data from database.
-        Tries new stock_candle schema first, falls back to legacy stock_candles.
+        Fetch latest available data from database using stock_candle + instrument_master.
         
         Args:
             symbols: List of symbols to fetch. If None, fetches all available.
@@ -122,65 +118,36 @@ class DatabaseDataFetcher:
         try:
             cursor = conn.cursor()
             
-            # Try new schema first if enabled
-            if USE_NEW_SCHEMA:
-                logger.info("Fetching momentum data from stock_candle table (NEW SCHEMA)")
-                
-                # Get latest date from new schema
-                cursor.execute("SELECT MAX(candle_ts::date) FROM stock_candle")
-                max_date_row = cursor.fetchone()
-                
-                if max_date_row and max_date_row[0]:
-                    max_date = max_date_row[0]
-                    logger.info(f"Latest date in stock_candle: {max_date}")
-                    
-                    # Query using new schema with instrument_master join
-                    cursor.execute("""
-                        SELECT im.symbol, sc.candle_ts::date as trade_date, sc.close
-                        FROM stock_candle sc
-                        JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-                        WHERE sc.timeframe = 1440  -- Daily candles (1440 minutes)
-                        AND im.is_active = TRUE
-                        AND sc.candle_ts >= %s::timestamp - interval '10 days'
-                        ORDER BY im.symbol, sc.candle_ts DESC
-                        LIMIT 10000
-                    """, (max_date,))
-                    
-                    rows = cursor.fetchall()
-                    logger.info(f"stock_candle query returned {len(rows)} rows")
-                    
-                    if rows:
-                        # Process new schema results
-                        return self._process_momentum_rows(rows, conn)
+            logger.info("Fetching momentum data from stock_candle table")
             
-            # Fallback to legacy schema
-            logger.info("Fetching momentum data from stock_candles table (LEGACY)")
-            
-            cursor.execute("SELECT MAX(timestamp::date) FROM stock_candles")
+            # Get latest date from new schema
+            cursor.execute("SELECT MAX(candle_ts::date) FROM stock_candle")
             max_date_row = cursor.fetchone()
+            
             if not max_date_row or not max_date_row[0]:
-                logger.error("No data in stock_candles table")
+                logger.error("No data in stock_candle table")
                 return {}
             
             max_date = max_date_row[0]
-            logger.info(f"Latest date in stock_candles: {max_date}")
+            logger.info(f"Latest date in stock_candle: {max_date}")
             
-            # Legacy query with stock_master join
+            # Query using new schema with instrument_master join
             cursor.execute("""
-                SELECT sm.symbol, sc.timestamp::timestamp::date as trade_date, sc.close
-                FROM stock_candles sc
-                JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
-                WHERE sc.timeframe IN ('1d', '1day')
-                AND sc.timestamp::timestamp >= %s::timestamp - interval '10 days'
-                ORDER BY sm.symbol, sc.timestamp::timestamp DESC
+                SELECT im.symbol, sc.candle_ts::date as trade_date, sc.close
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE sc.timeframe = 1440  -- Daily candles (1440 minutes)
+                AND im.is_active = TRUE
+                AND sc.candle_ts >= %s::timestamp - interval '10 days'
+                ORDER BY im.symbol, sc.candle_ts DESC
                 LIMIT 10000
             """, (max_date,))
             
             rows = cursor.fetchall()
-            logger.info(f"stock_candles query returned {len(rows)} rows")
+            logger.info(f"stock_candle query returned {len(rows)} rows")
             
             if not rows:
-                logger.warning("No 1d data found")
+                logger.warning("No daily data found")
                 return {}
             
             return self._process_momentum_rows(rows, conn)
@@ -280,11 +247,11 @@ class DatabaseDataFetcher:
     ) -> Optional[pd.DataFrame]:
         """
         Fetch historical OHLCV data for backtesting.
-        Primary source: stock_candles (V3).
+        Uses stock_candle + instrument_master.
         """
         from models_alpha import TimeframeMapper
         
-        db_tf = TimeframeMapper.to_standard(interval)
+        tf_minutes = TimeframeMapper.to_minutes(interval)
         conn = self._get_connection()
         if not conn:
             return None
@@ -292,46 +259,29 @@ class DatabaseDataFetcher:
         try:
             cursor = conn.cursor()
             
-            # Step 1: Resolve instrument_key if not provided
-            # Note: We prefer querying by instrument_key as it's the primary index in stock_candles
-            instrument_key = None
-            cursor.execute("SELECT instrument_key FROM stock_master WHERE symbol = %s", (symbol,))
-            key_row = cursor.fetchone()
-            if key_row:
-                instrument_key = key_row[0]
-                logger.info(f"Resolved {symbol} to {instrument_key}")
-            else:
-                logger.warning(f"Could not resolve instrument_key for {symbol}, falling back to symbol query (less reliable)")
-
-            logger.info(f"Fetching historical {db_tf} data for {symbol} ({instrument_key}) from stock_candles")
+            # Step 1: Resolve instrument_id from instrument_master
+            cursor.execute("SELECT instrument_id FROM instrument_master WHERE symbol = %s", (symbol,))
+            id_row = cursor.fetchone()
+            if not id_row:
+                logger.warning(f"Could not resolve instrument_id for {symbol}")
+                return None
             
-            # Step 2: Query using instrument_key (robust) or symbol (fallback)
-            if instrument_key:
-                query = """
-                    SELECT timestamp, open, high, low, close, volume
-                    FROM stock_candles
-                    WHERE instrument_key = %s AND timeframe = %s
-                    AND timestamp::timestamp::date >= %s::date
-                    AND timestamp::timestamp::date <= %s::date
-                    ORDER BY timestamp::timestamp ASC
-                """
-                params = (instrument_key, db_tf, start_date, end_date)
-            else:
-                query = """
-                    SELECT timestamp, open, high, low, close, volume
-                    FROM stock_candles
-                    WHERE symbol = %s AND timeframe = %s
-                    AND timestamp::timestamp::date >= %s::date
-                    AND timestamp::timestamp::date <= %s::date
-                    ORDER BY timestamp::timestamp ASC
-                """
-                params = (symbol, db_tf, start_date, end_date)
-
-            cursor.execute(query, params)
+            instrument_id = id_row[0]
+            logger.info(f"Fetching historical {interval} data for {symbol} (id={instrument_id}) from stock_candle")
+            
+            # Step 2: Query stock_candle using instrument_id
+            cursor.execute("""
+                SELECT candle_ts, open, high, low, close, volume
+                FROM stock_candle
+                WHERE instrument_id = %s AND timeframe = %s
+                AND candle_ts::date >= %s::date
+                AND candle_ts::date <= %s::date
+                ORDER BY candle_ts ASC
+            """, (instrument_id, tf_minutes, start_date, end_date))
             
             rows = cursor.fetchall()
             if not rows:
-                logger.warning(f"No historical data for {symbol} in stock_candles")
+                logger.warning(f"No historical data for {symbol} in stock_candle")
                 return None
                 
             df = pd.DataFrame(rows, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])

@@ -211,17 +211,16 @@ class WalkForwardBacktestService:
         )
     
     async def _load_data(self, symbols: List[str], timeframe: str) -> pd.DataFrame:
-        """Load historical data from PostgreSQL database (stock_candles V3) using async asyncpg"""
+        """Load historical data from PostgreSQL database using stock_candle + instrument_master."""
         import asyncpg
         from models_alpha import TimeframeMapper
         
         all_data = []
         
-        # Map frontend timeframe to database timeframe
-        # stock_candles uses: 1d, 1h, 30m, 15m, 5m
-        db_timeframe = TimeframeMapper.to_standard(timeframe)
+        # Map frontend timeframe to database timeframe (minutes)
+        tf_minutes = TimeframeMapper.to_minutes(timeframe)
         
-        logger.info(f"Loading data for {symbols} with timeframe {db_timeframe}")
+        logger.info(f"Loading data for {symbols} with timeframe {tf_minutes} minutes")
         
         # Build async connection URL (convert from SQLAlchemy format)
         db_url = settings.SYNC_DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").replace("postgresql://", "")
@@ -231,34 +230,33 @@ class WalkForwardBacktestService:
             conn = await asyncpg.connect(f"postgresql://{db_url}")
             
             try:
-                # Step 1: Batch resolve instrument_keys from stock_master for all symbols at once
+                # Step 1: Batch resolve instrument_ids from instrument_master
                 instrument_rows = await conn.fetch(
-                    "SELECT symbol, instrument_key FROM stock_master WHERE symbol = ANY($1)",
+                    "SELECT symbol, instrument_id FROM instrument_master WHERE symbol = ANY($1)",
                     symbols
                 )
-                symbol_to_key = {row['symbol']: row['instrument_key'] for row in instrument_rows}
+                symbol_to_id = {row['symbol']: row['instrument_id'] for row in instrument_rows}
                 
-                # Get valid instrument keys
-                valid_symbols = [s for s in symbols if s in symbol_to_key]
-                instrument_keys = [symbol_to_key[s] for s in valid_symbols]
+                # Get valid instrument IDs
+                valid_symbols = [s for s in symbols if s in symbol_to_id]
+                instrument_ids = [symbol_to_id[s] for s in valid_symbols]
                 
-                if not instrument_keys:
-                    logger.warning(f"Could not resolve any instrument_keys for {symbols}")
+                if not instrument_ids:
+                    logger.warning(f"Could not resolve any instrument_ids for {symbols}")
                     return pd.DataFrame()
                 
-                # Step 2: Batch query all candles at once using IN clause
-                # This replaces N+1 queries with a single batch query
+                # Step 2: Batch query all candles using new schema
                 rows = await conn.fetch("""
-                    SELECT sm.symbol, sc.timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
-                    FROM stock_candles sc
-                    JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
-                    WHERE sc.instrument_key = ANY($1) 
+                    SELECT im.symbol, sc.candle_ts as timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE sc.instrument_id = ANY($1) 
                     AND sc.timeframe = $2
-                    ORDER BY sm.symbol, sc.timestamp ASC
-                """, instrument_keys, db_timeframe)
+                    ORDER BY im.symbol, sc.candle_ts ASC
+                """, instrument_ids, tf_minutes)
                 
                 if not rows:
-                    logger.warning(f"No {db_timeframe} data found in stock_candles for {valid_symbols}")
+                    logger.warning(f"No data found in stock_candle for {valid_symbols} with timeframe {tf_minutes}")
                     return pd.DataFrame()
                 
                 # Convert to DataFrame
@@ -277,7 +275,7 @@ class WalkForwardBacktestService:
                 df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0).astype(int)
                 
                 df = df.sort_values(['symbol', 'timestamp']).reset_index(drop=True)
-                logger.info(f"Loaded {len(df)} rows for {len(valid_symbols)} symbols using async batch query")
+                logger.info(f"Loaded {len(df)} rows for {len(valid_symbols)} symbols using stock_candle")
                 
                 return df
                 

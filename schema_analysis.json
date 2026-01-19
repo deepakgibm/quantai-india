@@ -1,0 +1,225 @@
+{
+  "stock_candle": [
+    {
+      "column": "instrument_id",
+      "type": "bigint",
+      "nullable": "NO"
+    },
+    {
+      "column": "timeframe",
+      "type": "smallint",
+      "nullable": "NO"
+    },
+    {
+      "column": "candle_ts",
+      "type": "timestamp without time zone",
+      "nullable": "NO"
+    },
+    {
+      "column": "open",
+      "type": "numeric",
+      "nullable": "YES"
+    },
+    {
+      "column": "high",
+      "type": "numeric",
+      "nullable": "YES"
+    },
+    {
+      "column": "low",
+      "type": "numeric",
+      "nullable": "YES"
+    },
+    {
+      "column": "close",
+      "type": "numeric",
+      "nullable": "YES"
+    },
+    {
+      "column": "volume",
+      "type": "bigint",
+      "nullable": "YES"
+    }
+  ],
+  "instrument_master": [
+    {
+      "column": "instrument_id",
+      "type": "bigint",
+      "nullable": "NO"
+    },
+    {
+      "column": "symbol",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "series",
+      "type": "character varying",
+      "nullable": "NO"
+    },
+    {
+      "column": "exchange",
+      "type": "character varying",
+      "nullable": "NO"
+    },
+    {
+      "column": "company_name",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "sector",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "isin_code",
+      "type": "character varying",
+      "nullable": "NO"
+    },
+    {
+      "column": "instrument_key",
+      "type": "text",
+      "nullable": "YES"
+    },
+    {
+      "column": "is_active",
+      "type": "boolean",
+      "nullable": "YES"
+    },
+    {
+      "column": "created_at",
+      "type": "timestamp without time zone",
+      "nullable": "YES"
+    },
+    {
+      "column": "updated_at",
+      "type": "timestamp without time zone",
+      "nullable": "YES"
+    }
+  ],
+  "stock_candles_legacy": [
+    {
+      "column": "symbol",
+      "type": "text",
+      "nullable": "YES"
+    },
+    {
+      "column": "instrument_key",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "timeframe",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "timestamp",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "open",
+      "type": "real",
+      "nullable": "YES"
+    },
+    {
+      "column": "high",
+      "type": "real",
+      "nullable": "YES"
+    },
+    {
+      "column": "low",
+      "type": "real",
+      "nullable": "YES"
+    },
+    {
+      "column": "close",
+      "type": "real",
+      "nullable": "YES"
+    },
+    {
+      "column": "volume",
+      "type": "real",
+      "nullable": "YES"
+    }
+  ],
+  "stock_master_legacy": [
+    {
+      "column": "id",
+      "type": "bigint",
+      "nullable": "NO"
+    },
+    {
+      "column": "company_name",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "sector",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "symbol",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "column": "series",
+      "type": "character varying",
+      "nullable": "NO"
+    },
+    {
+      "column": "isin_code",
+      "type": "character varying",
+      "nullable": "NO"
+    },
+    {
+      "column": "exchange",
+      "type": "character varying",
+      "nullable": "YES"
+    },
+    {
+      "column": "instrument_key",
+      "type": "text",
+      "nullable": "YES"
+    },
+    {
+      "column": "is_active",
+      "type": "boolean",
+      "nullable": "YES"
+    },
+    {
+      "column": "created_at",
+      "type": "timestamp without time zone",
+      "nullable": "YES"
+    },
+    {
+      "column": "updated_at",
+      "type": "timestamp without time zone",
+      "nullable": "YES"
+    }
+  ],
+  "stock_candle_indexes": [
+    {
+      "name": "stock_candle_new_pkey",
+      "def": "CREATE UNIQUE INDEX stock_candle_new_pkey ON ONLY public.stock_candle USING btree (instrument_id, timeframe, candle_ts)"
+    }
+  ],
+  "instrument_master_indexes": [
+    {
+      "name": "instrument_master_pkey",
+      "def": "CREATE UNIQUE INDEX instrument_master_pkey ON public.instrument_master USING btree (instrument_id)"
+    },
+    {
+      "name": "instrument_master_instrument_key_key",
+      "def": "CREATE UNIQUE INDEX instrument_master_instrument_key_key ON public.instrument_master USING btree (instrument_key)"
+    },
+    {
+      "name": "uq_instrument",
+      "def": "CREATE UNIQUE INDEX uq_instrument ON public.instrument_master USING btree (symbol, series, exchange)"
+    }
+  ]
+}

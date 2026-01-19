@@ -89,13 +89,14 @@ class Week52BreakoutService:
         try:
             cursor = conn.cursor()
             
-            # Get all symbols with sufficient data
+            # Get all symbols with sufficient data using new schema
             cursor.execute(f"""
-                SELECT symbol, COUNT(*) as days
-                FROM stock_candles
-                WHERE timeframe = '1d'
-                GROUP BY symbol
-                HAVING days >= {self.MIN_TRADING_DAYS}
+                SELECT im.symbol, COUNT(*) as days
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE sc.timeframe = 1440
+                GROUP BY im.symbol
+                HAVING COUNT(*) >= {self.MIN_TRADING_DAYS}
             """)
             valid_symbols = {row[0]: row[1] for row in cursor.fetchall()}
             
@@ -104,12 +105,13 @@ class Week52BreakoutService:
             # For each symbol, analyze 52-week high/low
             for symbol, days_count in valid_symbols.items():
                 try:
-                    # Get the last 2 trading days for comparison
+                    # Get the last 2 trading days for comparison using new schema
                     cursor.execute("""
-                        SELECT timestamp, open, high, low, close, volume
-                        FROM stock_candles
-                        WHERE symbol = %s AND timeframe = '1d'
-                        ORDER BY timestamp DESC
+                        SELECT sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                        FROM stock_candle sc
+                        JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                        WHERE im.symbol = %s AND sc.timeframe = 1440
+                        ORDER BY sc.candle_ts DESC
                         LIMIT 2
                     """, (symbol,))
                     
@@ -125,11 +127,12 @@ class Week52BreakoutService:
                     
                     # Get 52-week high and low (excluding today to detect NEW breakouts)
                     cursor.execute("""
-                        SELECT MAX(high), MIN(low)
-                        FROM stock_candles
-                        WHERE symbol = %s AND timeframe = '1d'
-                        AND timestamp < %s
-                        AND timestamp >= (%s::timestamp - interval '365 days')
+                        SELECT MAX(sc.high), MIN(sc.low)
+                        FROM stock_candle sc
+                        JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                        WHERE im.symbol = %s AND sc.timeframe = 1440
+                        AND sc.candle_ts < %s
+                        AND sc.candle_ts >= (%s::timestamp - interval '365 days')
                     """, (symbol, timestamp, timestamp))
                     
                     stats = cursor.fetchone()
@@ -142,9 +145,10 @@ class Week52BreakoutService:
                     cursor.execute("""
                         SELECT AVG(volume)
                         FROM (
-                            SELECT volume FROM stock_candles
-                            WHERE symbol = %s AND timeframe = '1d'
-                            ORDER BY timestamp DESC
+                            SELECT sc.volume FROM stock_candle sc
+                            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                            WHERE im.symbol = %s AND sc.timeframe = 1440
+                            ORDER BY sc.candle_ts DESC
                             LIMIT 20
                         ) as subquery
                     """, (symbol,))

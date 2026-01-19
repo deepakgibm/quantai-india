@@ -5,10 +5,8 @@ import numpy as np
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from services.upstox_client import get_upstox_client
-from models_ml import Nifty100Daily
-from sqlalchemy import desc, create_engine
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
 from config import settings
 
 # Create sync engine for fallback queries
@@ -30,21 +28,30 @@ class ResearchAgent:
         Fallback: Get latest quote from database when Upstox API fails.
         """
         try:
-            latest = self.db.query(Nifty100Daily).filter(
-                Nifty100Daily.symbol == symbol
-            ).order_by(desc(Nifty100Daily.timestamp)).first()
+            from sqlalchemy import text
+            # Use raw SQL to join stock_candle and instrument_master
+            sql = text("""
+                SELECT sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = :symbol AND sc.timeframe = 1440
+                ORDER BY sc.candle_ts DESC
+                LIMIT 1
+            """)
+            result = self.db.execute(sql, {"symbol": symbol}).fetchone()
             
-            if latest:
-                print(f"📊 Using database fallback for {symbol} (date: {latest.timestamp.date()})")
+            if result:
+                ts, o, h, l, c, v = result
+                print(f"📊 Using database fallback for {symbol} (date: {ts.date()})")
                 return {
                     "symbol": symbol,
-                    "timestamp": latest.timestamp,
-                    "open": latest.open,
-                    "high": latest.high,
-                    "low": latest.low,
-                    "close": latest.close,
-                    "last_price": latest.close,
-                    "volume": latest.volume,
+                    "timestamp": ts,
+                    "open": float(o),
+                    "high": float(h),
+                    "low": float(l),
+                    "close": float(c),
+                    "last_price": float(c),
+                    "volume": int(v or 0),
                 }
             return None
         except Exception as e:
@@ -56,21 +63,29 @@ class ResearchAgent:
         Fallback: Get historical data from database when Upstox API fails.
         """
         try:
+            from sqlalchemy import text
             from_date = datetime.now() - timedelta(days=days)
-            records = self.db.query(Nifty100Daily).filter(
-                Nifty100Daily.symbol == symbol,
-                Nifty100Daily.timestamp >= from_date
-            ).order_by(Nifty100Daily.timestamp).all()
             
-            if records:
+            sql = text("""
+                SELECT sc.candle_ts as timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = :symbol AND sc.timeframe = 1440
+                AND sc.candle_ts >= :from_date
+                ORDER BY sc.candle_ts ASC
+            """)
+            result = self.db.execute(sql, {"symbol": symbol, "from_date": from_date})
+            rows = result.fetchall()
+            
+            if rows:
                 data = [{
-                    "timestamp": r.timestamp,
-                    "open": r.open,
-                    "high": r.high,
-                    "low": r.low,
-                    "close": r.close,
-                    "volume": r.volume
-                } for r in records]
+                    "timestamp": r[0],
+                    "open": float(r[1]),
+                    "high": float(r[2]),
+                    "low": float(r[3]),
+                    "close": float(r[4]),
+                    "volume": int(r[5] or 0)
+                } for r in rows]
                 return pd.DataFrame(data)
             return pd.DataFrame()
         except Exception as e:

@@ -33,10 +33,15 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
 // Helper to get auth headers
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token');
-  return {
-    'Authorization': `Bearer ${token}`,
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
+  
+  if (token && token !== 'null' && token !== 'undefined') {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
 };
 
 export const api = {

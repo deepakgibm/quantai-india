@@ -189,14 +189,14 @@ class IndicatorComputeService:
         self._computer = IndicatorComputer()
     
     def get_symbols(self, limit: int = None) -> List[str]:
-        """Get all unique symbols from stock_candles table (via stock_master mapping)."""
+        """Get all unique symbols from instrument_master."""
         session = self._Session()
         try:
             query = """
-                SELECT DISTINCT sm.symbol 
-                FROM stock_candles sc
-                JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
-                ORDER BY sm.symbol
+                SELECT DISTINCT im.symbol 
+                FROM instrument_master im
+                WHERE im.is_active = TRUE AND im.exchange = 'NSE' AND im.series = 'EQ'
+                ORDER BY im.symbol
             """
             if limit:
                 query += f" LIMIT {limit}"
@@ -207,22 +207,26 @@ class IndicatorComputeService:
     
     def get_ohlcv_data(self, symbol: str, interval: str = "1d", 
                        days: int = 100) -> pd.DataFrame:
-        """Fetch OHLCV data for a symbol from stock_candles."""
+        """Fetch OHLCV data for a symbol from stock_candle."""
+        from models_alpha import TimeframeMapper
+        
         session = self._Session()
         try:
             cutoff = datetime.now() - timedelta(days=days)
+            tf_minutes = TimeframeMapper.to_minutes(interval)
+            
             query = text("""
-                SELECT sc.timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
-                FROM stock_candles sc
-                JOIN stock_master sm ON sc.instrument_key = sm.instrument_key
-                WHERE sm.symbol = :symbol 
-                  AND sc.timeframe = :interval
-                  AND sc.timestamp >= :cutoff
-                ORDER BY sc.timestamp ASC
+                SELECT sc.candle_ts as timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = :symbol 
+                  AND sc.timeframe = :tf_minutes
+                  AND sc.candle_ts >= :cutoff
+                ORDER BY sc.candle_ts ASC
             """)
             result = session.execute(query, {
                 "symbol": symbol, 
-                "interval": interval,
+                "tf_minutes": tf_minutes,
                 "cutoff": cutoff
             })
             rows = result.fetchall()

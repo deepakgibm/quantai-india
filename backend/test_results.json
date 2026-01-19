@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-01-18T21:49:17.036914",
+  "summary": {
+    "total": 12,
+    "passed": 11,
+    "failed": 1,
+    "pass_rate": "91.7%"
+  },
+  "api_results": [
+    {
+      "endpoint": "Trading Health",
+      "url": "http://localhost:8000/api/trading/health",
+      "status_code": 200,
+      "response_time_ms": 13.76,
+      "pass": true,
+      "data_preview": "{\"status\":\"healthy\",\"service\":\"quantai-trading-api\"}"
+    },
+    {
+      "endpoint": "Trading Instruments",
+      "url": "http://localhost:8000/api/trading/instruments",
+      "status_code": 200,
+      "response_time_ms": 9.61,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"instruments\":[{\"symbol\":\"360ONE\",\"name\":\"360 ONE WAM Ltd.\",\"exchange\":\"NSE\"},{\"symbol\":\"3MINDIA\",\"name\":\"3M India Ltd.\",\"exchange\":\"NSE\"},{\"symbol\":\"ABB\",\"name\":\"ABB India Ltd.\",\""
+    },
+    {
+      "endpoint": "Market Indices",
+      "url": "http://localhost:8000/api/trading/market-indices",
+      "status_code": 200,
+      "response_time_ms": 1240.05,
+      "pass": true,
+      "data_preview": "[]"
+    },
+    {
+      "endpoint": "Metrics Symbols",
+      "url": "http://localhost:8000/api/metrics/symbols",
+      "status_code": 200,
+      "response_time_ms": 88.44,
+      "pass": true,
+      "data_preview": "{\"count\":501,\"symbols\":[{\"symbol\":\"360ONE\",\"company_name\":\"360 ONE WAM Ltd.\",\"sector\":\"Financial Services\",\"instrument_key\":\"NSE_EQ|INE466L01038\"},{\"symbol\":\"3MINDIA\",\"company_name\":\"3M India Ltd.\",\"s"
+    },
+    {
+      "endpoint": "Data Freshness",
+      "url": "http://localhost:8000/api/metrics/freshness",
+      "status_code": 200,
+      "response_time_ms": 62.11,
+      "pass": true,
+      "data_preview": "{\"timeframes\":{},\"overall_health\":\"missing\",\"checked_at\":\"2026-01-18T16:19:15.078353\"}"
+    },
+    {
+      "endpoint": "Cache Stats",
+      "url": "http://localhost:8000/api/metrics/cache/stats",
+      "status_code": 200,
+      "response_time_ms": 6.52,
+      "pass": true,
+      "data_preview": "{\"hits\":0,\"misses\":13,\"hit_rate_percent\":0.0,\"last_warmup\":\"2026-01-18T13:59:08.802602\",\"cache_version\":\"v1\"}"
+    },
+    {
+      "endpoint": "Sectors",
+      "url": "http://localhost:8000/api/metrics/sectors",
+      "status_code": 200,
+      "response_time_ms": 27.48,
+      "pass": true,
+      "data_preview": "{\"count\":0,\"sectors\":[]}"
+    },
+    {
+      "endpoint": "Scanner Strategies",
+      "url": "http://localhost:8000/api/scanner/strategies",
+      "status_code": 401,
+      "response_time_ms": 6.89,
+      "pass": true,
+      "data_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "endpoint": "Scanner Timeframes",
+      "url": "http://localhost:8000/api/scanner/timeframes",
+      "status_code": 401,
+      "response_time_ms": 20.75,
+      "pass": true,
+      "data_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "endpoint": "Scanner Momentum",
+      "url": "http://localhost:8000/api/scanner/momentum",
+      "status_code": 401,
+      "response_time_ms": 6.39,
+      "pass": true,
+      "data_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "endpoint": "Week52 Breakouts",
+      "url": "http://localhost:8000/api/scanner/week52-breakouts",
+      "status_code": 401,
+      "response_time_ms": 5.82,
+      "pass": true,
+      "data_preview": "{\"detail\":\"Missing authentication token\"}"
+    },
+    {
+      "endpoint": "QuantBot Symbols",
+      "url": "http://localhost:8000/api/quant-bot/symbols",
+      "status_code": 404,
+      "response_time_ms": 8.2,
+      "pass": false,
+      "data_preview": "{\"detail\":\"Not Found\"}"
+    }
+  ],
+  "db_validations": {
+    "instrument_count": 501,
+    "daily_candle_count": 456494,
+    "latest_daily_candle": "2026-01-16 00:00:00",
+    "symbols_with_daily_candles": 494
+  }
+}

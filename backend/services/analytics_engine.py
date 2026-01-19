@@ -175,18 +175,27 @@ class DuckDBAnalyticsEngine:
                 
             # Final Fallback: Create empty table
             logger.warning(f"Creating empty fallback table for {table_name}")
-            if table_name == 'stock_candles':
+            if table_name == 'stock_candle':
                 self._conn.execute("""
-                    CREATE TABLE IF NOT EXISTS stock_candles (
-                        symbol VARCHAR,
-                        instrument_key VARCHAR,
-                        timeframe VARCHAR,
-                        timestamp TIMESTAMP,
+                    CREATE TABLE IF NOT EXISTS stock_candle (
+                        instrument_id BIGINT,
+                        timeframe SMALLINT,
+                        candle_ts TIMESTAMP,
                         open DOUBLE,
                         high DOUBLE,
                         low DOUBLE,
                         close DOUBLE,
-                        volume DOUBLE
+                        volume BIGINT
+                    )
+                """)
+            elif table_name == 'instrument_master':
+                self._conn.execute("""
+                    CREATE TABLE IF NOT EXISTS instrument_master (
+                        instrument_id BIGINT,
+                        symbol VARCHAR,
+                        company_name VARCHAR,
+                        sector VARCHAR,
+                        is_active BOOLEAN
                     )
                 """)
         except Exception as e:
@@ -199,17 +208,19 @@ class DuckDBAnalyticsEngine:
         Get top N stocks by momentum (ROC).
         Uses DuckDB window functions for efficient computation.
         """
-        self._ensure_table_exists('stock_candles')
+        self._ensure_table_exists('stock_candle')
+        self._ensure_table_exists('instrument_master')
         sql = f"""
         WITH latest_prices AS (
             SELECT 
-                symbol,
-                close,
-                LAG(close, {lookback_days}) OVER (PARTITION BY symbol ORDER BY timestamp) as prev_close,
-                timestamp,
-                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
-            FROM stock_candles
-            WHERE timeframe = '1d'
+                im.symbol,
+                sc.close,
+                LAG(sc.close, {lookback_days}) OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts) as prev_close,
+                sc.candle_ts as timestamp,
+                ROW_NUMBER() OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts DESC) as rn
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE sc.timeframe = 1440
         ),
         momentum AS (
             SELECT 
@@ -238,17 +249,19 @@ class DuckDBAnalyticsEngine:
         """
         Analyze volatility metrics for a symbol.
         """
-        self._ensure_table_exists('stock_candles')
+        self._ensure_table_exists('stock_candle')
+        self._ensure_table_exists('instrument_master')
         sql = f"""
         WITH daily_returns AS (
             SELECT 
-                symbol,
-                timestamp::date as date,
-                close,
-                (close - LAG(close) OVER (ORDER BY timestamp)) / LAG(close) OVER (ORDER BY timestamp) as daily_return
-            FROM stock_candles
-            WHERE symbol = '{symbol}' AND timeframe = '1d'
-            ORDER BY timestamp DESC
+                im.symbol,
+                sc.candle_ts::date as date,
+                sc.close,
+                (sc.close - LAG(sc.close) OVER (ORDER BY sc.candle_ts)) / LAG(sc.close) OVER (ORDER BY sc.candle_ts) as daily_return
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE im.symbol = '{symbol}' AND sc.timeframe = 1440
+            ORDER BY sc.candle_ts DESC
             LIMIT {lookback_days}
         )
         SELECT 
@@ -264,25 +277,28 @@ class DuckDBAnalyticsEngine:
         GROUP BY symbol
         """
         return self.query(sql)
+        return self.query(sql)
     
     def get_correlation_matrix(self, symbols: List[str], 
                                 lookback_days: int = 60) -> pd.DataFrame:
         """
         Calculate correlation matrix between symbols.
         """
-        self._ensure_table_exists('stock_candles')
+        self._ensure_table_exists('stock_candle')
+        self._ensure_table_exists('instrument_master')
         # Get returns for all symbols
         sql = f"""
         WITH returns AS (
             SELECT 
-                symbol,
-                timestamp::date as date,
-                (close - LAG(close) OVER (PARTITION BY symbol ORDER BY timestamp)) / 
-                LAG(close) OVER (PARTITION BY symbol ORDER BY timestamp) as ret
-            FROM stock_candles
-            WHERE symbol IN ({','.join([f"'{s}'" for s in symbols])})
-            AND timeframe = '1d'
-            AND timestamp >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+                im.symbol,
+                sc.candle_ts::date as date,
+                (sc.close - LAG(sc.close) OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts)) / 
+                LAG(sc.close) OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts) as ret
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE im.symbol IN ({','.join([f"'{s}'" for s in symbols])})
+            AND sc.timeframe = 1440
+            AND sc.candle_ts >= CURRENT_DATE - INTERVAL '{lookback_days} days'
         )
         SELECT symbol, date, ret
         FROM returns
@@ -306,33 +322,29 @@ class DuckDBAnalyticsEngine:
         Args:
             sector_mapping: Dict mapping symbol -> sector
         """
-        self._ensure_table_exists('stock_candles')
-        # Create temp table with sector mapping
-        mapping_df = pd.DataFrame([
-            {'symbol': k, 'sector': v} for k, v in sector_mapping.items()
-        ])
-        self.load_dataframe(mapping_df, 'sector_map')
+        self._ensure_table_exists('stock_candle')
+        self._ensure_table_exists('instrument_master')
         
         sql = f"""
         WITH latest_candles AS (
             SELECT 
-                instrument_key,
-                close,
-                timestamp,
-                FIRST_VALUE(close) OVER (PARTITION BY instrument_key ORDER BY timestamp ASC) as start_close,
-                ROW_NUMBER() OVER (PARTITION BY instrument_key ORDER BY timestamp DESC) as rn
-            FROM stock_candles
-            WHERE timeframe = '1d' 
-              AND timestamp >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+                sc.instrument_id,
+                sc.close,
+                sc.candle_ts,
+                FIRST_VALUE(sc.close) OVER (PARTITION BY sc.instrument_id ORDER BY sc.candle_ts ASC) as start_close,
+                ROW_NUMBER() OVER (PARTITION BY sc.instrument_id ORDER BY sc.candle_ts DESC) as rn
+            FROM stock_candle sc
+            WHERE sc.timeframe = 1440
+              AND sc.candle_ts >= CURRENT_DATE - INTERVAL '{lookback_days} days'
         ),
         price_changes AS (
             SELECT 
-                sm.symbol,
-                sm.sector,
+                im.symbol,
+                im.sector,
                 lc.close as current_close,
                 lc.start_close
             FROM latest_candles lc
-            JOIN stock_master sm ON lc.instrument_key = sm.instrument_key
+            JOIN instrument_master im ON lc.instrument_id = im.instrument_id
             WHERE lc.rn = 1
         ),
         latest AS (
@@ -348,6 +360,7 @@ class DuckDBAnalyticsEngine:
             MIN(pct_change) as worst_return,
             MAX(pct_change) as best_return
         FROM latest
+        WHERE sector IS NOT NULL
         GROUP BY sector
         ORDER BY avg_return DESC
         """
@@ -358,17 +371,19 @@ class DuckDBAnalyticsEngine:
         """
         Calculate support and resistance levels using pivot points.
         """
-        self._ensure_table_exists('stock_candles')
+        self._ensure_table_exists('stock_candle')
+        self._ensure_table_exists('instrument_master')
         sql = f"""
         WITH daily_data AS (
             SELECT 
-                timestamp::date as date,
-                MAX(high) as high,
-                MIN(low) as low,
-                (array_agg(close ORDER BY timestamp DESC))[1] as close
-            FROM stock_candles
-            WHERE symbol = '{symbol}' AND timeframe = '1d'
-            AND timestamp >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+                sc.candle_ts::date as date,
+                MAX(sc.high) as high,
+                MIN(sc.low) as low,
+                (array_agg(sc.close ORDER BY sc.candle_ts DESC))[1] as close
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE im.symbol = '{symbol}' AND sc.timeframe = 1440
+            AND sc.candle_ts >= CURRENT_DATE - INTERVAL '{lookback_days} days'
             GROUP BY date
         ),
         pivot_calc AS (
