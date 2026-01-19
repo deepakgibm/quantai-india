@@ -18,6 +18,7 @@ import {
     Filter,
     Layers
 } from 'lucide-react';
+import { getAuthHeaders, API_URL } from '../services/api';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -81,7 +82,9 @@ const StrategySelectionPanel: React.FC<StrategySelectionPanelProps> = ({
             setError(null);
 
             try {
-                const response = await fetch('http://localhost:8000/api/v1/backtest/strategies/by-tier');
+                const response = await fetch(`${API_URL}/api/v1/backtest/strategies/by-tier`, {
+                    headers: getAuthHeaders()
+                });
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }

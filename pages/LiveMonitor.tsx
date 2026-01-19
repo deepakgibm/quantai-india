@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // GoogleGenAI import removed - API calls now go through secure backend proxy
 import { Activity, Wifi, ChevronDown, Eye, BarChart2, Layers, Maximize2, Newspaper, RefreshCw, ExternalLink, AlertCircle } from 'lucide-react';
+import { API_URL, getAuthHeaders } from '../services/api';
 import { createChart, ColorType, CrosshairMode, LineStyle, Time } from 'lightweight-charts';
 
 // --- Types ---
@@ -128,7 +129,9 @@ const LiveMonitor: React.FC = () => {
       setIsAiLoading(true);
       try {
          // Call backend proxy endpoint - API key stays server-side
-         const response = await fetch(`http://localhost:8000/api/ai/sentiment?symbol=${encodeURIComponent(symbol)}`);
+         const response = await fetch(`${API_URL}/api/ai/sentiment?symbol=${encodeURIComponent(symbol)}`, {
+            headers: getAuthHeaders()
+         });
 
          if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);

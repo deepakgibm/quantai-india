@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
 import { Search, Play, TrendingUp, AlertCircle, Clock, Loader2 } from 'lucide-react';
-
-// API URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL, getAuthHeaders } from '../services/api';
 
 interface ForecastData {
     symbol: string;
@@ -61,7 +59,9 @@ const PriceForecast: React.FC = () => {
 
         try {
             const url = `${API_URL}/api/v1/ml/predict?symbol=${symbol}&timeframe=${timeframe}&horizon=${horizon}`;
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                headers: getAuthHeaders()
+            });
 
             if (!response.ok) {
                 const errData = await response.json();

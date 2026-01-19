@@ -1,6 +1,19 @@
 import { Order } from "../types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const getBaseUrl = () => {
+  // 1. Check environment variable
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+
+  // 2. If running on port 3000 (frontend dev/prod), default to port 8000
+  if (typeof window !== 'undefined' && window.location.port === '3000') {
+    return `http://${window.location.hostname}:8000`;
+  }
+
+  // 3. Fallback to same host/port (for Docker/Nginx scenarios)
+  return "";
+};
+
+export const API_URL = getBaseUrl();
 const REQUEST_TIMEOUT = 60000; // 60 second timeout
 
 // PRODUCTION MODE: Mock data is disabled
@@ -31,16 +44,16 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
 };
 
 // Helper to get auth headers
-const getAuthHeaders = () => {
+export const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
-  
+
   if (token && token !== 'null' && token !== 'undefined') {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   return headers;
 };
 
@@ -98,6 +111,17 @@ export const api = {
       console.warn("Failed to fetch current user");
     }
     return null;
+  },
+
+  verifyToken: async () => {
+    try {
+      const res = await fetchWithTimeout(`${API_URL}/api/auth/me`, {
+        headers: getAuthHeaders()
+      }, 5000);
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
   },
 
   signup: async (email: string, password: string, username: string, full_name: string) => {
@@ -229,6 +253,7 @@ export const api = {
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const res = await fetch(`${API_URL}/api/trading/market-indices`, {
+        headers: getAuthHeaders(),
         signal: controller.signal
       });
       clearTimeout(timeoutId);

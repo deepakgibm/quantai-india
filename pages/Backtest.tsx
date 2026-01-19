@@ -16,6 +16,7 @@ import {
     Target,
     Shield
 } from 'lucide-react';
+import { API_URL, getAuthHeaders } from '../services/api';
 
 // Chart Components
 import EquityCurveChart from '../components/charts/EquityCurveChart';
@@ -262,12 +263,9 @@ const Backtest: React.FC = () => {
 
         try {
             const token = localStorage.getItem('access_token');
-            const response = await fetch('http://localhost:8000/api/quant/backtest/run', {
+            const response = await fetch(`${API_URL}/api/quant/backtest/run`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     symbol: selectedSymbols[0],
                     strategy: selectedStrategies[0]?.name || 'MACrossover',

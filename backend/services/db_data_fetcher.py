@@ -303,6 +303,33 @@ class DatabaseDataFetcher:
         """Alias for get_historical_data to satisfy Experiment Lab."""
         return self.get_historical_data(*args, **kwargs)
 
+    def get_available_symbols(self, timeframe: str = "1D") -> List[str]:
+        """Get list of symbols available for a given timeframe."""
+        from models_alpha import TimeframeMapper
+        tf_minutes = TimeframeMapper.to_minutes(timeframe)
+        
+        conn = self._get_connection()
+        if not conn:
+            return []
+            
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DISTINCT im.symbol
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE sc.timeframe = %s
+                ORDER BY im.symbol
+            """, (tf_minutes,))
+            
+            rows = cursor.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            logger.error(f"Error fetching symbols from DB: {e}")
+            return []
+        finally:
+            conn.close()
+
 
 # Singleton instance
 _db_data_fetcher = None

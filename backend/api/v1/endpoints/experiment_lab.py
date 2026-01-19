@@ -263,19 +263,27 @@ async def compare_strategies(request: BacktestRequest):
 
 
 @router.get("/symbols")
-async def get_available_symbols():
+async def get_available_symbols(
+    timeframe: str = Query("1D", description="Timeframe: 5m, 15m, 30m, 1H, 1D")
+):
     """
-    Get list of symbols available for backtesting.
+    Get list of symbols available for backtesting for a given timeframe.
     """
     # Try to get symbols from database
     try:
-        from services.db_data_fetcher import DBDataFetcher
-        fetcher = DBDataFetcher()
-        symbols = fetcher.get_available_symbols()
+        from services.db_data_fetcher import get_db_data_fetcher
+        fetcher = get_db_data_fetcher()
+        symbols = fetcher.get_available_symbols(timeframe=timeframe)
         if symbols:
-            return {"symbols": symbols, "source": "database"}
-    except:
-        pass
+            return {
+                "symbols": symbols, 
+                "count": len(symbols),
+                "timeframe": timeframe,
+                "source": "database"
+            }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Experiment Lab symbols error: {e}")
     
     # Fallback to common Nifty stocks
     default_symbols = [
@@ -285,7 +293,12 @@ async def get_available_symbols():
         "HCLTECH", "WIPRO", "ULTRACEMCO", "TITAN", "NESTLEIND"
     ]
     
-    return {"symbols": default_symbols, "source": "default"}
+    return {
+        "symbols": default_symbols, 
+        "count": len(default_symbols),
+        "timeframe": timeframe,
+        "source": "default_fallback"
+    }
 
 
 @router.get("/timeframes")

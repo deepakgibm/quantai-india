@@ -22,7 +22,7 @@ from utils.auth import get_current_user, get_current_user
 from models import User
 from typing import Optional as TypingOptional
 from database import AsyncSessionLocal
-from models_alpha import StockCandle, TimeframeMapper
+from models_alpha import StockCandle, StockCandleV2, InstrumentMaster, TimeframeMapper
 from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
@@ -376,24 +376,34 @@ async def get_available_symbols(
     timeframe: str = "1D",
     current_user: User = Depends(get_current_user)
 ):
-    """Get list of symbols available in stock_candles for a given timeframe using async session"""
-    db_tf = TimeframeMapper.to_standard(timeframe)
+    tf_minutes = TimeframeMapper.to_minutes(timeframe)
     
     try:
         async with AsyncSessionLocal() as session:
-            # Query distinct symbols for the given timeframe
-            query = select(StockCandle.symbol).where(StockCandle.timeframe == db_tf).distinct().order_by(StockCandle.symbol)
+            # Query distinct symbols by joining with InstrumentMaster
+            query = (
+                select(InstrumentMaster.symbol)
+                .join(StockCandleV2, StockCandleV2.instrument_id == InstrumentMaster.instrument_id)
+                .where(StockCandleV2.timeframe == tf_minutes)
+                .distinct()
+                .order_by(InstrumentMaster.symbol)
+            )
             result = await session.execute(query)
             symbols = [row[0] for row in result.all()]
             
             return {
                 "symbols": symbols,
                 "count": len(symbols),
-                "timeframe": db_tf,
-                "source": "postgresql_async"
+                "timeframe": timeframe,
+                "tf_minutes": tf_minutes,
+                "source": "postgresql_v2_async",
+                "debug": {
+                    "tf_minutes_type": str(type(tf_minutes)),
+                    "query_exec": True
+                }
             }
     except Exception as e:
-        logger.error(f"Error fetching symbols via AsyncSession: {e}")
+        logger.error(f"Error fetching symbols via V2 schema: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch available symbols")
 
 

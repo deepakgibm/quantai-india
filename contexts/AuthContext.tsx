@@ -38,24 +38,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
 
-            // Sync with backend when Firebase user is detected
             if (currentUser) {
                 try {
-                    // Check if we already have a valid token
-                    const existingToken = localStorage.getItem('access_token');
-                    if (!existingToken || existingToken === 'null' || existingToken === 'undefined') {
-                        // Fetch a new backend token using Firebase ID token
-                        const idToken = await currentUser.getIdToken();
-                        await api.firebaseLogin(idToken, currentUser.email!, currentUser.displayName || undefined);
-                        console.log('[Auth] Backend token synced successfully');
+                    // CRITICAL: Always verify or refresh the backend token to prevent 401s
+                    // Get a fresh Firebase ID token
+                    const idToken = await currentUser.getIdToken(true); // true = force refresh
+
+                    // Sync with backend to get a fresh local JWT
+                    const syncResult = await api.firebaseLogin(idToken, currentUser.email!, currentUser.displayName || undefined);
+
+                    if (syncResult && syncResult.access_token) {
+                        console.log('[Auth] Backend token successfully refreshed and synced');
+                    } else {
+                        console.warn('[Auth] Sync returned no token, clearing legacy state');
+                        localStorage.removeItem('access_token');
                     }
                 } catch (err) {
-                    console.error('[Auth] Failed to sync with backend:', err);
-                    // Clear potentially stale token
+                    console.error('[Auth] Critical sync failure:', err);
+                    // Clear stale token on failure to avoid infinite 401 loop
                     localStorage.removeItem('access_token');
                 }
             } else {
-                // User logged out - clear token
                 localStorage.removeItem('access_token');
             }
 

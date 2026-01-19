@@ -61,7 +61,7 @@ BASE_URL = "https://api.upstox.com/v3/historical-candle"
 SYMBOL_FILE = Path(__file__).parent / "nifty_500.csv"
 
 # Default start date - will be overridden by database check
-DEFAULT_START_DATE = date(2022, 1, 1)
+DEFAULT_START_DATE = date(2026, 1, 10)
 
 # Two weeks back from today
 TWO_WEEKS_AGO = date.today() - timedelta(days=14)
@@ -217,9 +217,9 @@ def check_data_freshness(cur, instrument_key, symbol, timeframe, instrument_id=N
         print(f"  [FRESH] {symbol}/{timeframe}: Data up to {last_date}, resuming from next day")
         return last_date + timedelta(days=1)
     else:
-        # Data is stale (older than 2 weeks)
-        print(f"  [STALE] {symbol}/{timeframe}: Last data {last_date}, resuming from next day")
-        return last_date + timedelta(days=1)
+        # Data is stale (older than 2 weeks) - CAP AT TWO WEEKS
+        print(f"  [STALE] {symbol}/{timeframe}: Last data {last_date}, CAP AT {TWO_WEEKS_AGO}")
+        return TWO_WEEKS_AGO
 
 # ==========================
 # CHECKPOINT HELPERS

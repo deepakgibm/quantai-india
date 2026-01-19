@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, X, TrendingUp, Loader } from 'lucide-react';
+import { getAuthHeaders, API_URL } from '../services/api';
 
 interface SymbolSearchProps {
     selectedSymbols: string[];
@@ -39,7 +40,8 @@ const SymbolSearch: React.FC<SymbolSearchProps> = ({
 
             try {
                 const response = await fetch(
-                    `/api/v1/walk-forward/symbols?timeframe=${timeframe}`
+                    `${API_URL}/api/v1/walk-forward/symbols?timeframe=${timeframe}`,
+                    { headers: getAuthHeaders() }
                 );
 
                 if (!response.ok) {

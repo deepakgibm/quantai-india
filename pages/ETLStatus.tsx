@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, Database, CheckCircle, AlertCircle, Clock, Server } from 'lucide-react';
+import { API_URL, getAuthHeaders } from '../services/api';
 
 interface Tracker {
     last_start: string | null;
@@ -16,7 +17,9 @@ const ETLStatus: React.FC = () => {
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch('http://localhost:8000/api/v1/etl/status');
+            const res = await fetch(`${API_URL}/api/v1/etl/status`, {
+                headers: getAuthHeaders()
+            });
             if (!res.ok) {
                 if (res.status === 404) {
                     // Tracker file might not exist yet if script hasn't started or created it

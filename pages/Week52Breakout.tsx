@@ -15,6 +15,7 @@ import {
     ChevronUp,
     ChevronDown
 } from 'lucide-react';
+import { API_URL, getAuthHeaders } from '../services/api';
 
 interface Week52BreakoutStock {
     symbol: string;
@@ -53,7 +54,9 @@ const Week52Breakout: React.FC = () => {
     const fetchBreakouts = async () => {
         try {
             setLoading(true);
-            const response = await fetch('http://localhost:8000/api/scanner/week52-breakouts');
+            const response = await fetch(`${API_URL}/api/scanner/week52-breakouts`, {
+                headers: getAuthHeaders()
+            });
             if (response.ok) {
                 const data = await response.json();
 

@@ -16,6 +16,7 @@ import {
     Target,
     BarChart3
 } from 'lucide-react';
+import { getAuthHeaders, API_URL } from '../services/api';
 
 interface StockTick {
     symbol: string;
@@ -96,7 +97,9 @@ const MomentAlert: React.FC = () => {
     const fetchWeek52Breakouts = async () => {
         try {
             setWeek52Loading(true);
-            const response = await fetch('http://localhost:8000/api/scanner/week52-breakouts');
+            const response = await fetch(`${API_URL}/api/scanner/week52-breakouts`, {
+                headers: getAuthHeaders()
+            });
             if (response.ok) {
                 const data = await response.json();
                 setHighBreakouts(data.high_breakouts || []);
@@ -123,7 +126,8 @@ const MomentAlert: React.FC = () => {
     };
 
     const connectWS = () => {
-        ws.current = new WebSocket('ws://localhost:8000/api/scanner/ws/scanner');
+        const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws/scanner`;
+        ws.current = new WebSocket(wsUrl);
 
         ws.current.onopen = () => {
             setIsConnected(true);
@@ -175,7 +179,9 @@ const MomentAlert: React.FC = () => {
 
     const fetchMomentumData = async () => {
         try {
-            const response = await fetch('http://localhost:8000/api/scanner/momentum');
+            const response = await fetch(`${API_URL}/api/scanner/momentum`, {
+                headers: getAuthHeaders()
+            });
             if (response.ok) {
                 const message = await response.json();
                 handleDataUpdate(message);

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Terminal, PlayCircle, AlertTriangle, RefreshCw, TrendingUp, ChevronDown, Search, Clock, Target, Shield, Zap } from 'lucide-react';
+import { getAuthHeaders, API_URL } from '../services/api';
 
 // Expert Trading Prompts
 const EXPERT_PROMPTS = [
@@ -101,12 +102,9 @@ const AIPrompt: React.FC = () => {
       try {
          const token = localStorage.getItem('access_token');
 
-         const response = await fetch('http://localhost:8000/api/ai/prompt', {
+         const response = await fetch(`${API_URL}/api/ai/prompt`, {
             method: 'POST',
-            headers: {
-               'Content-Type': 'application/json',
-               'Authorization': `Bearer ${token}`
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                prompt: input,
                prompt_type: selectedPrompt?.id || 'custom'

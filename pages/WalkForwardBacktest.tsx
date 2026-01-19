@@ -16,6 +16,7 @@ import {
     X,
     Search
 } from 'lucide-react';
+import { getAuthHeaders, API_URL } from '../services/api';
 import SymbolSearch from '../components/SymbolSearch';
 
 // Types
@@ -403,7 +404,7 @@ const WalkForwardBacktest: React.FC = () => {
             const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
             // Corrected API endpoint to match backend router
-            const apiUrl = '/api/v1/walk-forward';
+            const apiUrl = `${API_URL}/api/v1/walk-forward`;
             const requestBody = {
                 symbols,
                 exchange: 'NSE',
@@ -420,7 +421,7 @@ const WalkForwardBacktest: React.FC = () => {
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(requestBody),
                 signal: controller.signal
             });

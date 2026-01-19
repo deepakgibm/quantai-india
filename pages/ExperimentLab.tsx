@@ -24,6 +24,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import SymbolSearch from '../components/SymbolSearch';
+import { getAuthHeaders, API_URL } from '../services/api';
 import { ExperimentLabHelpGuide } from '../components/HelpGuide';
 
 // Strategy categories
@@ -99,7 +100,9 @@ const ExperimentLab: React.FC = () => {
 
     const fetchStrategies = async () => {
         try {
-            const response = await fetch('/api/v1/experiment-lab/strategies');
+            const response = await fetch(`${API_URL}/api/v1/experiment-lab/strategies`, {
+                headers: getAuthHeaders()
+            });
             if (response.ok) {
                 const data = await response.json();
                 setStrategies(data);
@@ -148,9 +151,9 @@ const ExperimentLab: React.FC = () => {
         setResults(null);
 
         try {
-            const response = await fetch('/api/v1/experiment-lab/backtest', {
+            const response = await fetch(`${API_URL}/api/v1/experiment-lab/backtest`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     symbol: selectedSymbols[0],
                     strategy_ids: selectedStrategies,
