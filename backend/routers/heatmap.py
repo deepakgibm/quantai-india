@@ -90,7 +90,7 @@ async def get_sector_stocks(sector_name: str, current_user: User = Depends(get_c
     
     # Sort by % change desc (User Req)
     try:
-        stocks.sort(key=lambda x: x.get("pct_change", 0) or 0, reverse=True)
+        stocks.sort(key=lambda x: x.get("change_pct", 0) or 0, reverse=True)
     except Exception:
         pass
         

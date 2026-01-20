@@ -312,7 +312,7 @@ export const api = {
 
   getSectorStocks: async (sector: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/heatmap/sector/${sector}`, {
+      const res = await fetch(`${API_URL}/api/heatmap/sector/${encodeURIComponent(sector)}`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();

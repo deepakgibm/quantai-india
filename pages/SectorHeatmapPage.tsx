@@ -96,7 +96,7 @@ const SectorHeatmapPage: React.FC = () => {
                                         <span className={`text-3xl font-bold ${sector.change_pct > 0 ? 'text-green-600 dark:text-green-400' : sector.change_pct < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500'}`}>
                                             {sector.change_pct > 0 ? '+' : ''}{sector.change_pct}%
                                         </span>
-                                        <span className="text-sm text-slate-400 font-medium">₹{sector.last_price.toLocaleString()}</span>
+                                        <span className="text-sm text-slate-400 font-medium">{sector.stock_count} Stocks</span>
                                     </div>
                                     <div className="text-brand-600 dark:text-brand-400 text-xs font-bold uppercase tracking-tighter">
                                         Stocks →
@@ -184,7 +184,7 @@ const SectorHeatmapPage: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <span className={`font-mono font-bold ${getPriceColor(stock.change_pct)}`}>
-                                                    ₹{stock.last_price?.toLocaleString() || '0'}
+                                                    ₹{(stock.ltp || stock.last_price || 0).toLocaleString()}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right">
