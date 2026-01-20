@@ -605,7 +605,7 @@ class ATRVolatilityBreakoutStrategy(BaseStrategy):
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         # Implementation uses ATRExpansionStrategy logic from strategies.py
-        from strategies import ATRExpansionStrategy
+        from .strategies_impl import ATRExpansionStrategy
         return ATRExpansionStrategy().generate_signals(df, params)
 
 
@@ -745,14 +745,72 @@ class FibonacciRetracementStrategy(BaseStrategy):
             name="fibonacci_retracement",
             display_name="Fibonacci Retracement Bounce",
             category="Advanced & Structural Strategies",
-            description="[NOT IMPLEMENTED] Trade bounces at key Fibonacci levels",
-            parameters={},
+            description="Trade bounces at key Fibonacci retracement levels (0.382, 0.5, 0.618)",
+            parameters={
+                "lookback": {"type": "int", "default": 50, "min": 20, "max": 100, "description": "Lookback period for swing high/low"},
+                "trend_ma_period": {"type": "int", "default": 50, "min": 20, "max": 200, "description": "Trend filter MA period"},
+                "tolerance": {"type": "float", "default": 0.005, "min": 0.001, "max": 0.01, "description": "Price tolerance around Fib levels"},
+                "atr_multiplier": {"type": "float", "default": 1.5, "min": 1.0, "max": 3.0, "description": "ATR multiplier for stop loss"}
+            },
             time_horizon="Swing"
         )
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         df = df.copy()
+        lookback = params.get("lookback", 50)
+        ma_period = params.get("trend_ma_period", 50)
+        tolerance = params.get("tolerance", 0.005)
+        atr_mult = params.get("atr_multiplier", 1.5)
+        
+        # Calculate Swing High/Low
+        df['swing_high'] = df['high'].rolling(lookback).max()
+        df['swing_low'] = df['low'].rolling(lookback).min()
+        
+        # Calculate Fib Levels
+        diff = df['swing_high'] - df['swing_low']
+        df['fib_382'] = df['swing_high'] - (diff * 0.382)
+        df['fib_500'] = df['swing_high'] - (diff * 0.5)
+        df['fib_618'] = df['swing_high'] - (diff * 0.618)
+        
+        # Trend Filter
+        df['trend_ma'] = df['close'].rolling(ma_period).mean()
+        
+        # ATR
+        df['tr'] = np.maximum(
+            df['high'] - df['low'],
+            np.maximum(abs(df['high'] - df['close'].shift(1)),
+                       abs(df['low'] - df['close'].shift(1)))
+        )
+        df['atr'] = df['tr'].rolling(14).mean()
+        
+        # Generate Signals
         df['signal'] = SignalType.HOLD.value
+        
+        # Bounce Condition: Low touches Fib level AND Close > Open (Green Candle)
+        bounce_382 = (df['low'] <= df['fib_382'] * (1 + tolerance)) & (df['low'] >= df['fib_382'] * (1 - tolerance))
+        bounce_500 = (df['low'] <= df['fib_500'] * (1 + tolerance)) & (df['low'] >= df['fib_500'] * (1 - tolerance))
+        bounce_618 = (df['low'] <= df['fib_618'] * (1 + tolerance)) & (df['low'] >= df['fib_618'] * (1 - tolerance))
+        
+        is_bounce = (bounce_382 | bounce_500 | bounce_618) & (df['close'] > df['open'])
+        trend_ok = df['close'] > df['trend_ma']
+        
+        buy_mask = is_bounce & trend_ok
+        df.loc[buy_mask, 'signal'] = SignalType.BUY.value
+        
+        # Stops and Targets
+        df['stop_loss'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] - (atr_mult * df['atr']), # Place stop below entry
+            np.nan
+        )
+        
+        # Target: Previous Swing High or extension
+        df['target'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['swing_high'], # Target recent high
+            np.nan
+        )
+        
         return df
 
 
@@ -765,14 +823,82 @@ class FlagPennantStrategy(BaseStrategy):
             name="flag_pennant",
             display_name="Flag & Pennant Continuation",
             category="Advanced & Structural Strategies",
-            description="[NOT IMPLEMENTED] Continuation pattern detection",
-            parameters={},
+            description="Trade breakouts from consolidation patterns following strong impulses",
+            parameters={
+                "pole_period": {"type": "int", "default": 10, "min": 5, "max": 20, "description": "Period to detect impulse pole"},
+                "pole_min_move": {"type": "float", "default": 0.05, "min": 0.02, "max": 0.15, "description": "Minimum pole move (%)"},
+                "flag_period": {"type": "int", "default": 10, "min": 3, "max": 20, "description": "Max period for flag consolidation"},
+                "atr_multiplier": {"type": "float", "default": 1.5, "min": 1.0, "max": 3.0, "description": "ATR multiplier for stop"}
+            },
             time_horizon="Swing"
         )
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         df = df.copy()
+        pole_period = params.get("pole_period", 10)
+        pole_min = params.get("pole_min_move", 0.05)
+        flag_period = params.get("flag_period", 10)
+        atr_mult = params.get("atr_multiplier", 1.5)
+        
+        # Detect Pole (Impulse Move)
+        df['move_pct'] = df['close'].pct_change(pole_period)
+        df['is_pole'] = df['move_pct'] > pole_min
+        
+        # Detect Flag (Consolidation: Low Range/Volume)
+        # Simplified: Price stays within top 30% of pole range
+        df['pole_high'] = df['high'].rolling(pole_period).max()
+        df['pole_low'] = df['low'].rolling(pole_period).min() # Not exactly pole base, but proxy
+        df['pole_height'] = df['pole_high'] - df['pole_low']
+        
+        # Check consolidation (last N bars within range)
+        # This is complex to vectorise perfectly, using simplified logic:
+        # Check if volatility dropped
+        df['std'] = df['close'].rolling(flag_period).std()
+        df['avg_std'] = df['std'].rolling(50).mean()
+        df['is_consolidating'] = df['std'] < df['avg_std']
+        
+        # Volume Surge for Breakout
+        df['avg_volume'] = df['volume'].rolling(20).mean()
+        df['volume_surge'] = df['volume'] > 1.2 * df['avg_volume']
+        
+        # ATR
+        df['tr'] = np.maximum(
+            df['high'] - df['low'],
+            np.maximum(abs(df['high'] - df['close'].shift(1)),
+                       abs(df['low'] - df['close'].shift(1)))
+        )
+        df['atr'] = df['tr'].rolling(14).mean()
+        
+        # Generate Signals
         df['signal'] = SignalType.HOLD.value
+        
+        # Logic: Was there a pole recently? Is it consolidating? Is this a breakout?
+        # Pole within last X bars
+        df['pole_recent'] = df['is_pole'].rolling(flag_period + 5).max()  # Was there a pole recently?
+        
+        # Breakout of recent high
+        df['recent_high'] = df['high'].rolling(flag_period).max().shift(1)
+        
+        buy_mask = df['pole_recent'].astype(bool) & \
+                   (df['close'] > df['recent_high']) & \
+                   df['volume_surge']
+        
+        df.loc[buy_mask, 'signal'] = SignalType.BUY.value
+        
+        # Stops and Targets
+        df['stop_loss'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] - (atr_mult * df['atr']), 
+            np.nan
+        )
+        
+        # Target: Pole Height projected
+        df['target'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] + (df['recent_high'] - df['pole_low'].shift(flag_period)), # Rough pole projection
+            np.nan
+        )
+        
         return df
 
 
@@ -785,14 +911,94 @@ class IchimokuCloudStrategy(BaseStrategy):
             name="ichimoku_cloud",
             display_name="Ichimoku Cloud Trend",
             category="Advanced & Structural Strategies",
-            description="[NOT IMPLEMENTED] Complex multi-indicator cloud system",
-            parameters={},
+            description="Complete Ichimoku Kinko Hyo system with cloud and cross signals",
+            parameters={
+                "tenkan_period": {"type": "int", "default": 9, "min": 5, "max": 20, "description": "Tenkan-sen period"},
+                "kijun_period": {"type": "int", "default": 26, "min": 10, "max": 60, "description": "Kijun-sen period"},
+                "senkou_period": {"type": "int", "default": 52, "min": 26, "max": 100, "description": "Senkou Span B period"},
+                "atr_multiplier": {"type": "float", "default": 2.0, "min": 1.0, "max": 3.0, "description": "ATR multiplier for stop"}
+            },
             time_horizon="Positional"
         )
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         df = df.copy()
+        tenkan_p = params.get("tenkan_period", 9)
+        kijun_p = params.get("kijun_period", 26)
+        senkou_p = params.get("senkou_period", 52)
+        atr_mult = params.get("atr_multiplier", 2.0)
+        
+        # Helper for midpoint
+        def midpoint(series_high, series_low, period):
+            return (series_high.rolling(period).max() + series_low.rolling(period).min()) / 2
+        
+        # Calculate Components
+        df['tenkan_sen'] = midpoint(df['high'], df['low'], tenkan_p)
+        df['kijun_sen'] = midpoint(df['high'], df['low'], kijun_p)
+        
+        # Senkou Spans calculated today, but shifted FORWARD by kijun_p
+        # For backtesting signal generation, we need to know the cloud value AT current time t.
+        # Cloud at time t was generated by data at t - kijun_p
+        
+        # Span A: (Tenkan + Kijun) / 2
+        span_a = (df['tenkan_sen'] + df['kijun_sen']) / 2
+        # Span B: (Max(52) + Min(52)) / 2
+        span_b = midpoint(df['high'], df['low'], senkou_p)
+        
+        # Shift them forward to create the cloud for the future
+        # But for *current* signal check, we look at where the cloud IS now.
+        # The cloud logic is: Cloud at 'today' is derived from data 26 days ago.
+        df['span_a'] = span_a.shift(kijun_p)
+        df['span_b'] = span_b.shift(kijun_p)
+        
+        # Chikou Span: Current close shifted back 26 periods (Not used for forward signal gen usually, used for confirmation)
+        # Using simplified Tenkan/Kijun cross + Price > Cloud
+        
+        # ATR
+        df['tr'] = np.maximum(
+            df['high'] - df['low'],
+            np.maximum(abs(df['high'] - df['close'].shift(1)),
+                       abs(df['low'] - df['close'].shift(1)))
+        )
+        df['atr'] = df['tr'].rolling(14).mean()
+        
+        # Generate Signals
         df['signal'] = SignalType.HOLD.value
+        
+        # Condition 1: Price above Cloud
+        above_cloud = (df['close'] > df['span_a']) & (df['close'] > df['span_b'])
+        
+        # Condition 2: TK Cross (Tenkan crosses above Kijun)
+        tk_cross = (df['tenkan_sen'] > df['kijun_sen']) & (df['tenkan_sen'].shift(1) <= df['kijun_sen'].shift(1))
+        
+        # Condition 3: Future Cloud is Bullish (Span A > Span B at 'now' - representing future if strictly shifted, 
+        # but typically we check if the cloud ahead is green.
+        # span_a_future = span_a (not shifted). The cloud projected forward is built from current data.
+        future_green = span_a > span_b
+        
+        buy_mask = above_cloud & tk_cross & future_green
+        
+        # Exit Condition: Price closes below Kijun
+        sell_mask = (df['close'] < df['kijun_sen']) & (df['close'].shift(1) >= df['kijun_sen'].shift(1))
+        
+        df.loc[buy_mask, 'signal'] = SignalType.BUY.value
+        df.loc[sell_mask, 'signal'] = SignalType.SELL.value
+        
+        # Stops and Targets
+        df['stop_loss'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df[['span_a', 'span_b']].min(axis=1), # Stop below cloud
+            np.nan
+        )
+        
+        # Target: Risk Reward
+        risk = abs(df['close'] - df['stop_loss'])
+        df['target'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] + (3.0 * risk), # Trend strategies aim for bigger wins
+            np.nan
+        )
+        
         return df
 
 
@@ -815,7 +1021,7 @@ class GoldenCrossStrategy(BaseStrategy):
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         # Use MA Crossover logic with 50/200 default
-        from strategies import MACrossoverStrategy
+        from .strategies_impl import MACrossoverStrategy
         golden_params = {
             "fast_period": params.get("fast_period", 50),
             "slow_period": params.get("slow_period", 200),
@@ -833,14 +1039,84 @@ class OBVDivergenceStrategy(BaseStrategy):
             name="obv_divergence",
             display_name="OBV Divergence",
             category="Advanced & Structural Strategies",
-            description="[NOT IMPLEMENTED] On-Balance Volume divergence detection",
-            parameters={},
+            description="On-Balance Volume divergence detection for reversals",
+            parameters={
+                "lookback": {"type": "int", "default": 20, "min": 10, "max": 50, "description": "Divergence lookback period"},
+                "atr_multiplier": {"type": "float", "default": 2.0, "min": 1.0, "max": 3.0, "description": "ATR multiplier for stop"}
+            },
             time_horizon="Swing"
         )
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         df = df.copy()
+        lookback = params.get("lookback", 20)
+        atr_mult = params.get("atr_multiplier", 2.0)
+        
+        # Calculate OBV
+        df['obv'] = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
+        
+        # Calculate Swing Points for Price and OBV
+        # Simplified divergence: Price makes lower low, OBV makes higher low in window
+        df['price_lowest'] = df['low'].rolling(lookback).min()
+        df['obv_lowest'] = df['obv'].rolling(lookback).min()
+        
+        # Logic: Current Price Low is new Low for lookback, BUT Current OBV is > OBV Low of lookback
+        # This is strictly not perfect divergence logic but a robust approximation for vectorization
+        
+        # Better approximation: Correlation
+        # If Price and OBV are diverging, correlation drops is negative?
+        # Divergence usually means Price Trend is DOWN, OBV Trend is UP (Bullish)
+        
+        # Implementation using Slopes
+        import scipy.stats as stats
+        
+        # Helper for efficient slope calc (rolling)
+        # We'll use a simplified check:
+        # Price change < 0, OBV change > 0 over last N bars
+        
+        df['price_chg'] = df['close'] - df['close'].shift(lookback)
+        df['obv_chg'] = df['obv'] - df['obv'].shift(lookback)
+        
+        # Bullish Divergence: Price down significantly, OBV up or flat
+        bullish_div = (df['price_chg'] < -0.02 * df['close']) & (df['obv_chg'] > 0)
+        
+        # Bearish Divergence: Price up, OBV down
+        bearish_div = (df['price_chg'] > 0.02 * df['close']) & (df['obv_chg'] < 0)
+        
+        # ATR
+        df['tr'] = np.maximum(
+            df['high'] - df['low'],
+            np.maximum(abs(df['high'] - df['close'].shift(1)),
+                       abs(df['low'] - df['close'].shift(1)))
+        )
+        df['atr'] = df['tr'].rolling(14).mean()
+        
+        # Generate Signals
         df['signal'] = SignalType.HOLD.value
+        
+        # Confirm with Green Candle for Buy
+        buy_mask = bullish_div & (df['close'] > df['open'])
+        sell_mask = bearish_div & (df['close'] < df['open'])
+        
+        df.loc[buy_mask, 'signal'] = SignalType.BUY.value
+        df.loc[sell_mask, 'signal'] = SignalType.SELL.value
+        
+        # Stops and Targets
+        df['stop_loss'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['low'] - (atr_mult * df['atr']),
+            np.where(df['signal'] == SignalType.SELL.value,
+                     df['high'] + (atr_mult * df['atr']), np.nan)
+        )
+        
+        risk = abs(df['close'] - df['stop_loss'])
+        df['target'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] + (2.0 * risk),
+            np.where(df['signal'] == SignalType.SELL.value,
+                     df['close'] - (2.0 * risk), np.nan)
+        )
+        
         return df
 
 
@@ -853,14 +1129,92 @@ class ParabolicSARStrategy(BaseStrategy):
             name="parabolic_sar",
             display_name="Parabolic SAR Reversal",
             category="Advanced & Structural Strategies",
-            description="[NOT IMPLEMENTED] Stop and Reverse system",
-            parameters={},
+            description="Stop and Reverse system for trend following",
+            parameters={
+                "start": {"type": "float", "default": 0.02, "min": 0.01, "max": 0.05, "description": "Start acceleration"},
+                "increment": {"type": "float", "default": 0.02, "min": 0.01, "max": 0.05, "description": "Acceleration increment"},
+                "maximum": {"type": "float", "default": 0.2, "min": 0.1, "max": 0.3, "description": "Max acceleration"},
+                "risk_reward": {"type": "float", "default": 2.0, "min": 1.0, "max": 4.0, "description": "Risk-reward ratio"}
+            },
             time_horizon="Swing"
         )
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         df = df.copy()
+        
+        # SAR implementation is iterative (stateful), hard to vectorize efficiently in pure pandas without loop
+        # We will use TA-Lib if available, or a fast python loop
+        start = params.get("start", 0.02)
+        increment = params.get("increment", 0.02)
+        maximum = params.get("maximum", 0.2)
+        rr = params.get("risk_reward", 2.0)
+        
+        # Simple Python Loop Implementation of SAR
+        high, low = df['high'].values, df['low'].values
+        close = df['close'].values
+        sar = np.zeros(len(df))
+        long_pos = True
+        af = start
+        ep = high[0]
+        sar[0] = low[0]
+        
+        for i in range(1, len(df)):
+            prev_sar = sar[i-1]
+            sar[i] = prev_sar + af * (ep - prev_sar)
+            
+            if long_pos:
+                if i >= 2:
+                    sar[i] = min(sar[i], low[i-1], low[i-2])
+                
+                if low[i] < sar[i]:
+                    long_pos = False
+                    sar[i] = ep
+                    af = start
+                    ep = low[i]
+                else:
+                    if high[i] > ep:
+                        ep = high[i]
+                        af = min(af + increment, maximum)
+            else:
+                if i >= 2:
+                    sar[i] = max(sar[i], high[i-1], high[i-2])
+                
+                if high[i] > sar[i]:
+                    long_pos = True
+                    sar[i] = ep
+                    af = start
+                    ep = high[i]
+                else:
+                    if low[i] < ep:
+                        ep = low[i]
+                        af = min(af + increment, maximum)
+        
+        df['sar'] = sar
+        
+        # Generate Signals
         df['signal'] = SignalType.HOLD.value
+        
+        # Buy: Close crosses above SAR (SAR moves from above to below)
+        buy_mask = (df['close'] > df['sar']) & (df['close'].shift(1) <= df['sar'].shift(1))
+        
+        # Sell: Close crosses below SAR
+        sell_mask = (df['close'] < df['sar']) & (df['close'].shift(1) >= df['sar'].shift(1))
+        
+        df.loc[buy_mask, 'signal'] = SignalType.BUY.value
+        df.loc[sell_mask, 'signal'] = SignalType.SELL.value
+        
+        # Stops and Targets
+        df['stop_loss'] = df['sar']
+        risk = abs(df['close'] - df['sar'])
+        
+        # Dynamic Target based on risk
+        df['target'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] + (rr * risk),
+            np.where(df['signal'] == SignalType.SELL.value,
+                     df['close'] - (rr * risk), np.nan)
+        )
+        
         return df
 
 
@@ -873,14 +1227,64 @@ class VolumeSurgeStrategy(BaseStrategy):
             name="volume_surge",
             display_name="Volume Surge Accumulation",
             category="Advanced & Structural Strategies",
-            description="[NOT IMPLEMENTED] Detect institutional accumulation via volume",
-            parameters={},
+            description="Detect institutional accumulation via explosive volume spikes",
+            parameters={
+                "volume_ma": {"type": "int", "default": 20, "min": 10, "max": 50, "description": "Volume MA period"},
+                "surge_multiplier": {"type": "float", "default": 2.0, "min": 1.5, "max": 5.0, "description": "Volume surge multiplier"},
+                "body_strength": {"type": "float", "default": 0.6, "min": 0.5, "max": 0.9, "description": "Minimum body/range ratio"},
+                "risk_reward": {"type": "float", "default": 2.0, "min": 1.0, "max": 4.0, "description": "Risk-reward ratio"}
+            },
             time_horizon="Swing"
         )
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
         df = df.copy()
+        vol_ma_period = params.get("volume_ma", 20)
+        surge_mult = params.get("surge_multiplier", 2.0)
+        min_body = params.get("body_strength", 0.6)
+        rr = params.get("risk_reward", 2.0)
+        
+        # Calculate Volume MA
+        df['vol_ma'] = df['volume'].rolling(vol_ma_period).mean()
+        
+        # Detect Surge
+        df['is_surge'] = df['volume'] > (surge_mult * df['vol_ma'])
+        
+        # Detect Strong Candle (Accumulation)
+        # Close near High, Large Body
+        range_len = df['high'] - df['low']
+        body_len = abs(df['close'] - df['open'])
+        df['is_strong'] = (body_len / range_len) > min_body
+        df['is_bullish'] = df['close'] > df['open']
+        
+        # Accumulation Candle Identified
+        df['accumulation'] = df['is_surge'] & df['is_strong'] & df['is_bullish']
+        
+        # Generate Signals: Breakout of Accumulation Candle High
+        # Lookback 1-3 bars for accumulation candle
+        df['acc_high'] = np.where(df['accumulation'], df['high'], np.nan)
+        df['last_acc_high'] = df['acc_high'].ffill()
+        df['acc_low'] = np.where(df['accumulation'], df['low'], np.nan)
+        df['last_acc_low'] = df['acc_low'].ffill()
+        
+        # Signal: Close > Accumulation High
+        # Only take signal if accumulation happened recently (e.g. within 5 bars)
+        df['bars_since_acc'] = df.groupby(df['accumulation'].cumsum()).cumcount()
+        
+        # Breakout
+        buy_mask = (df['close'] > df['last_acc_high']) & \
+                   (df['bars_since_acc'] <= 5) & \
+                   (df['bars_since_acc'] > 0) & \
+                   (df['close'].shift(1) <= df['last_acc_high'].shift(1))
+        
         df['signal'] = SignalType.HOLD.value
+        df.loc[buy_mask, 'signal'] = SignalType.BUY.value
+        
+        # Stop and Target
+        df['stop_loss'] = df['last_acc_low'] # Low of acceleration candle
+        dist = df['close'] - df['stop_loss']
+        df['target'] = df['close'] + (rr * dist)
+        
         return df
 
 
@@ -893,12 +1297,88 @@ class MultiTimeframeConfluenceStrategy(BaseStrategy):
             name="mtf_confluence",
             display_name="Multi-Timeframe Confluence",
             category="Advanced & Structural Strategies",
-            description="[NOT IMPLEMENTED] Daily trend + 4H structure + 1H entry",
-            parameters={},
+            description="Daily trend + 4H structure + 1H entry alignment",
+            parameters={
+                "daily_ma": {"type": "int", "default": 200, "min": 50, "max": 200, "description": "Daily Trend MA"},
+                "rsi_period": {"type": "int", "default": 14, "min": 7, "max": 21, "description": "4H RSI Period"},
+                "atr_multiplier": {"type": "float", "default": 2.0, "min": 1.0, "max": 3.0, "description": "ATR multiplier"}
+            },
             time_horizon="Intraday"
         )
     
     def generate_signals(self, df: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
+        # NOTE: True MTF requires 3 distinct dataframes. 
+        # In this single-dataframe backtest engine, we simulate MTF using resampling 
+        # or we assume 'df' passed is the lowest timeframe (e.g. 1H)
+        
         df = df.copy()
+        # Verify index is datetime
+        if not isinstance(df.index, pd.DatetimeIndex):
+            # Try to convert 'timestamp' col if exists
+            if 'timestamp' in df.columns:
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
+            else:
+                # Fallback: assume signals cannot be generated without time
+                df['signal'] = SignalType.HOLD.value
+                return df
+                
+        daily_ma_p = params.get("daily_ma", 200)
+        rsi_p = params.get("rsi_period", 14)
+        atr_mult = params.get("atr_multiplier", 2.0)
+        
+        # 1. Resample to Daily for Trend
+        daily_df = df['close'].resample('D').last().to_frame()
+        daily_df['daily_ma'] = daily_df['close'].rolling(daily_ma_p).mean()
+        daily_df['trend_up'] = daily_df['close'] > daily_df['daily_ma']
+        
+        # 2. Resample to 4H for Structure (RSI)
+        h4_df = df['close'].resample('4H').last().to_frame()
+        delta = h4_df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(rsi_p).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(rsi_p).mean()
+        rs = gain / loss
+        h4_df['rsi_4h'] = 100 - (100 / (1 + rs))
+        h4_df['structure_ok'] = h4_df['rsi_4h'] < 70 # Check not overbought
+        
+        # 3. Merge back to base timeframe (ffill signals to prevent lookahead)
+        # Shift 1 to ensure we use closed candle logic
+        # reindex(df.index, method='ffill')
+        
+        daily_trend = daily_df['trend_up'].shift(1).reindex(df.index, method='ffill')
+        curr_structure = h4_df['structure_ok'].shift(1).reindex(df.index, method='ffill')
+        
+        # 4. Entry Trigger (1H or base TF): Bullish Engulfing or simple Green Candle breach
+        # Simplified: Green candle + Crossover of fast MA
+        df['fast_ma'] = df['close'].rolling(9).mean()
+        entry_trigger = (df['close'] > df['fast_ma']) & (df['close'] > df['open'])
+        
+        # Combine
+        buy_mask = daily_trend & curr_structure & entry_trigger & \
+                   (entry_trigger != entry_trigger.shift(1)) # First instance
+        
         df['signal'] = SignalType.HOLD.value
+        df.loc[buy_mask, 'signal'] = SignalType.BUY.value
+        
+        # ATR for stop
+        df['tr'] = np.maximum(
+            df['high'] - df['low'],
+            np.maximum(abs(df['high'] - df['close'].shift(1)),
+                       abs(df['low'] - df['close'].shift(1)))
+        )
+        df['atr'] = df['tr'].rolling(14).mean()
+        
+        df['stop_loss'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] - (atr_mult * df['atr']),
+            np.nan
+        )
+        
+        risk = abs(df['close'] - df['stop_loss'])
+        df['target'] = np.where(
+            df['signal'] == SignalType.BUY.value,
+            df['close'] + (3.0 * risk),
+            np.nan
+        )
+                
         return df
