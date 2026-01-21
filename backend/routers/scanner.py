@@ -792,15 +792,39 @@ async def get_week52_breakouts(current_user: User = Depends(get_current_user)):
         engine = YearlyBreakoutEngine()
         results = await engine.get_cached_results()
         
+        # If cache is empty, try to run the scanner (this may take time)
+        if not results:
+            logger.info("week52-breakouts: Cache empty, running scanner...")
+            try:
+                await engine.run_scanner()
+                results = await engine.get_cached_results()
+            except Exception as scan_error:
+                logger.error(f"week52-breakouts: Scanner failed: {scan_error}")
+                # Return empty result with informative message
+                return {
+                    "status": "pending",
+                    "message": "52-week breakout scan is in progress. Please try again in a few minutes.",
+                    "high_breakouts": [],
+                    "low_breakdowns": [],
+                    "data": []
+                }
+        
         # Map to frontend structure
         mapped_results = []
         for res in results:
+            # Normalize breakout_type from engine to frontend format
+            breakout_type = res.get("breakout_type", "")
+            if breakout_type == "Breakout" or breakout_type == "Yearly High":
+                breakout_type = "52W_HIGH"
+            elif breakout_type == "Yearly Low":
+                breakout_type = "52W_LOW"
+            
             # Calculate breakout_pct for frontend (positive for high, negative for low)
-            breakout_pct = 0
-            if res.get("breakout_type") == "52W_HIGH":
-                breakout_pct = -res.get("percentage_from_high", 0) 
-            elif res.get("breakout_type") == "52W_LOW":
-                breakout_pct = res.get("percentage_from_low", 0)
+            breakout_pct = res.get("breakout_pct", 0)
+            if breakout_type == "52W_HIGH":
+                breakout_pct = abs(breakout_pct)  # Ensure positive for highs
+            elif breakout_type == "52W_LOW":
+                breakout_pct = -abs(breakout_pct) if breakout_pct > 0 else breakout_pct  # Negative for lows
 
             mapped_results.append({
                 "symbol": res.get("symbol"),
@@ -809,9 +833,10 @@ async def get_week52_breakouts(current_user: User = Depends(get_current_user)):
                 "low_52w": res.get("yearly_low"),
                 "prev_close": res.get("current_price"), 
                 "change_pct": res.get("change_pct", 0),
-                "breakout_type": res.get("breakout_type"),
-                "breakout_pct": res.get("breakout_pct", breakout_pct),
+                "breakout_type": breakout_type,
+                "breakout_pct": round(breakout_pct, 2),
                 "volume_ratio": res.get("volume_ratio", 1.0),
+                "volume_strength": res.get("volume_strength", "Normal"),
                 "industry": res.get("industry", "N/A"),
                 "last_update": res.get("timestamp")
             })

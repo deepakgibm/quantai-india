@@ -16,6 +16,7 @@ import {
     ChevronDown
 } from 'lucide-react';
 import { API_URL, getAuthHeaders } from '../services/api';
+import { PriceWithSource } from '../components/PriceSourceBadge';
 
 interface Week52BreakoutStock {
     symbol: string;
@@ -324,9 +325,11 @@ const Week52Breakout: React.FC = () => {
                                             </p>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-2xl font-black text-slate-900 dark:text-white">
-                                                ₹{stock.ltp.toLocaleString()}
-                                            </div>
+                                            <PriceWithSource
+                                                price={stock.ltp}
+                                                source={(stock as any).price_source}
+                                                className="justify-end text-xl"
+                                            />
                                             <div className={`text-sm font-black ${stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                                                 {stock.change_pct >= 0 ? '↑' : '↓'} {Math.abs(stock.change_pct).toFixed(2)}%
                                             </div>

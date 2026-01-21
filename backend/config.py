@@ -32,8 +32,13 @@ def _validate_secret_key(key: str) -> str:
 
 class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/quantai")
-    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+    
+    # Dragonfly/Redis Configuration
+    DRAGONFLY_HOST = os.getenv("DRAGONFLY_HOST", "localhost")
+    DRAGONFLY_PORT = os.getenv("DRAGONFLY_PORT", "6379")
+    
+    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"redis://{DRAGONFLY_HOST}:{DRAGONFLY_PORT}/0")
+    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"redis://{DRAGONFLY_HOST}:{DRAGONFLY_PORT}/0")
     
     # SECURITY: Validated SECRET_KEY - no unsafe defaults
     SECRET_KEY = _validate_secret_key(os.getenv("SECRET_KEY", ""))

@@ -26,6 +26,7 @@ except ImportError as e:
     print(f"Observability module not available: {e}")
 
 from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, scanner, market, metrics
+from routers import debug  # Debug endpoints for price status
 from api.v1.endpoints import walk_forward_backtest  # Walk-Forward Backtest
 # from api.v1.endpoints import experiment_lab  # MOVED TO /review - Strategy Experiment Lab (Beta)
 from api.v1.endpoints import backtest_strategies  # Enhanced Strategy API with Tiers
@@ -334,12 +335,14 @@ if _hp_scanner_v3_available and scanner_v3_router:
     app.include_router(scanner_v3_router)
     logger.info("Registered High-Performance Scanner v3 API at /api/v3/scanner")
 
-# Phase 3: Analytics and Archive endpoints
 try:
     from routers import analytics
     app.include_router(analytics.router)  # Analytics router (already has full prefix)
 except ImportError as e:
     logger.warning(f"Analytics router not loaded: {e}")
+
+# Debug endpoints for price status
+app.include_router(debug.router, prefix="/api", tags=["Debug"])
 
 @app.get("/")
 async def root():

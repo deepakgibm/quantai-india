@@ -222,16 +222,16 @@ async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, f
 
 async def enrich_scanner_results(results: List[Dict], access_token: str = None) -> List[Dict]:
     """
-    Enrich scanner results with live prices.
-    Fallback logic: 
-    1. MarketDataOrchestrator (WebSocket Cache)
+    Enrich scanner results with live prices and source metadata.
+    
+    Uses centralized get_ltp_bulk() which implements:
+    1. WebSocket cache (during market hours)
     2. Upstox REST API
-    3. yFinance (built into fetch_live_ltp)
-    4. Database Fallback
+    3. Database fallback
     
     CRITICAL: This function ensures:
     - entry_price, target_price, stop_loss are NEVER undefined/None
-    - current_price is always populated
+    - current_price is always populated with source badge
     - All numeric values are properly rounded
     """
     if not results:
@@ -240,44 +240,19 @@ async def enrich_scanner_results(results: List[Dict], access_token: str = None) 
     symbols = [r.get("symbol") for r in results if r.get("symbol")]
     if not symbols:
         return results
-        
-    from utils.market_state import is_market_open
-    from services.market_data_orchestrator import get_market_data_orchestrator
     
-    market_open = is_market_open()
-    live_prices = {}
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # 1. Try MarketDataOrchestrator Cache (WebSocket-fed)
-    try:
-        orchestrator = get_market_data_orchestrator()
-        for symbol in symbols:
-            tick = orchestrator._data_cache.get(symbol)
-            if tick and tick.ltp and tick.ltp > 0:
-                live_prices[symbol] = tick.ltp
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.debug(f"Orchestrator cache access failed: {e}")
-
-    # 2. Fetch missing prices from Upstox REST / yFinance
-    missing_symbols = [s for s in symbols if s not in live_prices]
-    if missing_symbols:
-        rest_prices = await fetch_live_ltp(missing_symbols, access_token)
-        live_prices.update(rest_prices)
-    
-    # 3. Final Fallback to Database for anything still missing
-    still_missing = [s for s in symbols if s not in live_prices]
-    if still_missing:
-        db_prices = await get_database_prices(still_missing)
-        live_prices.update(db_prices)
-    
-    if not live_prices:
-        return results
+    # Use centralized bulk LTP fetcher with source metadata
+    bulk_prices = await get_ltp_bulk(symbols, access_token)
     
     enriched = []
     for result in results:
-        symbol = result.get("symbol")
-        live_price = live_prices.get(symbol)
+        symbol = result.get("symbol", "").upper()
+        price_data = bulk_prices.get(symbol, {})
+        live_price = price_data.get("ltp")
+        price_source = price_data.get("source", "NONE")
         
         enriched_result = result.copy()
         
@@ -286,19 +261,25 @@ async def enrich_scanner_results(results: List[Dict], access_token: str = None) 
             rounded_price = round(float(live_price), 2)
         elif result.get("ltp") and result.get("ltp") > 0:
             rounded_price = round(float(result.get("ltp")), 2)
+            price_source = "CACHED"
         elif result.get("close") and result.get("close") > 0:
             rounded_price = round(float(result.get("close")), 2)
+            price_source = "CACHED"
         elif result.get("current_price") and result.get("current_price") > 0:
             rounded_price = round(float(result.get("current_price")), 2)
+            price_source = "CACHED"
         else:
             # Cannot enrich without a valid price - sanitize and skip
             enriched_result = _sanitize_trade_levels(enriched_result, None)
+            enriched_result["price_source"] = "NONE"
+            enriched_result["entry_reason"] = "LTP_UNAVAILABLE"
             enriched.append(enriched_result)
             continue
         
-        # Update all common price fields for consistency across different models
+        # Update all common price fields for consistency
         enriched_result["current_price"] = rounded_price
         enriched_result["ltp"] = rounded_price
+        enriched_result["price_source"] = price_source  # WS, REST, DB, or NONE
         if "price" in enriched_result or result.get("price"):
             enriched_result["price"] = rounded_price
         
@@ -315,6 +296,7 @@ async def enrich_scanner_results(results: List[Dict], access_token: str = None) 
         # Fix entry if missing, None, 0, or undefined
         if not entry or entry <= 0 or str(entry).lower() == 'undefined':
             enriched_result["entry_price"] = round(rounded_price * (0.995 if is_bullish else 1.005), 2)
+            enriched_result["entry_reason"] = "AUTO_CALCULATED"
         else:
             enriched_result["entry_price"] = round(float(entry), 2)
             
@@ -368,46 +350,228 @@ async def get_single_live_price(symbol: str, access_token: str = None) -> Option
 async def get_live_ltp(symbol: str, access_token: str = None) -> Dict:
     """
     AUTHORITATIVE live LTP function - use this for all price lookups.
-    Returns dict with ltp, source, and timestamp for validation.
     
-    Usage:
-        result = await get_live_ltp("RELIANCE")
-        price = result.get("ltp")  # Live price
-        source = result.get("source")  # 'upstox' or 'database'
-        timestamp = result.get("timestamp")  # Price timestamp
+    Priority (during market hours):
+    1. WebSocket cache (MarketDataOrchestrator)
+    2. Upstox REST API
+    3. Database fallback
+    
+    Priority (after market hours):
+    1. Upstox REST API (skip WS)
+    2. Database fallback
+    
+    Returns:
+        {
+            "symbol": "RELIANCE",
+            "ltp": 2850.50,
+            "source": "WS" | "REST" | "DB",
+            "timestamp": "2026-01-21T12:15:01+05:30",
+            "stale": false
+        }
     """
     from datetime import datetime
     import logging
     logger = logging.getLogger(__name__)
     
+    from services.market_hours_service import get_market_hours_service
+    from services.market_data_orchestrator import get_market_data_orchestrator
+    
     if not access_token:
         access_token = settings.UPSTOX_ACCESS_TOKEN
+    
+    market_service = get_market_hours_service()
+    is_market_open = market_service.is_market_open()
     
     result = {
         "symbol": symbol.upper(),
         "ltp": None,
-        "source": None,
+        "source": "NONE",
         "timestamp": datetime.now().isoformat(),
-        "stale": False
+        "stale": False,
+        "market_open": is_market_open
     }
     
-    # 1. Try Upstox LIVE first
-    prices = await fetch_live_ltp([symbol], access_token)
-    if prices.get(symbol):
-        result["ltp"] = round(prices[symbol], 2)
-        result["source"] = "upstox"
-        logger.info(f"💹 {symbol}: ₹{result['ltp']} from Upstox LIVE")
-        return result
+    # 1. During market hours, try WebSocket cache first
+    if is_market_open:
+        try:
+            orchestrator = get_market_data_orchestrator()
+            tick = orchestrator._data_cache.get(symbol.upper())
+            if tick and hasattr(tick, 'ltp') and tick.ltp and tick.ltp > 0:
+                # Check staleness (>10 seconds old)
+                if hasattr(tick, 'timestamp'):
+                    tick_time = datetime.fromisoformat(tick.timestamp.replace('Z', '+00:00')) if isinstance(tick.timestamp, str) else tick.timestamp
+                    age_seconds = (datetime.now() - tick_time.replace(tzinfo=None)).total_seconds()
+                    if age_seconds <= 10:
+                        result["ltp"] = round(tick.ltp, 2)
+                        result["source"] = "WS"
+                        logger.debug(f"🔴 {symbol}: ₹{result['ltp']} from WS cache (fresh)")
+                        return result
+                    else:
+                        logger.debug(f"⚠️ {symbol}: WS tick is {age_seconds:.1f}s old, trying REST")
+                else:
+                    # No timestamp, use it anyway
+                    result["ltp"] = round(tick.ltp, 2)
+                    result["source"] = "WS"
+                    return result
+        except Exception as e:
+            logger.debug(f"WS cache miss for {symbol}: {e}")
     
-    # 2. Fallback to Database (mark as potentially stale)
-    db_prices = await get_database_prices([symbol])
-    if db_prices.get(symbol):
-        result["ltp"] = round(db_prices[symbol], 2)
-        result["source"] = "database"
-        result["stale"] = True  # DB price may be stale
-        logger.warning(f"⚠️ {symbol}: ₹{result['ltp']} from DATABASE (may be stale)")
-        return result
+    # 2. Try Upstox REST API
+    try:
+        prices = await fetch_live_ltp([symbol], access_token)
+        if prices.get(symbol) and prices[symbol] > 0:
+            result["ltp"] = round(prices[symbol], 2)
+            result["source"] = "REST"
+            logger.debug(f"🟡 {symbol}: ₹{result['ltp']} from REST API")
+            return result
+    except Exception as e:
+        logger.warning(f"REST API failed for {symbol}: {e}")
     
-    logger.error(f"❌ {symbol}: No price available from any source")
+    # 3. Final fallback to Database
+    try:
+        db_prices = await get_database_prices([symbol])
+        if db_prices.get(symbol) and db_prices[symbol] > 0:
+            result["ltp"] = round(db_prices[symbol], 2)
+            result["source"] = "DB"
+            result["stale"] = True  # DB price is always potentially stale
+            logger.debug(f"🟢 {symbol}: ₹{result['ltp']} from DB (EOD)")
+            return result
+    except Exception as e:
+        logger.error(f"DB fallback failed for {symbol}: {e}")
+    
+    logger.error(f"❌ {symbol}: LTP_UNAVAILABLE from all sources")
+    result["source"] = "NONE"
     return result
+
+
+async def get_ltp_bulk(symbols: List[str], access_token: str = None) -> Dict[str, Dict]:
+    """
+    Bulk LTP fetch with source metadata for each symbol.
+    Optimized for batch operations.
+    
+    Returns:
+        {
+            "RELIANCE": {"ltp": 2850.50, "source": "WS", "timestamp": "...", "stale": false},
+            "TCS": {"ltp": 4200.00, "source": "REST", "timestamp": "...", "stale": false},
+            ...
+        }
+    """
+    from datetime import datetime
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    from services.market_hours_service import get_market_hours_service
+    from services.market_data_orchestrator import get_market_data_orchestrator
+    
+    if not access_token:
+        access_token = settings.UPSTOX_ACCESS_TOKEN
+    
+    market_service = get_market_hours_service()
+    is_market_open = market_service.is_market_open()
+    
+    results = {}
+    now = datetime.now()
+    remaining_symbols = list(symbols)
+    
+    # 1. During market hours, check WS cache first
+    if is_market_open:
+        try:
+            orchestrator = get_market_data_orchestrator()
+            ws_hits = []
+            for symbol in symbols:
+                tick = orchestrator._data_cache.get(symbol.upper())
+                if tick and hasattr(tick, 'ltp') and tick.ltp and tick.ltp > 0:
+                    results[symbol.upper()] = {
+                        "ltp": round(tick.ltp, 2),
+                        "source": "WS",
+                        "timestamp": now.isoformat(),
+                        "stale": False
+                    }
+                    ws_hits.append(symbol)
+            
+            remaining_symbols = [s for s in symbols if s.upper() not in results]
+            if ws_hits:
+                logger.debug(f"🔴 WS cache hits: {len(ws_hits)} symbols")
+        except Exception as e:
+            logger.debug(f"WS cache bulk access failed: {e}")
+    
+    # 2. Fetch remaining from REST API
+    if remaining_symbols:
+        try:
+            rest_prices = await fetch_live_ltp(remaining_symbols, access_token)
+            for symbol, price in rest_prices.items():
+                if price and price > 0:
+                    results[symbol.upper()] = {
+                        "ltp": round(price, 2),
+                        "source": "REST",
+                        "timestamp": now.isoformat(),
+                        "stale": False
+                    }
+            remaining_symbols = [s for s in remaining_symbols if s.upper() not in results]
+            if rest_prices:
+                logger.debug(f"🟡 REST hits: {len(rest_prices)} symbols")
+        except Exception as e:
+            logger.warning(f"REST bulk fetch failed: {e}")
+    
+    # 3. Final fallback to DB for still-missing symbols
+    if remaining_symbols:
+        try:
+            db_prices = await get_database_prices(remaining_symbols)
+            for symbol, price in db_prices.items():
+                if price and price > 0:
+                    results[symbol.upper()] = {
+                        "ltp": round(price, 2),
+                        "source": "DB",
+                        "timestamp": now.isoformat(),
+                        "stale": True
+                    }
+            if db_prices:
+                logger.debug(f"🟢 DB fallback hits: {len(db_prices)} symbols")
+        except Exception as e:
+            logger.error(f"DB bulk fallback failed: {e}")
+    
+    # Mark symbols with no data
+    for symbol in symbols:
+        if symbol.upper() not in results:
+            results[symbol.upper()] = {
+                "ltp": None,
+                "source": "NONE",
+                "timestamp": now.isoformat(),
+                "stale": True,
+                "error": "LTP_UNAVAILABLE"
+            }
+    
+    logger.info(f"📊 Bulk LTP: {len([r for r in results.values() if r.get('ltp')])} of {len(symbols)} symbols priced")
+    return results
+
+
+def get_price_source_status() -> Dict:
+    """
+    Get current price source status for debugging.
+    Returns cache state and health info.
+    """
+    from datetime import datetime
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    from services.market_hours_service import get_market_hours_service
+    
+    try:
+        from services.market_data_orchestrator import get_market_data_orchestrator
+        orchestrator = get_market_data_orchestrator()
+        orchestrator_status = orchestrator.get_status()
+    except Exception as e:
+        orchestrator_status = {"error": str(e)}
+    
+    market_service = get_market_hours_service()
+    market_status = market_service.get_market_status()
+    
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "market_status": market_status,
+        "orchestrator": orchestrator_status,
+        "upstox_token_configured": bool(settings.UPSTOX_ACCESS_TOKEN),
+        "instrument_mapping_size": len(INSTRUMENT_MAPPING)
+    }
+
 

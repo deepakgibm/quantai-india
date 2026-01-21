@@ -10,7 +10,8 @@ from scipy import stats
 
 from database import AsyncSessionLocal
 from models_risk import Position, PortfolioMetrics
-from models_alpha import StockData
+from models_alpha import StockCandle
+from services.instrument_resolver import resolve_instrument_id
 from sqlalchemy import select, and_, desc
 
 
@@ -197,22 +198,28 @@ class RiskCalculator:
             prices_data = {}
             
             for symbol in symbols:
+                # Resolve symbol to instrument_id
+                instrument_id = resolve_instrument_id(symbol)
+                if not instrument_id:
+                    continue
+                    
                 result = await session.execute(
-                    select(StockData.timestamp, StockData.close)
+                    select(StockCandle.candle_ts, StockCandle.close)
                     .where(
                         and_(
-                            StockData.symbol == symbol,
-                            StockData.timestamp >= cutoff_date
+                            StockCandle.instrument_id == instrument_id,
+                            StockCandle.timeframe == 1440,  # Use daily candles for correlation
+                            StockCandle.candle_ts >= cutoff_date
                         )
                     )
-                    .order_by(StockData.timestamp)
+                    .order_by(StockCandle.candle_ts)
                 )
                 data = result.fetchall()
                 
                 if data:
                     prices_data[symbol] = pd.Series(
-                        [d.close for d in data],
-                        index=[d.timestamp for d in data]
+                        [float(d.close) for d in data],
+                        index=[d.candle_ts for d in data]
                     )
             
             if not prices_data:

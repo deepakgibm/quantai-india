@@ -4,13 +4,23 @@ from sqlalchemy import text
 def inspect_candles():
     session = SessionLocal()
     try:
-        print("--- stock_candles Data (3 rows) ---")
-        res = session.execute(text("SELECT * FROM stock_candles LIMIT 3"))
+        print("--- stock_candle Data (3 rows) ---")
+        res = session.execute(text("""
+            SELECT sc.*, im.symbol 
+            FROM stock_candle sc 
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id 
+            LIMIT 3
+        """))
         for row in res:
             print(dict(zip(res.keys(), row)))
             
-        print("\n--- Any Indices in stock_candles? ---")
-        res = session.execute(text("SELECT DISTINCT symbol FROM stock_candles WHERE symbol ILIKE '%NIFTY%' OR symbol ILIKE '%BANK%'"))
+        print("\n--- Any Indices in stock_candle? ---")
+        res = session.execute(text("""
+            SELECT DISTINCT im.symbol 
+            FROM stock_candle sc 
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id 
+            WHERE im.symbol ILIKE '%NIFTY%' OR im.symbol ILIKE '%BANK%'
+        """))
         for row in res:
             print(row[0])
             

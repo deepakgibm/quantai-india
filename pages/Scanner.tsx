@@ -26,6 +26,7 @@ import {
     ZapOff
 } from 'lucide-react';
 import { api } from '../services/api';
+import { PriceWithSource } from '../components/PriceSourceBadge';
 
 interface Strategy {
     name: string;
@@ -478,7 +479,11 @@ const Scanner: React.FC = () => {
                                             <td className="px-6 py-5">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-black text-slate-800 dark:text-white group-hover:text-cyan-600 transition-colors uppercase tracking-tight">{r.symbol}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400">{r.index}</span>
+                                                    <PriceWithSource
+                                                        price={r.indicators?.price || r.indicators?.ltp}
+                                                        source={(r as any).price_source}
+                                                        className="text-[10px]"
+                                                    />
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5">

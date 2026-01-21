@@ -22,7 +22,7 @@ from utils.auth import get_current_user, get_current_user
 from models import User
 from typing import Optional as TypingOptional
 from database import AsyncSessionLocal
-from models_alpha import StockCandle, StockCandleV2, InstrumentMaster, TimeframeMapper
+from models_alpha import StockCandle, InstrumentMaster, TimeframeMapper
 from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
@@ -383,8 +383,8 @@ async def get_available_symbols(
             # Query distinct symbols by joining with InstrumentMaster
             query = (
                 select(InstrumentMaster.symbol)
-                .join(StockCandleV2, StockCandleV2.instrument_id == InstrumentMaster.instrument_id)
-                .where(StockCandleV2.timeframe == tf_minutes)
+                .join(StockCandle, StockCandle.instrument_id == InstrumentMaster.instrument_id)
+                .where(StockCandle.timeframe == tf_minutes)
                 .distinct()
                 .order_by(InstrumentMaster.symbol)
             )

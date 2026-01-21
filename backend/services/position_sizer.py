@@ -8,7 +8,8 @@ from typing import Optional, Dict
 from datetime import datetime, timedelta
 
 from database import AsyncSessionLocal
-from models_alpha import StockData
+from models_alpha import StockCandle
+from services.instrument_resolver import resolve_instrument_id
 from sqlalchemy import select, desc
 
 
@@ -226,12 +227,20 @@ class PositionSizer:
     async def _get_current_atr(self, symbol: str, period: int = 14) -> Optional[float]:
         """Get current ATR value from database"""
         try:
+            # Resolve symbol to instrument_id
+            instrument_id = resolve_instrument_id(symbol)
+            if not instrument_id:
+                return None
+                
             async with AsyncSessionLocal() as session:
                 # Get recent data
                 result = await session.execute(
-                    select(StockData)
-                    .where(StockData.symbol == symbol)
-                    .order_by(desc(StockData.timestamp))
+                    select(StockCandle)
+                    .where(
+                        StockCandle.instrument_id == instrument_id,
+                        StockCandle.timeframe == 1440  # Daily candles for ATR
+                    )
+                    .order_by(desc(StockCandle.candle_ts))
                     .limit(period + 1)
                 )
                 data = result.scalars().all()
@@ -241,9 +250,9 @@ class PositionSizer:
                 
                 # Calculate ATR
                 df = pd.DataFrame([{
-                    'high': d.high,
-                    'low': d.low,
-                    'close': d.close
+                    'high': float(d.high),
+                    'low': float(d.low),
+                    'close': float(d.close)
                 } for d in reversed(data)])
                 
                 # True Range

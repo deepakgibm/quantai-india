@@ -52,17 +52,17 @@ class InstrumentMaster(Base):
         return f"<InstrumentMaster(id={self.instrument_id}, symbol={self.symbol})>"
 
 
-class StockCandleV2(Base):
+class StockCandle(Base):
     """
-    NEW: Partitioned OHLCV candle table with instrument_id-based design.
+    Partitioned OHLCV candle table with instrument_id-based design.
     
-    Key differences from legacy StockCandle:
+    Key features:
     - Uses instrument_id (BIGINT FK) instead of symbol/instrument_key
     - Uses timeframe (SMALLINT minutes) instead of TEXT
     - Uses candle_ts (TIMESTAMP) instead of timestamp
     - Partitioned by RANGE(candle_ts), monthly
     
-    Note: This model maps to the 'stock_candle' table (not 'stock_candles').
+    Note: This model maps to the 'stock_candle' table.
     """
     __tablename__ = "stock_candle"
     
@@ -85,87 +85,9 @@ class StockCandleV2(Base):
     )
     
     def __repr__(self):
-        return f"<StockCandleV2(instrument_id={self.instrument_id}, tf={self.timeframe}, ts={self.candle_ts})>"
+        return f"<StockCandle(instrument_id={self.instrument_id}, tf={self.timeframe}, ts={self.candle_ts})>"
 
 
-# =============================================================================
-# LEGACY MODELS (Preserved for backward compatibility)
-# =============================================================================
-
-class StockData(Base):
-    """
-    LEGACY: Time-series OHLCV data storage for Nifty 200 stocks.
-    Optimized for range queries with composite index on (symbol, timestamp).
-    """
-    __tablename__ = "stock_data"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    symbol = Column(String(20), nullable=False, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True)
-    
-    # OHLCV data
-    open = Column(Float, nullable=False)
-    high = Column(Float, nullable=False)
-    low = Column(Float, nullable=False)
-    close = Column(Float, nullable=False)
-    volume = Column(Integer, nullable=False)
-    
-    # Additional metadata
-    interval = Column(String(10), nullable=False, default="1min")  # 1min, 5min, 1day
-    source = Column(String(20), nullable=False, default="upstox")  # upstox, yfinance
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships removed - signals are now independent
-    
-    # Composite indexes for fast range queries
-    # idx_symbol_timestamp: WHERE symbol='RELIANCE' AND timestamp BETWEEN X AND Y
-    # idx_symbol_interval_ts: WHERE symbol='RELIANCE' AND interval='1min' AND timestamp BETWEEN X AND Y
-    __table_args__ = (
-        Index('idx_symbol_timestamp', 'symbol', 'timestamp'),
-        Index('idx_symbol_interval_ts', 'symbol', 'interval', 'timestamp'),
-        UniqueConstraint('symbol', 'timestamp', 'interval', name='uq_symbol_timestamp_interval'),
-        {'extend_existing': True}
-    )
-    
-    def __repr__(self):
-        return f"<StockData(symbol={self.symbol}, timestamp={self.timestamp}, close={self.close})>"
-
-
-class StockCandle(Base):
-    """
-    LEGACY: Unified OHLCV storage for multi-timeframe data.
-    Supports 1m, 5m, 15m, 1h, 1d timeframes.
-    
-    Note: This is the OLD schema. New code should use StockCandleV2.
-    """
-    __tablename__ = "stock_candles"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    symbol = Column(String(20), nullable=False, index=True)
-    instrument_key = Column(String(50), nullable=True, index=True)  # Upstox instrument key
-    timestamp = Column(DateTime, nullable=False, index=True)
-    timeframe = Column(String(10), nullable=False, index=True)  # 1m, 5m, 15m, 1h, 1d
-    
-    # OHLCV data
-    open = Column(Float, nullable=False)
-    high = Column(Float, nullable=False)
-    low = Column(Float, nullable=False)
-    close = Column(Float, nullable=False)
-    volume = Column(Integer, nullable=False)
-    
-    source = Column(String(20), nullable=False, default="upstox")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    __table_args__ = (
-        Index('idx_candle_symbol_tf_ts', 'symbol', 'timeframe', 'timestamp'),
-        Index('idx_candle_instkey_tf_ts', 'instrument_key', 'timeframe', 'timestamp'),
-        UniqueConstraint('symbol', 'timestamp', 'timeframe', name='uq_candle_symbol_ts_tf'),
-        {'extend_existing': True}
-    )
-    
-    def __repr__(self):
-        return f"<StockCandle(symbol={self.symbol}, timeframe={self.timeframe}, timestamp={self.timestamp})>"
 
 
 class TimeframeMapper:

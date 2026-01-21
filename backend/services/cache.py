@@ -59,6 +59,10 @@ class CacheManager:
     def _ensure_connected(self):
         """Ensure cache is connected. Raises CacheUnavailableError if not."""
         if not self._is_connected or not self._redis_client:
+            # Try to re-initialize before giving up
+            self._initialize_redis()
+            
+        if not self._is_connected or not self._redis_client:
             raise CacheUnavailableError("DragonflyDB/Redis is not available")
     
     def _generate_key(self, prefix: str, *args, **kwargs) -> str:

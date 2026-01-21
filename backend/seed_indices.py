@@ -1,5 +1,6 @@
 from database import SessionLocal
-from sqlalchemy import text
+from models_alpha import StockCandle
+from services.instrument_resolver import resolve_instrument_id
 from datetime import datetime
 
 def seed_indices():
@@ -17,26 +18,31 @@ def seed_indices():
         for name, price, change in indices:
             print(f"Seeding {name}: {price}")
             
+            instrument_id = resolve_instrument_id(name)
+            if not instrument_id:
+                print(f"Skipping {name}: could not resolve instrument_id")
+                continue
+
             # Delete any existing entry for today to avoid conflict
-            session.execute(text("DELETE FROM stock_candles WHERE symbol = :s AND timeframe = '1d' AND timestamp = :t"), 
-                            {"s": name, "t": today})
+            session.query(StockCandle).filter(
+                StockCandle.instrument_id == instrument_id,
+                StockCandle.timeframe == 1440,
+                StockCandle.candle_ts >= today
+            ).delete()
             
             # Insert fresh
-            query = text("""
-                INSERT INTO stock_candles (symbol, instrument_key, timeframe, timestamp, open, high, low, close, volume)
-                VALUES (:symbol, :instrument_key, :timeframe, :timestamp, :open, :high, :low, :close, :volume)
-            """)
-            session.execute(query, {
-                "symbol": name,
-                "instrument_key": f"MANUAL_INDEX|{name}",
-                "timeframe": "1d",
-                "timestamp": today,
-                "open": price,
-                "high": price,
-                "low": price,
-                "close": price,
-                "volume": 0
-            })
+            candle = StockCandle(
+                instrument_id=instrument_id,
+                timeframe=1440,
+                candle_ts=today,
+                open=float(price),
+                high=float(price),
+                low=float(price),
+                close=float(price),
+                volume=0
+            )
+            session.add(candle)
+            
         session.commit()
         print("Seeding complete.")
     except Exception as e:

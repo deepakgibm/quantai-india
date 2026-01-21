@@ -20,8 +20,8 @@ def verify_top5():
         # Check raw count
         from models import StockCandle
         count = session.query(StockCandle).filter(
-            StockCandle.timeframe == '1d',
-            StockCandle.timestamp >= cutoff
+            StockCandle.timeframe == 1440,
+            StockCandle.candle_ts >= cutoff
         ).count()
         print(f"Row count in window: {count}")
         

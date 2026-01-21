@@ -14,8 +14,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy.exc import IntegrityError
 
 from database import AsyncSessionLocal
-from models_alpha import StockData, ETLLog
+from models_alpha import StockCandle, ETLLog
 from services.upstox_client import get_upstox_client
+from services.instrument_resolver import resolve_instrument_id
 from config import settings
 
 
@@ -60,20 +61,25 @@ class LiveDataScheduler:
                     if quote is None:
                         stats["errors"] += 1
                         continue
-<
+
 
                     
-                    # Create stock data record
-                    stock_data = StockData(
-                        symbol=quote["symbol"],
-                        timestamp=quote["timestamp"],
-                        open=quote["open"],
-                        high=quote["high"],
-                        low=quote["low"],
-                        close=quote["close"] or quote["last_price"],
-                        volume=quote["volume"],
-                        interval="5min",
-                        source="upstox"
+                    # Resolve symbol to instrument_id
+                    instrument_id = resolve_instrument_id(symbol)
+                    if not instrument_id:
+                        stats["errors"] += 1
+                        continue
+                        
+                    # Create stock candle record
+                    stock_data = StockCandle(
+                        instrument_id=instrument_id,
+                        candle_ts=quote["timestamp"],
+                        open=float(quote["open"]),
+                        high=float(quote["high"]),
+                        low=float(quote["low"]),
+                        close=float(quote["close"] or quote["last_price"]),
+                        volume=int(quote["volume"]),
+                        timeframe=5,  # 5min
                     )
                     
                     try:

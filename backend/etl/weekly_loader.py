@@ -19,8 +19,9 @@ import backend.models # Ensure User model is loaded for relationships
 
 
 from backend.database import AsyncSessionLocal
-from backend.models_alpha import StockData, ETLLog
+from backend.models_alpha import StockCandle, ETLLog
 from backend.services.upstox_client import get_upstox_client
+from backend.services.instrument_resolver import resolve_instrument_id
 from backend.config import settings
 
 TRACKER_PATH = Path(__file__).with_name("load_tracker.json")
@@ -86,18 +87,24 @@ class WeeklyLoader:
             if df.empty:
                 print(f"  No data for {symbol} {from_date.date()}–{to_date.date()}")
                 return 0
+            # Resolve symbol to instrument_id
+            instrument_id = resolve_instrument_id(symbol)
+            if not instrument_id:
+                print(f"  ✗ {symbol}: Failed to resolve instrument_id")
+                self.stats["errors"] += 1
+                return 0
+                
             inserted = 0
             for _, row in df.iterrows():
-                stock = StockData(
-                    symbol=row["symbol"],
-                    timestamp=row["timestamp"],
-                    open=row["open"],
-                    high=row["high"],
-                    low=row["low"],
-                    close=row["close"],
-                    volume=row["volume"],
-                    interval="1min",
-                    source="upstox",
+                stock = StockCandle(
+                    instrument_id=instrument_id,
+                    candle_ts=row["timestamp"],
+                    open=float(row["open"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                    close=float(row["close"]),
+                    volume=int(row["volume"]),
+                    timeframe=1,  # 1min
                 )
                 try:
                     session.add(stock)

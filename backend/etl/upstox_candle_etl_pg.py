@@ -7,9 +7,8 @@ FEATURES:
 - Idempotent inserts (ON CONFLICT DO NOTHING)
 - Auto-resume from last available data in database
 - Token from .env file
-- DUAL TABLE SUPPORT:
-  - Legacy: stock_candles (symbol, instrument_key, timeframe TEXT)
-  - New: stock_candle (instrument_id, timeframe SMALLINT, candle_ts)
+- Unified Table Support:
+  - Partitioned: stock_candle (instrument_id, timeframe SMALLINT, candle_ts)
 """
 
 import csv
@@ -74,8 +73,7 @@ HEADERS = {
 MAX_RETRIES = 5
 RATE_LIMIT_SLEEP = 0.7
 
-# Flag to control which table to write to
-USE_NEW_SCHEMA = True  # Set to True to use new stock_candle table
+
 
 # Interval config - includes tf_minutes for new schema
 INTERVALS = [
@@ -124,23 +122,6 @@ def init_db(conn):
     """Initialize database tables if they don't exist."""
     cur = conn.cursor()
 
-    # Create stock_candles table if not exists
-    # Schema matches models_alpha.py StockCandle model
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS stock_candles (
-            symbol TEXT NOT NULL,
-            instrument_key TEXT NOT NULL,
-            timeframe TEXT NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            open REAL,
-            high REAL,
-            low REAL,
-            close REAL,
-            volume REAL,
-            PRIMARY KEY (instrument_key, timeframe, timestamp)
-        )
-    """)
-
     # Create ingestion_checkpoint table for resume capability
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ingestion_checkpoint (
@@ -152,19 +133,8 @@ def init_db(conn):
         )
     """)
 
-    # Create indexes for faster lookups
-    cur.execute("""
-        CREATE INDEX IF NOT EXISTS idx_stock_candles_symbol_tf 
-        ON stock_candles(symbol, timeframe, timestamp DESC)
-    """)
-    
-    cur.execute("""
-        CREATE INDEX IF NOT EXISTS idx_stock_candles_instrument_tf 
-        ON stock_candles(instrument_key, timeframe, timestamp DESC)
-    """)
-
     conn.commit()
-    print("[INFO] Database tables initialized (stock_candles)")
+    print("[INFO] Database tables initialized (checkpoints)")
     return cur
 
 # ==========================
@@ -175,11 +145,8 @@ def get_last_data_date(cur, instrument_key, timeframe, instrument_id=None, tf_mi
     """
     Get the last available data date for an instrument+timeframe from the database.
     Returns None if no data exists.
-    
-    Checks new schema first (if instrument_id provided), falls back to legacy.
     """
-    # Try new schema first
-    if USE_NEW_SCHEMA and instrument_id and tf_minutes:
+    if instrument_id and tf_minutes:
         cur.execute("""
             SELECT MAX(candle_ts::date) 
             FROM stock_candle 
@@ -188,16 +155,6 @@ def get_last_data_date(cur, instrument_key, timeframe, instrument_id=None, tf_mi
         row = cur.fetchone()
         if row and row[0]:
             return row[0]
-    
-    # Fallback to legacy schema
-    cur.execute("""
-        SELECT MAX(timestamp::date) 
-        FROM stock_candles 
-        WHERE instrument_key = %s AND timeframe = %s
-    """, (instrument_key, timeframe))
-    row = cur.fetchone()
-    if row and row[0]:
-        return row[0]
     return None
 
 def check_data_freshness(cur, instrument_key, symbol, timeframe, instrument_id=None, tf_minutes=None):
@@ -291,6 +248,58 @@ def fetch_candles(instrument_key, unit, interval, from_date, to_date):
             time.sleep(wait)
 
     raise RuntimeError("Max retries exceeded")
+
+# ==========================
+# INTRADAY API (for today's data)
+# ==========================
+
+INTRADAY_BASE_URL = "https://api.upstox.com/v3/historical-candle/intraday"
+
+def fetch_intraday_candles(instrument_key, unit, interval):
+    """
+    Fetch today's candles from Upstox Intraday Candle V3 API.
+    
+    This endpoint returns candles for the CURRENT TRADING DAY only.
+    Unlike the historical endpoint, it doesn't require date parameters.
+    
+    Args:
+        instrument_key: e.g., "NSE_EQ|INE002A01018"
+        unit: "minutes", "hours", or "days"
+        interval: "1", "5", "15", "30" for minutes; "1" for hours/days
+    
+    Returns:
+        dict with 'data' -> 'candles' array
+    """
+    url = f"{INTRADAY_BASE_URL}/{instrument_key}/{unit}/{interval}"
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=30)
+            
+            if r.status_code == 429:
+                wait = 2 ** attempt
+                print(f"[WARN] Rate limited → retry in {wait}s")
+                time.sleep(wait)
+                continue
+                
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                print("[ERROR] Token expired! Please refresh UPSTOX_ACCESS_TOKEN in .env")
+                raise
+            if e.response.status_code == 400:
+                # Some instruments don't support intraday data
+                return {"data": {"candles": []}}
+            wait = 2 ** attempt
+            print(f"[WARN] {e} → retry in {wait}s")
+            time.sleep(wait)
+        except Exception as e:
+            wait = 2 ** attempt
+            print(f"[WARN] {e} → retry in {wait}s")
+            time.sleep(wait)
+
+    return {"data": {"candles": []}}  # Return empty on failure
 
 # ==========================
 # LOAD SYMBOLS FROM INSTRUMENT_MASTER
@@ -457,8 +466,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
     print(f"[INFO] Token length: {len(ACCESS_TOKEN)} chars")
     print(f"[INFO] Two weeks ago: {TWO_WEEKS_AGO}")
     print(f"[INFO] Today: {today}")
-    print(f"[INFO] New schema mode: {USE_NEW_SCHEMA}")
-    print(f"[INFO] Target table: {'stock_candle (new)' if USE_NEW_SCHEMA else 'stock_candles (legacy)'}\n")
+    print(f"[INFO] Target table: stock_candle\n")
 
     # Filter symbols if specified
     if symbols_filter:
@@ -480,17 +488,17 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
         print(f"Processing: {symbol}")
         print(f"Instrument: {instrument_key}")
         
-        # If instrument_id not in dict (legacy CSV mode), resolve it
-        if USE_NEW_SCHEMA and not instrument_id:
+        # instrument_id resolution
+        if not instrument_id:
             try:
                 instrument_id = resolve_by_instrument_key(instrument_key)
                 if instrument_id:
                     print(f"Resolved instrument_id: {instrument_id}")
                 else:
-                    print(f"[WARN] Could not resolve instrument_id, will use legacy table")
+                    print(f"[WARN] Could not resolve instrument_id for {symbol}")
             except Exception as resolve_error:
                 print(f"[WARN] instrument_id resolution failed: {resolve_error}")
-        elif instrument_id:
+        else:
             print(f"Using instrument_id: {instrument_id} (from instrument_master)")
         
         print(f"{'='*50}")
@@ -513,7 +521,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                     instrument_id=instrument_id, tf_minutes=tf_minutes
                 )
                 
-                if start_date >= today:
+                if start_date > today:
                     print(f"  [SKIP] Already up-to-date")
                     continue
 
@@ -543,8 +551,8 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                         # Insert into appropriate table based on schema mode
                         for c in candles:
                             try:
-                                if USE_NEW_SCHEMA and instrument_id:
-                                    # NEW SCHEMA: stock_candle with instrument_id
+                                if instrument_id:
+                                    # stock_candle with instrument_id
                                     cur.execute("""
                                         INSERT INTO stock_candle 
                                         (instrument_id, timeframe, candle_ts, open, high, low, close, volume)
@@ -561,23 +569,8 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                                         c[5],              # volume
                                     ))
                                 else:
-                                    # LEGACY SCHEMA: stock_candles with symbol
-                                    cur.execute("""
-                                        INSERT INTO stock_candles 
-                                        (symbol, instrument_key, timeframe, timestamp, open, high, low, close, volume)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                        ON CONFLICT (instrument_key, timeframe, timestamp) DO NOTHING
-                                    """, (
-                                        symbol,            # symbol (company name)
-                                        instrument_key,    # instrument_key (NSE_EQ|...)
-                                        db_timeframe,      # timeframe (1d, 1h, 5m, etc.)
-                                        c[0],              # timestamp
-                                        c[1],              # open
-                                        c[2],              # high
-                                        c[3],              # low
-                                        c[4],              # close
-                                        c[5],              # volume
-                                    ))
+                                    # Fallback for when ID resolution fails - log error but don't crash
+                                    errors.append(f"{symbol}: No instrument_id for insertion")
                             except Exception as insert_error:
                                 print(f"  [WARN] Insert error: {insert_error}")
 
@@ -594,6 +587,53 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                         continue
 
                 total_rows += window_rows
+                
+                # ========================================
+                # INTRADAY FETCH: Get today's candles
+                # ========================================
+                # The historical API doesn't return today's data.
+                # Use the Intraday API to fetch current day's candles.
+                try:
+                    intraday_data = fetch_intraday_candles(
+                        instrument_key,
+                        cfg["unit"],
+                        cfg["interval"]
+                    )
+                    
+                    intraday_candles = intraday_data.get("data", {}).get("candles", [])
+                    
+                    if intraday_candles:
+                        intraday_rows = 0
+                        for c in intraday_candles:
+                            try:
+                                if instrument_id:
+                                    cur.execute("""
+                                        INSERT INTO stock_candle 
+                                        (instrument_id, timeframe, candle_ts, open, high, low, close, volume)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                        ON CONFLICT (instrument_id, timeframe, candle_ts) DO NOTHING
+                                    """, (
+                                        instrument_id,
+                                        tf_minutes,
+                                        c[0],
+                                        c[1],
+                                        c[2],
+                                        c[3],
+                                        c[4],
+                                        c[5],
+                                    ))
+                                intraday_rows += 1
+                            except Exception as intraday_insert_err:
+                                pass  # Likely duplicate, ignore
+                        
+                        conn.commit()
+                        if intraday_rows > 0:
+                            print(f"  [INTRADAY] {symbol}/{tf}: {len(intraday_candles)} today's candles")
+                            total_rows += intraday_rows
+                            
+                except Exception as intraday_error:
+                    print(f"  [WARN] Intraday fetch failed: {intraday_error}")
+                
                 print(f"  [TOTAL] {symbol}/{tf}: {window_rows} rows inserted")
 
             except Exception as tf_error:

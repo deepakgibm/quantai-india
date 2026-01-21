@@ -21,8 +21,9 @@ project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 
 from database import AsyncSessionLocal
-from models_alpha import StockData, ETLLog
+from models_alpha import StockCandle, ETLLog
 from services.upstox_client import get_upstox_client
+from services.instrument_resolver import resolve_instrument_id
 from config import settings
 
 class HistoricalLoader:
@@ -53,20 +54,35 @@ class HistoricalLoader:
         session,
     ) -> int:
         """Fetch and store data for a single symbol"""
+        try:
+            # Resolve symbol to instrument_id
+            instrument_id = resolve_instrument_id(symbol)
+            if not instrument_id:
+                print(f"  ✗ {symbol}: Failed to resolve instrument_id")
+                self.stats["errors"] += 1
+                return 0
+                
+            df = await self.client.get_historical_data(
+                symbol, instrument_key, from_date, to_date, "1minute"
+            )
+            
+            if df is None or df.empty:
+                return 0
+
+            inserted_count = 0
             for _, row in df.iterrows():
-                stock_data = StockData(
-                    symbol=row["symbol"],
-                    timestamp=row["timestamp"],
-                    open=row["open"],
-                    high=row["high"],
-                    low=row["low"],
-                    close=row["close"],
-                    volume=row["volume"],
-                    interval="1min",
-                    source="upstox",
+                stock_candle = StockCandle(
+                    instrument_id=instrument_id,
+                    candle_ts=row["timestamp"],
+                    open=float(row["open"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                    close=float(row["close"]),
+                    volume=int(row["volume"]),
+                    timeframe=1,  # 1min
                 )
                 try:
-                    session.add(stock_data)
+                    session.add(stock_candle)
                     await session.flush()
                     inserted_count += 1
                 except IntegrityError:

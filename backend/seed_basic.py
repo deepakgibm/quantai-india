@@ -1,22 +1,42 @@
 from database import SessionLocal
-from sqlalchemy import text
+from models_alpha import StockCandle
+from services.instrument_resolver import resolve_instrument_id
 from datetime import datetime
 
 def seed():
     session = SessionLocal()
     try:
-        # Delete first to be safe
-        session.execute(text("DELETE FROM stock_candles WHERE symbol IN ('NIFTY 50', 'BANK NIFTY', 'INDIA VIX', 'SENSEX')"))
-        
         data = [
-            ('NIFTY 50', 'NSE_INDEX|Nifty 50', '25683.30'),
-            ('BANK NIFTY', 'NSE_INDEX|Nifty Bank', '59251.55'),
-            ('SENSEX', 'BSE_INDEX|SENSEX', '83576.0'),
-            ('INDIA VIX', 'NSE_INDEX|India VIX', '10.93')
+            ('NIFTY 50', '25683.30'),
+            ('BANK NIFTY', '59251.55'),
+            ('SENSEX', '83576.0'),
+            ('INDIA VIX', '10.93')
         ]
         
-        for sym, key, price in data:
-            session.execute(text(f"INSERT INTO stock_candles (symbol, instrument_key, timeframe, timestamp, close, open, high, low, volume) VALUES ('{sym}', '{key}', '1d', NOW(), {price}, {price}, {price}, {price}, 0)"))
+        for symbol, price in data:
+            instrument_id = resolve_instrument_id(symbol)
+            if not instrument_id:
+                print(f"Skipping {symbol}: could not resolve instrument_id")
+                continue
+                
+            # Delete existing for today/symbol
+            session.query(StockCandle).filter(
+                StockCandle.instrument_id == instrument_id,
+                StockCandle.timeframe == 1440,
+                StockCandle.candle_ts >= datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            ).delete()
+            
+            candle = StockCandle(
+                instrument_id=instrument_id,
+                timeframe=1440,
+                candle_ts=datetime.now(),
+                open=float(price),
+                high=float(price),
+                low=float(price),
+                close=float(price),
+                volume=0
+            )
+            session.add(candle)
             
         session.commit()
         print("Success")

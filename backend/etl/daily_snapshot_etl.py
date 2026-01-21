@@ -646,7 +646,7 @@ class DailySnapshotETL:
     def sync_official_prices_to_system(self, trade_date: date, quotes: List[Dict]) -> int:
         """
         Sync official exchange-validated prices to the primary system.
-        1. Updates stock_candles table (PostgreSQL) for timeframe='1d'
+        1. Updates stock_candle table (PostgreSQL) for timeframe=1440
         2. Updates Dragonfly cache (qai:snap:all) with official EOD state
         """
         session = self.Session()
@@ -696,7 +696,7 @@ class DailySnapshotETL:
                 if symbol == "MINDACORP":
                     logger.info(f"DEBUG: Syncing MINDACORP - Close: {close_price}, Prev Close: {prev_close}, ID: {inst_id}")
                 
-                # A. Update/Upsert stock_candle table (NEW SCHEMA)
+                # A. Update/Upsert stock_candle table
                 # timeframe = 1440 for daily
                 session.execute(
                     text("""
@@ -706,28 +706,6 @@ class DailySnapshotETL:
                         DO UPDATE SET close = EXCLUDED.close, volume = EXCLUDED.volume
                     """),
                     {"iid": inst_id, "ts": timestamp, "close": close_price, "vol": volume}
-                )
-
-                # A.1 Update/Upsert legacy stock_candles table (for backward compatibility during transition)
-                session.execute(
-                    text("""
-                        INSERT INTO stock_candles (symbol, instrument_key, timeframe, timestamp, open, high, low, close, volume)
-                        VALUES (:symbol, :inst, '1d', :ts, :close, :close, :close, :close, :vol)
-                        ON CONFLICT (instrument_key, timeframe, timestamp) 
-                        DO UPDATE SET close = EXCLUDED.close, volume = EXCLUDED.volume
-                    """),
-                    {"symbol": symbol, "inst": instrument_key, "ts": timestamp, "close": close_price, "vol": volume}
-                )
-                
-                # A.2 Update/Upsert legacy nifty100_daily table (for backward compatibility)
-                session.execute(
-                    text("""
-                        INSERT INTO nifty100_daily (symbol, timestamp, open, high, low, close, volume, source)
-                        VALUES (:symbol, :ts, :close, :close, :close, :close, :vol, 'official_etl')
-                        ON CONFLICT (symbol, timestamp)
-                        DO UPDATE SET close = EXCLUDED.close, volume = EXCLUDED.volume
-                    """),
-                    {"symbol": symbol, "ts": timestamp, "close": close_price, "vol": volume}
                 )
                 
                 # B. Update/Reconstruct Snapshot for Cache

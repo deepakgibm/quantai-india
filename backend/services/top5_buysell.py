@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings
+from models_alpha import StockCandle, InstrumentMaster
+from services.instrument_resolver import resolve_instrument_id
 
 
 class Top5BuySellEngine:
@@ -34,19 +36,24 @@ class Top5BuySellEngine:
             from models import StockCandle
             session = self._Session()
             try:
+                # Resolve symbol to instrument_id
+                instrument_id = resolve_instrument_id(symbol)
+                if not instrument_id:
+                    return None
+                    
                 cutoff_date = datetime.now() - timedelta(days=days)
-                # Filter by symbol and timeframe='1d'
+                # Filter by instrument_id and timeframe=1440 (1d)
                 results = session.query(StockCandle).filter(
-                    StockCandle.symbol == symbol,
-                    StockCandle.timeframe == '1d',
-                    StockCandle.timestamp >= cutoff_date
-                ).order_by(StockCandle.timestamp.asc()).all()
+                    StockCandle.instrument_id == instrument_id,
+                    StockCandle.timeframe == 1440,
+                    StockCandle.candle_ts >= cutoff_date
+                ).order_by(StockCandle.candle_ts.asc()).all()
                 
                 if not results or len(results) < 30:
                     return None
                 
                 data = [{
-                    'timestamp': r.timestamp, 'open': float(r.open),
+                    'timestamp': r.candle_ts, 'open': float(r.open),
                     'high': float(r.high), 'low': float(r.low),
                     'close': float(r.close), 'volume': int(r.volume)
                 } for r in results]
@@ -230,16 +237,19 @@ class Top5BuySellEngine:
                 # Single bulk query for ALL symbols - last 100 days
                 cutoff_date = datetime.now() - timedelta(days=100)
                 query = session.query(
-                    StockCandle.symbol,
-                    StockCandle.timestamp,
+                    InstrumentMaster.symbol,
+                    StockCandle.candle_ts.label('timestamp'),
                     StockCandle.open,
                     StockCandle.high,
                     StockCandle.low,
                     StockCandle.close,
                     StockCandle.volume
+                ).join(
+                    InstrumentMaster, 
+                    StockCandle.instrument_id == InstrumentMaster.instrument_id
                 ).filter(
-                    StockCandle.timeframe == '1d',
-                    StockCandle.timestamp >= cutoff_date
+                    StockCandle.timeframe == 1440,
+                    StockCandle.candle_ts >= cutoff_date
                 ).statement
                 
                 df = pd.read_sql(query, session.bind)

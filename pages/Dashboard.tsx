@@ -4,6 +4,7 @@ import { Page, Stock, AlgoConfig } from '../types';
 import { Zap, X, Loader2, Play } from 'lucide-react';
 
 import { api } from '../services/api';
+import { PriceWithSource } from '../components/PriceSourceBadge';
 import TopMoversCard from '../components/TopMoversCard';
 
 interface DashboardProps {

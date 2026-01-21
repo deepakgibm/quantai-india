@@ -22,12 +22,6 @@ def check_status():
         except Exception as e:
             print(f"stock_candle: Error ({e})")
             conn.rollback()
-            
-        try:
-            cur.execute("SELECT count(*) FROM stock_candles")
-            print(f"stock_candles (Legacy Table): {cur.fetchone()[0]}")
-        except Exception:
-            conn.rollback()
 
         # 2. Check Recent Checkpoints
         print("\n--- Latest 10 Updates (ingestion_checkpoint) ---")
