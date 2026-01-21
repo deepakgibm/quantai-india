@@ -19,6 +19,7 @@ from services.market_data_orchestrator import (
     DataSource
 )
 from services.rest_data_fetcher import MomentumTick, calculate_bucket
+from services.db_data_fetcher import get_db_data_fetcher
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,18 @@ class RealTimeScannerEngine:
         await self.orchestrator.start()
         self._is_initialized = True
         
+        # Hydrate indices from DB immediately
+        try:
+            db_fetcher = get_db_data_fetcher()
+            indices = await asyncio.to_thread(db_fetcher.fetch_indices_snapshots)
+            if indices:
+                for idx in indices:
+                    logger.info(f"Hydrating index {idx['name']} from DB: {idx['value']}")
+                    self.index_state[idx['name']] = idx
+        except Exception as e:
+            logger.error(f"Failed to hydrate indices from DB: {e}")
+
+        
     def _on_tick(self, tick_data: Dict):
         """Process incoming tick from orchestrator."""
         try:
@@ -76,15 +89,16 @@ class RealTimeScannerEngine:
             # Update NIFTY 50 data for correlation
             if symbol in ["NIFTY_50", "NIFTY 50", "BANK NIFTY", "INDIA VIX"]:
                 clean_symbol = symbol.replace("_", " ")
-                self.index_state[clean_symbol] = {
-                    "name": clean_symbol,
-                    "value": tick_data.get("ltp", 0),
-                    "change": round(tick_data.get("ltp", 0) - tick_data.get("prev_close", 0), 2),
-                    "percent": tick_data.get("change_pct", 0)
-                }
+                if tick_data.get("ltp", 0) > 0:
+                    self.index_state[clean_symbol] = {
+                        "name": clean_symbol,
+                        "value": tick_data.get("ltp", 0),
+                        "change": round(tick_data.get("ltp", 0) - tick_data.get("prev_close", 0), 2),
+                        "percent": tick_data.get("change_pct", 0)
+                    }
                 
-                if symbol in ["NIFTY_50", "NIFTY 50"]:
-                    self._update_nifty_data(tick_data.get("ltp", 0))
+                    if symbol in ["NIFTY_50", "NIFTY 50"]:
+                        self._update_nifty_data(tick_data.get("ltp", 0))
                 return
                 
             # Map percent-based bucket to legacy bucket

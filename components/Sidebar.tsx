@@ -40,12 +40,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, onLogout, dar
     { page: Page.WALK_FORWARD_BACKTEST, icon: TrendingUp, label: 'Walk-Forward' },
     { page: Page.EXPERIMENT_LAB, icon: FlaskConical, label: 'Experiment Lab' },
     { page: Page.PRICE_FORECAST, icon: TrendingUp, label: 'AI Forecast' },
-    { page: Page.AUDIT_REPORTS, icon: Database, label: 'Audit & Reports' },
-    { page: Page.LIVE_MONITOR, icon: Activity, label: 'Live Monitor' },
-    { page: Page.ALGO_BUILDER, icon: Zap, label: 'Algo Builder' },
-    { page: Page.RISK_MANAGER, icon: ShieldAlert, label: 'Risk Manager' },
-    { page: Page.ETL_STATUS, icon: Database, label: 'System Status' },
-    { page: Page.SETTINGS, icon: Settings, label: 'Settings' },
+    // { page: Page.ALGO_BUILDER, icon: Zap, label: 'Algo Builder' },
+    // Hidden Pages (Moved to Tech Debt)
+    // { page: Page.AUDIT_REPORTS, icon: Database, label: 'Audit & Reports' },
+    // { page: Page.LIVE_MONITOR, icon: Activity, label: 'Live Monitor' },
+    // { page: Page.RISK_MANAGER, icon: ShieldAlert, label: 'Risk Manager' },
+    // { page: Page.ETL_STATUS, icon: Database, label: 'System Status' },
+    // { page: Page.SETTINGS, icon: Settings, label: 'Settings' },
   ];
 
   return (

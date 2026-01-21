@@ -314,7 +314,7 @@ def load_symbols_from_db(conn):
         FROM instrument_master
         WHERE is_active = TRUE 
           AND exchange = 'NSE' 
-          AND series = 'EQ'
+          AND series IN ('EQ', 'INDEX')
         ORDER BY symbol
     """)
     
@@ -366,7 +366,7 @@ def find_missing_symbols(conn, tf_minutes: int = 1440):
         ) sc ON im.instrument_id = sc.instrument_id
         WHERE im.is_active = TRUE 
           AND im.exchange = 'NSE' 
-          AND im.series = 'EQ'
+          AND im.series IN ('EQ', 'INDEX')
           AND sc.instrument_id IS NULL
         ORDER BY im.symbol
     """, (tf_minutes,))
@@ -409,7 +409,7 @@ def find_stale_symbols(conn, tf_minutes: int = 1440, days_threshold: int = 14):
         JOIN stock_candle sc ON im.instrument_id = sc.instrument_id
         WHERE im.is_active = TRUE 
           AND im.exchange = 'NSE' 
-          AND im.series = 'EQ'
+          AND im.series IN ('EQ', 'INDEX')
           AND sc.timeframe = %s
         GROUP BY im.symbol, im.instrument_key, im.instrument_id
         HAVING MAX(sc.candle_ts) < %s

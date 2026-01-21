@@ -180,10 +180,14 @@ async def _fetch_market_indices_internal():
     2. Upstox REST API (get_live_quotes)
     3. yFinance (via market_fallback)
     4. Database fallback
+    
+    Refactored to accumulate results rather than returning early on partial data.
     """
     from services.upstox_client import get_upstox_client
     from utils.market_fallback import fetch_live_indices_yfinance
     from services.market_data_orchestrator import get_market_data_orchestrator
+    from database import AsyncSessionLocal
+    from sqlalchemy import text
     
     INDEX_MAPPINGS = [
         ("NIFTY 50", "NSE_INDEX|Nifty 50"),
@@ -191,78 +195,111 @@ async def _fetch_market_indices_internal():
         ("INDIA VIX", "NSE_INDEX|India VIX"),
     ]
     
-    result = []
-    
+    # Map to store results by index name to ensure uniqueness and merge sources
+    # initializing with None to track what we need
+    results_map = {} 
+    needed_names = [name for name, _ in INDEX_MAPPINGS]
+
+    # Helper to check if we have all data
+    def have_all_data():
+        return all(name in results_map for name in needed_names)
+
     # 1. Try Orchestrator Cache
     try:
         orchestrator = get_market_data_orchestrator()
         cached_data = orchestrator.get_all_data()
         if cached_data:
             for name, _ in INDEX_MAPPINGS:
+                if name in results_map: continue
+                
                 for item in cached_data:
                     if item.get("symbol") == name:
-                        result.append({
+                        results_map[name] = {
                             "name": name,
                             "value": round(item.get("ltp", 0), 2),
                             "change": round(item.get("change_pct", 0), 2),
                             "percent": round(item.get("change_pct", 0), 2),
                             "source": f"cache:{item.get('source', 'unknown')}"
-                        })
+                        }
                         break
-            if result: return result
-    except: pass
+    except Exception as e:
+        logger.warning(f"Orchestrator cache fetch failed: {e}")
 
-    # 2. Try Upstox REST API
+    if have_all_data(): return list(results_map.values())
+
+    # 2. Try Upstox REST API for missing items
     try:
-        client = get_upstox_client()
-        keys = [m[1] for m in INDEX_MAPPINGS]
-        quotes = await client.get_live_quotes(keys)
+        # Identify missing keys
+        missing_keys = [key for name, key in INDEX_MAPPINGS if name not in results_map]
         
-        for name, key in INDEX_MAPPINGS:
-            quote = quotes.get(key)
-            if quote:
-                result.append({
-                    "name": name,
-                    "value": round(quote['last_price'], 2),
-                    "change": round(quote.get('net_change', 0), 2),
-                    "percent": round(quote.get('change_percent', 0), 2),
-                    "source": "upstox_rest"
-                })
-        if result: return result
-    except: pass
+        if missing_keys:
+            client = get_upstox_client()
+            quotes = await client.get_live_quotes(missing_keys)
+            
+            for name, key in INDEX_MAPPINGS:
+                if name in results_map: continue
+                
+                quote = quotes.get(key)
+                if quote:
+                    results_map[name] = {
+                        "name": name,
+                        "value": round(quote['last_price'], 2),
+                        "change": round(quote.get('net_change', 0), 2),
+                        "percent": round(quote.get('change_percent', 0), 2),
+                        "source": "upstox_rest"
+                    }
+    except Exception as e:
+        logger.warning(f"Upstox REST fetch failed: {e}")
+
+    if have_all_data(): return list(results_map.values())
 
     # 3. Try yFinance (Standardized Fallback)
     try:
-        yf_indices = await fetch_live_indices_yfinance()
-        if yf_indices:
-            return yf_indices
-    except: pass
+        if not have_all_data():
+            yf_indices = await fetch_live_indices_yfinance()
+            if yf_indices:
+                for item in yf_indices:
+                    name = item.get("name")
+                    if name in needed_names and name not in results_map:
+                        results_map[name] = item
+    except Exception as e:
+        logger.warning(f"yFinance fetch failed: {e}")
+    
+    if have_all_data(): return list(results_map.values())
     
     # 4. Final Database Fallback
     try:
-        from database import AsyncSessionLocal
-        from sqlalchemy import text
-        async with AsyncSessionLocal() as session:
-            for name, _ in INDEX_MAPPINGS:
-                # Use stock_candle table with new schema
-                query = text("""
-                    SELECT sc.close, sc.candle_ts 
-                    FROM stock_candle sc
-                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-                    WHERE im.symbol = :symbol AND sc.timeframe = 1440
-                    ORDER BY sc.candle_ts DESC LIMIT 1
-                """)
-                res = await session.execute(query, {"symbol": name})
-                row = res.first()
-                if row:
-                    result.append({
-                        "name": name, "value": round(float(row[0]), 2), "change": 0, "percent": 0,
-                        "source": "database", "stale": True
-                    })
-        return result
-    except: pass
+        missing_names = [name for name in needed_names if name not in results_map]
+        if missing_names:
+            async with AsyncSessionLocal() as session:
+                for name in missing_names:
+                    try:
+                        # Use stock_candle table with new schema
+                        query = text("""
+                            SELECT sc.close, sc.candle_ts 
+                            FROM stock_candle sc
+                            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                            WHERE im.symbol = :symbol AND sc.timeframe = 1440
+                            ORDER BY sc.candle_ts DESC LIMIT 1
+                        """)
+                        res = await session.execute(query, {"symbol": name})
+                        row = res.first()
+                        if row:
+                            results_map[name] = {
+                                "name": name, 
+                                "value": round(float(row[0]), 2), 
+                                "change": 0, 
+                                "percent": 0,
+                                "source": "database", 
+                                "stale": True,
+                                "timestamp": row[1].isoformat() if row[1] else None
+                            }
+                    except Exception as inner_e:
+                        logger.error(f"DB lookup failed for {name}: {inner_e}")
+    except Exception as e:
+        logger.error(f"Database fallback failed: {e}")
     
-    return None
+    return list(results_map.values())
 
 @router.get("/top-gainers", response_model=List[TopMover])
 async def get_top_gainers(current_user: User = Depends(get_current_user)):

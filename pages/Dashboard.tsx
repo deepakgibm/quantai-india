@@ -42,11 +42,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
          try {
             const response = await api.getMarketIndices();
             if (response && isSubscribed && Array.isArray(response)) {
-               // Only update if we got valid data with actual values
-               const hasData = response.some((idx: any) => idx.value && idx.value > 0);
-               if (hasData) {
-                  setIndices(response);
-               }
+               // Improved merging logic: Only update if we have valid data, 
+               // and merge with existing state to prevent flickering
+               setIndices(prev => {
+                  return response.map((newIdx: any) => {
+                     const existing = prev.find(p => p.name === newIdx.name);
+                     // If new value is 0 or null, keep existing value to prevent disappearance
+                     if (!newIdx.value || newIdx.value === 0) {
+                        return existing || newIdx;
+                     }
+                     return newIdx;
+                  });
+               });
             }
          } catch (e) {
             console.error('Failed to poll indices:', e);
@@ -72,11 +79,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                try {
                   const message = JSON.parse(event.data);
                   // Only update if WS sends valid indices data
+                  // Improved merging logic for WebSocket updates
                   if (message.indices && Array.isArray(message.indices) && isSubscribed) {
-                     const hasData = message.indices.some((idx: any) => idx.value && idx.value > 0);
-                     if (hasData) {
-                        setIndices(message.indices);
-                     }
+                     setIndices(prev => {
+                        return message.indices.map((newIdx: any) => {
+                           const existing = prev.find(p => p.name === newIdx.name);
+                           // If new value is 0/null/undefined, preserve existing valid value
+                           if (!newIdx.value || newIdx.value === 0) {
+                              return existing || newIdx;
+                           }
+                           return newIdx;
+                        });
+                     });
                   }
                } catch (e) {
                   // Silently ignore parse errors - REST will handle data
@@ -345,10 +359,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                      {algorithms.filter(a => a.active).length} Active
                   </span>
                </div>
-               <button onClick={() => onNavigate(Page.ALGO_BUILDER)} className="text-brand-600 text-sm font-medium hover:underline">
-                  Manage All
-               </button>
+
             </div>
+
 
             {/* 3-Column Responsive Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -497,128 +510,130 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
 
          {/* AI Scanner Modal */}
-         {showScanModal && currentScan && (
+         {
+            showScanModal && currentScan && (
 
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-               <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
-                  <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700">
-                     <div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">{currentScan.name}</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{scanResults?.description || 'Scanning...'}</p>
+               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+                     <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700">
+                        <div>
+                           <h2 className="text-xl font-bold text-slate-900 dark:text-white">{currentScan.name}</h2>
+                           <p className="text-sm text-slate-500 dark:text-slate-400">{scanResults?.description || 'Scanning...'}</p>
+                        </div>
+                        <button onClick={handleCloseModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                           <X size={20} className="text-slate-500" />
+                        </button>
                      </div>
-                     <button onClick={handleCloseModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-                        <X size={20} className="text-slate-500" />
-                     </button>
-                  </div>
 
-                  <div className="p-6 overflow-y-auto max-h-[60vh]">
-                     {scanLoading && (
-                        <div className="flex flex-col items-center justify-center py-12">
-                           <Loader2 size={40} className="text-brand-500 animate-spin mb-4" />
-                           <p className="text-slate-500">Running {currentScan.name}...</p>
-                        </div>
-                     )}
+                     <div className="p-6 overflow-y-auto max-h-[60vh]">
+                        {scanLoading && (
+                           <div className="flex flex-col items-center justify-center py-12">
+                              <Loader2 size={40} className="text-brand-500 animate-spin mb-4" />
+                              <p className="text-slate-500">Running {currentScan.name}...</p>
+                           </div>
+                        )}
 
-                     {scanError && (
-                        <div className="text-center py-8">
-                           <p className="text-red-500 mb-4">{scanError}</p>
-                           <button onClick={() => currentScan && handleAlgorithmClick(algorithms.find(a => a.name === currentScan.name) || algorithms[0])}
-                              className="px-4 py-2 bg-brand-500 text-white rounded-lg">Retry</button>
-                        </div>
-                     )}
+                        {scanError && (
+                           <div className="text-center py-8">
+                              <p className="text-red-500 mb-4">{scanError}</p>
+                              <button onClick={() => currentScan && handleAlgorithmClick(algorithms.find(a => a.name === currentScan.name) || algorithms[0])}
+                                 className="px-4 py-2 bg-brand-500 text-white rounded-lg">Retry</button>
+                           </div>
+                        )}
 
-                     {scanResults && !scanLoading && (
-                        <div className="space-y-4">
-                           {scanResults.stocks?.map((stock: any, idx: number) => (
-                              <div key={idx} className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                                 <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                       <h3 className="font-bold text-lg text-slate-900 dark:text-white">{stock.symbol}</h3>
-                                       <p className="text-sm text-slate-500">{stock.name}</p>
-                                    </div>
-                                    {/* Dynamic badge based on scan type */}
-                                    {stock.trend && (
-                                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${stock.trend === 'BULLISH' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                          {stock.trend === 'BULLISH' ? '↑' : '↓'} {stock.trend}
-                                       </span>
-                                    )}
-                                    {stock.action && (
-                                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${stock.action === 'BUY' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                          {stock.action}
-                                       </span>
-                                    )}
-                                    {stock.breakout_type && (
-                                       <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-600">
-                                          {stock.breakout_type}
-                                       </span>
-                                    )}
-                                    {stock.earnings_result && (
-                                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${stock.earnings_result === 'BEAT' ? 'bg-green-100 text-green-600' : stock.earnings_result === 'MISS' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                                          {stock.earnings_result}
-                                       </span>
-                                    )}
-                                 </div>
-
-                                 {/* Strength/Confidence bar */}
-                                 {(stock.strength || stock.confidence) && (
-                                    <div className="mb-3">
-                                       <div className="flex justify-between text-xs text-slate-500 mb-1">
-                                          <span>{stock.strength ? 'Strength' : 'Confidence'}</span>
-                                          <span>{stock.strength || stock.confidence}%</span>
+                        {scanResults && !scanLoading && (
+                           <div className="space-y-4">
+                              {scanResults.stocks?.map((stock: any, idx: number) => (
+                                 <div key={idx} className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                                    <div className="flex justify-between items-start mb-3">
+                                       <div>
+                                          <h3 className="font-bold text-lg text-slate-900 dark:text-white">{stock.symbol}</h3>
+                                          <p className="text-sm text-slate-500">{stock.name}</p>
                                        </div>
-                                       <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
-                                          <div className={`h-full rounded-full ${(stock.strength || stock.confidence) >= 70 ? 'bg-green-500' : (stock.strength || stock.confidence) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                             style={{ width: `${stock.strength || stock.confidence}%` }} />
+                                       {/* Dynamic badge based on scan type */}
+                                       {stock.trend && (
+                                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${stock.trend === 'BULLISH' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                             {stock.trend === 'BULLISH' ? '↑' : '↓'} {stock.trend}
+                                          </span>
+                                       )}
+                                       {stock.action && (
+                                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${stock.action === 'BUY' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                             {stock.action}
+                                          </span>
+                                       )}
+                                       {stock.breakout_type && (
+                                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-600">
+                                             {stock.breakout_type}
+                                          </span>
+                                       )}
+                                       {stock.earnings_result && (
+                                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${stock.earnings_result === 'BEAT' ? 'bg-green-100 text-green-600' : stock.earnings_result === 'MISS' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                                             {stock.earnings_result}
+                                          </span>
+                                       )}
+                                    </div>
+
+                                    {/* Strength/Confidence bar */}
+                                    {(stock.strength || stock.confidence) && (
+                                       <div className="mb-3">
+                                          <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                             <span>{stock.strength ? 'Strength' : 'Confidence'}</span>
+                                             <span>{stock.strength || stock.confidence}%</span>
+                                          </div>
+                                          <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+                                             <div className={`h-full rounded-full ${(stock.strength || stock.confidence) >= 70 ? 'bg-green-500' : (stock.strength || stock.confidence) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                style={{ width: `${stock.strength || stock.confidence}%` }} />
+                                          </div>
+                                       </div>
+                                    )}
+
+                                    {/* Volume ratio for breakouts */}
+                                    {stock.volume_ratio && (
+                                       <div className="mb-3 flex items-center gap-2">
+                                          <span className="text-xs text-slate-500">Volume:</span>
+                                          <span className="text-sm font-bold text-blue-600">{stock.volume_ratio}x avg</span>
+                                       </div>
+                                    )}
+
+                                    {/* Price levels grid */}
+                                    <div className="grid grid-cols-4 gap-2 text-center mb-3">
+                                       <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
+                                          <p className="text-xs text-slate-400">Current</p>
+                                          <p className="font-bold text-slate-900 dark:text-white">₹{stock.current_price?.toLocaleString()}</p>
+                                       </div>
+                                       <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
+                                          <p className="text-xs text-slate-400">{stock.entry_range ? 'Entry Range' : stock.breakout_level ? 'Breakout' : 'Entry'}</p>
+                                          <p className="font-bold text-blue-600">{stock.entry_range || `₹${(stock.entry_price || stock.breakout_level)?.toLocaleString()}`}</p>
+                                       </div>
+                                       <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
+                                          <p className="text-xs text-slate-400">{stock.target_1 ? 'Target 1' : 'Target'}</p>
+                                          <p className="font-bold text-green-600">₹{(stock.target_1 || stock.target_price)?.toLocaleString()}</p>
+                                       </div>
+                                       <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
+                                          <p className="text-xs text-slate-400">Stop Loss</p>
+                                          <p className="font-bold text-red-600">₹{stock.stop_loss?.toLocaleString()}</p>
                                        </div>
                                     </div>
-                                 )}
 
-                                 {/* Volume ratio for breakouts */}
-                                 {stock.volume_ratio && (
-                                    <div className="mb-3 flex items-center gap-2">
-                                       <span className="text-xs text-slate-500">Volume:</span>
-                                       <span className="text-sm font-bold text-blue-600">{stock.volume_ratio}x avg</span>
-                                    </div>
-                                 )}
+                                    {/* Extra info for specific scan types */}
+                                    {stock.expected_move && (
+                                       <p className="text-sm text-green-600 font-bold mb-2">Expected Move: {stock.expected_move}</p>
+                                    )}
+                                    {stock.earnings_surprise && (
+                                       <p className="text-sm text-blue-600 font-bold mb-2">Earnings Surprise: {stock.earnings_surprise}</p>
+                                    )}
 
-                                 {/* Price levels grid */}
-                                 <div className="grid grid-cols-4 gap-2 text-center mb-3">
-                                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
-                                       <p className="text-xs text-slate-400">Current</p>
-                                       <p className="font-bold text-slate-900 dark:text-white">₹{stock.current_price?.toLocaleString()}</p>
-                                    </div>
-                                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
-                                       <p className="text-xs text-slate-400">{stock.entry_range ? 'Entry Range' : stock.breakout_level ? 'Breakout' : 'Entry'}</p>
-                                       <p className="font-bold text-blue-600">{stock.entry_range || `₹${(stock.entry_price || stock.breakout_level)?.toLocaleString()}`}</p>
-                                    </div>
-                                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
-                                       <p className="text-xs text-slate-400">{stock.target_1 ? 'Target 1' : 'Target'}</p>
-                                       <p className="font-bold text-green-600">₹{(stock.target_1 || stock.target_price)?.toLocaleString()}</p>
-                                    </div>
-                                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg">
-                                       <p className="text-xs text-slate-400">Stop Loss</p>
-                                       <p className="font-bold text-red-600">₹{stock.stop_loss?.toLocaleString()}</p>
-                                    </div>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 italic">"{stock.reason}"</p>
                                  </div>
-
-                                 {/* Extra info for specific scan types */}
-                                 {stock.expected_move && (
-                                    <p className="text-sm text-green-600 font-bold mb-2">Expected Move: {stock.expected_move}</p>
-                                 )}
-                                 {stock.earnings_surprise && (
-                                    <p className="text-sm text-blue-600 font-bold mb-2">Earnings Surprise: {stock.earnings_surprise}</p>
-                                 )}
-
-                                 <p className="text-sm text-slate-600 dark:text-slate-400 italic">"{stock.reason}"</p>
-                              </div>
-                           ))}
-                        </div>
-                     )}
+                              ))}
+                           </div>
+                        )}
+                     </div>
                   </div>
                </div>
-            </div>
-         )}
-      </div>
+            )
+         }
+      </div >
    );
 
 };

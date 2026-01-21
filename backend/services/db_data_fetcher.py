@@ -331,6 +331,56 @@ class DatabaseDataFetcher:
             conn.close()
 
 
+    def fetch_indices_snapshots(self) -> List[Dict]:
+        """Fetch latest index snapshots from DB."""
+        conn = self._get_connection()
+        if not conn:
+            return []
+            
+        try:
+            cursor = conn.cursor()
+            # Fetch latest daily candle for indices
+            # Using window function to get latest per symbol
+            cursor.execute("""
+                WITH LatestCandles AS (
+                    SELECT 
+                        im.symbol, 
+                        sc.close, 
+                        sc.open,
+                        sc.candle_ts,
+                        ROW_NUMBER() OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts DESC) as rn
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol IN ('NIFTY 50', 'BANK NIFTY', 'INDIA VIX')
+                    AND sc.timeframe = 1440
+                )
+                SELECT symbol, close, open, candle_ts 
+                FROM LatestCandles 
+                WHERE rn = 1
+            """)
+            
+            rows = cursor.fetchall()
+            snapshots = []
+            for row in rows:
+                name = row[0]
+                close = float(row[1])
+                open_price = float(row[2])
+                change = close - open_price
+                percent = (change / open_price * 100) if open_price > 0 else 0
+                
+                snapshots.append({
+                    "name": name,
+                    "value": round(close, 2),
+                    "change": round(change, 2),
+                    "percent": round(percent, 2)
+                })
+            return snapshots
+        except Exception as e:
+            logger.error(f"Error fetching indices snapshots: {e}")
+            return []
+        finally:
+            conn.close()
+
 # Singleton instance
 _db_data_fetcher = None
 
