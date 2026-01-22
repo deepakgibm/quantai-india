@@ -211,6 +211,18 @@ class UpstoxClient:
                     if not change_pct and prev_close and prev_close > 0:
                         change_pct = ((ltp - prev_close) / prev_close) * 100
                     
+                    # Fallback: Calculate from net_change if percent is missing
+                    if (not change_pct or change_pct == 0) and net_change and ltp:
+                        try:
+                            nc = float(net_change)
+                            lp = float(ltp)
+                            if nc != 0 and lp != 0:
+                                implied_prev = lp - nc
+                                if implied_prev > 0:
+                                    change_pct = (nc / implied_prev) * 100
+                        except Exception:
+                            pass
+                    
                     results[final_key] = {
                         "timestamp": datetime.now(),
                         "open": quote_data.get("ohlc", {}).get("open"),

@@ -248,6 +248,13 @@ async def _fetch_market_indices_internal():
                         "percent": round(quote.get('change_percent', 0), 2),
                         "source": "upstox_rest"
                     }
+                    
+                    # Double check percentage
+                    if results_map[name]["percent"] == 0 and results_map[name]["change"] != 0:
+                        val = results_map[name]["value"]
+                        chg = results_map[name]["change"]
+                        if val != 0 and val != chg:
+                             results_map[name]["percent"] = round((chg / (val - chg)) * 100, 2)
     except Exception as e:
         logger.warning(f"Upstox REST fetch failed: {e}")
 

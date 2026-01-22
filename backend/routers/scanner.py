@@ -305,463 +305,49 @@ async def delete_preset(
 async def get_momentum_data(current_user: User = Depends(get_current_user)):
     """
     REST endpoint for momentum data.
-    
-    During market hours: Returns live HP scanner data
-    After market hours: Returns cached EOD snapshot
+    Delegates to ScannerEngine.
     """
-    from utils.market_state import is_market_open, get_trading_date
-    from services.dragonfly_client import get_cache
+    if not _scanner_available or scanner is None:
+        raise HTTPException(status_code=503, detail="Scanner engine not available")
     
-    # Check if market is closed - return snapshot
-    if not is_market_open():
-        cache = get_cache()
-        date_str = get_trading_date().strftime("%Y-%m-%d")
-        snapshot = cache.get(f"snapshot:scanner_momentum:{date_str}")
-        
-        if snapshot and snapshot.get("data"):
-            logger.info(f"Momentum: returning EOD snapshot ({date_str})")
-            return {
-                "type": "bucket_update",
-                "timestamp": datetime.now().isoformat(),
-                "data": snapshot["data"],
-                "status": {
-                    "source": "EOD_SNAPSHOT",
-                    "is_healthy": True,
-                    "stock_count": len(snapshot["data"]),
-                    "trade_date": date_str,
-                    "market_status": "CLOSED"
-                }
-            }
-    
-    # Market is open - use live data
-    # 1. Check Route Cache
-    cached = get_cached_scanner_data("momentum")
-    if cached:
-        # Enrich cached stocks with live prices
-        try:
-            if isinstance(cached, dict) and "data" in cached and cached["data"]:
-                access_token = settings.UPSTOX_ACCESS_TOKEN
-                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
-        except Exception as e:
-            logger.error(f"momentum: Failed to enrich cached results: {e}")
-        return cached
-
-    from services.cache import get_cache_manager
-    
-    # 2. Check HP Engine Cache (Fastest)
-    cache = get_cache_manager()
-    cache_key = "quantai:momentum_data"
-    # ... existing cache logic ...
-    
-    # Fast path: Try HP scanner snapshots (in-memory, <50ms)
-    try:
-        from engine.scanner_service import get_scanner_service
-        hp_service = get_scanner_service()
-        if hp_service._is_running:
-            snapshots = hp_service.get_all_snapshots()
-            if snapshots and len(snapshots) > 0:
-                # Map to expected format
-                data = []
-                for s in snapshots[:500]: # Cap snapshot count
-                    data.append({
-                        "symbol": s.get("symbol"),
-                        "ltp": s.get("ltp", 0),
-                        "prev_close": s.get("prev_close", 0),
-                        "change_pct": s.get("change_pct", 0),
-                        "momentum_score": max(5, min(95, 50 + int(s.get("change_pct", 0) * 10))),
-                        "bucket": s.get("momentum_bucket", "NEUTRAL"),
-                        "direction": "UP" if s.get("change_pct", 0) > 0 else "DOWN",
-                        "source": "HP_ENGINE",
-                        "confidence": "HIGH" if s.get("signal_strength", 0) > 50 else "MEDIUM",
-                        "active_strategies": s.get("active_strategies", []),
-                        "last_update": s.get("updated_at")
-                    })
-                
-                # Enrich top results with LIVE prices
-                enriched_data = await enrich_scanner_results(data[:100])
-                if len(data) > 100:
-                    enriched_data.extend(data[100:])
-                
-                response = {
-                    "type": "bucket_update",
-                    "timestamp": datetime.now().isoformat(),
-                    "data": enriched_data,
-                    "status": {
-                        "source": "HP_ENGINE_ENRICHED",
-                        "is_healthy": True,
-                        "stock_count": len(enriched_data),
-                        "poll_interval": 5
-                    }
-                }
-                set_cached_scanner_data("momentum", response)
-                return response
-    except Exception as e:
-        logger.debug(f"HP scanner fallback: {e}")
-    
-    # Last resort: Use database (Optimized loop)
-    from services.db_data_fetcher import get_db_data_fetcher
-    logger.info("Using database fallback for momentum data")
-    db_fetcher = get_db_data_fetcher()
-    db_data = await asyncio.to_thread(db_fetcher.fetch_latest_data)
-    
-    data = []
-    if db_data:
-        count = 0
-        for symbol, tick in db_data.items():
-            if count > 200: break # Safety cap
-            data.append({
-                "symbol": tick.symbol,
-                "ltp": tick.ltp,
-                "prev_close": tick.prev_close,
-                "change_pct": tick.change_pct,
-                "momentum_score": max(5, min(95, 50 + int(tick.change_pct * 10))),
-                "bucket": _map_bucket_to_legacy(tick.change_pct),
-                "pct_bucket": tick.bucket,
-                "direction": tick.direction,
-                "correlation": 0.5,
-                "source": "DB",
-                "confidence": "LOW",
-                "last_update": tick.timestamp
-            })
-            count += 1
-    
-    # Enrich database fallback with LIVE prices
-    enriched_data = await enrich_scanner_results(data[:50])
-    
-    response = {
-        "type": "bucket_update",
-        "timestamp": datetime.now().isoformat(),
-        "data": enriched_data,
-        "status": {
-            "source": "DB_ENRICHED",
-            "is_healthy": len(enriched_data) > 0,
-            "last_tick": datetime.now().isoformat(),
-            "stock_count": len(enriched_data),
-            "poll_interval": 60
-        }
-    }
-    
-    set_cached_scanner_data("momentum", response)
-    return response
+    return await scanner.get_momentum_scan()
 
 
 
-def _map_bucket_to_legacy(change_pct: float) -> str:
-    """Map percent change to legacy bucket names."""
-    abs_change = abs(change_pct)
-    is_bullish = change_pct >= 0
-    
-    if abs_change >= 5.0:
-        return "EXTREME_BULLISH" if is_bullish else "EXTREME_BEARISH"
-    elif abs_change >= 3.0:
-        return "STRONG_BULLISH" if is_bullish else "STRONG_BEARISH"
-    elif abs_change >= 1.0:
-        return "MODERATE_BULLISH" if is_bullish else "MODERATE_BEARISH"
-    else:
-        return "NEUTRAL"
+
 
 
 @router.get("/breakout")
 async def get_breakout_data(current_user: User = Depends(get_current_user)):
     """
     REST endpoint for breakout scanner.
-    
-    During market hours: Returns live breakout data
-    After market hours: Returns cached EOD snapshot
+    Delegates to ScannerEngine.
     """
-    import time
-    from utils.market_state import is_market_open, get_trading_date
-    from services.dragonfly_client import get_cache as get_df_cache
-    
-    start_time = time.time()
-    
-    # Check if market is closed - return snapshot
-    if not is_market_open():
-        cache = get_df_cache()
-        date_str = get_trading_date().strftime("%Y-%m-%d")
-        snapshot = cache.get(f"snapshot:scanner_breakout:{date_str}")
+    if not _scanner_available or scanner is None:
+        raise HTTPException(status_code=503, detail="Scanner engine not available")
         
-        if snapshot and snapshot.get("data"):
-            logger.info(f"Breakout: returning EOD snapshot ({date_str})")
-            return {
-                "type": "breakout_scan",
-                "timestamp": datetime.now().isoformat(),
-                "data": snapshot["data"],
-                "count": len(snapshot["data"]),
-                "status": {
-                    "source": "EOD_SNAPSHOT",
-                    "is_healthy": True,
-                    "trade_date": date_str,
-                    "market_status": "CLOSED"
-                }
-            }
-    
-    # Market is open - use live data
-    # 1. Check Route Cache (5 min TTL)
-    cached = get_cached_scanner_data("breakout")
-    if cached:
-        logger.info(f"breakout: Cache hit in {(time.time()-start_time)*1000:.0f}ms")
-        # Enrich cached stocks with live prices
-        try:
-            if isinstance(cached, dict) and "data" in cached and cached["data"]:
-                access_token = settings.UPSTOX_ACCESS_TOKEN
-                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
-        except Exception as e:
-            logger.error(f"breakout: Failed to enrich cached results: {e}")
-        return cached
-
-    from services.db_data_fetcher import get_db_data_fetcher
-    from services.cache import get_cache_manager
-    from services.dragonfly_client import cache_get, CacheKeys
-    
-    # 2. Check HP Scanner v3 Cache (Super Fast, <50ms)
-    try:
-        hp_breakout = cache_get(CacheKeys.breakout()) if hasattr(CacheKeys, 'breakout') else None
-        if hp_breakout and len(hp_breakout) > 0:
-            response = {
-                "type": "breakout_scan",
-                "timestamp": datetime.now().isoformat(),
-                "data": hp_breakout[:50],
-                "count": len(hp_breakout),
-                "status": {
-                    "source": "HP_SCANNER_CACHE",
-                    "is_healthy": True,
-                    "last_update": datetime.now().isoformat()
-                }
-            }
-            set_cached_scanner_data("breakout", response, ttl=300)
-            logger.info(f"breakout: HP cache hit in {(time.time()-start_time)*1000:.0f}ms")
-            return response
-    except Exception as e:
-        logger.debug(f"HP scanner cache miss for breakout: {e}")
-    
-    # 3. Use database for breakout detection (Limit symbols for performance)
-    logger.info("Using database for breakout scanner")
-    db_fetcher = get_db_data_fetcher()
-    db_data = await asyncio.to_thread(db_fetcher.fetch_latest_data)
-    
-    breakout_stocks = []
-    if db_data:
-        # Optimization: Limit loop iteration
-        count = 0
-        for symbol, tick in db_data.items():
-            if count > 200: break # Safety cap
-            if tick.change_pct >= 2.0:
-                breakout_stocks.append({
-                    "symbol": tick.symbol,
-                    "ltp": tick.ltp,
-                    "prev_close": tick.prev_close,
-                    "change_pct": tick.change_pct,
-                    "breakout_score": min(100, int(tick.change_pct * 15 + 50)),
-                    "pattern": "BULLISH_BREAKOUT" if tick.change_pct >= 4.0 else "MODERATE_BREAKOUT",
-                    "strength": "STRONG" if tick.change_pct >= 4.0 else "MODERATE",
-                    "source": "DB",
-                    "last_update": tick.timestamp
-                })
-                count += 1
-    
-    breakout_stocks.sort(key=lambda x: x["change_pct"], reverse=True)
-    
-    # Enrich with LIVE prices
-    enriched_data = await enrich_scanner_results(breakout_stocks[:50])
-    
-    response = {
-        "type": "breakout_scan",
-        "timestamp": datetime.now().isoformat(),
-        "data": enriched_data,
-        "count": len(enriched_data),
-        "status": {
-            "source": "DB_ENRICHED",
-            "is_healthy": len(enriched_data) > 0,
-            "last_update": datetime.now().isoformat()
-        }
-    }
-    
-    set_cached_scanner_data("breakout", response)
-    return response
+    return await scanner.get_breakout_scan()
 
 
 @router.get("/reversal")
 async def get_reversal_data(current_user: User = Depends(get_current_user)):
     """
     REST endpoint for reversal scanner.
-    
-    During market hours: Returns live reversal data
-    After market hours: Returns cached EOD snapshot
+    Delegates to ScannerEngine.
     """
-    from utils.market_state import is_market_open, get_trading_date
-    from services.dragonfly_client import get_cache as get_df_cache
-    
-    # Check if market is closed - return snapshot
-    if not is_market_open():
-        cache = get_df_cache()
-        date_str = get_trading_date().strftime("%Y-%m-%d")
-        snapshot = cache.get(f"snapshot:scanner_reversal:{date_str}")
+    if not _scanner_available or scanner is None:
+        raise HTTPException(status_code=503, detail="Scanner engine not available")
         
-        if snapshot and snapshot.get("data"):
-            logger.info(f"Reversal: returning EOD snapshot ({date_str})")
-            return {
-                "type": "reversal_scan",
-                "timestamp": datetime.now().isoformat(),
-                "data": snapshot["data"],
-                "count": len(snapshot["data"]),
-                "status": {
-                    "source": "EOD_SNAPSHOT",
-                    "is_healthy": True,
-                    "trade_date": date_str,
-                    "market_status": "CLOSED"
-                }
-            }
-    
-    # Market is open - use live data
-    cached = get_cached_scanner_data("reversal")
-    if cached:
-        # Enrich cached stocks with live prices
-        try:
-            if isinstance(cached, dict) and "data" in cached and cached["data"]:
-                access_token = settings.UPSTOX_ACCESS_TOKEN
-                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
-        except Exception as e:
-            logger.error(f"reversal: Failed to enrich cached results: {e}")
-        return cached
-
-    from services.db_data_fetcher import get_db_data_fetcher
-    from services.cache import get_cache_manager
-    
-    reversal_candidates = []
-    
-    try:
-        # Add timeout protection to prevent hanging
-        db_fetcher = get_db_data_fetcher()
-        db_data = await asyncio.wait_for(
-            asyncio.to_thread(db_fetcher.fetch_latest_data),
-            timeout=30.0  # 30 second timeout
-        )
-        
-        if db_data:
-            count = 0
-            for symbol, tick in db_data.items():
-                if count > 200: break
-                abs_change = abs(tick.change_pct)
-                if (tick.change_pct <= -1.0 and tick.change_pct >= -4.0):
-                    reversal_candidates.append({
-                        "symbol": tick.symbol,
-                        "ltp": tick.ltp,
-                        "prev_close": tick.prev_close,
-                        "change_pct": tick.change_pct,
-                        "reversal_score": int(abs(tick.change_pct) * 20),
-                        "pattern": "BULLISH_REVERSAL",
-                        "type": "OVERSOLD_BOUNCE",
-                        "strength": "STRONG" if tick.change_pct <= -3.0 else "MODERATE",
-                        "source": "DB",
-                        "last_update": tick.timestamp
-                    })
-                    count += 1
-                elif (tick.change_pct >= 3.0 and tick.change_pct <= 6.0):
-                    reversal_candidates.append({
-                        "symbol": tick.symbol,
-                        "ltp": tick.ltp,
-                        "prev_close": tick.prev_close,
-                        "change_pct": tick.change_pct,
-                        "reversal_score": int(tick.change_pct * 15),
-                        "pattern": "BEARISH_REVERSAL",
-                        "type": "OVERBOUGHT_CORRECTION",
-                        "strength": "STRONG" if tick.change_pct >= 5.0 else "MODERATE",
-                        "source": "DB",
-                        "last_update": tick.timestamp
-                    })
-                    count += 1
-    except asyncio.TimeoutError:
-        logger.warning("Reversal scanner timed out after 30 seconds")
-        # Return empty result instead of hanging
-    except Exception as e:
-        logger.error(f"Reversal scanner error: {e}")
-        # Continue with empty data
-    
-    reversal_candidates.sort(key=lambda x: x["reversal_score"], reverse=True)
-    
-    # Enrich with LIVE prices
-    enriched_data = await enrich_scanner_results(reversal_candidates[:50])
-    
-    response = {
-        "type": "reversal_scan",
-        "timestamp": datetime.now().isoformat(),
-        "data": enriched_data,
-        "count": len(enriched_data),
-        "status": {
-            "source": "DB_ENRICHED",
-            "is_healthy": len(enriched_data) > 0,
-            "last_update": datetime.now().isoformat()
-        }
-    }
-    
-    set_cached_scanner_data("reversal", response)
-    return response
+    return await scanner.get_reversal_scan()
 
 
 @router.get("/trendfinder")
 async def get_trendfinder_data(current_user: User = Depends(get_current_user)):
-    """REST endpoint for TrendFinder AI scanner."""
-    cached = get_cached_scanner_data("trendfinder")
-    if cached:
-        # Enrich cached stocks with live prices
-        try:
-            if isinstance(cached, dict) and "data" in cached and cached["data"]:
-                access_token = settings.UPSTOX_ACCESS_TOKEN
-                cached["data"] = await enrich_scanner_results(cached["data"], access_token)
-        except Exception as e:
-            logger.error(f"trendfinder: Failed to enrich cached results: {e}")
-        return cached
-
-    from services.db_data_fetcher import get_db_data_fetcher
-    from services.cache import get_cache_manager
-    
-    db_fetcher = get_db_data_fetcher()
-    db_data = await asyncio.to_thread(db_fetcher.fetch_latest_data)
-    
-    trending_stocks = []
-    if db_data:
-        count = 0
-        for symbol, tick in db_data.items():
-            if count > 200: break
-            abs_change = abs(tick.change_pct)
-            if abs_change >= 0.5:
-                ai_confidence = min(95, int(abs_change * 25 + 30))
-                trending_stocks.append({
-                    "symbol": tick.symbol,
-                    "ltp": tick.ltp,
-                    "prev_close": tick.prev_close,
-                    "change_pct": tick.change_pct,
-                    "trend_direction": "BULLISH" if tick.change_pct > 0 else "BEARISH",
-                    "trend_strength": "STRONG" if abs_change >= 3.0 else "MODERATE" if abs_change >= 1.5 else "WEAK",
-                    "ai_confidence": ai_confidence,
-                    "momentum_score": max(5, min(95, 50 + int(tick.change_pct * 10))),
-                    "signal": "BUY" if tick.change_pct > 1.0 else "SELL" if tick.change_pct < -1.0 else "HOLD",
-                    "source": "DB",
-                    "last_update": tick.timestamp
-                })
-                count += 1
-    
-    trending_stocks.sort(key=lambda x: x["ai_confidence"], reverse=True)
-    
-    # Enrich with LIVE prices
-    enriched_data = await enrich_scanner_results(trending_stocks[:50])
-    
-    response = {
-        "type": "trendfinder_scan",
-        "timestamp": datetime.now().isoformat(),
-        "data": enriched_data,
-        "count": len(enriched_data),
-        "status": {
-            "source": "AI_DB_ENRICHED",
-            "is_healthy": len(enriched_data) > 0,
-            "last_update": datetime.now().isoformat(),
-            "ai_model": "TrendFinder v1.0"
-        }
-    }
-    
-    set_cached_scanner_data("trendfinder", response)
-    return response
+    """REST endpoint for TrendFinder AI scanner. Delegates to ScannerEngine."""
+    if not _scanner_available or scanner is None:
+        raise HTTPException(status_code=503, detail="Scanner engine not available")
+        
+    return await scanner.get_trendfinder_scan()
 
 
 

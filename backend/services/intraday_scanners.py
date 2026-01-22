@@ -14,6 +14,8 @@ import asyncio
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker
 from config import settings
+from core.indicators import ema, rsi, bollinger_bands
+from core.indicators import ema, rsi, bollinger_bands
 
 
 class BaseIntradayScanner(ABC):
@@ -289,8 +291,8 @@ class TrendFinderScanner(BaseIntradayScanner):
             return None
         
         close = df['close']
-        ema20 = close.ewm(span=20).mean()
-        ema50 = close.ewm(span=50).mean()
+        ema20 = ema(close, 20)
+        ema50 = ema(close, 50)
         
         # Use live LTP if available, otherwise use last candle close
         candle_price = close.iloc[-1]
@@ -438,24 +440,21 @@ class MeanReversionScannerV2(BaseIntradayScanner):
         candle_price = close.iloc[-1]
         current_price = live_ltp if live_ltp is not None else candle_price
         
-        sma20 = close.rolling(20).mean()
-        std20 = close.rolling(20).std()
-        upper = (sma20 + 2 * std20).iloc[-1]
-        lower = (sma20 - 2 * std20).iloc[-1]
-        middle = sma20.iloc[-1]
+        # Bollinger Bands
+        middle, upper, lower = bollinger_bands(close, 20, 2.0)
         
         # RSI
-        delta = close.diff()
-        gain = delta.where(delta > 0, 0).rolling(14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-        rs = gain / loss
-        rsi = (100 - (100 / (1 + rs))).iloc[-1]
-        if pd.isna(rsi):
-            rsi = 50
+        rsi_series = rsi(close, 14)
+        rsi_val = rsi_series.iloc[-1]
+        if pd.isna(rsi_val):
+            rsi_val = 50
         
-        bb_pos = (current_price - lower) / (upper - lower) if upper != lower else 0.5
+        upper_val = upper.iloc[-1]
+        lower_val = lower.iloc[-1]
         
-        if bb_pos < 0.2 and rsi < 35:
+        bb_pos = (current_price - lower_val) / (upper_val - lower_val) if upper_val != lower_val else 0.5
+        
+        if bb_pos < 0.2 and rsi_val < 35:
             signal = "OVERSOLD_BUY"
             action = "BUY"
             score = 85
@@ -475,12 +474,12 @@ class MeanReversionScannerV2(BaseIntradayScanner):
             "current_price": round(current_price, 2),
             "candle_price": round(candle_price, 2),
             "is_live_price": live_ltp is not None,
-            "rsi": round(rsi, 2),
+            "rsi": round(rsi_val, 2),
             "bb_position": round(bb_pos * 100, 1),
             "timeframe": self.timeframe,
-            "target_price": round(middle, 2),
-            "stop_loss": round(lower * 0.98 if action == "BUY" else upper * 1.02, 2),
-            "reason": f"{signal}, RSI {rsi:.0f}, BB {bb_pos*100:.0f}% on {self.timeframe}"
+            "target_price": round(middle.iloc[-1], 2),
+            "stop_loss": round(lower_val * 0.98 if action == "BUY" else upper_val * 1.02, 2),
+            "reason": f"{signal}, RSI {rsi_val:.0f}, BB {bb_pos*100:.0f}% on {self.timeframe}"
         }
 
 

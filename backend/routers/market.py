@@ -40,8 +40,8 @@ async def get_nifty100_top_movers():
     
     try:
         service = get_nifty100_ranking_service()
-        # 10-second timeout for ranking computation
-        data = await asyncio.wait_for(service.get_rankings(), timeout=10.0)
+        # 20-second timeout for ranking computation (Upstox API can be slow)
+        data = await asyncio.wait_for(service.get_rankings(), timeout=20.0)
         
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.info(f"Top movers API response in {elapsed_ms:.2f}ms (source: {data.get('source', 'unknown')})")

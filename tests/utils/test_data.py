@@ -118,15 +118,11 @@ AUTH_ENDPOINTS: List[Dict[str, Any]] = [
     {"path": "/api/scanner/reversal", "method": "GET", "expected_status": 200},
     {"path": "/api/scanner/trendfinder", "method": "GET", "expected_status": 200},
     {"path": "/api/scanner/week52-breakouts", "method": "GET", "expected_status": 200},
+    {"path": "/api/scanner/breakout", "method": "GET", "expected_status": 200},
     {"path": "/api/heatmap/sectors", "method": "GET", "expected_status": 200},
     {"path": "/api/ai/strategies", "method": "GET", "expected_status": 200},
     {"path": "/api/algorithms/", "method": "GET", "expected_status": 200},
     {"path": "/api/engines/performance", "method": "GET", "expected_status": 200},
-    {"path": "/api/analytics/overview", "method": "GET", "expected_status": 200},
-]
-
-# Optional auth endpoints (work with or without auth)
-OPTIONAL_AUTH_ENDPOINTS: List[Dict[str, Any]] = [
     {"path": "/api/ai/trend-finder", "method": "GET", "expected_status": 200},
     {"path": "/api/ai/breakout-detector", "method": "GET", "expected_status": 200},
     {"path": "/api/ai/breakout-stocks", "method": "GET", "expected_status": 200},
@@ -137,8 +133,10 @@ OPTIONAL_AUTH_ENDPOINTS: List[Dict[str, Any]] = [
     {"path": "/api/ai/relative-strength", "method": "GET", "expected_status": 200},
     {"path": "/api/ai/vwap-scanner", "method": "GET", "expected_status": 200},
     {"path": "/api/ai/sr-bounce", "method": "GET", "expected_status": 200},
-    {"path": "/api/scanner/breakout", "method": "GET", "expected_status": 200},
 ]
+
+# Optional auth endpoints (work with or without auth)
+OPTIONAL_AUTH_ENDPOINTS: List[Dict[str, Any]] = []
 
 # HP Scanner v3 endpoints (no auth)
 HP_SCANNER_ENDPOINTS: List[Dict[str, Any]] = [

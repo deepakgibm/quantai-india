@@ -13,6 +13,7 @@ from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker
 
 from config import settings
+from core.indicators import ema, rsi, bollinger_bands, macd
 
 
 @dataclass
@@ -87,234 +88,288 @@ class StrategyBacktester:
     # ========== STRATEGY SIGNAL GENERATORS ==========
     
     def _generate_trend_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Trend Finder strategy signals."""
+        """Trend Finder strategy signals (Vectorized)."""
         if len(df) < 50:
             return []
         
+        close = df['close']
+        ema20 = ema(close, 20)
+        ema50 = ema(close, 50)
+        
+        # Conditions
+        bullish = (close > ema20) & (ema20 > ema50) & (df['low'] <= ema20 * 1.01)
+        bearish = (close < ema20) & (ema20 < ema50) & (df['high'] >= ema20 * 0.99)
+        
+        # Filter indices where signals occur (starting from index 50 to match original logic)
+        mask = (bullish | bearish)
+        # Ensure we don't signal before index 50
+        mask.iloc[:50] = False
+        
+        signal_indices = np.where(mask)[0]
+        
         signals = []
-        df = df.copy()
-        df['ema20'] = df['close'].ewm(span=20).mean()
-        df['ema50'] = df['close'].ewm(span=50).mean()
-        
-        for i in range(50, len(df)):
-            # Bullish: price > EMA20 > EMA50 and pullback to EMA20
-            if (df['close'].iloc[i] > df['ema20'].iloc[i] > df['ema50'].iloc[i] and
-                df['low'].iloc[i] <= df['ema20'].iloc[i] * 1.01):
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 1.02,
-                    'stop': df['close'].iloc[i] * 0.98
-                })
-            # Bearish: price < EMA20 < EMA50
-            elif (df['close'].iloc[i] < df['ema20'].iloc[i] < df['ema50'].iloc[i] and
-                  df['high'].iloc[i] >= df['ema20'].iloc[i] * 0.99):
-                signals.append({
-                    'idx': i, 'type': 'SELL',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 0.98,
-                    'stop': df['close'].iloc[i] * 1.02
-                })
-        
+        for i in signal_indices:
+            sig_type = 'BUY' if bullish.iloc[i] else 'SELL'
+            price = close.iloc[i]
+            
+            signals.append({
+                'idx': int(i),
+                'type': sig_type,
+                'entry': price,
+                'target': price * (1.02 if sig_type == 'BUY' else 0.98),
+                'stop': price * (0.98 if sig_type == 'BUY' else 1.02)
+            })
+            
         return signals
     
     def _generate_breakout_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Breakout Detector strategy signals."""
+        """Breakout Detector strategy signals (Vectorized)."""
         if len(df) < 20:
             return []
         
+        high = df['high']
+        low = df['low']
+        close = df['close']
+        volume = df['volume']
+        
+        # Calculate rolling metrics
+        high_20 = high.rolling(window=20).max().shift(1) # Previous 20 candles high
+        low_20 = low.rolling(window=20).min().shift(1)   # Previous 20 candles low
+        avg_vol = volume.rolling(window=20).mean().shift(1)
+        
+        # Conditions
+        vol_condition = volume > avg_vol * 1.5
+        buy_cond = (close > high_20) & vol_condition
+        sell_cond = (close < low_20) & vol_condition
+        
+        mask = (buy_cond | sell_cond)
+        mask.iloc[:20] = False
+        
+        signal_indices = np.where(mask)[0]
+        
         signals = []
-        df = df.copy()
-        
-        for i in range(20, len(df)):
-            high_20 = df['high'].iloc[i-20:i].max()
-            low_20 = df['low'].iloc[i-20:i].min()
-            avg_vol = df['volume'].iloc[i-20:i].mean()
+        for i in signal_indices:
+            sig_type = 'BUY' if buy_cond.iloc[i] else 'SELL'
+            price = close.iloc[i]
+            ref_level = high_20.iloc[i] if sig_type == 'BUY' else low_20.iloc[i]
             
-            # Breakout above 20-period high with volume
-            if df['close'].iloc[i] > high_20 and df['volume'].iloc[i] > avg_vol * 1.5:
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 1.03,
-                    'stop': high_20 * 0.99
-                })
-            # Breakdown below 20-period low
-            elif df['close'].iloc[i] < low_20 and df['volume'].iloc[i] > avg_vol * 1.5:
-                signals.append({
-                    'idx': i, 'type': 'SELL',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 0.97,
-                    'stop': low_20 * 1.01
-                })
-        
+            signals.append({
+                'idx': int(i),
+                'type': sig_type,
+                'entry': price,
+                'target': price * (1.03 if sig_type == 'BUY' else 0.97),
+                'stop': ref_level * (0.99 if sig_type == 'BUY' else 1.01)
+            })
+            
         return signals
     
     def _generate_momentum_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Momentum strategy signals using ROC."""
+        """Momentum strategy signals using ROC (Vectorized)."""
         if len(df) < 20:
             return []
         
-        signals = []
-        df = df.copy()
-        df['roc10'] = (df['close'] - df['close'].shift(10)) / df['close'].shift(10) * 100
+        close = df['close']
+        roc10 = (close - close.shift(10)) / close.shift(10) * 100
+        prev_roc = roc10.shift(1)
         
-        for i in range(20, len(df)):
-            if df['roc10'].iloc[i] > 3 and df['roc10'].iloc[i-1] <= 3:
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 1.02,
-                    'stop': df['close'].iloc[i] * 0.98
-                })
-            elif df['roc10'].iloc[i] < -3 and df['roc10'].iloc[i-1] >= -3:
-                signals.append({
-                    'idx': i, 'type': 'SELL',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 0.98,
-                    'stop': df['close'].iloc[i] * 1.02
-                })
+        buy_cond = (roc10 > 3) & (prev_roc <= 3)
+        sell_cond = (roc10 < -3) & (prev_roc >= -3)
+        
+        mask = (buy_cond | sell_cond)
+        mask.iloc[:20] = False
+        
+        signal_indices = np.where(mask)[0]
+        
+        signals = []
+        for i in signal_indices:
+            sig_type = 'BUY' if buy_cond.iloc[i] else 'SELL'
+            price = close.iloc[i]
+            
+            signals.append({
+                'idx': int(i),
+                'type': sig_type,
+                'entry': price,
+                'target': price * (1.02 if sig_type == 'BUY' else 0.98),
+                'stop': price * (0.98 if sig_type == 'BUY' else 1.02)
+            })
         
         return signals
     
     def _generate_mean_reversion_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Mean reversion using Bollinger Bands."""
+        """Mean reversion using Bollinger Bands (Vectorized)."""
         if len(df) < 20:
             return []
         
+        close = df['close']
+        middle, upper, lower = bollinger_bands(close, 20, 2.0)
+        
+        buy_cond = (close < lower)
+        sell_cond = (close > upper)
+        
+        mask = (buy_cond | sell_cond)
+        mask.iloc[:20] = False
+        
+        signal_indices = np.where(mask)[0]
+        
         signals = []
-        df = df.copy()
-        df['sma20'] = df['close'].rolling(20).mean()
-        df['std20'] = df['close'].rolling(20).std()
-        df['upper'] = df['sma20'] + 2 * df['std20']
-        df['lower'] = df['sma20'] - 2 * df['std20']
-        
-        for i in range(20, len(df)):
-            if df['close'].iloc[i] < df['lower'].iloc[i]:
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': df['sma20'].iloc[i],
-                    'stop': df['lower'].iloc[i] * 0.98
-                })
-            elif df['close'].iloc[i] > df['upper'].iloc[i]:
-                signals.append({
-                    'idx': i, 'type': 'SELL',
-                    'entry': df['close'].iloc[i],
-                    'target': df['sma20'].iloc[i],
-                    'stop': df['upper'].iloc[i] * 1.02
-                })
-        
+        for i in signal_indices:
+            sig_type = 'BUY' if buy_cond.iloc[i] else 'SELL'
+            price = close.iloc[i]
+            target = middle.iloc[i]
+            ref_level = lower.iloc[i] if sig_type == 'BUY' else upper.iloc[i]
+            
+            signals.append({
+                'idx': int(i),
+                'type': sig_type,
+                'entry': price,
+                'target': target,
+                'stop': ref_level * (0.98 if sig_type == 'BUY' else 1.02)
+            })
+            
         return signals
     
     def _generate_gap_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Gap scanner signals."""
+        """Gap scanner signals (Vectorized)."""
         if len(df) < 5:
             return []
         
+        close = df['close']
+        open_price = df['open']
+        prev_close = close.shift(1)
+        
+        gap_pct = (open_price - prev_close) / prev_close * 100
+        
+        buy_cond = (gap_pct > 1.5)
+        sell_cond = (gap_pct < -1.5)
+        
+        mask = (buy_cond | sell_cond)
+        mask.iloc[0] = False # Can't signal on first candle
+        
+        signal_indices = np.where(mask)[0]
+        
         signals = []
-        df = df.copy()
-        
-        for i in range(1, len(df)):
-            prev_close = df['close'].iloc[i-1]
-            curr_open = df['open'].iloc[i]
-            gap_pct = (curr_open - prev_close) / prev_close * 100
+        for i in signal_indices:
+            sig_type = 'BUY' if buy_cond.iloc[i] else 'SELL'
+            price = close.iloc[i]
+            pc = prev_close.iloc[i]
             
-            if gap_pct > 1.5:  # Gap up
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 1.02,
-                    'stop': prev_close
-                })
-            elif gap_pct < -1.5:  # Gap down
-                signals.append({
-                    'idx': i, 'type': 'SELL',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 0.98,
-                    'stop': prev_close
-                })
-        
+            signals.append({
+                'idx': int(i),
+                'type': sig_type,
+                'entry': price,
+                'target': price * (1.02 if sig_type == 'BUY' else 0.98),
+                'stop': pc
+            })
+            
         return signals
     
     def _generate_rs_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Relative strength signals."""
+        """Relative strength signals (Vectorized)."""
         if len(df) < 20:
             return []
         
+        close = df['close']
+        ret5 = (close - close.shift(5)) / close.shift(5) * 100
+        ret20 = (close - close.shift(20)) / close.shift(20) * 100
+        
+        # Only BUY logic implemented in original
+        buy_cond = (ret5 > 3) & (ret20 > 5)
+        
+        mask = buy_cond
+        mask.iloc[:20] = False
+        
+        signal_indices = np.where(mask)[0]
+        
         signals = []
-        df = df.copy()
-        df['ret5'] = (df['close'] - df['close'].shift(5)) / df['close'].shift(5) * 100
-        df['ret20'] = (df['close'] - df['close'].shift(20)) / df['close'].shift(20) * 100
-        
-        for i in range(20, len(df)):
-            if df['ret5'].iloc[i] > 3 and df['ret20'].iloc[i] > 5:
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 1.03,
-                    'stop': df['close'].iloc[i] * 0.97
-                })
-        
+        for i in signal_indices:
+            price = close.iloc[i]
+            signals.append({
+                'idx': int(i),
+                'type': 'BUY',
+                'entry': price,
+                'target': price * 1.03,
+                'stop': price * 0.97
+            })
+            
         return signals
     
     def _generate_vwap_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """VWAP based signals."""
+        """VWAP based signals (Vectorized)."""
         if len(df) < 10:
             return []
         
+        close = df['close']
+        tp = (df['high'] + df['low'] + close) / 3
+        vwap = (tp * df['volume']).cumsum() / df['volume'].cumsum()
+        
+        prev_close = close.shift(1)
+        prev_vwap = vwap.shift(1)
+        
+        # Cross above VWAP
+        buy_cond = (close > vwap) & (prev_close <= prev_vwap)
+        # Cross below VWAP
+        sell_cond = (close < vwap) & (prev_close >= prev_vwap)
+        
+        mask = (buy_cond | sell_cond)
+        mask.iloc[:10] = False
+        
+        signal_indices = np.where(mask)[0]
+        
         signals = []
-        df = df.copy()
-        df['tp'] = (df['high'] + df['low'] + df['close']) / 3
-        df['vwap'] = (df['tp'] * df['volume']).cumsum() / df['volume'].cumsum()
-        
-        for i in range(10, len(df)):
-            if df['close'].iloc[i] > df['vwap'].iloc[i] and df['close'].iloc[i-1] <= df['vwap'].iloc[i-1]:
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 1.015,
-                    'stop': df['vwap'].iloc[i] * 0.99
-                })
-            elif df['close'].iloc[i] < df['vwap'].iloc[i] and df['close'].iloc[i-1] >= df['vwap'].iloc[i-1]:
-                signals.append({
-                    'idx': i, 'type': 'SELL',
-                    'entry': df['close'].iloc[i],
-                    'target': df['close'].iloc[i] * 0.985,
-                    'stop': df['vwap'].iloc[i] * 1.01
-                })
-        
+        for i in signal_indices:
+            sig_type = 'BUY' if buy_cond.iloc[i] else 'SELL'
+            price = close.iloc[i]
+            vwap_val = vwap.iloc[i]
+            
+            signals.append({
+                'idx': int(i),
+                'type': sig_type,
+                'entry': price,
+                'target': price * (1.015 if sig_type == 'BUY' else 0.985),
+                'stop': vwap_val * (0.99 if sig_type == 'BUY' else 1.01)
+            })
+            
         return signals
     
     def _generate_sr_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Support/Resistance bounce signals."""
+        """Support/Resistance bounce signals (Vectorized)."""
         if len(df) < 50:
             return []
         
+        high = df['high']
+        low = df['low']
+        close = df['close']
+        open_price = df['open']
+        
+        # Previous 20 candles high/low
+        high_20 = high.rolling(window=20).max().shift(1)
+        low_20 = low.rolling(window=20).min().shift(1)
+        
+        # Conditions
+        buy_cond = (low <= low_20 * 1.01) & (close > open_price)
+        sell_cond = (high >= high_20 * 0.99) & (close < open_price)
+        
+        mask = (buy_cond | sell_cond)
+        mask.iloc[:50] = False
+        
+        signal_indices = np.where(mask)[0]
+        
         signals = []
-        df = df.copy()
-        
-        for i in range(50, len(df)):
-            high_20 = df['high'].iloc[i-20:i].max()
-            low_20 = df['low'].iloc[i-20:i].min()
+        for i in signal_indices:
+            sig_type = 'BUY' if buy_cond.iloc[i] else 'SELL'
+            price = close.iloc[i]
+            h20 = high_20.iloc[i]
+            l20 = low_20.iloc[i]
+            target = (h20 + l20) / 2
             
-            # Near support and bouncing
-            if df['low'].iloc[i] <= low_20 * 1.01 and df['close'].iloc[i] > df['open'].iloc[i]:
-                signals.append({
-                    'idx': i, 'type': 'BUY',
-                    'entry': df['close'].iloc[i],
-                    'target': (high_20 + low_20) / 2,
-                    'stop': low_20 * 0.98
-                })
-            # Near resistance and rejecting
-            elif df['high'].iloc[i] >= high_20 * 0.99 and df['close'].iloc[i] < df['open'].iloc[i]:
-                signals.append({
-                    'idx': i, 'type': 'SELL',
-                    'entry': df['close'].iloc[i],
-                    'target': (high_20 + low_20) / 2,
-                    'stop': high_20 * 1.02
-                })
-        
+            signals.append({
+                'idx': int(i),
+                'type': sig_type,
+                'entry': price,
+                'target': target,
+                'stop': l20 * 0.98 if sig_type == 'BUY' else h20 * 1.02
+            })
+            
         return signals
     
     def get_signal_generator(self, strategy: str):

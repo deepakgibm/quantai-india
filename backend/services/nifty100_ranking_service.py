@@ -570,16 +570,23 @@ class Nifty100RankingService:
             all_quotes = {}
             batch_size = 50
             
+            # Fetch in batches using asyncio.gather for parallelism
+            all_quotes = {}
+            batch_size = 20 # Smaller batches for faster individual response
+            tasks = []
+            
             for i in range(0, len(instrument_keys), batch_size):
                 batch = instrument_keys[i:i + batch_size]
-                try:
-                    # get_live_quotes is async, so we await it directly
-                    quotes = await client.get_live_quotes(batch)
-                    if quotes:
-                        all_quotes.update(quotes)
-                except Exception as batch_error:
-                    logger.warning(f"Batch fetch error: {batch_error}")
-                await asyncio.sleep(0.1)  # Rate limiting
+                tasks.append(client.get_live_quotes(batch))
+
+            # Run all batches in parallel
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for res in batch_results:
+                if isinstance(res, Exception):
+                    logger.warning(f"Batch fetch error: {res}")
+                elif res:
+                    all_quotes.update(res)
             
             if not all_quotes:
                 logger.warning("REST API returned no quotes")

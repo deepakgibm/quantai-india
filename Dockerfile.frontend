@@ -22,6 +22,7 @@ COPY public/ ./public/
 COPY pages/ ./pages/
 COPY components/ ./components/
 COPY types/ ./types/
+COPY hooks/ ./hooks/
 COPY *.tsx ./
 COPY *.ts ./
 COPY *.css ./

@@ -14,6 +14,7 @@ import logging
 import uuid
 
 from config import settings
+from core.indicators import rsi, macd, ema, bollinger_bands
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +28,7 @@ class IndicatorComputer:
     @staticmethod
     def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
         """Calculate Relative Strength Index."""
-        delta = close.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
+        return rsi(close, period)
     
     @staticmethod
     def compute_roc(close: pd.Series, period: int = 10) -> pd.Series:
@@ -41,12 +38,7 @@ class IndicatorComputer:
     @staticmethod
     def compute_macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> tuple:
         """Calculate MACD, Signal, and Histogram."""
-        ema_fast = close.ewm(span=fast, adjust=False).mean()
-        ema_slow = close.ewm(span=slow, adjust=False).mean()
-        macd_line = ema_fast - ema_slow
-        signal_line = macd_line.ewm(span=signal, adjust=False).mean()
-        histogram = macd_line - signal_line
-        return macd_line, signal_line, histogram
+        return macd(close, fast, slow, signal)
     
     @staticmethod
     def compute_mfi(high: pd.Series, low: pd.Series, close: pd.Series, 
@@ -67,12 +59,9 @@ class IndicatorComputer:
     @staticmethod
     def compute_bollinger(close: pd.Series, period: int = 20, std_dev: float = 2.0) -> tuple:
         """Calculate Bollinger Bands."""
-        sma = close.rolling(window=period).mean()
-        std = close.rolling(window=period).std()
-        upper = sma + (std_dev * std)
-        lower = sma - (std_dev * std)
+        middle, upper, lower = bollinger_bands(close, period, std_dev)
         pct_b = (close - lower) / (upper - lower)
-        return upper, sma, lower, pct_b
+        return upper, middle, lower, pct_b
     
     @staticmethod
     def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
@@ -92,7 +81,7 @@ class IndicatorComputer:
     @staticmethod
     def compute_ema(close: pd.Series, period: int) -> pd.Series:
         """Calculate Exponential Moving Average."""
-        return close.ewm(span=period, adjust=False).mean()
+        return ema(close, period)
     
     @staticmethod
     def compute_sma(close: pd.Series, period: int) -> pd.Series:

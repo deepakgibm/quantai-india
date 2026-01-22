@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import AgenticBotCard from '../components/AgenticBotCard';
+import { useMarketDataStream } from '../hooks/useMarketDataStream';
 import { Page, Stock, AlgoConfig } from '../types';
 import { Zap, X, Loader2, Play } from 'lucide-react';
 
@@ -33,22 +34,40 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
    ]);
 
 
-   // Real-time Indices WebSocket & Polling
+   // Custom hook for WebSocket management
+   const { isConnected, indices: wsIndices } = useMarketDataStream();
+
+   // Merge WS data with local state for robust fallback
    useEffect(() => {
-      let ws: WebSocket | null = null;
+      if (wsIndices.length > 0) {
+         setIndices(prev => {
+            // Priority: WS Data > Existing State
+            return wsIndices.map(wsIdx => {
+               // If WS sends 0, try to keep existing legitimate value
+               if (!wsIdx.value && prev) {
+                  const existing = prev.find(p => p.name === wsIdx.name);
+                  return existing || wsIdx;
+               }
+               return wsIdx;
+            });
+         });
+      }
+   }, [wsIndices]);
+
+   // Fallback Polling using API (Only runs if WS is disconnected)
+   useEffect(() => {
       let pollInterval: NodeJS.Timeout | null = null;
-      let isSubscribed = true;
 
       const fetchIndices = async () => {
+         // Don't fetch if WS is connected and healthy
+         if (isConnected) return;
+
          try {
             const response = await api.getMarketIndices();
-            if (response && isSubscribed && Array.isArray(response)) {
-               // Improved merging logic: Only update if we have valid data, 
-               // and merge with existing state to prevent flickering
+            if (response && Array.isArray(response)) {
                setIndices(prev => {
                   return response.map((newIdx: any) => {
                      const existing = prev.find(p => p.name === newIdx.name);
-                     // If new value is 0 or null, keep existing value to prevent disappearance
                      if (!newIdx.value || newIdx.value === 0) {
                         return existing || newIdx;
                      }
@@ -61,62 +80,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
          }
       };
 
-      const startPolling = () => {
-         if (pollInterval) return; // Already polling
-         fetchIndices(); // Fetch immediately
-         pollInterval = setInterval(fetchIndices, 10000); // Poll every 10 seconds (reduced frequency)
+      // Initial fetch if not connected
+      if (!isConnected) {
+         fetchIndices();
+         // Poll every 10 seconds
+         pollInterval = setInterval(fetchIndices, 10000);
+      }
+
+      return () => {
+         if (pollInterval) clearInterval(pollInterval);
       };
+   }, [isConnected]); // Re-run effect when connection status changes
 
-      const connectWS = () => {
-         try {
-            ws = new WebSocket('ws://127.0.0.1:8000/api/scanner/ws/scanner');
-
-            ws.onopen = () => {
-               console.log('Dashboard WS connected');
-               // DON'T stop REST polling - keep it as reliable backup
-            };
-
-            ws.onmessage = (event) => {
-               try {
-                  const message = JSON.parse(event.data);
-                  // Only update if WS sends valid indices data
-                  // Improved merging logic for WebSocket updates
-                  if (message.indices && Array.isArray(message.indices) && isSubscribed) {
-                     setIndices(prev => {
-                        return message.indices.map((newIdx: any) => {
-                           const existing = prev.find(p => p.name === newIdx.name);
-                           // If new value is 0/null/undefined, preserve existing valid value
-                           if (!newIdx.value || newIdx.value === 0) {
-                              return existing || newIdx;
-                           }
-                           return newIdx;
-                        });
-                     });
-                  }
-               } catch (e) {
-                  // Silently ignore parse errors - REST will handle data
-               }
-            };
-
-            ws.onerror = () => {
-               console.warn('Dashboard WS error, REST polling will handle data');
-            };
-
-            ws.onclose = () => {
-               // WebSocket closed - REST polling continues
-            };
-         } catch (e) {
-            console.warn('WS connection failed:', e);
-         }
-      };
-
-      // Start REST polling immediately for reliable data
-      startPolling();
-
-      // Also try WebSocket for real-time updates (optional enhancement)
-      connectWS();
-
-      // Fetch engine performance once at startup
+   // Fetch engine performance once at startup
+   useEffect(() => {
       const fetchEnginePerf = async () => {
          try {
             const data = await api.getEnginePerformance();
@@ -140,12 +117,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       };
 
       fetchEnginePerf();
-
-      return () => {
-         isSubscribed = false;
-         if (ws) ws.close();
-         if (pollInterval) clearInterval(pollInterval);
-      };
    }, []);
 
 
