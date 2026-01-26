@@ -7,7 +7,7 @@ import os
 import sys
 import pytest
 import requests
-from typing import Dict, Any, Optional, Generator
+from typing import Dict, Optional, Generator
 from datetime import datetime
 from dotenv import load_dotenv
 

@@ -2,7 +2,7 @@ import requests
 import json
 import time
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict
 
 BASE_URL = "http://localhost:8000"
 TIMEOUT = 30

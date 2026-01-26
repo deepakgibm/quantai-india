@@ -9,16 +9,13 @@ No more dummy data.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Set
-from datetime import datetime, timedelta
-import numpy as np
+from typing import Dict, List
+from datetime import datetime
 
 from services.market_data_orchestrator import (
     get_market_data_orchestrator,
-    MarketDataOrchestrator,
-    DataSource
+    MarketDataOrchestrator
 )
-from services.rest_data_fetcher import MomentumTick, calculate_bucket
 from services.db_data_fetcher import get_db_data_fetcher
 
 logger = logging.getLogger(__name__)

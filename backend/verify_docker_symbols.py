@@ -1,7 +1,7 @@
 
 import asyncio
 from database import AsyncSessionLocal
-from models_alpha import StockCandleV2, InstrumentMaster, TimeframeMapper
+from models_alpha import StockCandleV2, InstrumentMaster
 from sqlalchemy import select
 
 async def verify():

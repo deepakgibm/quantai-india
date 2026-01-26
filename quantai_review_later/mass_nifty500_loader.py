@@ -11,15 +11,11 @@ Strategy:
 """
 
 import sys
-import asyncio
-import traceback
-import pandas as pd
 import yfinance as yf
 from datetime import datetime
 from pathlib import Path
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Index
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add parent dir to path
 sys.path.insert(0, str(Path(__file__).parent))

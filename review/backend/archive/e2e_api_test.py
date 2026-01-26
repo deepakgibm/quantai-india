@@ -4,9 +4,8 @@ Tests all major API endpoints across the QuantAI backend.
 """
 import requests
 import time
-import json
 from datetime import datetime
-from typing import Dict, List, Any, Tuple
+from typing import Tuple
 
 BASE_URL = "http://localhost:8000"
 

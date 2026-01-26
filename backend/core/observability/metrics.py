@@ -6,7 +6,7 @@ Metrics are exposed via /metrics endpoint for Prometheus scraping.
 """
 
 import time
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Optional
 from functools import wraps
 
 try:

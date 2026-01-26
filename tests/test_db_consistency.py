@@ -5,12 +5,10 @@ Validates that API responses match database data.
 
 import pytest
 import os
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from tests.utils.test_data import (
     QUICK_TEST_SYMBOLS,
-    VALID_TIMEFRAMES,
 )
 
 

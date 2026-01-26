@@ -1,7 +1,6 @@
 
 import os
 import psycopg2
-from datetime import datetime
 
 try:
     conn = psycopg2.connect(os.getenv("SYNC_DATABASE_URL"))

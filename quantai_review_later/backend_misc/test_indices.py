@@ -1,7 +1,6 @@
 
 import asyncio
 from services.upstox_client import get_upstox_client
-from datetime import datetime
 
 async def test_indices():
     client = get_upstox_client()

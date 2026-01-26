@@ -5,7 +5,6 @@ Sequential loading - more reliable than parallel
 
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 import yfinance as yf
 from sqlalchemy import create_engine, text

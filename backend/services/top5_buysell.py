@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings
-from models_alpha import StockCandle, InstrumentMaster
+from models_alpha import InstrumentMaster
 from services.instrument_resolver import resolve_instrument_id
 
 

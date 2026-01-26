@@ -5,13 +5,12 @@ Provides dynamic performance calculation for AI Trading Engines
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-import random
+from datetime import datetime
 
 from database import get_db
-from models import User, BacktestResult, Algorithm
+from models import User, BacktestResult
 from utils.auth import get_current_user
 
 router = APIRouter()

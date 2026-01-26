@@ -5,7 +5,7 @@ Main orchestrator for running backtests with strategies
 
 import pandas as pd
 import numpy as np
-from typing import Optional, List, Dict, Any, Type
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from dataclasses import dataclass, field
 import hashlib
@@ -13,7 +13,7 @@ import json
 import logging
 
 from .data_handler import DataHandler
-from .executor import Executor, OrderSide, OrderType, Trade
+from .executor import Executor, Trade
 from .costs import CostCalculator, CostConfig
 
 logger = logging.getLogger(__name__)

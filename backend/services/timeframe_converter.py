@@ -5,7 +5,6 @@ Converts between text-based timeframes (e.g., '5m', '1d') and
 numeric timeframes in minutes (5, 1440) for the new schema.
 """
 
-from typing import Optional
 
 
 # Mapping from text timeframe to minutes

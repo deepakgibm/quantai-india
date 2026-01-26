@@ -6,8 +6,8 @@ when WebSocket is unavailable.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
+from datetime import datetime
 from dataclasses import dataclass, asdict
 import json
 

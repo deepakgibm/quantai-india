@@ -13,9 +13,8 @@ import requests
 import psycopg2
 import time
 import os
-import json
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from datetime import datetime
+from typing import Dict, Optional, List
 
 # =============================================================================
 # Configuration

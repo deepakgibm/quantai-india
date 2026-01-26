@@ -21,9 +21,8 @@ import json
 import time
 import argparse
 import logging
-from datetime import datetime, date, timedelta
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, asdict
+from datetime import datetime, timedelta
+from typing import Tuple
 import requests
 import psycopg2
 import yfinance as yf

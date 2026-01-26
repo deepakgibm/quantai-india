@@ -12,8 +12,7 @@ Trading Days: Monday to Friday (excludes NSE holidays)
 
 import logging
 from datetime import datetime, time, date, timedelta
-from typing import Optional, Tuple
-import os
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +126,17 @@ class MarketHoursService:
         """
         now = self._get_ist_now()
         
+        # Log check for transparency
+        logger.debug(f"Checking market status at {now.strftime('%Y-%m-%d %H:%M:%S')} IST")
+        
         # Not a trading day
         if not self.is_trading_day(now.date()):
             return False
         
         # Check time
         current_time = now.time()
-        return self.MARKET_OPEN <= current_time <= self.MARKET_CLOSE
+        is_open = self.MARKET_OPEN <= current_time <= self.MARKET_CLOSE
+        return is_open
     
     def is_pre_market(self) -> bool:
         """Check if in pre-market session (09:00 - 09:15 IST)."""

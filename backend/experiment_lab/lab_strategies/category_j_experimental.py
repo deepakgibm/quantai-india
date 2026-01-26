@@ -4,8 +4,7 @@ Advanced quantitative strategies with adaptive and experimental logic.
 """
 
 import pandas as pd
-import numpy as np
-from typing import List, Dict
+from typing import List
 from .base import (
     ExperimentStrategy, StrategyInfo, SignalResult, SignalType,
     StrategyCategory, register_strategy

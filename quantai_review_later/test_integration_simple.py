@@ -4,8 +4,6 @@ Tests the entire QuantAI India Trading Bot application
 """
 
 import requests
-import json
-import time
 from datetime import datetime
 import os
 from dotenv import load_dotenv

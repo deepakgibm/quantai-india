@@ -365,3 +365,43 @@ class AlphaPrimeConfig(Base):
     
     def __repr__(self):
         return f"<AlphaPrimeConfig(name={self.config_name}, version={self.version})>"
+
+
+class IndexMaster(Base):
+    """
+    Master table for stock indices (NIFTY 50, NIFTY 100, etc.)
+    """
+    __tablename__ = "index_master"
+    index_id = Column(Integer, primary_key=True)
+    index_name = Column(String(50), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Hierarchical support (e.g. NIFTY 100 has NIFTY 50 as base)
+    base_index_id = Column(Integer, ForeignKey('index_master.index_id'), nullable=True)
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship for hierarchical lookup
+    base_index = relationship("IndexMaster", remote_side=[index_id], backref="derived_indices")
+
+
+class IndexConstituent(Base):
+    """
+    Mapping table between indices and instruments.
+    """
+    __tablename__ = "index_constituent"
+    index_id = Column(Integer, ForeignKey('index_master.index_id'), primary_key=True)
+    instrument_id = Column(BigInteger, ForeignKey('instrument_master.instrument_id'), primary_key=True)
+    
+    # Optional weightage of the stock in the index
+    weight = Column(Float, nullable=True)
+    added_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    index = relationship("IndexMaster", backref="constituents")
+    instrument = relationship("InstrumentMaster")
+
+    __table_args__ = (
+        PrimaryKeyConstraint('index_id', 'instrument_id'),
+    )

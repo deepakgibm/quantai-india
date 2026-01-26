@@ -2,7 +2,6 @@
 Create demo user for testing
 """
 import requests
-import json
 
 # Create demo user
 signup_data = {

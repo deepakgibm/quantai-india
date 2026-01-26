@@ -2,7 +2,6 @@
 E2E Testing Script for QuantAI Backend
 """
 import requests
-import sys
 
 BASE_URL = "http://localhost:8000"
 

@@ -3,8 +3,8 @@ High-Performance Scanner API Router
 Reads pre-computed snapshots only - NO strategy execution in request path.
 """
 
-from fastapi import APIRouter, HTTPException
-from typing import List, Optional, Dict, Any
+from fastapi import APIRouter
+from typing import Optional
 from datetime import datetime
 import logging
 

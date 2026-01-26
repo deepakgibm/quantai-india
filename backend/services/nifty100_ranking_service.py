@@ -18,13 +18,12 @@ import asyncio
 import logging
 import os
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable
+from datetime import datetime
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
-import threading
 
 from services.market_hours_service import get_market_hours_service
-from services.dragonfly_client import get_cache, CacheKeys, TTLPolicy
+from services.dragonfly_client import get_cache, CacheKeys
 
 logger = logging.getLogger(__name__)
 
@@ -196,9 +195,21 @@ class Nifty100RankingService:
         
         logger.info(f"CACHE MISS: {cache_key}, fetching live data")
         
-        # 2. Compute from WebSocket live prices if available
-        if self._live_prices and len(self._live_prices) >= 5:
-            result = self._compute_rankings_from_live()
+        # 2. Compute from MarketDataOrchestrator cache if available
+        from services.market_data_orchestrator import get_market_data_orchestrator
+        orchestrator = get_market_data_orchestrator()
+        
+        # Get Nifty 100 symbols to filter the global cache
+        nifty100_symbols = get_nifty_symbols()
+        
+        orchestrator_data = []
+        for symbol in nifty100_symbols:
+            tick = orchestrator._data_cache.get(symbol.upper())
+            if tick and tick.ltp and tick.ltp > 0:
+                orchestrator_data.append(tick)
+        
+        if len(orchestrator_data) >= 5:
+            result = self._compute_rankings_from_orchestrator(orchestrator_data)
             await self._write_to_cache(result)
             return asdict(result)
         
@@ -283,21 +294,19 @@ class Nifty100RankingService:
     # =========================================================================
     
     async def _start_live_mode(self):
-        """Start WebSocket subscription for live data."""
+        """Consume live data from MarketDataOrchestrator."""
         self._mode = "LIVE"
-        logger.info("Starting LIVE mode - WebSocket subscription")
+        logger.info("Starting LIVE mode - Consuming from Orchestrator")
         
         try:
-            from services.upstox_ws_manager import get_upstox_ws_manager
+            from services.market_data_orchestrator import get_market_data_orchestrator
+            self._orchestrator = get_market_data_orchestrator()
             
-            self._ws_manager = get_upstox_ws_manager()
-            self._ws_manager.add_callback(self._on_tick)
-            
-            await self._ws_manager.connect()
+            # Subscribe to Nifty 100 symbols via Orchestrator/WS
             symbols = get_nifty_symbols()
-            await self._ws_manager.subscribe(symbols)
+            await self._orchestrator.ws_manager.subscribe(symbols)
             
-            # Start cache refresh loop
+            # Start cache refresh loop (now just reading from Orchestrator cache)
             asyncio.create_task(self._live_refresh_loop())
             
         except Exception as e:
@@ -400,8 +409,19 @@ class Nifty100RankingService:
             try:
                 await asyncio.sleep(Config.REFRESH_INTERVAL)
                 
-                if self._live_prices:
-                    result = self._compute_rankings_from_live()
+                # Use orchestrator data instead of internal self._live_prices
+                from services.market_data_orchestrator import get_market_data_orchestrator
+                orchestrator = get_market_data_orchestrator()
+                
+                nifty100_symbols = get_nifty_symbols()
+                orchestrator_data = []
+                for symbol in nifty100_symbols:
+                    tick = orchestrator._data_cache.get(symbol.upper())
+                    if tick and tick.ltp and tick.ltp > 0:
+                        orchestrator_data.append(tick)
+                
+                if len(orchestrator_data) >= 5:
+                    result = self._compute_rankings_from_orchestrator(orchestrator_data)
                     await self._write_to_cache(result, ttl=Config.CACHE_TTL_LIVE)
                     
             except asyncio.CancelledError:
@@ -428,19 +448,19 @@ class Nifty100RankingService:
     # Ranking Computation
     # =========================================================================
     
-    def _compute_rankings_from_live(self) -> TopMoversResult:
-        """Compute rankings from in-memory live prices."""
+    def _compute_rankings_from_orchestrator(self, ticks: List[Any]) -> TopMoversResult:
+        """Compute rankings from Orchestrator momentum ticks."""
         valid_stocks = []
         
-        for symbol, tick in self._live_prices.items():
+        for tick in ticks:
             valid_stocks.append({
                 "symbol": tick.symbol,
                 "ltp": tick.ltp,
                 "change_pct": tick.change_pct,
                 "prev_close": tick.prev_close,
-                "volume": tick.volume,
-                "day_high": tick.high,
-                "day_low": tick.low
+                "volume": getattr(tick, 'volume', 0),
+                "day_high": getattr(tick, 'high', tick.ltp),
+                "day_low": getattr(tick, 'low', tick.ltp)
             })
         
         # Sort for gainers (descending) and losers (ascending)
@@ -452,13 +472,13 @@ class Nifty100RankingService:
             trading_date=self._market_hours.get_trading_date(),
             gainers=gainers,
             losers=losers,
-            source="websocket",
+            source=f"orchestrator_{ticks[0].source}" if ticks else "orchestrator",
             is_market_open=True,
             cache_metadata={
                 "cached_at": datetime.now().isoformat(),
                 "ttl_seconds": Config.CACHE_TTL_LIVE,
                 "is_stale": False,
-                "symbols_tracked": len(self._live_prices)
+                "symbols_tracked": len(ticks)
             }
         )
     

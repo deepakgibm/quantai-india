@@ -12,7 +12,6 @@ from core.backtest.advanced_strategies import (
     GoldenCrossStrategy,
     ATRVolatilityBreakoutStrategy
 )
-from core.backtest.base import SignalType
 
 def create_sample_data(periods=500):
     np.random.seed(42)

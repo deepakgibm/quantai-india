@@ -46,6 +46,9 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-supersecretkey}
 
+    volumes:
+      - ./backend:/app
+    command: [ "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
     ports:
       - "8000:8000"
     depends_on:
@@ -67,6 +70,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile.worker
     container_name: quantai-worker
+    volumes:
+      - ./backend:/app
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
       - SYNC_DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
@@ -102,7 +107,7 @@ services:
       - backend
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80" ]
       interval: 30s
       timeout: 10s
       retries: 3

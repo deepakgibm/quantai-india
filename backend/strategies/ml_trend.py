@@ -1,7 +1,6 @@
 from typing import Optional
 from .base import BaseStrategy, StrategyRegistry, ScanResult
 import pandas as pd
-import numpy as np
 # import lightgbm as lgb # Uncomment when model is ready
 
 @StrategyRegistry.register

@@ -1,7 +1,6 @@
 
 import os
 import psycopg2
-from datetime import datetime, timedelta
 
 # Get DB URL from env or default - LOCALHOST
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:admin@localhost:5432/quantai")

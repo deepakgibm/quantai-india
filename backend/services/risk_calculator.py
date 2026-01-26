@@ -4,7 +4,7 @@ Calculate portfolio risk metrics including VaR, drawdown, correlation, etc.
 """
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 from datetime import datetime, timedelta
 from scipy import stats
 
@@ -12,7 +12,7 @@ from database import AsyncSessionLocal
 from models_risk import Position, PortfolioMetrics
 from models_alpha import StockCandle
 from services.instrument_resolver import resolve_instrument_id
-from sqlalchemy import select, and_, desc
+from sqlalchemy import select, and_
 
 
 class RiskCalculator:

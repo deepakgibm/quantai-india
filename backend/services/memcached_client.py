@@ -9,33 +9,6 @@ This wrapper re-exports all symbols from dragonfly_client for backward compatibi
 """
 
 # Re-export everything from dragonfly_client for backward compatibility
-from services.dragonfly_client import (
-    # Configuration
-    DRAGONFLY_HOST,
-    DRAGONFLY_PORT,
-    DRAGONFLY_DB,
-    
-    # TTL Policies
-    TTLPolicy,
-    
-    # Exceptions
-    CacheUnavailableError,
-    
-    # Cache Keys
-    CacheKeys,
-    
-    # Cache Manager
-    CacheManager,
-    
-    # Singleton Accessor
-    get_cache,
-    
-    # Convenience Functions
-    cache_get,
-    cache_set,
-    cache_delete,
-    cache_stats,
-)
 
 # Logging deprecation warning on import
 import warnings

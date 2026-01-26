@@ -5,7 +5,7 @@ import sys
 # Add backend to path
 sys.path.append(os.getcwd())
 
-from database import engine, init_db
+from database import engine
 from sqlalchemy import text
 
 async def test_backend_db():

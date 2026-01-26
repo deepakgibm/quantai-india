@@ -11,11 +11,9 @@ import ssl
 import certifi
 import websockets
 from typing import Dict, List, Optional, Callable, Set
-from datetime import datetime
-import pandas as pd
 
-from config import settings
 from services.upstox_client import get_upstox_client
+from utils.upstox_proto import decode_market_data
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +32,53 @@ class UpstoxWSManager:
         self.callbacks: List[Callable[[Dict], None]] = []
         self.subscribed_symbols: Set[str] = set()
         self.instrument_keys: Dict[str, str] = {} # symbol -> instrument_key
+        self.key_to_symbol: Dict[str, str] = {}   # instrument_key -> symbol
         self.last_ticks: Dict[str, Dict] = {}
         self._load_instrument_keys()
         
+    async def _resolve_instrument_keys(self, symbols: List[str]) -> List[str]:
+        """Resolve instrument keys for symbols, checking cache first then DB."""
+        unresolved = []
+        keys = []
+        
+        for symbol in symbols:
+            # Check cache
+            key = self.instrument_keys.get(symbol.upper())
+            if not key:
+                # Try variants (BANK NIFTY vs BANKNIFTY)
+                clean_sym = symbol.upper().replace(" ", "").replace("_", "")
+                key = self.instrument_keys.get(clean_sym)
+            
+            if key:
+                keys.append(key)
+            else:
+                unresolved.append(symbol.upper())
+                
+        if unresolved:
+            try:
+                from database import AsyncSessionLocal
+                from sqlalchemy import text
+                
+                async with AsyncSessionLocal() as session:
+                    query = text("SELECT symbol, instrument_key FROM instrument_master WHERE symbol = ANY(:symbols)")
+                    result = await session.execute(query, {"symbols": unresolved})
+                    for row in result:
+                        sym, key = row[0], row[1]
+                        self.instrument_keys[sym] = key
+                        self.key_to_symbol[key] = sym
+                        keys.append(key)
+                        logger.debug(f"Resolved {sym} -> {key} from DB")
+            except Exception as e:
+                logger.error(f"Error resolving keys from DB: {e}")
+                
+        return keys
+
     def _load_instrument_keys(self):
-        """Load instrument mapping from JSON."""
+        """Load initial instrument mapping from JSON."""
         try:
             with open("nifty200_instruments.json", "r") as f:
                 data = json.load(f)
-                self.instrument_keys = {item[0]: item[1] for item in data}
+                self.instrument_keys = {item[0].upper(): item[1] for item in data}
             logger.info(f"Loaded {len(self.instrument_keys)} instrument keys")
             
             # Add index mappings
@@ -52,6 +88,9 @@ class UpstoxWSManager:
             self.instrument_keys["INDIA VIX"] = "NSE_INDEX|India VIX"
         except Exception as e:
             logger.error(f"Failed to load instruments: {e}")
+        
+        # Create reverse mapping
+        self.key_to_symbol = {v: k for k, v in self.instrument_keys.items()}
         
     def add_callback(self, callback: Callable[[Dict], None]):
         """Add a callback function to be called on every tick."""
@@ -125,17 +164,14 @@ class UpstoxWSManager:
             self.subscribed_symbols.update(symbols)
             return
 
-        # Prepare instrument keys
-        keys_to_subscribe = []
+        # Resolve instrument keys (cache + DB)
+        keys_to_subscribe = await self._resolve_instrument_keys(symbols)
+        
         for symbol in symbols:
-            # Ideally we resolve symbol to instrument_key here
-            # For now, we assume we have a mapping or fetch it
-            key = self.instrument_keys.get(symbol)
-            if key:
-                keys_to_subscribe.append(key)
-                self.subscribed_symbols.add(symbol)
+            self.subscribed_symbols.add(symbol.upper())
                 
         if not keys_to_subscribe:
+            logger.warning(f"Could not resolve any instrument keys for: {symbols}")
             return
 
         payload = {
@@ -175,15 +211,22 @@ class UpstoxWSManager:
             return
 
         # It's binary (Protobuf)
-        # In a real scenario, we'd use a Protobuf decoder here.
-        # Since I cannot see the proto file, I'll implement a mock decoder 
-        # that mimics Upstox V2 structure or use a helper if available.
+        ticks = decode_market_data(message)
         
-        # TODO: Implement real Protobuf decoding
-        # For this task, I'll simulate the decoded tick for now if I can't find the proto.
-        # However, to make it work 'for real', I should try to use the SDK's internal machinery if possible.
-        
-        pass
+        for key, tick in ticks.items():
+            symbol = self.key_to_symbol.get(key)
+            if not symbol:
+                continue
+                
+            tick["symbol"] = symbol
+            self.last_ticks[symbol] = tick
+            
+            # Notify callbacks
+            for callback in self.callbacks:
+                try:
+                    callback(tick)
+                except Exception as e:
+                    logger.error(f"Error in WS callback for {symbol}: {e}")
 
     def stop(self):
         """Stop the WebSocket manager."""

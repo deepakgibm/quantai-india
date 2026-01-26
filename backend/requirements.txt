@@ -61,3 +61,6 @@ redis==5.0.1
 
 duckdb
 prometheus_client==0.19.0
+
+# Protobuf (pinned to 3.x for compatibility with Upstox WebSocket)
+protobuf==3.20.3

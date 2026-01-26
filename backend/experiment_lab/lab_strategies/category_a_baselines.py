@@ -4,7 +4,6 @@ These are foundational strategies using a single core logic.
 """
 
 import pandas as pd
-import numpy as np
 from typing import List
 from .base import (
     ExperimentStrategy, StrategyInfo, SignalResult, SignalType,

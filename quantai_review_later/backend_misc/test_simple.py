@@ -1,7 +1,6 @@
 """Test AI with output to file"""
 import asyncio
 import httpx
-import json
 
 async def test():
     base_url = "http://localhost:8000"

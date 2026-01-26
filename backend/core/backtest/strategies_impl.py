@@ -13,8 +13,8 @@ Strategy Categories:
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any
-from .base import SignalType, TradeSignal, StrategyMetadata, BaseStrategy
+from typing import Dict, List, Optional, Any
+from .base import SignalType, StrategyMetadata, BaseStrategy
 
 
 # =============================================================================

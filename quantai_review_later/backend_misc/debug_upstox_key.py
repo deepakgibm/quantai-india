@@ -3,7 +3,6 @@ Debug script to test Upstox instrument key formats
 """
 import sys
 from pathlib import Path
-import asyncio
 import requests
 from datetime import datetime, timedelta
 

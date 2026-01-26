@@ -12,7 +12,7 @@ In production, integrate with:
 
 import random
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional
 from enum import Enum
 
 from data.fno_stocks import has_derivatives

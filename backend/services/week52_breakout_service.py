@@ -6,7 +6,7 @@ Uses daily candles with minimum 252 trading days of data.
 
 import logging
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass, asdict
 import psycopg2
 from config import settings

@@ -3,7 +3,7 @@ Nifty 200 Multi-Interval Loader (Upstox)
 Loads 1min, 3min, 5min, 15min, 30min data from Jan 2022 to today.
 """
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from backend.database import AsyncSessionLocal
 from backend.models_alpha import StockData
 

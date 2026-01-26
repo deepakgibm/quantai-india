@@ -1,4 +1,3 @@
-import asyncio
 import os
 import sys
 from sqlalchemy import create_engine, text

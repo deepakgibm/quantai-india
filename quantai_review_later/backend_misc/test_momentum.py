@@ -1,6 +1,5 @@
 """Test momentum endpoint"""
 import requests
-import json
 
 r = requests.get('http://localhost:8000/api/scanner/momentum', timeout=60)
 data = r.json()

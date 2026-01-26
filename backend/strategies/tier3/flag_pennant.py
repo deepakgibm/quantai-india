@@ -1,7 +1,6 @@
 """Flag and Pennant Continuation Pattern - Tier 3"""
 from typing import Optional
 import pandas as pd
-import numpy as np
 from strategies.base import BaseStrategy, ScanResult, SignalType, StrategyTier, StrategyRegistry
 from core.scanner.indicator_utils import volume_ratio
 

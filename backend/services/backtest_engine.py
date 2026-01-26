@@ -6,14 +6,13 @@ Generates performance metrics and optimal timeframe recommendations.
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, List
 from dataclasses import dataclass
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker
 
 from config import settings
-from core.indicators import ema, rsi, bollinger_bands, macd
+from core.indicators import ema, bollinger_bands
 
 
 @dataclass

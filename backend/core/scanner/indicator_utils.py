@@ -5,7 +5,7 @@ Common indicator calculations used across strategies.
 
 import numpy as np
 import pandas as pd
-from typing import Tuple, Optional
+from typing import Tuple
 
 
 def sma(series: pd.Series, period: int) -> pd.Series:
@@ -102,7 +102,23 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> 
     tr2 = abs(high - close.shift(1))
     tr3 = abs(low - close.shift(1))
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    return tr.ewm(span=period, adjust=False).mean()
+    return tr.rolling(window=period).mean()  # Use standard rolling mean for consistency with existing computer
+
+
+def mfi(high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series, period: int = 14) -> pd.Series:
+    """Money Flow Index."""
+    typical_price = (high + low + close) / 3
+    money_flow = typical_price * volume
+    
+    positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0.0)
+    negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0.0)
+    
+    positive_mf = positive_flow.rolling(window=period).sum()
+    negative_mf = negative_flow.rolling(window=period).sum()
+    
+    mfr = positive_mf / negative_mf
+    mfi_val = 100 - (100 / (1 + mfr))
+    return mfi_val
 
 
 def obv(close: pd.Series, volume: pd.Series) -> pd.Series:

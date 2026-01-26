@@ -6,10 +6,8 @@ Designed to be run daily (e.g., via cron or scheduler) after market close.
 
 import asyncio
 import sys
-import os
 from pathlib import Path
 from datetime import datetime, timedelta
-import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -26,7 +24,6 @@ if str(backend_dir) in sys.path:
 from backend.database import AsyncSessionLocal
 from backend.models_ml import Nifty100Daily
 from backend.models_alpha import ETLLog
-import backend.models # Ensure User model is loaded
 from backend.services.upstox_client import get_upstox_client
 from backend.config import settings
 

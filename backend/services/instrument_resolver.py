@@ -7,7 +7,6 @@ Implements caching for performance - never queries instrument_master repeatedly 
 
 import logging
 from typing import Optional, Dict, NamedTuple
-from functools import lru_cache
 from datetime import datetime, timedelta
 import psycopg2
 from config import settings

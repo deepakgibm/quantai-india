@@ -7,9 +7,9 @@ Tests all API endpoints across all modules with detailed reporting.
 import requests
 import json
 import time
-from datetime import datetime, date
-from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from datetime import datetime
+from dataclasses import dataclass
+from typing import Optional, List, Dict
 from collections import defaultdict
 
 # Configuration

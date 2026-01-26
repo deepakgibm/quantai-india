@@ -3,8 +3,6 @@ import asyncio
 import httpx
 import logging
 import argparse
-import sys
-import json
 
 # Configure logging
 logging.basicConfig(

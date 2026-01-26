@@ -10,7 +10,7 @@ Uses NEW SCHEMA:
 
 import logging
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass, asdict
 import psycopg2
 import pandas as pd
@@ -18,8 +18,6 @@ from config import settings
 from urllib.parse import urlparse
 
 # Import new schema utilities
-from services.instrument_resolver import resolve_instrument_id, get_symbol_for_instrument_id
-from services.timeframe_converter import text_to_minutes, minutes_to_text
 
 logger = logging.getLogger(__name__)
 

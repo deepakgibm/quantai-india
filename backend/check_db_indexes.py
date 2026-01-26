@@ -5,7 +5,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text, inspect
 from config import settings
-from models_ml import Nifty100Daily
 import time
 
 def check_indexes():

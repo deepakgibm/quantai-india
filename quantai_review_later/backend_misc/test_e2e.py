@@ -2,7 +2,6 @@
 End-to-End API Testing for AlphaPrime
 """
 import requests
-import json
 
 BASE_URL = "http://localhost:8000"
 

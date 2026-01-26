@@ -4,10 +4,8 @@ Runs indicator calculations in separate processes to avoid GIL contention.
 """
 
 import multiprocessing as mp
-from multiprocessing import Process, Queue, Event
 import logging
 import time
-import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass

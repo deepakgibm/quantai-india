@@ -6,12 +6,12 @@ Inference engine for Adaptive Price Forecast
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 
 from .feature_builder import FeatureBuilder
 from .ensemble import APFEnsemble
-from .schemas import ForecastResponse, ForecastError
+from .schemas import ForecastResponse
 
 logger = logging.getLogger(__name__)
 

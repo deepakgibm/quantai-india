@@ -1,8 +1,7 @@
 
 import asyncio
 import bcrypt
-from sqlalchemy import text
-from database import engine, init_db, AsyncSessionLocal
+from database import init_db, AsyncSessionLocal
 from models import User
 from sqlalchemy import select
 

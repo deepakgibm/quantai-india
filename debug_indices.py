@@ -2,7 +2,6 @@
 import asyncio
 import logging
 import sys
-import os
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

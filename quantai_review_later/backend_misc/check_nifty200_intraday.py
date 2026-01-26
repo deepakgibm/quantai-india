@@ -3,9 +3,8 @@ Check for Nifty 200 Intraday Data Tables
 Verifies existence and coverage of 1min, 5min, 15min candle data
 """
 import asyncio
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.ext.asyncio import create_async_engine,  AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 DATABASE_URL = "sqlite+aiosqlite:///./quantai.db"
 

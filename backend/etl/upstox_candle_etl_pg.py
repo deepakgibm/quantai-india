@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from services.instrument_resolver import resolve_by_instrument_key
-from services.timeframe_converter import text_to_minutes
 
 # ==========================
 # LOAD ENVIRONMENT

@@ -6,7 +6,6 @@ Identifies oversold/overbought stocks for reversal plays.
 import pandas as pd
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
-from config import settings
 from utils.symbol_utils import get_company_name
 from database import SessionLocal
 

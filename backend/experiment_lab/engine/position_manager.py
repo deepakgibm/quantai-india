@@ -6,7 +6,6 @@ Handles position sizing based on different risk models.
 from enum import Enum
 from dataclasses import dataclass
 from typing import Optional
-import pandas as pd
 
 
 class RiskMode(str, Enum):

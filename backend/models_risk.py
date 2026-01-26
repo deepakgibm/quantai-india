@@ -1,12 +1,11 @@
 """
 Risk Management Database Models
 """
-from sqlalchemy import Boolean, Column, Integer, String, Float, DateTime, ForeignKey, Date, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Date, Text, JSON
 from sqlalchemy.sql import func
 from database import Base
 
 # Import RiskConfig and Position from models.py to avoid duplicate table definitions
-from models import RiskConfig, Position
 
 
 class StopLossHistory(Base):

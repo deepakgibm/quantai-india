@@ -4,11 +4,9 @@ Loads 1min, 3min, 5min, 15min, 30min data from Jan 2022 using Upstox
 """
 import asyncio
 import yfinance as yf
-from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.exc import IntegrityError
 
 # Database  
 DATABASE_URL = "sqlite+aiosqlite:///./quantai.db"

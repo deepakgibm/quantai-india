@@ -3,11 +3,11 @@ Multi-Timeframe Confluence Engine
 3-Layer confluence: Daily (Trend) → 4H (Structure) → 1H (Entry)
 """
 
-from typing import Optional, Dict, List
+from typing import Optional
 import pandas as pd
 from strategies.base import BaseStrategy, ScanResult, SignalType, StrategyTier, StrategyRegistry
 from core.scanner.indicator_utils import (
-    donchian_channels, sma, ichimoku, volume_ratio, 
+    donchian_channels, sma, volume_ratio, 
     rsi, williams_r, stochastic, fibonacci_levels
 )
 

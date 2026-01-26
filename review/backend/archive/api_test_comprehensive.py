@@ -4,9 +4,8 @@ Tests all major API endpoints and generates a detailed test summary
 """
 import requests
 import json
-import time
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict
 
 BASE_URL = "http://localhost:8000"
 

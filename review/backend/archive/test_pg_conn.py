@@ -1,5 +1,4 @@
 import psycopg2
-import sys
 
 def test_conn():
     params = [

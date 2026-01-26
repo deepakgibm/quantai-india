@@ -10,12 +10,7 @@ Usage:
 
 import asyncio
 from database import engine, Base
-from models import User, Algorithm, Order, UserSettings
 from models_alpha import (
-    StockData,
-    AlphaSignal,
-    TradeDecision,
-    ETLLog,
     AlphaPrimeConfig
 )
 

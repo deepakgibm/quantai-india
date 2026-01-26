@@ -1,4 +1,51 @@
-import { Order } from "../types";
+// import { Order } from "../types"; // Removed unused import
+
+// ============= API Error Handling =============
+
+/**
+ * Structured API error for consistent error handling
+ */
+export class ApiError extends Error {
+  public code: string;
+  public status: number;
+  public details?: any;
+
+  constructor(code: string, message: string, status: number = 500, details?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+    this.details = details;
+  }
+
+  static fromResponse(response: Response, body?: any): ApiError {
+    const message = body?.detail || body?.error?.message || response.statusText || 'Request failed';
+    const code = body?.error?.code || `HTTP_${response.status}`;
+    return new ApiError(code, message, response.status, body);
+  }
+
+  static networkError(error: Error): ApiError {
+    if (error.message.includes('timed out')) {
+      return new ApiError('TIMEOUT', 'Request timed out. Please try again.', 408);
+    }
+    return new ApiError('NETWORK_ERROR', 'Network error. Please check your connection.', 0);
+  }
+}
+
+/**
+ * Result type for API calls - either success with data or error
+ */
+export type ApiResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: ApiError };
+
+// Helper to create success result
+const ok = <T>(data: T): ApiResult<T> => ({ success: true, data });
+
+// Helper to create error result  
+const err = <T>(error: ApiError): ApiResult<T> => ({ success: false, error });
+
+// ============= Base URL Configuration =============
 
 const getBaseUrl = () => {
   // 1. Check environment variable
@@ -14,13 +61,15 @@ const getBaseUrl = () => {
 };
 
 export const API_URL = getBaseUrl();
-const REQUEST_TIMEOUT = 60000; // 60 second timeout
+const REQUEST_TIMEOUT = 30000; // 30 second timeout (reduced from 60s)
 
 // PRODUCTION MODE: Mock data is disabled
 const USE_MOCK = false;
 
 // PRODUCTION MODE: No mock data fallbacks
 // If real data is unavailable, UI must show "Data unavailable" - never fake numbers
+
+
 
 // Helper for fetch with timeout
 const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> => {
@@ -56,6 +105,54 @@ export const getAuthHeaders = () => {
 
   return headers;
 };
+
+/**
+ * Standardized API request wrapper with proper error handling.
+ * Use this for new API calls to get consistent error handling.
+ */
+export async function apiRequest<T>(
+  url: string,
+  options: RequestInit = {},
+  timeout = REQUEST_TIMEOUT
+): Promise<ApiResult<T>> {
+  try {
+    const response = await fetchWithTimeout(url, options, timeout);
+
+    // Try to parse JSON body
+    let body: any;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    if (!response.ok) {
+      return err(ApiError.fromResponse(response, body));
+    }
+
+    return ok(body as T);
+  } catch (error: any) {
+    return err(ApiError.networkError(error));
+  }
+}
+
+/**
+ * Helper for GET requests with auth
+ */
+export async function apiGet<T>(endpoint: string, timeout?: number): Promise<ApiResult<T>> {
+  return apiRequest<T>(`${API_URL}${endpoint}`, { headers: getAuthHeaders() }, timeout);
+}
+
+/**
+ * Helper for POST requests with auth
+ */
+export async function apiPost<T>(endpoint: string, body: any, timeout?: number): Promise<ApiResult<T>> {
+  return apiRequest<T>(`${API_URL}${endpoint}`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body)
+  }, timeout);
+}
 
 export const api = {
   // --- AUTHENTICATION ---
@@ -569,5 +666,56 @@ export const api = {
       console.error('ML Forecast failed:', e);
       throw e;
     }
+  },
+
+  // --- ADMIN & MONITORING ---
+  getAdminIndices: async () => {
+    const res = await apiGet<any[]>('/api/v1/admin/indices/');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  createAdminIndex: async (name: string, description: string = "", baseIndexId?: number) => {
+    const res = await apiPost<any>('/api/v1/admin/indices/', { name, description, base_index_id: baseIndexId });
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  addIndexConstituent: async (indexId: number, symbol: string) => {
+    const res = await apiPost<any>(`/api/v1/admin/indices/${indexId}/constituents/${symbol}`, {});
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  removeIndexConstituent: async (indexId: number, symbol: string) => {
+    // using apiRequest because delete isn't in helpers yet
+    const res = await apiRequest<any>(`${API_URL}/api/v1/admin/indices/${indexId}/constituents/${symbol}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  deleteAdminIndex: async (indexId: number) => {
+    const res = await apiRequest<any>(`${API_URL}/api/v1/admin/indices/${indexId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getSystemHealth: async () => {
+    const res = await apiGet<any>('/health');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getEtlLogs: async () => {
+    // Using existing endpoint
+    const res = await apiGet<any>('/api/v1/etl/status');
+    if (res.success) return res.data;
+    throw res.error;
   }
 };

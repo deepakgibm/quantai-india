@@ -5,10 +5,8 @@ Identifies stocks with volume-backed breakouts using optimized Pandas vectorizat
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime, timedelta
-from sqlalchemy import desc
-from config import settings
 from database import SessionLocal
 import logging
 

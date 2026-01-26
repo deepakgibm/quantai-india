@@ -2,7 +2,7 @@
 import asyncio
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 import urllib.parse
 
 # Add project root to sys.path

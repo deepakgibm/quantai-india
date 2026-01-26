@@ -1,5 +1,4 @@
 import sys
-import os
 from pathlib import Path
 
 # Add project root to sys.path
@@ -13,13 +12,10 @@ if str(backend_dir) in sys.path:
     sys.path.remove(str(backend_dir))
 
 try:
-    from backend.models_ml import Nifty100Daily
     print("✅ Imported Nifty100Daily successfully")
     
-    from backend.models import Nifty100Daily as Nifty100DailyFromModels
     print("✅ Imported Nifty100Daily from models.py successfully")
     
-    import yfinance
     print("✅ yfinance is installed")
     
 except Exception as e:

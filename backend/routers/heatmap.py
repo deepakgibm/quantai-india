@@ -1,12 +1,30 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any
 from models import User
 from utils.auth import get_current_user
-from services.dragonfly_client import CacheManager, CacheKeys
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 print("DEBUG: Loading Heatmap Router MODULE")
-cache = CacheManager()
+
+# Lazy cache initialization to prevent module-level failures
+_cache = None
+
+def get_heatmap_cache():
+    """Get cache instance with lazy initialization."""
+    global _cache
+    if _cache is None:
+        try:
+            from services.dragonfly_client import CacheManager
+            _cache = CacheManager()
+        except Exception as e:
+            logger.warning(f"CacheManager init failed: {e}, using fallback")
+            # Return a simple object that returns None for gets
+            class FallbackCache:
+                def get(self, key): return None
+                def set(self, key, val, ttl=None): pass
+            _cache = FallbackCache()
+    return _cache
 
 @router.get("/sectors")
 async def get_heatmap_sectors(current_user: User = Depends(get_current_user)):
@@ -19,7 +37,9 @@ async def get_heatmap_sectors(current_user: User = Depends(get_current_user)):
     Latency: <50ms
     """
     from utils.market_state import is_market_open, get_trading_date
-    from services.memcached_client import get_cache as get_df_cache
+    from services.dragonfly_client import get_cache as get_df_cache, CacheKeys
+    
+    cache = get_heatmap_cache()
     
     # Check if market is closed - return EOD snapshot
     if not is_market_open():
@@ -59,6 +79,9 @@ async def get_sector_stocks(sector_name: str, current_user: User = Depends(get_c
     """
     from utils.market_state import is_market_open, get_trading_date
     from services.memcached_client import get_cache as get_df_cache
+    from services.dragonfly_client import CacheKeys
+    
+    cache = get_heatmap_cache()
     
     # Check if market is closed - return EOD snapshot
     if not is_market_open():
@@ -100,17 +123,17 @@ async def get_sector_stocks(sector_name: str, current_user: User = Depends(get_c
 async def seed_data(current_user: User = Depends(get_current_user)):
     """Force-seed dummy data for demo purposes (RESTRICTED)."""
     # Security: Only allow specific admin or disable in production
-    if current_user.email != "admin@quantai.in":
+    if current_user.email != "dthat53@gmail.com":
         raise HTTPException(status_code=403, detail="Only admins can seed data")
     
-    # ... rest of the code ...
-
+    from services.dragonfly_client import CacheKeys
+    cache = get_heatmap_cache()
+    
     import random
     sectors = ["Financial Services", "Energy", "IT", "Auto", "Pharma"]
     
     # 1. Create Dummy Stocks
     dummy_stocks = []
-    symbol_map = {}
     
     for i in range(50):
         sec = random.choice(sectors)
@@ -150,9 +173,6 @@ async def seed_data(current_user: User = Depends(get_current_user)):
         }
         sector_snapshots.append(snapshot)
         cache.set(CacheKeys.sector_snapshot(sec), snapshot, ttl=300)
-    
-    # 2. Aggregation Logic (Mini version of worker)
-    # ... (Keep existing logic)
     
     # 3. Write All Heatmap (Direct Write)
     cache.set(CacheKeys.heatmap_all(), sector_snapshots, ttl=300)

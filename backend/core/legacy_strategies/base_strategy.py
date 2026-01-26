@@ -4,7 +4,7 @@ Unified interface for backtesting and live trading
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 import pandas as pd
 from datetime import datetime

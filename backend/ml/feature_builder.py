@@ -6,8 +6,7 @@ Extracts technical indicators and features from OHLCV data
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 

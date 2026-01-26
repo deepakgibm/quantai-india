@@ -2,7 +2,6 @@
 Check Upstox Token Validity and Test API Endpoints
 """
 import os
-import sys
 from datetime import datetime
 import base64
 import json

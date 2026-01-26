@@ -5,7 +5,7 @@ Gym-compatible environment for order execution optimization
 
 import numpy as np
 from typing import Dict, Any, Optional, Tuple, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import logging

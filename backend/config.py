@@ -26,8 +26,17 @@ def _validate_secret_key(key: str) -> str:
         raise ValueError(
             "SECRET_KEY appears to be a placeholder. Please set a real secret key."
         )
-    
     return key
+
+
+def _validate_upstox_token(token: str) -> str:
+    """Validate Upstox Access Token presence and format."""
+    if not token or "your-token" in token.lower():
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning("⚠️ UPSTOX_ACCESS_TOKEN is not set or is a placeholder. Real-time data will be disabled.")
+        return ""
+    return token
 
 
 class Settings:
@@ -48,7 +57,7 @@ class Settings:
     UPSTOX_API_KEY = os.getenv("UPSTOX_API_KEY", "")
     UPSTOX_API_SECRET = os.getenv("UPSTOX_API_SECRET", "")
     UPSTOX_REDIRECT_URI = os.getenv("UPSTOX_REDIRECT_URI", "http://localhost:3000/callback")
-    UPSTOX_ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN", "")
+    UPSTOX_ACCESS_TOKEN = _validate_upstox_token(os.getenv("UPSTOX_ACCESS_TOKEN", ""))
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     MAX_CAPITAL_PER_TRADE = 100000
     MAX_RISK_PERCENTAGE = 2.0

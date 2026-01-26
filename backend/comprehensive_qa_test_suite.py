@@ -19,7 +19,7 @@ import time
 import statistics
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from enum import Enum
 import os
 from pathlib import Path

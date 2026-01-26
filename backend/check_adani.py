@@ -1,6 +1,5 @@
 from sqlalchemy import text
 from database import engine
-import json
 
 def check_adani():
     con = engine.connect()

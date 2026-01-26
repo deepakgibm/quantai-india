@@ -7,22 +7,18 @@ or inspected via the API.
 
 import asyncio
 import json
-import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Tuple
-import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
 # Imports
-import backend.models # Ensure User model is loaded for relationships
 
 
 from backend.database import AsyncSessionLocal
 from backend.models_alpha import StockCandle, ETLLog
 from backend.services.upstox_client import get_upstox_client
 from backend.services.instrument_resolver import resolve_instrument_id
-from backend.config import settings
 
 TRACKER_PATH = Path(__file__).with_name("load_tracker.json")
 

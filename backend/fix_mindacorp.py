@@ -6,7 +6,7 @@ import psycopg2
 import redis
 import json
 import yfinance as yf
-from datetime import datetime, date, timedelta
+from datetime import datetime
 
 def fix_mindacorp_price():
     # 1. Get official EOD from yfinance

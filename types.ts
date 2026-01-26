@@ -20,6 +20,8 @@ export enum Page {
   WALK_FORWARD_BACKTEST = 'walk_forward_backtest',
   EXPERIMENT_LAB = 'experiment_lab',
   PRICE_FORECAST = 'price_forecast',
+  ADMIN_INDICES = 'ADMIN_INDICES',
+  ADMIN_MONITORING = 'ADMIN_MONITORING',
 }
 
 export interface Stock {

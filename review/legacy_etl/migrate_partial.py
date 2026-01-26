@@ -6,7 +6,6 @@ Migrates only the most recent 200 candles per symbol/interval for fast scanner s
 import sqlite3
 import psycopg2
 from datetime import datetime
-import os
 
 SQLITE_PATH = r'C:\Users\Deepak Kumar\Downloads\test\stock_data_v1.db'
 PG_CONN_STR = "host=localhost dbname=quantai user=postgres password=admin"

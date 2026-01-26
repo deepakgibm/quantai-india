@@ -2,7 +2,7 @@
 import asyncio
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Add project root to sys.path
 project_root = str(Path(__file__).resolve().parent.parent)

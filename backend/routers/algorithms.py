@@ -6,7 +6,7 @@ from typing import List
 from database import get_db
 from models import User, Algorithm
 from schemas import AlgorithmCreate, AlgorithmUpdate, AlgorithmResponse
-from utils.auth import get_current_user, get_optional_user
+from utils.auth import get_current_user
 
 router = APIRouter()
 

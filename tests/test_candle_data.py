@@ -4,13 +4,10 @@ Validates candle data for OHLC sanity, time ordering, and completeness.
 """
 
 import pytest
-from typing import Dict, Any, List
 from datetime import datetime, timedelta
 
 from tests.utils.test_data import (
     QUICK_TEST_SYMBOLS,
-    SYMBOL_TO_INSTRUMENT_KEY,
-    VALID_TIMEFRAMES,
     TIMEFRAME_TO_MINUTES,
 )
 from tests.utils.validators import (

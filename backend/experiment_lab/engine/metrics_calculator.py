@@ -4,7 +4,6 @@ Calculates comprehensive performance metrics from backtest results.
 """
 
 import numpy as np
-import pandas as pd
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime

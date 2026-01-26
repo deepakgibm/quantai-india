@@ -1,7 +1,6 @@
 
 import sys
 import os
-import asyncio
 from pprint import pprint
 
 # Add backend to path to import services

@@ -4,9 +4,8 @@ Handles OHLCV data loading and preprocessing
 """
 
 import pandas as pd
-import numpy as np
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
+from typing import Optional, Any
+from datetime import date
 from dataclasses import dataclass
 import logging
 
@@ -85,10 +84,8 @@ class DataHandler:
         """
         Load data from StockCandle database table (V3 source)
         """
-        import models # Ensure User is registered first to avoid TradeDecision relationship errors
-        from models_alpha import StockCandle, TimeframeMapper
-        from sqlalchemy import and_, cast, text
-        from sqlalchemy.dialects.postgresql import TIMESTAMP
+        from models_alpha import TimeframeMapper
+        from sqlalchemy import and_, text
         import datetime as dt
         
         db_tf = TimeframeMapper.to_standard(timeframe)

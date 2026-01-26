@@ -11,8 +11,8 @@ Features:
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Callable, Set
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Callable
+from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 import json
@@ -115,18 +115,22 @@ class MarketDataOrchestrator:
                 logger.error(f"Callback error: {e}")
                 
     async def start(self):
-        """Start the orchestrator - try WebSocket first, fallback to REST, then DB."""
+        """Start the orchestrator - checks market hours to determine initial source."""
+        from services.market_hours_service import get_market_hours_service
+        self.market_hours = get_market_hours_service()
         self.is_running = True
         logger.info("Starting Market Data Orchestrator")
         
-        # Try WebSocket first with a 5-second timeout
-        try:
-            await asyncio.wait_for(self._connect_websocket(), timeout=5.0)
-        except asyncio.TimeoutError:
-            logger.warning("WebSocket connection timed out, using fallback")
-            await self._try_rest_or_db()
-        except Exception as e:
-            logger.warning(f"WebSocket connection failed: {e}, using fallback")
+        # Determine source based on market hours
+        if self.market_hours.is_market_open():
+            logger.info("Market is OPEN - Attempting WebSocket connection")
+            try:
+                await asyncio.wait_for(self._connect_websocket(), timeout=10.0)
+            except Exception as e:
+                logger.warning(f"WebSocket failure during market hours: {e}, falling back to REST")
+                await self._switch_to_rest()
+        else:
+            logger.info("Market is CLOSED - Starting REST/DB mode")
             await self._try_rest_or_db()
             
         # Start health monitoring only if we have a live source
@@ -437,10 +441,75 @@ class MarketDataOrchestrator:
             except Exception as e:
                 logger.error(f"Reconnect loop error: {e}")
                 
-    def get_all_data(self) -> List[Dict]:
-        """Get all cached momentum data for UI."""
-        return [tick.to_dict() for tick in self._data_cache.values()]
+    async def get_ltp(self, symbol: str) -> Optional[float]:
+        """
+        Get Last Traded Price for a symbol with hierarchical routing.
+        Routes: Cache -> on-demand REST -> DB fallback.
+        """
+        symbol = symbol.upper()
         
+        # 1. Check current cache
+        tick = self._data_cache.get(symbol)
+        if tick and tick.ltp > 0:
+            # If data is fresh (under 10s for WS/REST), return it
+            return tick.ltp
+            
+        # 2. On-demand fetch if market is open/near-market
+        try:
+            from services.upstox_client import get_upstox_client
+            client = get_upstox_client()
+            
+            # Resolve key
+            keys = await self.ws_manager._resolve_instrument_keys([symbol])
+            if keys:
+                quote = await client.get_live_quote(keys[0], symbol)
+                if quote and quote.get("last_price"):
+                    return quote["last_price"]
+        except Exception as e:
+            logger.debug(f"On-demand LTP fetch failed for {symbol}: {e}")
+            
+        # 3. DB Fallback
+        if not tick:
+            try:
+                db_data = self.db_fetcher.fetch_latest_data([symbol])
+                if symbol in db_data:
+                    return db_data[symbol].ltp
+            except:
+                pass
+                
+        return tick.ltp if tick else None
+
+    async def get_ltp_bulk(self, symbols: List[str]) -> Dict[str, float]:
+        """Get multiple LTPs in a single call."""
+        results = {}
+        to_fetch = []
+        
+        for s in symbols:
+            s_up = s.upper()
+            tick = self._data_cache.get(s_up)
+            if tick and tick.ltp > 0:
+                results[s_up] = tick.ltp
+            else:
+                to_fetch.append(s_up)
+                
+        if to_fetch:
+            try:
+                # Resolve keys
+                keys = await self.ws_manager._resolve_instrument_keys(to_fetch)
+                if keys:
+                    from services.upstox_client import get_upstox_client
+                    client = get_upstox_client()
+                    quotes = await client.get_live_quotes(keys)
+                    for k, q in quotes.items():
+                        # Map key back to symbol
+                        sym = self.ws_manager.key_to_symbol.get(k.replace(":", "|"))
+                        if sym:
+                            results[sym] = q.get("last_price")
+            except Exception as e:
+                logger.warning(f"Bulk LTP fetch failed: {e}")
+                
+        return results
+
     def get_status(self) -> Dict:
         """Get orchestrator status for UI."""
         # Determine poll interval based on current source

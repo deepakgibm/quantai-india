@@ -5,7 +5,6 @@ Tests for API availability, status codes, and response schema validation.
 
 import pytest
 import time
-from typing import Dict, Any, List
 from tests.utils.test_data import (
     PUBLIC_ENDPOINTS,
     AUTH_ENDPOINTS,

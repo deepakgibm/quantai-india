@@ -5,9 +5,8 @@ Tests all major API endpoints against Docker runtime
 
 import httpx
 import asyncio
-import json
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List
 import sys
 
 BASE_URL = "http://localhost:8000"

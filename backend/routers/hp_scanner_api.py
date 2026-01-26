@@ -3,8 +3,8 @@ Cache-First Scanner API (v3)
 All reads from Memcached, sub-50ms response target.
 """
 
-from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any, Optional
+from fastapi import APIRouter
+from typing import List, Dict
 from datetime import datetime
 import logging
 import time

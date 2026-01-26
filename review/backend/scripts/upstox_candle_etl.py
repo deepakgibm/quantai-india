@@ -28,10 +28,8 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
-from enum import Enum
 import requests
 import psycopg2
-from psycopg2.extras import execute_batch
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

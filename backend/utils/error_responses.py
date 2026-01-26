@@ -1,5 +1,5 @@
 from typing import Any, List, Optional, Dict
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from fastapi import Request, status, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError

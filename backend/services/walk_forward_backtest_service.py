@@ -13,11 +13,11 @@ No data leakage - IS metrics never exposed.
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, date, timedelta
+from typing import List, Dict, Any, Tuple
+from datetime import date
 from dataclasses import dataclass, field
 import logging
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from config import settings
@@ -92,7 +92,7 @@ class WalkForwardBacktestService:
             WalkForwardResponse with results
         """
         from api.v1.endpoints.walk_forward_backtest import (
-            WalkForwardResponse, WalkForwardSummary, WindowResult, ModelDiagnostics
+            WalkForwardResponse, WindowResult, ModelDiagnostics
         )
         
         logger.info(f"Starting walk-forward backtest for {request.symbols}")

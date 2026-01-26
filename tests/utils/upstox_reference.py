@@ -8,7 +8,6 @@ import time
 import requests
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-from functools import lru_cache
 
 # Simple in-memory cache for rate limiting
 _price_cache: Dict[str, Dict[str, Any]] = {}

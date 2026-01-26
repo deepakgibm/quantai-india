@@ -3,13 +3,12 @@ Multi-Timeframe (MTF) Indicator Coordinator
 Provides HTF (Higher Timeframe) context for LTF (Lower Timeframe) trading decisions.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
 import logging
 
 from engine.indicators import IndicatorSet, compute_indicators_for_symbol
-from engine.state import get_state_manager
 
 logger = logging.getLogger(__name__)
 

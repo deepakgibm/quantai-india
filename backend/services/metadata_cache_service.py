@@ -13,12 +13,11 @@ Features:
 - Invalidation hooks on updates
 """
 
-import json
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from services.dragonfly_client import get_cache, CacheKeys, TTLPolicy, CacheUnavailableError
+from services.dragonfly_client import get_cache, TTLPolicy, CacheUnavailableError
 
 logger = logging.getLogger(__name__)
 

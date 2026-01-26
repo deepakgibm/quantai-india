@@ -11,9 +11,7 @@ This module includes:
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any
-from dataclasses import dataclass
-from enum import Enum
+from typing import Dict, Any
 
 from .base import BaseStrategy, StrategyMetadata, SignalType
 
@@ -1068,7 +1066,6 @@ class OBVDivergenceStrategy(BaseStrategy):
         # Divergence usually means Price Trend is DOWN, OBV Trend is UP (Bullish)
         
         # Implementation using Slopes
-        import scipy.stats as stats
         
         # Helper for efficient slope calc (rolling)
         # We'll use a simplified check:

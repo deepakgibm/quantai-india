@@ -9,9 +9,9 @@ Exposes endpoints for:
 - Symbol and Strategy metadata
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, List, Any, Optional
-from datetime import datetime, date, timedelta
+from fastapi import APIRouter, HTTPException
+from typing import Dict, Any
+from datetime import datetime
 import psycopg2
 import logging
 

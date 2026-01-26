@@ -5,7 +5,6 @@ Finds stocks outperforming the market/sector.
 
 import pandas as pd
 from typing import List, Dict, Optional
-from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings

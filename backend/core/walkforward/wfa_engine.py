@@ -4,7 +4,7 @@ Rolling window optimization and out-of-sample testing
 """
 
 from typing import List, Dict, Any, Optional, Type
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, timedelta
 import pandas as pd
 import numpy as np

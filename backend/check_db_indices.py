@@ -1,6 +1,5 @@
 from database import SessionLocal
 from sqlalchemy import text
-import logging
 
 def check_indices():
     session = SessionLocal()

@@ -9,9 +9,9 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import threading
 
-from engine.state import get_state_manager, Candle
+from engine.state import get_state_manager
 from engine.indicators import compute_indicators_for_symbol
-from engine.strategy_engine import evaluate_all_strategies, SignalType
+from engine.strategy_engine import evaluate_all_strategies
 
 logger = logging.getLogger(__name__)
 

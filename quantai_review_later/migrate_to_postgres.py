@@ -7,7 +7,6 @@ import sqlite3
 import psycopg2
 from psycopg2.extras import execute_batch
 import time
-from datetime import datetime
 
 # Connection settings
 SQLITE_PATH = "quantai.db"

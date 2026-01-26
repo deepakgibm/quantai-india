@@ -5,7 +5,6 @@ Volume-confirmed breakout strategy based on Wyckoff methodology
 
 from typing import Dict, Any, Optional
 import pandas as pd
-import numpy as np
 
 from .base_strategy import BaseStrategy, Signal
 from ..backtest.executor import OrderSide

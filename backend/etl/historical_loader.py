@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Tuple
-import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
 # Ensure project root is on PYTHONPATH for imports

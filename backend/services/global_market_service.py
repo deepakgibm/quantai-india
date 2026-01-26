@@ -14,7 +14,7 @@ Used to show market direction indicators when NSE is closed.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
 import yfinance as yf

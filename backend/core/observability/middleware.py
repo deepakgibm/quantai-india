@@ -11,7 +11,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from core.observability.correlation import (
-    get_correlation_id,
     set_correlation_id,
     generate_correlation_id,
 )

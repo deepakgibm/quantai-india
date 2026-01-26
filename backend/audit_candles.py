@@ -2,7 +2,6 @@
 Audit script to analyze stock_candles table data coverage.
 """
 import psycopg2
-from datetime import datetime, timedelta
 
 def audit_stock_candles():
     conn = psycopg2.connect("postgresql://postgres:admin@localhost:5432/quantai")

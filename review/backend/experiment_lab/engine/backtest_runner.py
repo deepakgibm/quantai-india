@@ -6,10 +6,8 @@ Main engine for executing strategy backtests.
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 from dataclasses import dataclass
 import hashlib
-import json
 
 from ..registry import StrategyRegistry
 from ..lab_strategies.base import SignalType, SignalResult

@@ -21,6 +21,8 @@ import Week52Breakout from './pages/Week52Breakout';
 import WalkForwardBacktest from './pages/WalkForwardBacktest';
 import ExperimentLab from './pages/ExperimentLab';
 import PriceForecast from './pages/PriceForecast';
+import AdminIndices from './pages/AdminIndices';
+import AdminMonitoring from './pages/AdminMonitoring';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -125,6 +127,10 @@ const App: React.FC = () => {
         return <ExperimentLab />;
       case Page.PRICE_FORECAST:
         return <PriceForecast />;
+      case Page.ADMIN_INDICES:
+        return <AdminIndices />;
+      case Page.ADMIN_MONITORING:
+        return <AdminMonitoring />;
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }

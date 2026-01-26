@@ -4,7 +4,6 @@ Counter-trend strategies that trade reversals to the mean.
 """
 
 import pandas as pd
-import numpy as np
 from typing import List
 from .base import (
     ExperimentStrategy, StrategyInfo, SignalResult, SignalType,

@@ -11,8 +11,7 @@ import threading
 import time
 
 from services.dragonfly_client import (
-    get_cache, cache_set, cache_get,
-    CacheKeys, TTLPolicy
+    get_cache, CacheKeys, TTLPolicy
 )
 
 logger = logging.getLogger(__name__)
@@ -94,8 +93,6 @@ class HPScannerService:
         """Load Nifty 100 symbols from database for scanning."""
         from services.top_movers_service import NIFTY_100_SYMBOLS
         from database import AsyncSessionLocal
-        from services.nifty500_fetcher import Nifty500Symbol
-        from sqlalchemy import select
         
         try:
             async with AsyncSessionLocal() as session:

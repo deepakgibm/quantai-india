@@ -6,7 +6,6 @@ Exposes DuckDB analytics and Parquet archive functionality via REST API.
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 import pandas as pd
 import logging
 from utils.auth import get_current_user

@@ -2,7 +2,6 @@
 Comprehensive E2E Testing for QuantAI India - Simplified Output
 """
 import requests
-import json
 import sys
 
 BASE_URL = "http://localhost:8000"

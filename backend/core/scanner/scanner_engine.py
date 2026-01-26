@@ -4,12 +4,12 @@ Scanner Engine - Core orchestrator for running scans.
 
 import asyncio
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 import logging
 
 # Import from full strategies package to trigger all tier registrations
-from strategies import StrategyRegistry, ScanResult, SignalType
+from strategies import StrategyRegistry, ScanResult
 from services.derivatives_service import DerivativesService
 from core.scanner.decision_engine import DecisionEngine
 
@@ -21,118 +21,28 @@ from services.dragonfly_client import get_cache, cache_get, CacheKeys
 from utils.market_state import is_market_open, get_trading_date
 from config import settings
 
+# Load index constituents from external config (enables updates without code changes)
+try:
+    from utils.index_config import get_index_constituents, get_available_indices as get_indices_from_config
+    _index_config_available = True
+except ImportError:
+    logger.warning("Index config module not available - using fallback")
+    _index_config_available = False
 
-# Index constituents mapping
-INDEX_CONSTITUENTS = {
-    "NIFTY 50": [
-        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
-        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
-        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
-        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
-        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
-        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
-        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
-        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO"
-    ],
-    "NIFTY 100": [
-        # Nifty 50 (included)
-        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
-        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
-        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
-        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
-        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
-        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
-        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
-        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO",
-        # Nifty Next 50
-        "ABB", "ADANIGREEN", "AMBUJACEM", "AUROPHARMA", "BANKBARODA", "BERGEPAINT",
-        "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "DLF", "DABUR", "GAIL", "GODREJCP",
-        "HAVELLS", "ICICIPRULI", "ICICIGI", "INDHOTEL", "INDUSTOWER", "JIOFIN",
-        "JINDALSTEL", "LICI", "LUPIN", "MARICO", "MOTHERSON", "NAUKRI", "NHPC",
-        "NMDC", "OBEROIRLTY", "OFSS", "PAGEIND", "PERSISTENT", "PETRONET", "PFC",
-        "PIDILITIND", "PNB", "POLYCAB", "RECLTD", "SBICARD", "SHREECEM", "SIEMENS",
-        "SRF", "TATAMOTORS", "TATAPOWER", "TORNTPHARM", "TVSMOTOR", "VEDL", "ZOMATO"
-    ],
-    "NIFTY 200": [
-        # Nifty 100 (included)
-        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
-        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
-        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
-        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
-        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
-        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
-        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
-        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO",
-        "ABB", "ADANIGREEN", "AMBUJACEM", "AUROPHARMA", "BANKBARODA", "BERGEPAINT",
-        "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "DLF", "DABUR", "GAIL", "GODREJCP",
-        "HAVELLS", "ICICIPRULI", "ICICIGI", "INDHOTEL", "INDUSTOWER", "JIOFIN",
-        "JINDALSTEL", "LICI", "LUPIN", "MARICO", "MOTHERSON", "NAUKRI", "NHPC",
-        "NMDC", "OBEROIRLTY", "OFSS", "PAGEIND", "PERSISTENT", "PETRONET", "PFC",
-        "PIDILITIND", "PNB", "POLYCAB", "RECLTD", "SBICARD", "SHREECEM", "SIEMENS",
-        "SRF", "TATAMOTORS", "TATAPOWER", "TORNTPHARM", "TVSMOTOR", "VEDL", "ZOMATO",
-        # Additional Nifty 200 stocks
-        "ACC", "ALKEM", "ASHOKLEY", "ASTRAL", "AUBANK", "BALRAMCHIN", "BANDHANBNK",
-        "BATAINDIA", "BHEL", "BIOCON", "CANFINHOME", "CGPOWER", "CHAMBLFERT", "COFORGE",
-        "COROMANDEL", "CROMPTON", "CUB", "DALBHARAT", "DEEPAKNTR", "DIXON", "ESCORTS",
-        "EXIDEIND", "FEDERALBNK", "FORTIS", "GLENMARK", "GMRINFRA", "GNFC", "GODREJPROP",
-        "GRANULES", "GUJGASLTD", "HAL", "HDFCAMC", "HONAUT", "IDFCFIRSTB", "IEX",
-        "INDIANB", "INDIGO", "IRCTC", "IRFC", "IGL", "JKCEMENT", "JSWENERGY",
-        "JUBLFOOD", "KEI", "KPITTECH", "LAURUSLABS", "LICHSGFIN", "LTIM", "LTTS",
-        "M&MFIN", "MANAPPURAM", "MCDOWELL-N", "MCX", "METROPOLIS", "MFSL", "MGL",
-        "MPHASIS", "MUTHOOTFIN", "NAM-INDIA", "NATIONALUM", "NAVINFLUOR", "NBCC",
-        "NCC", "OIL", "PAYTM", "PIIND", "POLYPLEX", "PRESTIGE", "PVRINOX",
-        "RAIN", "RAMCOCEM", "RBLBANK", "RELAXO", "RVNL", "SAIL", "SJVN",
-        "SONACOMS", "STAR", "SUNTV", "SYNGENE", "TATACHEM", "TATACOMM", "TATAELXSI",
-        "TIINDIA", "TORNTPOWER", "TRIDENT", "UBL", "UJJIVANSFB", "UPL", "VBL",
-        "VOLTAS", "YESBANK", "ZEEL", "ZYDUSLIFE"
-    ],
-    "NIFTY 500": [
-        # For NIFTY 500, we include all NIFTY 200 plus additional mid/small caps
-        # Full list would be 500 stocks - using a representative subset
-        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC",
-        "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
-        "BAJFINANCE", "TITAN", "SUNPHARMA", "ULTRACEMCO", "HCLTECH", "WIPRO",
-        "NTPC", "POWERGRID", "JSWSTEEL", "M&M", "TATASTEEL", "ADANIENT", "ADANIPORTS",
-        "ONGC", "BPCL", "COALINDIA", "GRASIM", "TECHM", "INDUSINDBK", "HINDALCO",
-        "DRREDDY", "CIPLA", "DIVISLAB", "BRITANNIA", "APOLLOHOSP", "BAJAJFINSV",
-        "NESTLEIND", "EICHERMOT", "HEROMOTOCO", "TATACONSUM", "SHRIRAMFIN", "BEL",
-        "SBILIFE", "HDFCLIFE", "TRENT", "BAJAJ-AUTO",
-        "ABB", "ADANIGREEN", "AMBUJACEM", "AUROPHARMA", "BANKBARODA", "BERGEPAINT",
-        "BOSCHLTD", "CANBK", "CHOLAFIN", "COLPAL", "DLF", "DABUR", "GAIL", "GODREJCP",
-        "HAVELLS", "ICICIPRULI", "ICICIGI", "INDHOTEL", "INDUSTOWER", "JIOFIN",
-        "JINDALSTEL", "LICI", "LUPIN", "MARICO", "MOTHERSON", "NAUKRI", "NHPC",
-        "NMDC", "OBEROIRLTY", "OFSS", "PAGEIND", "PERSISTENT", "PETRONET", "PFC",
-        "PIDILITIND", "PNB", "POLYCAB", "RECLTD", "SBICARD", "SHREECEM", "SIEMENS",
-        "SRF", "TATAMOTORS", "TATAPOWER", "TORNTPHARM", "TVSMOTOR", "VEDL", "ZOMATO",
-        "ACC", "ALKEM", "ASHOKLEY", "ASTRAL", "AUBANK", "BALRAMCHIN", "BANDHANBNK",
-        "BATAINDIA", "BHEL", "BIOCON", "CANFINHOME", "CGPOWER", "CHAMBLFERT", "COFORGE",
-        "COROMANDEL", "CROMPTON", "CUB", "DALBHARAT", "DEEPAKNTR", "DIXON", "ESCORTS",
-        "EXIDEIND", "FEDERALBNK", "FORTIS", "GLENMARK", "GMRINFRA", "GNFC", "GODREJPROP",
-        "GRANULES", "GUJGASLTD", "HAL", "HDFCAMC", "HONAUT", "IDFCFIRSTB", "IEX",
-        "INDIANB", "INDIGO", "IRCTC", "IRFC", "IGL", "JKCEMENT", "JSWENERGY",
-        "JUBLFOOD", "KEI", "KPITTECH", "LAURUSLABS", "LICHSGFIN", "LTIM", "LTTS",
-        "M&MFIN", "MANAPPURAM", "MCDOWELL-N", "MCX", "METROPOLIS", "MFSL", "MGL",
-        "MPHASIS", "MUTHOOTFIN", "NAM-INDIA", "NATIONALUM", "NAVINFLUOR", "NBCC",
-        "NCC", "OIL", "PAYTM", "PIIND", "POLYPLEX", "PRESTIGE", "PVRINOX",
-        "RAIN", "RAMCOCEM", "RBLBANK", "RELAXO", "RVNL", "SAIL", "SJVN",
-        "SONACOMS", "STAR", "SUNTV", "SYNGENE", "TATACHEM", "TATACOMM", "TATAELXSI",
-        "TIINDIA", "TORNTPOWER", "TRIDENT", "UBL", "UJJIVANSFB", "UPL", "VBL",
-        "VOLTAS", "YESBANK", "ZEEL", "ZYDUSLIFE",
-        # Additional Nifty 500 stocks (representative subset)
-        "3MINDIA", "AARTIIND", "AAVAS", "ABCAPITAL", "ABFRL", "AEGISCHEM", "AFFLE",
-        "AIAENG", "AJANTPHARM", "ALEMBICLTD", "AMARAJABAT", "ANGELONE", "APLAPOLLO",
-        "APOLLOTYRE", "APTUS", "ATUL", "BAJAJHLDNG", "BALAMINES", "BALKRISIND",
-        "BASF", "BAYERCROP", "BDL", "BEML", "BLUESTARCO", "BLS", "BRIGADE",
-        "BSE", "CAMPUS", "CARBORUNIV", "CASTROLIND", "CCL", "CDSL", "CEATLTD",
-        "CENTRALBK", "CENTURYTEX", "CENTURYPLY", "CHALET", "CLEAN",        "COCHINSHIP",
-        "CONTAINERS", "CRISIL", "CYIENT", "DCMSHRIRAM", "DELTACORP", "DEVYANI",
-        "ELECTCAST", "ELGIEQUIP", "EMAMILTD", "ENDURANCE", "EPL", "EQUITASBNK",
-        "ERIS", "FINCABLES", "FINPIPE", "FSL", "GALAXYSURF", "GATEWAY",
-        "GESHIP", "GLS", "GMDCLTD", "GODFRYPHLP", "GPIL", "GRAPHITE",
-        "GRINDWELL", "GSFC", "GSPL", "GUJALKALI", "HAPPSTMNDS", "HATSUN",
-        "HGS", "HINDCOPPER", "HINDZINC", "HOMEFIRST", "IDFC", "IFBIND"
-    ]
-}
+def _get_index_constituents_fallback(index_name: str) -> List[str]:
+    """Fallback if config module is not available."""
+    FALLBACK = {
+        "NIFTY 50": ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC", "SBIN"],
+        "NIFTY 100": ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC", "SBIN"],
+    }
+    return FALLBACK.get(index_name, [])
+
+# Dynamic index constituents loader
+def get_index_symbols(index_name: str) -> List[str]:
+    """Get symbols for an index from config or fallback."""
+    if _index_config_available:
+        return get_index_constituents(index_name)
+    return _get_index_constituents_fallback(index_name)
 
 # Timeframe mapping for Upstox
 TIMEFRAME_MAP = {
@@ -283,16 +193,17 @@ class ScannerEngine:
         """Get unique symbols across all selected indices."""
         symbols = set()
         for index in indices:
-            if index in INDEX_CONSTITUENTS:
-                symbols.update(INDEX_CONSTITUENTS[index])
+            symbols.update(get_index_symbols(index))
         return list(symbols)
     
     def _get_symbol_index(self, symbol: str, indices: List[str]) -> str:
         """Determine which index a symbol belongs to."""
         for index in indices:
-            if index in INDEX_CONSTITUENTS and symbol in INDEX_CONSTITUENTS[index]:
+            index_symbols = get_index_symbols(index)
+            if symbol in index_symbols:
                 return index
         return indices[0] if indices else "Unknown"
+
     
     async def _fetch_data(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
         """Fetch OHLCV data for a symbol."""

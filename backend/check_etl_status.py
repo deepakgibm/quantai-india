@@ -1,7 +1,6 @@
 
 import os
 import psycopg2
-from datetime import datetime
 
 # Get DB URL from env or default
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:admin@quantai-postgres:5432/quantai")

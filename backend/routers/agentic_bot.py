@@ -1,7 +1,6 @@
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from typing import List, Optional
 from models import User
 from utils.auth import get_current_user
 import asyncio

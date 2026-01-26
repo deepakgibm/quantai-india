@@ -16,9 +16,9 @@ import time
 import psycopg2
 import pandas as pd
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Tuple
 
 # Checkpoint file location
 CHECKPOINT_FILE = Path(__file__).parent / "nifty500_etl_checkpoint.json"

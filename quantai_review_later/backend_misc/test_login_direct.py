@@ -1,5 +1,4 @@
 import requests
-import json
 
 # Test login
 url = "http://localhost:8000/api/auth/login"

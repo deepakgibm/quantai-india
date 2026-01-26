@@ -1,7 +1,5 @@
 from fastapi import Request, HTTPException, status
 from services.dragonfly_client import get_cache
-import time
-import functools
 import logging
 
 logger = logging.getLogger(__name__)

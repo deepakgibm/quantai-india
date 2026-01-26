@@ -1,11 +1,9 @@
 import asyncio
 import logging
-import json
 import time
 from typing import Dict, List, Any
-from datetime import datetime
 
-from services.dragonfly_client import CacheManager, CacheKeys, TTLPolicy
+from services.dragonfly_client import CacheManager, CacheKeys
 from services.upstox_ws_manager import get_upstox_ws_manager
 
 logger = logging.getLogger(__name__)
@@ -84,8 +82,6 @@ class SectorAggregationWorker:
 
     async def _load_metadata(self):
         """Load symbol->sector mapping from instrument_master."""
-        import psycopg2
-        from config import settings
         
         try:
             # Run in executor to avoid blocking

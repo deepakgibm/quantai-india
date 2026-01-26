@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import settings
-from utils.symbol_utils import get_company_name, get_all_symbols
 
 
 class EarningsReactionScanner:

@@ -1,5 +1,4 @@
 import sqlite3
-import json
 
 conn = sqlite3.connect("quantai.db")
 cursor = conn.cursor()

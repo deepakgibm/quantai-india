@@ -1,7 +1,6 @@
 from celery_app import celery_app
 from services.upstox_client import get_upstox_client
 from database import AsyncSessionLocal
-from models_alpha import StockCandle
 from datetime import datetime, timedelta
 import asyncio
 import json

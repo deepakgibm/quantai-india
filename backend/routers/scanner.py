@@ -3,14 +3,12 @@ Scanner API Router
 Endpoints for equity scanner functionality.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from typing import List, Dict, Any
+from datetime import datetime
 import asyncio
-import json
 import logging
-import sys
 
 from services.live_price_enricher import enrich_scanner_results
 
@@ -35,10 +33,6 @@ scanner = None
 try:
     from strategies import StrategyRegistry
     # Explicitly import all tiers to force registration
-    import strategies.tier1
-    import strategies.tier2
-    import strategies.tier3
-    import strategies.multi_timeframe
     
     if StrategyRegistry:
         logger.info(f"StrategyRegistry loaded successfully with {len(StrategyRegistry.get_all())} strategies")
@@ -81,8 +75,30 @@ def set_cached_scanner_data(key: str, data: Dict, ttl: int = 300):
     except Exception as e:
         logger.error(f"Scanner cache set error for {key}: {e}")
 
-# Store for scan progress
-scan_progress: Dict[str, Dict] = {}
+
+def get_scan_progress(scan_id: str) -> Dict:
+    """Get scan progress from cache (enables horizontal scaling)."""
+    cache = get_cache()
+    if not cache.is_available():
+        return {"status": "not_found", "scan_id": scan_id}
+    try:
+        data = cache.get(f"qai:scanner:progress:{scan_id}")
+        return data if data else {"status": "not_found", "scan_id": scan_id}
+    except Exception as e:
+        logger.error(f"Get scan progress error: {e}")
+        return {"status": "error", "scan_id": scan_id}
+
+
+def set_scan_progress(scan_id: str, data: Dict, ttl: int = 600):
+    """Set scan progress in cache with TTL (default 10 minutes)."""
+    cache = get_cache()
+    if not cache.is_available():
+        return
+    try:
+        cache.set(f"qai:scanner:progress:{scan_id}", data, ttl=ttl)
+    except Exception as e:
+        logger.error(f"Set scan progress error: {e}")
+
 
 
 class ScanRequest(BaseModel):
@@ -117,7 +133,7 @@ saved_presets: Dict[str, Dict] = {}
 
 
 @router.get("/strategies")
-async def get_strategies(current_user: User = Depends(get_current_user)):
+async def get_strategies():
     """Get all available scanning strategies grouped by tier."""
     # Check if StrategyRegistry is available (set to None if import failed)
     if StrategyRegistry is None:
@@ -163,7 +179,7 @@ async def get_strategies(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/indices")
-async def get_indices(current_user: User = Depends(get_current_user)):
+async def get_indices():
     """Get available indices for scanning."""
     try:
         return {
@@ -183,7 +199,7 @@ async def get_indices(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/timeframes")
-async def get_timeframes(current_user: User = Depends(get_current_user)):
+async def get_timeframes():
     """Get available timeframes for scanning."""
     return {
         "status": "success",
@@ -227,11 +243,10 @@ async def run_scan(request: ScanRequest, current_user: User = Depends(get_curren
 
 
 @router.get("/progress/{scan_id}")
-async def get_scan_progress(scan_id: str, current_user: User = Depends(get_current_user)):
+async def get_progress_endpoint(scan_id: str, current_user: User = Depends(get_current_user)):
     """Get progress of a running scan."""
-    if scan_id in scan_progress:
-        return scan_progress[scan_id]
-    return {"status": "not_found", "scan_id": scan_id}
+    return get_scan_progress(scan_id)
+
 
 
 @router.get("/presets")

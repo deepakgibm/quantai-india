@@ -2,9 +2,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 
-import models
 from services.top5_buysell import Top5BuySellEngine
-import pandas as pd
 from datetime import datetime, timedelta
 
 def verify_top5():

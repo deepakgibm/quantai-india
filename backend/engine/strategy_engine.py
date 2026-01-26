@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 
-from engine.state import get_state_manager, SymbolState
+from engine.state import get_state_manager
 from engine.indicators import compute_indicators_for_symbol, IndicatorSet
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -136,19 +136,9 @@ class UserSettings(Base):
     user = relationship("User", back_populates="settings")
 
 # Import AlphaPrime models to ensure they're registered with Base
-from models_alpha import (
-    StockCandle,
-    AlphaSignal,
-    TradeDecision,
-    ETLLog,
-    AlphaPrimeConfig
-)
 
-from models_ml import Nifty100Daily
-from services.nifty500_fetcher import Nifty500Symbol
 
 # Import precomputed indicators model
-from models_indicators import PrecomputedIndicator, IndicatorComputeJob
 
 
 class DailyTopGainersSnapshot(Base):

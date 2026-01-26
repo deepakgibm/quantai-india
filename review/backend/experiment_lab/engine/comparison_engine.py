@@ -4,7 +4,7 @@ Compare and rank multiple strategy backtest results.
 """
 
 from typing import Dict, List, Any
-from .metrics_calculator import BacktestMetrics, MetricsCalculator
+from .metrics_calculator import MetricsCalculator
 from .backtest_runner import BacktestRun
 
 

@@ -6,22 +6,18 @@ Validates that backend API prices match reference prices from Upstox.
 import pytest
 import json
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime
 
 from tests.utils.test_data import (
-    TEST_SYMBOLS,
     QUICK_TEST_SYMBOLS,
     SYMBOL_TO_INSTRUMENT_KEY,
-    PRICE_DATA_ENDPOINTS,
     TOLERANCE_LTP,
     TOLERANCE_OHLC,
 )
 from tests.utils.validators import (
     compare_prices,
-    extract_price_from_response,
     PriceValidationResult,
-    TestReport,
 )
 
 

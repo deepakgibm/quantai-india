@@ -5,10 +5,8 @@ Fetches 20 years of history using yfinance and populates the nifty100_daily tabl
 
 import asyncio
 import sys
-import os
 from pathlib import Path
-from datetime import datetime, timedelta
-import pandas as pd
+from datetime import datetime
 import yfinance as yf
 from sqlalchemy.exc import IntegrityError
 
@@ -25,7 +23,6 @@ if str(backend_dir) in sys.path:
 from backend.database import AsyncSessionLocal, init_db
 from backend.models_ml import Nifty100Daily
 from backend.models_alpha import ETLLog
-import backend.models # Ensure User model is loaded
 from backend.config import settings
 
 class Nifty100InitialLoader:

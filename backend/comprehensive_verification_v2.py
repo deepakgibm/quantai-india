@@ -1,9 +1,7 @@
 
 import httpx
 import asyncio
-import json
 from datetime import datetime
-import sys
 
 BASE_URL = "http://localhost:8000"
 

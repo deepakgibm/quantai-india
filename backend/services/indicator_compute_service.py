@@ -4,17 +4,16 @@ Background service that precomputes technical indicators for all symbols.
 """
 
 import pandas as pd
-import numpy as np
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine, desc, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert
 import logging
 import uuid
 
 from config import settings
-from core.indicators import rsi, macd, ema, bollinger_bands
+from core.indicators import rsi, macd, ema, bollinger_bands, atr, mfi, sma
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +43,7 @@ class IndicatorComputer:
     def compute_mfi(high: pd.Series, low: pd.Series, close: pd.Series, 
                     volume: pd.Series, period: int = 14) -> pd.Series:
         """Calculate Money Flow Index."""
-        typical_price = (high + low + close) / 3
-        money_flow = typical_price * volume
-        
-        positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0)
-        negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0)
-        
-        positive_mf = positive_flow.rolling(window=period).sum()
-        negative_mf = negative_flow.rolling(window=period).sum()
-        
-        mfi = 100 - (100 / (1 + positive_mf / negative_mf))
-        return mfi
+        return mfi(high, low, close, volume, period)
     
     @staticmethod
     def compute_bollinger(close: pd.Series, period: int = 20, std_dev: float = 2.0) -> tuple:
@@ -66,11 +55,7 @@ class IndicatorComputer:
     @staticmethod
     def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
         """Calculate Average True Range."""
-        tr1 = high - low
-        tr2 = abs(high - close.shift(1))
-        tr3 = abs(low - close.shift(1))
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        return tr.rolling(window=period).mean()
+        return atr(high, low, close, period)
     
     @staticmethod
     def compute_vwap(high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -> pd.Series:
@@ -86,7 +71,7 @@ class IndicatorComputer:
     @staticmethod
     def compute_sma(close: pd.Series, period: int) -> pd.Series:
         """Calculate Simple Moving Average."""
-        return close.rolling(window=period).mean()
+        return sma(close, period)
     
     @staticmethod
     def compute_momentum_score(rsi: float, roc: float, macd_hist: float) -> float:

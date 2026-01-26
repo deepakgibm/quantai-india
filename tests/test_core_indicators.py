@@ -1,7 +1,6 @@
 
 import pandas as pd
 import numpy as np
-import pytest
 from backend.core.indicators import rsi, macd, ema, bollinger_bands
 
 def test_ema():

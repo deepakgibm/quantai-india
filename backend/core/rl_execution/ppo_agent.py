@@ -5,10 +5,9 @@ Custom Proximal Policy Optimization implementation
 
 import numpy as np
 from typing import Dict, Any, Optional, Tuple, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import pickle
-import os
 
 logger = logging.getLogger(__name__)
 

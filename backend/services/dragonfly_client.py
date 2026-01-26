@@ -8,7 +8,6 @@ Dragonfly is Redis-compatible but 25x faster with 4x memory efficiency.
 import json
 import logging
 from typing import Optional, Any, Dict, List
-from datetime import datetime
 import os
 
 try:

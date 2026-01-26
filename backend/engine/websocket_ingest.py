@@ -3,11 +3,10 @@ Upstox WebSocket Integration for In-Memory State
 Receives ticks and aggregates them into candles.
 """
 
-import asyncio
 import logging
-from typing import Dict, Optional, Any, Callable
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
+from typing import Dict, Optional, Any
+from datetime import datetime
+from dataclasses import dataclass
 import json
 
 from engine.state import get_state_manager, Candle

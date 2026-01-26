@@ -1,306 +1,155 @@
 {
-  "timestamp": "2026-01-16T00:50:38.987000",
   "summary": {
-    "total": 33,
-    "passed": 31,
-    "failed": 2
+    "total": 18,
+    "passed": 17,
+    "failed": 1,
+    "success_rate": 94.4,
+    "avg_response_time_ms": 4225.63,
+    "timestamp": "2026-01-23T14:09:20.528346"
   },
   "results": [
     {
-      "category": "Health",
       "endpoint": "/health",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 32.12,
+      "response_time_ms": 183.38,
       "notes": ""
     },
     {
-      "category": "Health",
       "endpoint": "/ready",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 9.7,
+      "response_time_ms": 6.15,
       "notes": ""
     },
     {
-      "category": "Auth",
       "endpoint": "/api/auth/login",
       "method": "POST",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 427.38,
-      "notes": ""
+      "response_time_ms": 351.78,
+      "notes": "Token received"
     },
     {
-      "category": "Auth",
       "endpoint": "/api/auth/me",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 30.58,
+      "response_time_ms": 19.41,
       "notes": ""
     },
     {
-      "category": "Market",
-      "endpoint": "/api/market/top-movers",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 888.05,
-      "notes": ""
-    },
-    {
-      "category": "Market",
-      "endpoint": "/api/market/global-context",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 10.93,
-      "notes": ""
-    },
-    {
-      "category": "Market",
-      "endpoint": "/api/market/status",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 14.53,
-      "notes": ""
-    },
-    {
-      "category": "Market",
-      "endpoint": "/api/market/health",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 102.12,
-      "notes": ""
-    },
-    {
-      "category": "Trading",
-      "endpoint": "/api/trading/dashboard",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 67.76,
-      "notes": ""
-    },
-    {
-      "category": "Trading",
-      "endpoint": "/api/trading/indices",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 15092.34,
-      "notes": ""
-    },
-    {
-      "category": "Trading",
-      "endpoint": "/api/trading/instruments",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 8.8,
-      "notes": ""
-    },
-    {
-      "category": "Trading",
-      "endpoint": "/api/trading/top-gainers",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 183.86,
-      "notes": ""
-    },
-    {
-      "category": "Scanner",
       "endpoint": "/api/scanner/strategies",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 54.46,
-      "notes": ""
+      "response_time_ms": 6.4,
+      "notes": "4 strategy tiers"
     },
     {
-      "category": "Scanner",
-      "endpoint": "/api/scanner/indices",
+      "endpoint": "/api/market/indices",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 18.49,
+      "response_time_ms": 7.97,
       "notes": ""
     },
     {
-      "category": "Scanner",
-      "endpoint": "/api/scanner/timeframes",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 13.86,
-      "notes": ""
-    },
-    {
-      "category": "Scanner",
-      "endpoint": "/api/scanner/momentum",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 4519.43,
-      "notes": ""
-    },
-    {
-      "category": "Scanner",
-      "endpoint": "/api/scanner/breakout",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 19.8,
-      "notes": ""
-    },
-    {
-      "category": "Heatmap",
-      "endpoint": "/api/heatmap/sectors",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 17.31,
-      "notes": ""
-    },
-    {
-      "category": "Heatmap",
-      "endpoint": "/api/heatmap/sector/Financial Services",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 39.38,
-      "notes": ""
-    },
-    {
-      "category": "AI",
       "endpoint": "/api/ai/strategies",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 19.47,
+      "response_time_ms": 19.0,
       "notes": ""
     },
     {
-      "category": "AI",
-      "endpoint": "/api/ai/breakout-stocks",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 18038.79,
-      "notes": ""
-    },
-    {
-      "category": "AI",
-      "endpoint": "/api/ai/trend-finder",
-      "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 2740.79,
-      "notes": ""
-    },
-    {
-      "category": "AI",
       "endpoint": "/api/ai/top5-picks",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 16.83,
+      "response_time_ms": 14.38,
+      "notes": "0 signals"
+    },
+    {
+      "endpoint": "/api/ai/trend-finder",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "response_time_ms": 15723.75,
       "notes": ""
     },
     {
-      "category": "AI",
-      "endpoint": "/api/ai/market-analysis",
+      "endpoint": "/api/ai/breakout-detector",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 5315.9,
+      "response_time_ms": 8797.45,
       "notes": ""
     },
     {
-      "category": "AI",
-      "endpoint": "/api/ai/sentiment",
+      "endpoint": "/api/ai/momentum-scanner",
       "method": "GET",
-      "status_code": 422,
-      "success": false,
-      "response_time_ms": 40.01,
-      "notes": "{\"success\":false,\"error\":{\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed\",\"request_i"
-    },
-    {
-      "category": "Analytics",
-      "endpoint": "/api/analytics/overview",
-      "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 19.19,
+      "response_time_ms": 12749.8,
       "notes": ""
     },
     {
-      "category": "Analytics",
-      "endpoint": "/api/analytics/symbol/RELIANCE",
+      "endpoint": "/api/heatmap/sectors",
       "method": "GET",
-      "status_code": 404,
-      "success": false,
-      "response_time_ms": 14.29,
-      "notes": "{\"detail\":\"Not Found\"}"
-    },
-    {
-      "category": "Orders",
-      "endpoint": "/api/orders/",
-      "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 37.74,
+      "response_time_ms": 30.55,
       "notes": ""
     },
     {
-      "category": "Engine",
       "endpoint": "/api/engines/performance",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 106.02,
+      "response_time_ms": 48.29,
       "notes": ""
     },
     {
-      "category": "Settings",
-      "endpoint": "/api/settings/",
+      "endpoint": "/api/trading/dashboard",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 26.49,
+      "response_time_ms": 39.89,
       "notes": ""
     },
     {
-      "category": "Upstox",
-      "endpoint": "/api/upstox/status",
+      "endpoint": "/api/scanner/week52-breakouts",
       "method": "GET",
-      "status_code": 200,
-      "success": true,
-      "response_time_ms": 5.81,
+      "status": "ERROR",
+      "success": false,
+      "response_time_ms": 30013.39,
       "notes": ""
     },
     {
-      "category": "Upstox",
-      "endpoint": "/api/upstox/connect-url",
+      "endpoint": "/api/v1/backtest/strategies",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 8.3,
+      "response_time_ms": 18.89,
       "notes": ""
     },
     {
-      "category": "Algorithms",
-      "endpoint": "/api/algorithms/",
+      "endpoint": "/api/market/nifty100/top-movers",
       "method": "GET",
-      "status_code": 200,
+      "status": 200,
       "success": true,
-      "response_time_ms": 25.0,
+      "response_time_ms": 8006.71,
+      "notes": ""
+    },
+    {
+      "endpoint": "/metrics",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "response_time_ms": 24.15,
       "notes": ""
     }
   ]

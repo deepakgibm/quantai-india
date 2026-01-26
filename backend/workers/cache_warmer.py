@@ -3,10 +3,9 @@ Pre-Market Cache Warmer
 Runs at 09:10 IST to populate Memcached before market open (09:15 IST).
 """
 
-import asyncio
 import logging
 from datetime import datetime, time as dt_time
-from typing import List, Dict, Any
+from typing import Dict, Any
 import threading
 import time
 

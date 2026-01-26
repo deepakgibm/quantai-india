@@ -3,7 +3,7 @@ import pandas as pd
 import logging
 import asyncio
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)

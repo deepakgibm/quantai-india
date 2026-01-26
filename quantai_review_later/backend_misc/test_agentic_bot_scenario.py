@@ -1,7 +1,5 @@
 
 import requests
-import json
-import sys
 
 def test_agentic_bot():
     base_url = "http://localhost:8000"

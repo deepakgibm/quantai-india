@@ -2,7 +2,6 @@
 import asyncio
 import httpx
 import time
-import json
 import logging
 
 # Configure logging

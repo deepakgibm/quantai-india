@@ -4,8 +4,7 @@ Helper functions for price comparison, schema validation, and data checks.
 """
 
 from typing import Dict, Any, Optional, List, Tuple
-from datetime import datetime, timedelta
-import math
+from datetime import datetime
 
 
 def compare_prices(

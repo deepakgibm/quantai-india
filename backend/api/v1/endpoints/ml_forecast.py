@@ -5,10 +5,9 @@ FastAPI router for Adaptive Price Forecast predictions
 
 import logging
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
 
 from ml.predictor import get_apf_predictor
-from ml.schemas import ForecastResponse, ForecastError
+from ml.schemas import ForecastResponse
 from models import User
 from utils.auth import get_current_user
 from fastapi import Depends

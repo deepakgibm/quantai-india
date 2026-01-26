@@ -6,13 +6,10 @@ Optimized: Uses vectorized Pandas operations for <2s latency.
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime, timedelta
-from sqlalchemy import text
-from config import settings
 from database import SessionLocal
 import logging
-from utils.symbol_utils import get_company_name
 
 logger = logging.getLogger(__name__)
 

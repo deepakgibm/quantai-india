@@ -7,8 +7,7 @@ Optimized for complex aggregations, joins, and time-series analysis.
 import duckdb
 import pandas as pd
 import os
-from typing import List, Dict, Optional, Any
-from datetime import datetime, timedelta
+from typing import List, Dict, Optional
 from pathlib import Path
 import logging
 

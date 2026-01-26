@@ -1,8 +1,7 @@
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-import traceback
 import logging
 from datetime import datetime
 
@@ -25,7 +24,7 @@ except ImportError as e:
     _observability_available = False
     print(f"Observability module not available: {e}")
 
-from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, scanner, market, metrics
+from routers import auth, upstox, trading, ai, orders, risk, settings, algorithms, agentic_bot, engine_performance, quant_bot, scanner, market, metrics, v1
 from routers import debug  # Debug endpoints for price status
 from api.v1.endpoints import walk_forward_backtest  # Walk-Forward Backtest
 # from api.v1.endpoints import experiment_lab  # MOVED TO /review - Strategy Experiment Lab (Beta)
@@ -33,7 +32,6 @@ from api.v1.endpoints import backtest_strategies  # Enhanced Strategy API with T
 from routers import heatmap  # Sector Heatmap
 from workers.heatmap_workers import PriceIngestionWorker, SectorAggregationWorker
 from workers.yearly_breakout_worker import YearlyBreakoutWorker
-from database import init_db
 from services.upstox_ws_manager import get_upstox_ws_manager
 
 # NIFTY 100 Real-Time Ranking Service
@@ -45,6 +43,14 @@ except ImportError as e:
     start_nifty100_ranking_service = None
     stop_nifty100_ranking_service = None
     _nifty100_service_available = False
+
+# Market Data Orchestrator (WebSocket + REST + DB fallback)
+try:
+    from services.market_data_orchestrator import get_market_data_orchestrator
+    _orchestrator_available = True
+except ImportError as e:
+    logger.warning(f"Market Data Orchestrator not available: {e}")
+    _orchestrator_available = False
 
 # High-Performance Scanner v2 (Phase 2-6 Refactor)
 try:
@@ -113,7 +119,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Register standardized validation error handler
 from fastapi.exceptions import RequestValidationError
-from utils.error_responses import validation_exception_handler, http_exception_handler, api_error_handler, APIError
+from utils.error_responses import validation_exception_handler, api_error_handler, APIError
 
 @app.exception_handler(RequestValidationError)
 async def custom_validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -162,6 +168,17 @@ async def startup_event():
             except Exception as e:
                 logger.error(f"NIFTY 100 Ranking Service start failed: {e}")
         asyncio.create_task(init_nifty100())
+
+    # Initialize Market Data Orchestrator (Global Pricing Engine)
+    if _orchestrator_available:
+        async def init_orchestrator():
+            try:
+                orchestrator = get_market_data_orchestrator()
+                await orchestrator.start()
+                logger.info("Market Data Orchestrator started (Global Pricing Engine)")
+            except Exception as e:
+                logger.error(f"Market Data Orchestrator start failed: {e}")
+        asyncio.create_task(init_orchestrator())
 
     
     # NOTE: HP Scanner v2/v3 services are now run as SEPARATE PROCESS
@@ -270,7 +287,6 @@ async def startup_event():
         if count == 0:
             logger.warning("?? WARNING: No strategies found in Registry. Checking manual triggers...")
             # Trigger imports if registry is empty
-            import strategies.tier1, strategies.tier2, strategies.tier3, strategies.multi_timeframe
             count = len(StrategyRegistry.get_all())
             logger.info(f"?? Post-import strategy count: {count}")
     except Exception as e:
@@ -280,6 +296,39 @@ async def startup_event():
     logger.info("NOTE: Run 'python hp_scanner_worker.py' separately for cache population")
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Gracefully stop all background services on shutdown."""
+    logger.info("Server shutting down - stopping background services")
+    
+    # 1. Stop NIFTY 100 Ranking Service
+    if _nifty100_service_available and stop_nifty100_ranking_service:
+        try:
+            await stop_nifty100_ranking_service()
+            logger.info("NIFTY 100 Ranking Service stopped")
+        except Exception as e:
+            logger.error(f"NIFTY 100 Ranking Service stop failed: {e}")
+            
+    # 2. Stop Market Data Orchestrator
+    if _orchestrator_available:
+        try:
+            from services.market_data_orchestrator import get_market_data_orchestrator
+            orchestrator = get_market_data_orchestrator()
+            await orchestrator.stop()
+            logger.info("Market Data Orchestrator stopped")
+        except Exception as e:
+            logger.error(f"Market Data Orchestrator stop failed: {e}")
+            
+    # 3. Stop HP Scanner v3 if running
+    try:
+        from services.hp_scanner_service import stop_hp_scanner
+        await stop_hp_scanner()
+        logger.info("HP Scanner v3 stopped")
+    except:
+        pass
+
+
+app.include_router(v1.router, prefix="/api", tags=["v1"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 print("DEBUG: Mounting Heatmap Router in MAIN")
 app.include_router(heatmap.router, prefix="/api/heatmap", tags=["Heatmap"])

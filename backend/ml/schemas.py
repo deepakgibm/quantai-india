@@ -5,7 +5,6 @@ Pydantic models for API request/response
 
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
 
 
 class ForecastRequest(BaseModel):

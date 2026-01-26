@@ -5,7 +5,7 @@ Production-ready API endpoints for strategy listing with tier organization
 """
 
 from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from models import User
@@ -101,6 +101,7 @@ def mark_implementation_status(strategy_info: Dict[str, Any]) -> Dict[str, Any]:
 # API Endpoints
 # =============================================================================
 
+@router.get("/strategies", response_model=StrategyListResponse)
 @router.get("/strategies/list", response_model=StrategyListResponse)
 async def list_all_strategies(
     tier: Optional[str] = Query(None, description="Filter by tier: tier_1, tier_2, tier_3"),

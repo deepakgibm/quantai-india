@@ -7,9 +7,8 @@ Period: January 2022 to Today
 import asyncio
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Tuple
-import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
 # Add project root
@@ -18,9 +17,7 @@ sys.path.append(str(project_root))
 
 from backend.database import AsyncSessionLocal, init_db
 from backend.models_alpha import StockData, ETLLog
-import backend.models
 from backend.services.upstox_client import get_upstox_client
-from backend.config import settings
 
 class MultiIntervalLoader:
     """Load multiple intervals for Nifty 200 stocks"""

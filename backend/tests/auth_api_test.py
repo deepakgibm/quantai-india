@@ -1,5 +1,4 @@
 import requests
-import json
 import uuid
 
 BASE_URL = "http://localhost:8000"

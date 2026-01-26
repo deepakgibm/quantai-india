@@ -4,7 +4,6 @@ Tests Memcached-backed endpoints for <50ms P95 latency.
 """
 import requests
 import time
-import statistics
 
 BASE_URL = "http://localhost:8000"
 

@@ -4,7 +4,6 @@ Combine price action with momentum indicators.
 """
 
 import pandas as pd
-import numpy as np
 from typing import List
 from .base import (
     ExperimentStrategy, StrategyInfo, SignalResult, SignalType,

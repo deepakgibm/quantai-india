@@ -5,12 +5,11 @@ Eliminates the need for hardcoded symbol lists and name dictionaries in individu
 """
 
 import logging
-from typing import List, Dict, Optional
+from typing import List
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from config import settings
-from functools import lru_cache
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

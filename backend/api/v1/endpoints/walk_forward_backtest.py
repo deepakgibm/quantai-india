@@ -15,15 +15,12 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime
 import logging
-import sqlite3
-import os
 
 from utils.auth import get_current_user, get_current_user
 from models import User
-from typing import Optional as TypingOptional
 from database import AsyncSessionLocal
 from models_alpha import StockCandle, InstrumentMaster, TimeframeMapper
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 

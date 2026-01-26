@@ -24,7 +24,7 @@ import time
 import signal
 import logging
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

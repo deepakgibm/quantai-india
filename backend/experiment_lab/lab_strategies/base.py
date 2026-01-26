@@ -7,9 +7,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 import pandas as pd
-import numpy as np
 
 
 class StrategyCategory(str, Enum):

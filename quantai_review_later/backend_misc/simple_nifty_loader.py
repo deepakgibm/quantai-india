@@ -4,11 +4,9 @@ Loads 20 years of historical data for testing
 """
 import asyncio
 import yfinance as yf
-from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.exc import IntegrityError
 
 # Database connection
 DATABASE_URL = "sqlite+aiosqlite:///./quantai.db"

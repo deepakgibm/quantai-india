@@ -5,12 +5,11 @@ High-level API for using the RL execution agent
 
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-import numpy as np
 import logging
 import os
 
 from .environment import TradingEnvironment
-from .ppo_agent import PPOAgent, PPOConfig, ExecutionTrainer
+from .ppo_agent import PPOAgent, ExecutionTrainer
 
 logger = logging.getLogger(__name__)
 

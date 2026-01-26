@@ -3,7 +3,6 @@ Comprehensive API Testing for QuantAI India Trading Bot
 Simplified output with log file
 """
 import requests
-import json
 from datetime import datetime
 
 BASE_URL = "http://localhost:8000"
