@@ -3,13 +3,12 @@ Quant Bot API Router
 FastAPI endpoints for backtesting, WFA, and quant operations
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import date, datetime
+from datetime import date
 import pandas as pd
 import logging
-import numpy as np
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
@@ -144,23 +143,54 @@ def get_strategy_class(name: str):
     """Get strategy class by name (Old System) or Adapter (New System)"""
     from strategies import AVAILABLE_STRATEGIES
     
+    # 1. Normalize name for discovery (lowercase, underscores)
+    normalized_name = name.lower().replace(" ", "_").replace("-", "_")
+    
+    # 2. Legacy Mapping (Frontend PascalCase -> Backend snake_case)
+    legacy_mapping = {
+        "macrossover": "ma_crossover",
+        "supertrend": "supertrend",
+        "vwaptrading": "vwap_trend",
+        "rsimeanreversion": "rsi_mean_reversion",
+        "meanreversion": "rsi_mean_reversion",
+        "bollingerbreakout": "bollinger_breakout",
+        "volumebreakout": "volume_breakout",
+        "donchianbreakout": "donchian_breakout",
+        "adxtrend": "adx_trend",
+        "orb": "orb"
+    }
+    
+    # Apply mapping if exists
+    final_name = legacy_mapping.get(normalized_name, normalized_name)
+    
     # Try old system first
-    if name in AVAILABLE_STRATEGIES:
-        return AVAILABLE_STRATEGIES[name]
+    if final_name in AVAILABLE_STRATEGIES:
+        return AVAILABLE_STRATEGIES[final_name]
     
     # Try new registry system
-    new_strat = StrategyRegistry.get(name)
+    new_strat = StrategyRegistry.get(final_name)
+    if not new_strat:
+        # Second attempt: check if any registered strategy has a display_name matching
+        # or if the normalized name matches the metadata.name
+        for s in StrategyRegistry.list_all():
+            if s.name.lower().replace("-", "_") == normalized_name or \
+               s.display_name.lower().replace(" ", "") == normalized_name.replace("_", ""):
+                new_strat = StrategyRegistry.get(s.name)
+                break
+                
     if new_strat:
         # Return a lambda that creates the adapter
         return lambda params: NewStrategyAdapter(new_strat, params)
         
-    if name not in AVAILABLE_STRATEGIES:
-        available_old = list(AVAILABLE_STRATEGIES.keys())
-        available_new = [s.name for s in StrategyRegistry.list_all()]
-        available = ', '.join(available_old + available_new[:10]) + "..."
-        raise HTTPException(status_code=400, detail=f"Unknown strategy: {name}. Total available: {len(available_old) + len(available_new)}")
+    # If still not found, raise error with available list
+    available_old = list(AVAILABLE_STRATEGIES.keys())
+    available_new = [s.name for s in StrategyRegistry.list_all()]
+    all_available = available_old + available_new
     
-    return AVAILABLE_STRATEGIES[name]
+    raise HTTPException(
+        status_code=400, 
+        detail=f"Unknown strategy: {name} (normalized: {final_name}). Available: {', '.join(all_available[:15])}..."
+    )
 
 
 async def load_data_for_symbol(symbol: str, start_date: date, end_date: date, db: AsyncSession) -> pd.DataFrame:
