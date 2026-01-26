@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+from datetime import datetime
 from typing import List, Dict, Optional
 from urllib.parse import quote
 from config import settings
@@ -446,102 +447,39 @@ async def get_live_ltp(symbol: str, access_token: str = None) -> Dict:
 
 async def get_ltp_bulk(symbols: List[str], access_token: str = None) -> Dict[str, Dict]:
     """
-    Bulk LTP fetch with source metadata for each symbol.
-    Optimized for batch operations.
-    
-    Returns:
-        {
-            "RELIANCE": {"ltp": 2850.50, "source": "WS", "timestamp": "...", "stale": false},
-            "TCS": {"ltp": 4200.00, "source": "REST", "timestamp": "...", "stale": false},
-            ...
-        }
+    Bulk LTP fetch using the unified MarketDataOrchestrator.
+    Consolidates WS, REST, and DB routing.
     """
-    from datetime import datetime
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    from services.market_hours_service import get_market_hours_service
     from services.market_data_orchestrator import get_market_data_orchestrator
+    orchestrator = get_market_data_orchestrator()
     
-    if not access_token:
-        access_token = settings.UPSTOX_ACCESS_TOKEN
+    # Fetch bulk prices from orchestrator (handles WS/REST/DB routing)
+    prices = await orchestrator.get_ltp_bulk(symbols)
     
-    market_service = get_market_hours_service()
-    is_market_open = market_service.is_market_open()
-    
+    # Format according to expectations of enrich_scanner_results
     results = {}
     now = datetime.now()
-    remaining_symbols = list(symbols)
-    
-    # 1. During market hours, check WS cache first
-    if is_market_open:
-        try:
-            orchestrator = get_market_data_orchestrator()
-            ws_hits = []
-            for symbol in symbols:
-                tick = orchestrator._data_cache.get(symbol.upper())
-                if tick and hasattr(tick, 'ltp') and tick.ltp and tick.ltp > 0:
-                    results[symbol.upper()] = {
-                        "ltp": round(tick.ltp, 2),
-                        "source": "WS",
-                        "timestamp": now.isoformat(),
-                        "stale": False
-                    }
-                    ws_hits.append(symbol)
-            
-            remaining_symbols = [s for s in symbols if s.upper() not in results]
-            if ws_hits:
-                logger.debug(f"🔴 WS cache hits: {len(ws_hits)} symbols")
-        except Exception as e:
-            logger.debug(f"WS cache bulk access failed: {e}")
-    
-    # 2. Fetch remaining from REST API
-    if remaining_symbols:
-        try:
-            rest_prices = await fetch_live_ltp(remaining_symbols, access_token)
-            for symbol, price in rest_prices.items():
-                if price and price > 0:
-                    results[symbol.upper()] = {
-                        "ltp": round(price, 2),
-                        "source": "REST",
-                        "timestamp": now.isoformat(),
-                        "stale": False
-                    }
-            remaining_symbols = [s for s in remaining_symbols if s.upper() not in results]
-            if rest_prices:
-                logger.debug(f"🟡 REST hits: {len(rest_prices)} symbols")
-        except Exception as e:
-            logger.warning(f"REST bulk fetch failed: {e}")
-    
-    # 3. Final fallback to DB for still-missing symbols
-    if remaining_symbols:
-        try:
-            db_prices = await get_database_prices(remaining_symbols)
-            for symbol, price in db_prices.items():
-                if price and price > 0:
-                    results[symbol.upper()] = {
-                        "ltp": round(price, 2),
-                        "source": "DB",
-                        "timestamp": now.isoformat(),
-                        "stale": True
-                    }
-            if db_prices:
-                logger.debug(f"🟢 DB fallback hits: {len(db_prices)} symbols")
-        except Exception as e:
-            logger.error(f"DB bulk fallback failed: {e}")
-    
-    # Mark symbols with no data
     for symbol in symbols:
-        if symbol.upper() not in results:
-            results[symbol.upper()] = {
+        symbol_up = symbol.upper()
+        if symbol_up in prices:
+            # We don't have the source in get_ltp_bulk return dict yet (it returns symbol: price)
+            # Let's check the orchestrator cache to see where it came from if possible
+            tick = orchestrator._data_cache.get(symbol_up)
+            source = tick.source if tick else "REST"
+            results[symbol_up] = {
+                "ltp": prices[symbol_up],
+                "source": source,
+                "timestamp": now.isoformat(),
+                "stale": source == "DB"
+            }
+        else:
+            results[symbol_up] = {
                 "ltp": None,
                 "source": "NONE",
                 "timestamp": now.isoformat(),
-                "stale": True,
-                "error": "LTP_UNAVAILABLE"
+                "stale": True
             }
-    
-    logger.info(f"📊 Bulk LTP: {len([r for r in results.values() if r.get('ltp')])} of {len(symbols)} symbols priced")
+            
     return results
 
 
