@@ -717,5 +717,18 @@ export const api = {
     const res = await apiGet<any>('/api/v1/etl/status');
     if (res.success) return res.data;
     throw res.error;
+  },
+
+  getSymbols: async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/metrics/symbols`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn("Failed to fetch symbols");
+    }
+    return { symbols: [] };
   }
 };
+

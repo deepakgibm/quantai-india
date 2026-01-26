@@ -1,44 +1,176 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
-import { Search, Play, TrendingUp, AlertCircle, Clock, Loader2 } from 'lucide-react';
-import { API_URL, getAuthHeaders } from '../services/api';
+import {
+    Search, Play, TrendingUp, AlertCircle, Clock, Loader2,
+    Zap, BarChart3, ChevronDown, ChevronUp,
+    Terminal, Activity, ShieldAlert,
+    BrainCircuit
+} from 'lucide-react';
+import { api, API_URL, getAuthHeaders } from '../services/api';
 
-interface ForecastData {
-    symbol: string;
-    timeframe: string;
-    timestamps: string[];
-    actual: (number | null)[];
-    predicted: (number | null)[];
-    upper_band: (number | null)[];
-    lower_band: (number | null)[];
-    confidence: number;
-    model_version: string;
-    data_source: string;
-    last_trained: string | null;
+// ============================================================================
+// Types & Constants
+// ============================================================================
+
+interface Algorithm {
+    id: string;
+    name: string;
+    version: string;
+    type: string;
+    recommended: boolean;
+    supports_confidence_bands: boolean;
+    supported_timeframes: string[];
+    max_horizon: number;
+    description: string;
+    features_used: string[];
+    estimated_latency_ms: number;
 }
 
-const TIMEFRAMES = ['5m', '15m', '1h', '1d'];
+interface ForecastCandle {
+    timestamp: string;
+    close: number;
+    upper: number | null;
+    lower: number | null;
+    is_forecast: boolean;
+}
+
+interface ForecastResponse {
+    request_id: string;
+    symbol: string;
+    exchange: string;
+    timeframe: string;
+    horizon: number;
+    algorithm: { id: string; name: string; version: string };
+    generated_at: string;
+    candles_input: any[];
+    forecast: ForecastCandle[];
+    metrics: {
+        confidence_score: number;
+        predicted_move_pct: number;
+        volatility_label: string;
+        model_latency_ms: number;
+    };
+    error: string | null;
+}
+
+const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '1d'];
+
+// ============================================================================
+// Component: PriceForecast v2.2
+// ============================================================================
 
 const PriceForecast: React.FC = () => {
+    // 1. Backend Configuration
+    const baseUrl = API_URL;
+
+    // 2. Form State
     const [symbol, setSymbol] = useState('RELIANCE');
+    const [searchQuery, setSearchQuery] = useState('RELIANCE');
     const [timeframe, setTimeframe] = useState('5m');
     const [horizon, setHorizon] = useState(10);
+    const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>('adaptive_ensemble_v2');
+
+    // 3. Data & UI State
+    const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
+    const [allSymbols, setAllSymbols] = useState<string[]>([]);
+    const [filteredSymbols, setFilteredSymbols] = useState<string[]>([]);
+    const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [loadingAlgos, setLoadingAlgos] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [data, setData] = useState<ForecastData | null>(null);
+    const [forecastData, setForecastData] = useState<ForecastResponse | null>(null);
+    const [showDebug, setShowDebug] = useState(false);
+    const [lastApiStatus, setLastApiStatus] = useState<string>('Idle');
+
+    // 4. Refs
     const chartRef = useRef<HTMLDivElement>(null);
     const chartInstance = useRef<echarts.ECharts | null>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Initialize ECharts
+    // Initial log for verification
+    useEffect(() => {
+        console.log("AI Forecast v2.2 Rendered");
+    }, []);
+
+    // 5. Load Algorithms and Symbols
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoadingAlgos(true);
+            try {
+                // Fetch Algos
+                const response = await fetch(`${baseUrl}/api/v1/forecast/algorithms`, {
+                    headers: getAuthHeaders()
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setAlgorithms(data.algorithms || []);
+                    const recommended = data.algorithms?.find((a: any) => a.recommended);
+                    if (recommended) setSelectedAlgorithm(recommended.id);
+                } else {
+                    throw new Error('Algorithm fetch failed');
+                }
+
+                // Fetch Symbols
+                const symbolData = await api.getSymbols();
+                if (symbolData && symbolData.symbols) {
+                    // symbols is an array of objects: [{symbol: 'RELIANCE', ...}, ...]
+                    // Map to strings for the filter logic
+                    const symbolStrings = symbolData.symbols.map((s: any) =>
+                        typeof s === 'string' ? s : s.symbol
+                    ).filter(Boolean);
+                    setAllSymbols(symbolStrings);
+                }
+            } catch (err) {
+                console.warn('Initial fetch failed, using fallbacks');
+                setAlgorithms([{
+                    id: 'adaptive_ensemble_v2',
+                    name: 'Default Forecast (Fallback)',
+                    version: '1.0',
+                    type: 'ensemble',
+                    recommended: true,
+                    supports_confidence_bands: true,
+                    supported_timeframes: TIMEFRAMES,
+                    max_horizon: 50,
+                    description: 'Local fallback algorithm when backend is unreachable.',
+                    features_used: ['OHLCV'],
+                    estimated_latency_ms: 100
+                }]);
+            } finally {
+                setLoadingAlgos(false);
+            }
+        };
+        fetchData();
+    }, [baseUrl]);
+
+    // Handle character search for symbols
+    useEffect(() => {
+        if (!searchQuery) {
+            setFilteredSymbols([]);
+            return;
+        }
+        const filtered = allSymbols.filter(s =>
+            s.toLowerCase().includes(searchQuery.toLowerCase())
+        ).slice(0, 10);
+        setFilteredSymbols(filtered);
+    }, [searchQuery, allSymbols]);
+
+    // Click outside to close dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowSymbolDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // 6. Chart Initialization
     useEffect(() => {
         if (chartRef.current) {
             chartInstance.current = echarts.init(chartRef.current, 'dark');
-
-            const handleResize = () => {
-                chartInstance.current?.resize();
-            };
+            const handleResize = () => chartInstance.current?.resize();
             window.addEventListener('resize', handleResize);
-
             return () => {
                 window.removeEventListener('resize', handleResize);
                 chartInstance.current?.dispose();
@@ -46,207 +178,109 @@ const PriceForecast: React.FC = () => {
         }
     }, []);
 
-    // Update chart when data changes
+    // Render Chart when data changes
     useEffect(() => {
-        if (data && chartInstance.current) {
-            renderChart();
-        }
-    }, [data]);
+        if (forecastData && chartInstance.current) renderChart();
+    }, [forecastData]);
 
-    const fetchForecast = async () => {
+    const selectSymbol = (sym: string) => {
+        setSymbol(sym);
+        setSearchQuery(sym);
+        setShowSymbolDropdown(false);
+    };
+
+    const runForecast = async () => {
+        if (!symbol) return;
         setLoading(true);
         setError(null);
+        setForecastData(null);
+        setLastApiStatus('Calling POST /run...');
 
         try {
-            const url = `${API_URL}/api/v1/ml/predict?symbol=${symbol}&timeframe=${timeframe}&horizon=${horizon}`;
-            const response = await fetch(url, {
-                headers: getAuthHeaders()
+            const response = await fetch(`${baseUrl}/api/v1/forecast/run`, {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    symbol: symbol.toUpperCase(),
+                    exchange: 'NSE',
+                    timeframe,
+                    horizon: Number(horizon),
+                    algorithm_id: selectedAlgorithm,
+                    confidence_level: 0.95,
+                    include_confidence_bands: true
+                })
             });
 
+            const data = await response.json();
+            setLastApiStatus(`${response.status} ${response.statusText}`);
+
             if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.detail?.message || 'Prediction failed');
+                throw new Error(data.detail?.message || data.detail || 'Forecast failed');
             }
 
-            const result: ForecastData = await response.json();
-            setData(result);
+            setForecastData(data);
         } catch (err: any) {
-            setError(err.message || 'Failed to fetch forecast');
-            setData(null);
+            setError(err.message || 'API connection failed');
+            setLastApiStatus('Error');
         } finally {
             setLoading(false);
         }
     };
 
     const renderChart = () => {
-        if (!data || !chartInstance.current) return;
+        if (!forecastData || !chartInstance.current) return;
 
-        // Prepare data for chart
-        const timestamps = data.timestamps.map(ts => new Date(ts).toLocaleString('en-IN', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+        const hist = forecastData.candles_input || [];
+        const fore = forecastData.forecast || [];
+
+        const timestamps = [...hist, ...fore].map(c => new Date(c.timestamp).toLocaleString('en-IN', {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         }));
 
-        // Find where prediction starts (first non-null predicted value)
-        const predStartIdx = data.predicted.findIndex(v => v !== null);
-
-        // Prepare candlestick data (for actual prices, we simulate OHLC from close)
-        const actualData = data.actual.map((close, idx) => {
-            if (close === null) return null;
-            // Simulate OHLC from close (simplified for display)
-            const open = idx > 0 && data.actual[idx - 1] ? data.actual[idx - 1] : close;
-            const high = Math.max(open as number, close) * 1.002;
-            const low = Math.min(open as number, close) * 0.998;
-            return [open, close, low, high]; // ECharts format: [open, close, low, high]
-        });
+        const actuals = [...hist.map(c => c.close), ...fore.map(() => null)];
+        const predicts = [...hist.map(() => null), ...fore.map(c => c.close)];
+        const uppers = [...hist.map(() => null), ...fore.map(c => c.upper)];
+        const lowers = [...hist.map(() => null), ...fore.map(c => c.lower)];
 
         const option: echarts.EChartsOption = {
             backgroundColor: 'transparent',
-            title: {
-                text: `${data.symbol} - Adaptive Price Forecast`,
-                subtext: `Model: ${data.model_version} | Confidence: ${(data.confidence * 100).toFixed(1)}% | Source: ${data.data_source}`,
-                left: 'center',
-                textStyle: { color: '#e2e8f0', fontSize: 16 },
-                subtextStyle: { color: '#94a3b8', fontSize: 12 }
-            },
             tooltip: {
                 trigger: 'axis',
-                axisPointer: { type: 'cross' },
-                backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                borderColor: '#334155',
-                textStyle: { color: '#e2e8f0' },
-                formatter: (params: any) => {
-                    const items = Array.isArray(params) ? params : [params];
-                    let result = `<strong>${items[0]?.axisValue || ''}</strong><br/>`;
-
-                    items.forEach((item: any) => {
-                        if (item.seriesName === 'Actual' && item.data) {
-                            result += `${item.marker} Actual: ₹${item.data[1]?.toFixed(2) || 'N/A'}<br/>`;
-                        } else if (item.seriesName === 'Predicted' && item.data !== null) {
-                            result += `${item.marker} Predicted: ₹${item.data?.toFixed(2)}<br/>`;
-                        } else if (item.seriesName === 'Confidence Band' && item.data) {
-                            result += `${item.marker} Band: ₹${item.data[1]?.toFixed(2)} - ₹${item.data[2]?.toFixed(2)}<br/>`;
-                        }
-                    });
-
-                    return result;
-                }
+                axisPointer: { type: 'cross', lineStyle: { color: '#444', width: 1 } },
+                backgroundColor: '#212933',
+                borderColor: '#2d3748',
+                textStyle: { color: '#e2e8f0' }
             },
             legend: {
-                data: ['Actual', 'Predicted', 'Confidence Band'],
-                top: 50,
-                textStyle: { color: '#94a3b8' }
+                data: ['Historical', 'Forecast', 'Confidence Band'],
+                textStyle: { color: '#94a3b8', fontSize: 11 },
+                top: 10
             },
-            grid: {
-                left: '5%',
-                right: '5%',
-                bottom: '15%',
-                top: '15%',
-                containLabel: true
-            },
+            grid: { left: '3%', right: '3%', bottom: '10%', top: '15%', containLabel: true },
             xAxis: {
                 type: 'category',
                 data: timestamps,
-                axisLine: { lineStyle: { color: '#475569' } },
-                axisLabel: {
-                    color: '#94a3b8',
-                    rotate: 45,
-                    fontSize: 10
-                },
-                splitLine: { show: false }
+                axisLabel: { color: '#64748b', fontSize: 10, rotate: 0 },
+                axisLine: { lineStyle: { color: '#2d3748' } },
+                axisTick: { show: false }
             },
             yAxis: {
                 type: 'value',
                 scale: true,
-                axisLine: { lineStyle: { color: '#475569' } },
-                axisLabel: {
-                    color: '#94a3b8',
-                    formatter: '₹{value}'
-                },
-                splitLine: {
-                    lineStyle: { color: '#334155', type: 'dashed' }
-                }
+                axisLabel: { color: '#64748b', fontSize: 10 },
+                splitLine: { lineStyle: { color: '#252d37' } },
+                axisLine: { show: false }
             },
-            dataZoom: [
-                {
-                    type: 'inside',
-                    start: 50,
-                    end: 100
-                },
-                {
-                    type: 'slider',
-                    start: 50,
-                    end: 100,
-                    height: 20,
-                    bottom: 10,
-                    borderColor: '#475569',
-                    fillerColor: 'rgba(59, 130, 246, 0.2)',
-                    handleStyle: { color: '#3b82f6' },
-                    textStyle: { color: '#94a3b8' }
-                }
-            ],
             series: [
-                // Candlestick for actual prices
+                { name: 'Historical', type: 'line', data: actuals, symbol: 'none', lineStyle: { color: '#4caf50', width: 1.5 } },
+                { name: 'Forecast', type: 'line', data: predicts, symbol: 'circle', symbolSize: 4, lineStyle: { color: '#1c7ed6', width: 2, type: 'dashed' }, itemStyle: { color: '#1c7ed6' } },
                 {
-                    name: 'Actual',
-                    type: 'candlestick',
-                    data: actualData,
-                    itemStyle: {
-                        color: '#22c55e',
-                        color0: '#ef4444',
-                        borderColor: '#22c55e',
-                        borderColor0: '#ef4444'
-                    }
+                    name: 'Confidence Band', type: 'line', data: uppers, symbol: 'none', stack: 'band',
+                    lineStyle: { opacity: 0 }, areaStyle: { color: 'rgba(28,126,214,0.08)' }
                 },
-                // Line for predicted prices
                 {
-                    name: 'Predicted',
-                    type: 'line',
-                    data: data.predicted,
-                    symbol: 'circle',
-                    symbolSize: 6,
-                    lineStyle: {
-                        color: '#8b5cf6',
-                        width: 2,
-                        type: 'dashed'
-                    },
-                    itemStyle: { color: '#8b5cf6' },
-                    connectNulls: false
-                },
-                // Area for confidence band
-                {
-                    name: 'Confidence Band',
-                    type: 'custom',
-                    renderItem: (params, api) => {
-                        const xValue = api.value(0);
-                        const upperValue = data.upper_band[params.dataIndex as number];
-                        const lowerValue = data.lower_band[params.dataIndex as number];
-
-                        if (upperValue === null || lowerValue === null) return;
-
-                        const xPixel = api.coord([xValue, 0])[0];
-                        const upperPixel = api.coord([xValue, upperValue])[1];
-                        const lowerPixel = api.coord([xValue, lowerValue])[1];
-
-                        const width = 10; // Band width
-
-                        return {
-                            type: 'rect',
-                            shape: {
-                                x: xPixel - width / 2,
-                                y: upperPixel,
-                                width: width,
-                                height: lowerPixel - upperPixel
-                            },
-                            style: {
-                                fill: 'rgba(139, 92, 246, 0.2)'
-                            }
-                        };
-                    },
-                    data: timestamps.map((_, idx) => [idx, data.upper_band[idx], data.lower_band[idx]]),
-                    z: -1
+                    name: 'Lower Band', type: 'line', data: lowers, symbol: 'none', stack: 'band',
+                    lineStyle: { opacity: 0 }, areaStyle: { color: 'rgba(28,126,214,0.08)' }
                 }
             ]
         };
@@ -254,187 +288,248 @@ const PriceForecast: React.FC = () => {
         chartInstance.current.setOption(option, true);
     };
 
-    const getSourceBadge = () => {
-        if (!data) return null;
-
-        const colors: Record<string, string> = {
-            'LIVE': 'bg-green-500/20 text-green-400 border-green-500/30',
-            'REST': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-            'DB': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-            'DELAYED': 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-        };
-
-        return colors[data.data_source] || 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    };
-
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-violet-500/20">
-                        <TrendingUp className="w-6 h-6 text-violet-400" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">AI Price Forecast</h1>
-                        <p className="text-sm text-slate-400">Adaptive ensemble prediction with confidence bands</p>
-                    </div>
-                </div>
+        <div className="min-h-screen bg-[#191e23] text-[#e2e8f0] font-sans selection:bg-brand-500/30">
+            <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
 
-                {data && (
-                    <div className={`px-3 py-1.5 rounded-full border ${getSourceBadge()} flex items-center gap-2`}>
-                        <div className="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-                        <span className="text-xs font-medium">{data.data_source}</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Control Panel */}
-            <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {/* Symbol Input */}
-                    <div className="space-y-1.5">
-                        <label className="text-xs text-slate-400 uppercase tracking-wide">Symbol</label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                            <input
-                                type="text"
-                                value={symbol}
-                                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                                placeholder="e.g., RELIANCE"
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                            />
+                {/* 1. Integrated Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-[#2d3748]">
+                    <div className="flex items-center gap-5">
+                        <div className="p-3.5 rounded-xl bg-[#1c7ed6]/10 text-[#1c7ed6] border border-[#1c7ed6]/20">
+                            <TrendingUp size={28} />
                         </div>
-                    </div>
-
-                    {/* Timeframe Selector */}
-                    <div className="space-y-1.5">
-                        <label className="text-xs text-slate-400 uppercase tracking-wide">Timeframe</label>
-                        <select
-                            value={timeframe}
-                            onChange={(e) => setTimeframe(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                        >
-                            {TIMEFRAMES.map(tf => (
-                                <option key={tf} value={tf}>{tf}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Horizon Slider */}
-                    <div className="space-y-1.5">
-                        <label className="text-xs text-slate-400 uppercase tracking-wide">
-                            Prediction Horizon: {horizon} candles
-                        </label>
-                        <input
-                            type="range"
-                            min={1}
-                            max={30}
-                            value={horizon}
-                            onChange={(e) => setHorizon(parseInt(e.target.value))}
-                            className="w-full h-2.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
-                        />
-                    </div>
-
-                    {/* Run Button */}
-                    <div className="flex items-end">
-                        <button
-                            onClick={fetchForecast}
-                            disabled={loading || !symbol}
-                            className="w-full px-6 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 rounded-lg font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Predicting...
-                                </>
-                            ) : (
-                                <>
-                                    <Play className="w-4 h-4" />
-                                    Run Prediction
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Error Display */}
-            {error && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
-                    <div>
-                        <h4 className="font-medium text-red-400">Prediction Failed</h4>
-                        <p className="text-sm text-red-300/80">{error}</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Chart Area */}
-            <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
-                <div
-                    ref={chartRef}
-                    className="w-full h-[500px]"
-                    style={{ minHeight: '500px' }}
-                />
-
-                {!data && !loading && !error && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center text-slate-500">
-                            <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                            <p>Enter a symbol and click "Run Prediction" to generate forecast</p>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Model Info Panel */}
-            {data && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                        <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Model Version</p>
-                        <p className="text-lg font-bold text-white">{data.model_version}</p>
-                    </div>
-
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                        <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Confidence Score</p>
-                        <div className="flex items-center gap-2">
-                            <div className="h-2 flex-1 bg-slate-700 rounded-full">
-                                <div
-                                    className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
-                                    style={{ width: `${data.confidence * 100}%` }}
-                                />
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-2xl font-bold text-white tracking-tight">Price Forecast</h1>
+                                <span className="px-2 py-0.5 bg-[#252d37] text-slate-400 text-[10px] font-bold rounded border border-[#2d3748]">
+                                    v2.2 (PRO)
+                                </span>
                             </div>
-                            <span className="text-lg font-bold text-white">{(data.confidence * 100).toFixed(1)}%</span>
+                            <p className="text-slate-500 text-sm mt-0.5">Automated technical analysis & predictive modeling</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className={`px-4 py-1.5 rounded-lg text-[10px] font-bold border flex items-center gap-2 ${loading ? 'bg-blue-500/5 text-blue-400 border-blue-500/20' : 'bg-green-500/5 text-green-400 border-green-500/20'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-blue-400 animate-pulse' : 'bg-green-500'}`} />
+                            <span className="tracking-wider uppercase">{loading ? 'Engine Processing' : 'Service Online'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. Main Layout Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+
+                    {/* Left Panel: Configuration */}
+                    <div className="lg:col-span-1 space-y-8">
+
+                        {/* Parameters Form */}
+                        <div className="space-y-6">
+                            <div className="relative" ref={dropdownRef}>
+                                <label className="text-[11px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Symbol</label>
+                                <div className="relative">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={16} />
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => {
+                                            setSearchQuery(e.target.value.toUpperCase());
+                                            setShowSymbolDropdown(true);
+                                        }}
+                                        onFocus={() => setShowSymbolDropdown(true)}
+                                        className="w-full bg-[#212933] border border-[#2d3748] rounded-lg pl-11 pr-4 py-3 text-sm text-white font-medium outline-none focus:border-[#1c7ed6] focus:ring-1 focus:ring-[#1c7ed6]/20 transition-all"
+                                        placeholder="Search asset..."
+                                    />
+                                </div>
+
+                                {showSymbolDropdown && filteredSymbols.length > 0 && (
+                                    <div className="absolute z-50 left-0 right-0 mt-1 bg-[#212933] border border-[#2d3748] rounded-lg shadow-2xl max-h-48 overflow-y-auto">
+                                        {filteredSymbols.map(sym => (
+                                            <button
+                                                key={sym}
+                                                onClick={() => selectSymbol(sym)}
+                                                className="w-full text-left px-5 py-2.5 hover:bg-[#1c7ed6]/10 text-slate-300 hover:text-white text-sm transition-all border-b border-[#2d3748] last:border-0"
+                                            >
+                                                {sym}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex-1">
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Interval</label>
+                                    <select
+                                        value={timeframe}
+                                        onChange={(e) => setTimeframe(e.target.value)}
+                                        className="w-full bg-[#212933] border border-[#2d3748] rounded-lg px-4 py-3 text-sm text-white font-medium outline-none focus:border-[#1c7ed6] transition-all cursor-pointer"
+                                    >
+                                        {TIMEFRAMES.map(tf => <option key={tf} value={tf}>{tf}</option>)}
+                                    </select>
+                                </div>
+                                <div className="w-full">
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">Horizon</label>
+                                    <input
+                                        type="number"
+                                        value={horizon}
+                                        onChange={(e) => setHorizon(parseInt(e.target.value) || 1)}
+                                        className="w-full bg-[#212933] border border-[#2d3748] rounded-lg px-4 py-3 text-sm text-white font-medium outline-none focus:border-[#1c7ed6] transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={runForecast}
+                                disabled={loading || !symbol}
+                                className="w-full bg-[#1c7ed6] hover:bg-[#1971c2] disabled:opacity-50 text-white font-bold py-3.5 rounded-lg shadow-lg active:translate-y-px transition-all flex items-center justify-center gap-3 text-sm"
+                            >
+                                {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Play size={16} fill="currentColor" />}
+                                EXECUTE ANALYSIS
+                            </button>
+                        </div>
+
+                        {/* Algorithm List */}
+                        <div className="pt-6 border-t border-[#2d3748]">
+                            <h3 className="text-[11px] font-bold text-slate-500 uppercase mb-4 tracking-wider">Available Models</h3>
+                            {loadingAlgos ? (
+                                <div className="flex items-center gap-3 py-4">
+                                    <Loader2 className="animate-spin w-3 h-3 text-[#1c7ed6]" />
+                                    <span className="text-xs text-slate-500 font-medium tracking-tight">Syncing algorithms...</span>
+                                </div>
+                            ) : (
+                                <div className="space-y-2.5">
+                                    {algorithms.map(algo => (
+                                        <button
+                                            key={algo.id}
+                                            onClick={() => setSelectedAlgorithm(algo.id)}
+                                            className={`w-full text-left px-4 py-3.5 rounded-xl border transition-all duration-200 ${selectedAlgorithm === algo.id ? 'bg-[#1c7ed6]/5 border-[#1c7ed6]/40 text-[#1c7ed6]' : 'bg-[#212933]/40 border-[#2d3748] text-slate-500 hover:border-slate-700'}`}
+                                        >
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-xs font-bold uppercase tracking-tight">{algo.name}</span>
+                                                {algo.recommended && <span className="text-[8px] bg-[#1c7ed6] text-white px-1.5 py-0.5 rounded font-bold uppercase">PRO</span>}
+                                            </div>
+                                            <p className="text-[10px] leading-relaxed opacity-80 font-medium">{algo.description}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                        <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Data Source</p>
-                        <p className="text-lg font-bold text-white flex items-center gap-2">
-                            {data.data_source}
-                            {data.data_source === 'DB' && (
-                                <span className="text-xs text-amber-400">(Delayed)</span>
-                            )}
-                        </p>
-                    </div>
+                    {/* Right Panel: Workspace */}
+                    <div className="lg:col-span-3 space-y-6">
 
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                        <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Last Trained</p>
-                        <p className="text-lg font-bold text-white flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-slate-400" />
-                            {data.last_trained ? new Date(data.last_trained).toLocaleDateString() : 'On-demand'}
-                        </p>
+                        {/* Summary Bar */}
+                        {forecastData && !loading && (
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-[#212933] p-4 rounded-xl border border-[#2d3748]">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Predicted Delta</p>
+                                    <div className={`flex items-baseline gap-2 text-xl font-bold ${forecastData.metrics.predicted_move_pct >= 0 ? 'text-[#4caf50]' : 'text-red-400'}`}>
+                                        {forecastData.metrics.predicted_move_pct >= 0 ? '▲' : '▼'}
+                                        {Math.abs(forecastData.metrics.predicted_move_pct).toFixed(2)}%
+                                    </div>
+                                </div>
+                                <div className="bg-[#212933] p-4 rounded-xl border border-[#2d3748]">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Confidence Level</p>
+                                    <div className="text-xl font-bold text-white">
+                                        {(forecastData.metrics.confidence_score * 100).toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div className="bg-[#212933] p-4 rounded-xl border border-[#2d3748]">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Market Volatility</p>
+                                    <div className="text-xl font-bold text-white uppercase tracking-tight">
+                                        {forecastData.metrics.volatility_label}
+                                    </div>
+                                </div>
+                                <div className="bg-[#212933] p-4 rounded-xl border border-[#2d3748]">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Core Latency</p>
+                                    <div className="text-xl font-bold text-[#1c7ed6]">
+                                        {forecastData.metrics.model_latency_ms}ms
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Chart Workspace */}
+                        <div className="bg-[#1b2229] rounded-2xl border border-[#2d3748] relative overflow-hidden min-h-[500px] shadow-sm">
+                            {error && (
+                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#191e23]/90 p-8">
+                                    <div className="bg-red-400/5 border border-red-500/20 p-8 rounded-2xl text-center max-w-sm">
+                                        <AlertCircle className="text-red-500 mx-auto mb-4" size={32} />
+                                        <h4 className="text-white text-base font-bold mb-2">Service Error</h4>
+                                        <p className="text-slate-500 text-xs mb-6 leading-relaxed font-medium">{error}</p>
+                                        <button onClick={runForecast} className="w-full text-xs font-bold text-white bg-red-600 hover:bg-red-500 py-3 rounded-lg transition-all active:scale-95 uppercase">Retry Session</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!forecastData && !loading && !error && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
+                                    <BarChart3 size={40} className="text-slate-700 mb-5" />
+                                    <h4 className="text-slate-500 font-bold uppercase tracking-wider text-[10px] mb-2">Waiting for Execution</h4>
+                                    <p className="text-slate-600 text-xs max-w-[200px] leading-relaxed font-medium">Select a symbol and algorithm to begin predictive analysis.</p>
+                                </div>
+                            )}
+
+                            {loading && (
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#191e23]/40 backdrop-blur-[2px]">
+                                    <div className="w-12 h-12 border-4 border-[#2d3748] border-t-[#1c7ed6] rounded-full animate-spin mb-6" />
+                                    <p className="text-slate-400 font-bold tracking-widest uppercase text-[9px] animate-pulse">Running Neural Inference</p>
+                                </div>
+                            )}
+
+                            <div ref={chartRef} className="w-full h-[500px]" />
+                        </div>
+
+                        {/* Diagnostics Panel */}
+                        <div className="bg-[#212933]/30 rounded-xl border border-[#2d3748] overflow-hidden">
+                            <button
+                                onClick={() => setShowDebug(!showDebug)}
+                                className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#212933]/50 transition-all font-bold text-[11px] uppercase tracking-widest text-slate-500"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Terminal size={14} className="text-slate-600" />
+                                    <span>Diagnostics Node</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className={`text-[9px] px-2 py-0.5 rounded-full border ${lastApiStatus.includes('200') ? 'bg-green-500/5 border-green-500/20 text-green-500/80' : 'bg-[#252d37] border-[#2d3748] text-slate-500'}`}>{lastApiStatus}</span>
+                                    {showDebug ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                </div>
+                            </button>
+
+                            {showDebug && (
+                                <div className="p-6 bg-black/20 border-t border-[#2d3748] space-y-6">
+                                    <div className="grid grid-cols-3 gap-6">
+                                        <div>
+                                            <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest mb-1">Endpoints</p>
+                                            <p className="text-xs font-mono text-[#1c7ed6] truncate">{baseUrl}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest mb-1">Active Model</p>
+                                            <p className="text-xs font-mono text-white">{selectedAlgorithm}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest mb-1">Session ID</p>
+                                            <p className="text-xs font-mono text-slate-500">{forecastData?.request_id || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                    {forecastData && (
+                                        <div className="space-y-2">
+                                            <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Raw Inference Output</p>
+                                            <pre className="text-[10px] font-mono bg-[#1b2229] p-4 rounded-lg overflow-auto max-h-[200px] text-slate-400 border border-[#2d3748] custom-scrollbar">
+                                                {JSON.stringify(forecastData, null, 2)}
+                                            </pre>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-            )}
-
-            {/* Disclaimer */}
-            <div className="text-center text-xs text-slate-500 py-4">
-                <p>⚠️ Predictions are statistical forecasts based on historical patterns. Not investment advice.</p>
             </div>
         </div>
     );
 };
 
 export default PriceForecast;
+

@@ -348,6 +348,14 @@ app.include_router(market.router, prefix="/api/market", tags=["Market"])
 app.include_router(metrics.router)  # Metrics & Metadata API (already has prefix)
 app.include_router(walk_forward_backtest.router)  # Walk-Forward Backtest (already has full prefix)
 
+# Forecast API with Algorithm Registry
+try:
+    from routers import forecast
+    app.include_router(forecast.router)  # Already has prefix /api/v1/forecast
+    logger.info("Registered Forecast API at /api/v1/forecast")
+except ImportError as e:
+    logger.warning(f"Forecast router not loaded: {e}")
+
 # Experiment Lab (Beta) - Re-enabled for testing
 try:
     from api.v1.endpoints import experiment_lab
