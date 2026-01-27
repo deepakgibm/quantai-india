@@ -113,7 +113,8 @@ class SectorAggregationWorker:
             
             self._instrument_map[instrument_key] = {
                 "symbol": symbol,
-                "sector": sector
+                "sector": sector,
+                "company_name": symbol # Using symbol as fallback for company_name if needed
             }
         
         logger.info(f"Loaded metadata: {len(self._sector_map)} sectors, {len(self._instrument_map)} stocks")
@@ -229,7 +230,15 @@ class SectorAggregationWorker:
                 
             if sector not in sector_groups:
                 sector_groups[sector] = []
-            sector_groups[sector].append(stock)
+            
+            # Ensure stock has consistent fields for the frontend
+            mapped_stock = stock.copy()
+            if 'ltp' not in mapped_stock and 'last_price' in mapped_stock:
+                mapped_stock['ltp'] = mapped_stock['last_price']
+            if 'change_pct' not in mapped_stock and 'change_percent' in mapped_stock:
+                mapped_stock['change_pct'] = mapped_stock['change_percent']
+                
+            sector_groups[sector].append(mapped_stock)
 
         sector_snapshots = []
         # Aggregate and Write
@@ -246,7 +255,7 @@ class SectorAggregationWorker:
             
             snapshot = {
                 "sector": sector,
-                "avg_pct_change": round(avg_pct, 2),
+                "change_pct": round(avg_pct, 2),
                 "bucket": bucket,
                 "advancers": advancers,
                 "decliners": decliners,
@@ -256,12 +265,12 @@ class SectorAggregationWorker:
             
             # Write to Cache: Individual Sector
             key = CacheKeys.sector_snapshot(sector)
-            self.cache.set(key, snapshot, ttl=15)
+            self.cache.set(key, snapshot, ttl=300) # Increased to 5 mins
             
             # Write to Cache: Stock List for Drill-Down
             list_key = f"{key}:stocks" 
-            self.cache.set(list_key, stocks, ttl=15)
+            self.cache.set(list_key, stocks, ttl=300) # Increased to 5 mins
             
         # Write to Cache: All Sectors List (for Main Page)
-        self.cache.set(CacheKeys.heatmap_all(), sector_snapshots, ttl=15)
+        self.cache.set(CacheKeys.heatmap_all(), sector_snapshots, ttl=300) # Increased to 5 mins
 

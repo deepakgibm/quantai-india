@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { TrendingUp, TrendingDown, ArrowLeft, Loader2, Search } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowLeft, Loader2, Search, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { getBgColor, getGlassColor, getPriceColor } from '../utils/price';
 
 const SectorHeatmapPage: React.FC = () => {
@@ -11,6 +11,7 @@ const SectorHeatmapPage: React.FC = () => {
     const [loadingStocks, setLoadingStocks] = useState(false);
     const [showLongLoadingMsg, setShowLongLoadingMsg] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' | null }>({ key: 'change_pct', direction: 'desc' });
 
     useEffect(() => {
         fetchSectors();
@@ -47,7 +48,28 @@ const SectorHeatmapPage: React.FC = () => {
         }
     };
 
-    const filteredStocks = stocks.filter(s =>
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' | null = 'desc';
+        if (sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'asc';
+        } else if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = null;
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedStocks = [...stocks].sort((a, b) => {
+        if (!sortConfig.key || !sortConfig.direction) return 0;
+
+        const aVal = a[sortConfig.key];
+        const bVal = b[sortConfig.key];
+
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const filteredStocks = sortedStocks.filter(s =>
         (s.symbol?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (s.company_name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
@@ -145,11 +167,46 @@ const SectorHeatmapPage: React.FC = () => {
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
                                 <tr>
-                                    <th className="px-6 py-4">Symbol</th>
-                                    <th className="px-6 py-4">Company Name</th>
-                                    <th className="px-6 py-4 text-right">LTP</th>
-                                    <th className="px-6 py-4 text-right">Change %</th>
-                                    <th className="px-6 py-4 text-center">Trend</th>
+                                    <th className="px-6 py-4 cursor-pointer hover:text-brand-500 transition-colors" onClick={() => requestSort('symbol')}>
+                                        <div className="flex items-center gap-2">
+                                            Symbol
+                                            {sortConfig.key === 'symbol' ? (
+                                                sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                                            ) : <ChevronsUpDown size={14} className="opacity-30" />}
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 cursor-pointer hover:text-brand-500 transition-colors" onClick={() => requestSort('company_name')}>
+                                        <div className="flex items-center gap-2">
+                                            Company Name
+                                            {sortConfig.key === 'company_name' ? (
+                                                sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                                            ) : <ChevronsUpDown size={14} className="opacity-30" />}
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:text-brand-500 transition-colors" onClick={() => requestSort('ltp')}>
+                                        <div className="flex items-center justify-end gap-2">
+                                            LTP
+                                            {sortConfig.key === 'ltp' ? (
+                                                sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                                            ) : <ChevronsUpDown size={14} className="opacity-30" />}
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:text-brand-500 transition-colors" onClick={() => requestSort('change_pct')}>
+                                        <div className="flex items-center justify-end gap-2">
+                                            Change %
+                                            {sortConfig.key === 'change_pct' ? (
+                                                sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                                            ) : <ChevronsUpDown size={14} className="opacity-30" />}
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-center cursor-pointer hover:text-brand-500 transition-colors" onClick={() => requestSort('change_pct')}>
+                                        <div className="flex items-center justify-center gap-2">
+                                            Trend
+                                            {sortConfig.key === 'change_pct' ? (
+                                                sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                                            ) : <ChevronsUpDown size={14} className="opacity-30" />}
+                                        </div>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">

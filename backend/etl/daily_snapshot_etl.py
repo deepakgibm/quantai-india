@@ -244,11 +244,9 @@ class DailySnapshotETL:
         all_quotes = []
         
         try:
-            # Download 2 days of data for ALL symbols at once
-            # period="2d" ensures we have 오늘의 close and yesterday's close for % change
-            # auto_adjust=False is CRITICAL for official non-adjusted close prices
+            # Download 5 days of data for ALL symbols at once (more resilient to holidays)
             data = await asyncio.to_thread(
-                yf.download, yf_symbols, period="2d", interval="1d", 
+                yf.download, yf_symbols, period="5d", interval="1d", 
                 group_by='ticker', progress=False, auto_adjust=False
             )
             
@@ -600,8 +598,9 @@ class DailySnapshotETL:
             
             sector_data[sector]["stocks"].append({
                 "symbol": symbol,
-                "close_price": q["close_price"],
-                "change_percent": q["change_percent"]
+                "company_name": q.get("company_name", symbol),
+                "ltp": q["close_price"],
+                "change_pct": q["change_percent"]
             })
             sector_data[sector]["total_change"] += q["change_percent"]
             sector_data[sector]["count"] += 1
@@ -613,14 +612,15 @@ class DailySnapshotETL:
                 avg_change = data["total_change"] / data["count"]
                 sector_list.append({
                     "sector": sector,
-                    "avg_change_percent": round(avg_change, 2),
+                    "change_pct": round(avg_change, 2),
                     "stock_count": data["count"],
-                    "top_stocks": sorted(data["stocks"], key=lambda x: x["change_percent"], reverse=True)[:5],
-                    "bottom_stocks": sorted(data["stocks"], key=lambda x: x["change_percent"])[:5]
+                    "stocks": sorted(data["stocks"], key=lambda x: x["change_pct"], reverse=True),
+                    "top_stocks": sorted(data["stocks"], key=lambda x: x["change_pct"], reverse=True)[:5],
+                    "bottom_stocks": sorted(data["stocks"], key=lambda x: x["change_pct"])[:5]
                 })
         
         # Sort sectors by performance
-        sector_list.sort(key=lambda x: x["avg_change_percent"], reverse=True)
+        sector_list.sort(key=lambda x: x["change_pct"], reverse=True)
         
         # Cache heatmap data
         try:

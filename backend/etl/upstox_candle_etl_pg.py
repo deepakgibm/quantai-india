@@ -511,7 +511,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
             if intervals_filter and tf not in intervals_filter:
                 continue
 
-            print(f"\n[TF] {tf} → DB timeframe: {db_timeframe} ({tf_minutes} min)")
+            print(f"\n[TF] {tf} -> DB timeframe: {db_timeframe} ({tf_minutes} min)")
 
             try:
                 # Check data freshness and determine start date

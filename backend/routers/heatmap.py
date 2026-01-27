@@ -40,6 +40,7 @@ async def get_heatmap_sectors(current_user: User = Depends(get_current_user)):
     from services.dragonfly_client import get_cache as get_df_cache, CacheKeys
     
     cache = get_heatmap_cache()
+    from services.dragonfly_client import CacheKeys
     
     # Check if market is closed - return EOD snapshot
     if not is_market_open():
@@ -78,22 +79,25 @@ async def get_sector_stocks(sector_name: str, current_user: User = Depends(get_c
     Source: Dragonfly/Redis/In-Memory Cache (qai:sector:{name}:stocks)
     """
     from utils.market_state import is_market_open, get_trading_date
-    from services.memcached_client import get_cache as get_df_cache
-    from services.dragonfly_client import CacheKeys
-    
     cache = get_heatmap_cache()
+    from services.dragonfly_client import CacheKeys
     
     # Check if market is closed - return EOD snapshot
     if not is_market_open():
-        df_cache = get_df_cache()
         date_str = get_trading_date().strftime("%Y-%m-%d")
         sector_key = sector_name.replace(" ", "_").lower()
-        snapshot = df_cache.get(f"snapshot:heatmap_sector_{sector_key}:{date_str}")
+        snapshot = cache.get(f"snapshot:heatmap_sector_{sector_key}:{date_str}")
         
         if snapshot:
-            # Sort by change
-            stocks = snapshot.get("top_stocks", []) + snapshot.get("bottom_stocks", [])
-            stocks.sort(key=lambda x: x.get("change_percent", 0), reverse=True)
+            # Prioritize standardized fields or reconstruct
+            stocks = snapshot.get("stocks") or snapshot.get("top_stocks", []) + snapshot.get("bottom_stocks", [])
+            for s in stocks:
+                if 'change_pct' not in s and 'change_percent' in s:
+                    s['change_pct'] = s['change_percent']
+                if 'ltp' not in s and 'close_price' in s:
+                    s['ltp'] = s['close_price']
+                    
+            stocks.sort(key=lambda x: x.get("change_pct", 0), reverse=True)
             return {
                 "status": "success", 
                 "stocks": stocks,
