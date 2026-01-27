@@ -7,6 +7,7 @@ import {
     BrainCircuit
 } from 'lucide-react';
 import { api, API_URL, getAuthHeaders } from '../services/api';
+import { PriceForecastHelpGuide } from '../components/HelpGuide';
 
 // ============================================================================
 // Types & Constants
@@ -237,7 +238,7 @@ const PriceForecast: React.FC = () => {
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         }));
 
-        const actuals = [...hist.map(c => c.close), ...fore.map(() => null)];
+        const actuals = [...hist.map(c => [c.open, c.close, c.low, c.high]), ...fore.map(() => [null, null, null, null])];
         const predicts = [...hist.map(() => null), ...fore.map(c => c.close)];
         const uppers = [...hist.map(() => null), ...fore.map(c => c.upper)];
         const lowers = [...hist.map(() => null), ...fore.map(c => c.lower)];
@@ -272,7 +273,17 @@ const PriceForecast: React.FC = () => {
                 axisLine: { show: false }
             },
             series: [
-                { name: 'Historical', type: 'line', data: actuals, symbol: 'none', lineStyle: { color: '#4caf50', width: 1.5 } },
+                {
+                    name: 'Historical',
+                    type: 'candlestick',
+                    data: actuals,
+                    itemStyle: {
+                        color: '#4caf50',
+                        color0: '#f44336',
+                        borderColor: '#4caf50',
+                        borderColor0: '#f44336'
+                    }
+                },
                 { name: 'Forecast', type: 'line', data: predicts, symbol: 'circle', symbolSize: 4, lineStyle: { color: '#1c7ed6', width: 2, type: 'dashed' }, itemStyle: { color: '#1c7ed6' } },
                 {
                     name: 'Confidence Band', type: 'line', data: uppers, symbol: 'none', stack: 'band',
@@ -304,6 +315,7 @@ const PriceForecast: React.FC = () => {
                                 <span className="px-2 py-0.5 bg-[#252d37] text-slate-400 text-[10px] font-bold rounded border border-[#2d3748]">
                                     v2.2 (PRO)
                                 </span>
+                                <PriceForecastHelpGuide />
                             </div>
                             <p className="text-slate-500 text-sm mt-0.5">Automated technical analysis & predictive modeling</p>
                         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle, X, ChevronDown, ChevronRight, BookOpen, Lightbulb, AlertTriangle, CheckCircle } from 'lucide-react';
+import { HelpCircle, X, ChevronDown, ChevronRight, BookOpen, Lightbulb, AlertTriangle, CheckCircle, TrendingUp, Zap, Target } from 'lucide-react';
 
 interface HelpSection {
     title: string;
@@ -260,6 +260,95 @@ export const ExperimentLabHelpGuide: React.FC = () => {
     ];
 
     return <HelpGuide title="Experiment Lab Guide" sections={sections} />;
+};
+
+// Pre-built guide content for Price Forecast page
+export const PriceForecastHelpGuide: React.FC = () => {
+    const sections: HelpSection[] = [
+        {
+            title: "What is AI Price Forecasting?",
+            icon: <TrendingUp size={18} className="text-indigo-500" />,
+            content: `
+                <p class="mb-3">AI Price Forecasting uses <strong>machine learning and statistical models</strong> to predict future price movements based on historical price action (OHLCV) and technical indicators.</p>
+                <p class="mb-3">Unlike traditional analysis, these models analyze thousands of previous patterns to find the most probable direction and volatility for the upcoming sessions.</p>
+                <div class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                    <strong>Note:</strong> Predictive modeling is probabilistic. It identifies "likely" paths, not guaranteed certainties.
+                </div>
+            `
+        },
+        {
+            title: "Understanding Algorithms",
+            icon: <Zap size={18} className="text-amber-500" />,
+            content: `
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded font-bold">RECOMMENDED</span>
+                            <strong class="text-slate-800 dark:text-white">Adaptive Ensemble</strong>
+                        </div>
+                        <p class="text-xs opacity-80">Combines XGBoost and Ridge regression. It balances different model strengths to provide the most stable and accurate forecasts across various market regimes.</p>
+                    </div>
+                    <div>
+                        <strong class="text-slate-800 dark:text-white">LSTM (Deep Learning)</strong>
+                        <p class="text-xs opacity-80">A Recurrent Neural Network designed to remember long-term dependencies. Best for identifying complex trend reversals and volatile breakouts.</p>
+                    </div>
+                    <div>
+                        <strong class="text-slate-800 dark:text-white">XGBoost Fast</strong>
+                        <p class="text-xs opacity-80">A high-speed Gradient Boosting model. Optimized for quick turnaround, ideal for intraday "scalping" forecasts where speed is prioritized over depth.</p>
+                    </div>
+                    <div>
+                        <strong class="text-slate-800 dark:text-white">ARIMA Stable</strong>
+                        <p class="text-xs opacity-80">A classical statistical model (AutoRegressive Integrated Moving Average). Highly reliable for stable, trending markets without excessive "noise".</p>
+                    </div>
+                </div>
+            `
+        },
+        {
+            title: "How to Configure",
+            icon: <CheckCircle size={18} className="text-emerald-500" />,
+            content: `
+                <ul class="space-y-3">
+                    <li><strong>Hybrid Chart View:</strong> The chart now displays <strong>Historical data as Candlesticks</strong> (OHLC) and <strong>Forecast data as a Line graph</strong> for maximum clarity.</li>
+                    <li><strong>Interval (Timeframe):</strong> Choose the resolution of data. <br/><span class="text-xs opacity-70">Example: 5m for intraday, 1d for swing trading.</span></li>
+                    <li><strong>Horizon:</strong> How many future candles to predict. <br/><span class="text-xs opacity-70">Note: Confidence typically decreases as you move further into the future (longer horizons).</span></li>
+                    <li><strong>Confidence Bands:</strong> The shaded area around the forecast line. There is a statistical probability that price will stay within this range.</li>
+                </ul>
+            `
+        },
+        {
+            title: "Interpreting Results",
+            icon: <Target size={18} className="text-blue-500" />,
+            content: `
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1">Confidence Score</div>
+                            <div class="text-sm font-bold text-slate-800 dark:text-white">>80% is high stability</div>
+                        </div>
+                        <div class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1">Predicted Delta</div>
+                            <div class="text-sm font-bold text-slate-800 dark:text-white">The expected % move</div>
+                        </div>
+                    </div>
+                    <p class="text-xs italic">A "Service Online" badge indicates the neural inference engine is ready for real-time calculations.</p>
+                </div>
+            `
+        },
+        {
+            title: "Risk & Limitations",
+            icon: <AlertTriangle size={18} className="text-red-500" />,
+            content: `
+                <ul class="list-disc pl-5 space-y-2">
+                    <li>External news events (black swans) can invalidate any statistical model.</li>
+                    <li>Forecasts are more reliable in high-liquidity assets (e.g., Nifty 50 constituents).</li>
+                    <li>Always combine AI forecasts with your own risk management (Stop-Loss/Take-Profit).</li>
+                    <li>Model performance may vary based on market volatility (High/Medium/Low).</li>
+                </ul>
+            `
+        }
+    ];
+
+    return <HelpGuide title="AI Forecast Guide" sections={sections} buttonLabel="Help & Documentation" />;
 };
 
 export default HelpGuide;
