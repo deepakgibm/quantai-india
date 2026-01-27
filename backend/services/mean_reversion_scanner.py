@@ -8,6 +8,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from utils.symbol_utils import get_company_name
 from database import SessionLocal
+from models_alpha import InstrumentMaster, StockCandle
 
 
 class MeanReversionScanner:
@@ -22,24 +23,26 @@ class MeanReversionScanner:
     def _get_bulk_ohlcv_data(self, days: int = 60) -> Dict[str, pd.DataFrame]:
         """Fetch OHLCV data for ALL symbols in one query."""
         try:
-            from models_ml import Nifty100Daily
-            
             session = self._Session()
             try:
                 cutoff_date = datetime.now() - timedelta(days=days)
                 
-                # Bulk query
+                # Bulk query joining StockCandle and InstrumentMaster
                 results = session.query(
-                    Nifty100Daily.symbol,
-                    Nifty100Daily.timestamp,
-                    Nifty100Daily.open,
-                    Nifty100Daily.high,
-                    Nifty100Daily.low,
-                    Nifty100Daily.close,
-                    Nifty100Daily.volume
+                    InstrumentMaster.symbol,
+                    StockCandle.candle_ts.label('timestamp'),
+                    StockCandle.open,
+                    StockCandle.high,
+                    StockCandle.low,
+                    StockCandle.close,
+                    StockCandle.volume
+                ).join(
+                    InstrumentMaster,
+                    StockCandle.instrument_id == InstrumentMaster.instrument_id
                 ).filter(
-                    Nifty100Daily.timestamp >= cutoff_date
-                ).order_by(Nifty100Daily.symbol, Nifty100Daily.timestamp.asc()).all()
+                    StockCandle.timeframe == 1440,
+                    StockCandle.candle_ts >= cutoff_date
+                ).order_by(InstrumentMaster.symbol, StockCandle.candle_ts.asc()).all()
                 
                 if not results:
                     return {}
@@ -72,17 +75,24 @@ class MeanReversionScanner:
 
     def _get_ohlcv_data(self, symbol: str, days: int = 60) -> Optional[pd.DataFrame]:
         try:
-            from models_ml import Nifty100Daily
             from sqlalchemy import desc
             session = self._Session()
             try:
-                results = session.query(Nifty100Daily).filter(
-                    Nifty100Daily.symbol == symbol
-                ).order_by(desc(Nifty100Daily.timestamp)).limit(days).all()
+                # Resolve symbol to instrument_id
+                from services.instrument_resolver import resolve_instrument_id
+                instrument_id = resolve_instrument_id(symbol)
+                if not instrument_id:
+                    return None
+
+                results = session.query(StockCandle).filter(
+                    StockCandle.instrument_id == instrument_id,
+                    StockCandle.timeframe == 1440
+                ).order_by(desc(StockCandle.candle_ts)).limit(days).all()
+                
                 if not results or len(results) < 20:
                     return None
                 results = results[::-1]
-                data = [{'timestamp': r.timestamp, 'close': float(r.close), 'volume': int(r.volume)} for r in results]
+                data = [{'timestamp': r.candle_ts, 'close': float(r.close), 'volume': int(r.volume)} for r in results]
                 df = pd.DataFrame(data)
                 df.set_index('timestamp', inplace=True)
                 return df

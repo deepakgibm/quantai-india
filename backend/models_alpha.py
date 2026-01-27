@@ -205,7 +205,7 @@ class AlphaSignal(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships - keep trade_decisions but remove stock_data
-    trade_decisions = relationship("TradeDecision", back_populates="alpha_signal", cascade="all, delete-orphan")
+    # trade_decisions = relationship("TradeDecision", back_populates="alpha_signal", cascade="all, delete-orphan")
     
     __table_args__ = (
         Index('idx_signal_symbol_timestamp', 'symbol', 'timestamp'),
@@ -256,8 +256,8 @@ class TradeDecision(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    alpha_signal = relationship("AlphaSignal", back_populates="trade_decisions")
-    user = relationship("User")
+    # alpha_signal = relationship("AlphaSignal", back_populates="trade_decisions")
+    # user = relationship("User")
     
     __table_args__ = (
         Index('idx_decision_symbol_timestamp', 'symbol', 'timestamp'),

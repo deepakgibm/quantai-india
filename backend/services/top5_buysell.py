@@ -33,7 +33,7 @@ class Top5BuySellEngine:
         
     def _get_ohlcv_data(self, symbol: str, days: int = 100) -> Optional[pd.DataFrame]:
         try:
-            from models import StockCandle
+            from models_alpha import StockCandle
             session = self._Session()
             try:
                 # Resolve symbol to instrument_id
@@ -229,7 +229,7 @@ class Top5BuySellEngine:
         t0 = time.time()
         
         try:
-            from models import StockCandle
+            from models_alpha import StockCandle
             import numpy as np
             
             session = self._Session()
