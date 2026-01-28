@@ -52,10 +52,11 @@ const Week52Breakout: React.FC = () => {
     const [lowSortField, setLowSortField] = useState<SortField>('breakout_pct');
     const [lowSortOrder, setLowSortOrder] = useState<SortOrder>('desc');
 
-    const fetchBreakouts = async () => {
+    const fetchBreakouts = async (forceRefresh: boolean = true) => {
         try {
             setLoading(true);
-            const response = await fetch(`${API_URL}/api/scanner/week52-breakouts`, {
+            const url = `${API_URL}/api/scanner/week52-breakouts${forceRefresh ? '?force_refresh=true' : ''}`;
+            const response = await fetch(url, {
                 headers: getAuthHeaders()
             });
             if (response.ok) {
@@ -217,10 +218,11 @@ const Week52Breakout: React.FC = () => {
 
                     <button
                         onClick={fetchBreakouts}
-                        className="flex items-center gap-2 px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-lg active:scale-95"
+                        disabled={loading}
+                        className="flex items-center gap-2 px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
                         <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                        Refresh Scan
+                        {loading ? 'Refreshing...' : 'Refresh'}
                     </button>
                 </div>
             </header>

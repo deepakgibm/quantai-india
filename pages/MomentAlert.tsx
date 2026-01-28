@@ -94,10 +94,11 @@ const MomentAlert: React.FC = () => {
         };
     }, []);
 
-    const fetchWeek52Breakouts = async () => {
+    const fetchWeek52Breakouts = async (forceRefresh: boolean = false) => {
         try {
             setWeek52Loading(true);
-            const response = await fetch(`${API_URL}/api/scanner/week52-breakouts`, {
+            const url = `${API_URL}/api/scanner/week52-breakouts${forceRefresh ? '?force_refresh=true' : ''}`;
+            const response = await fetch(url, {
                 headers: getAuthHeaders()
             });
             if (response.ok) {
@@ -177,9 +178,10 @@ const MomentAlert: React.FC = () => {
         pollInterval.current = setInterval(fetchMomentumData, 5000);
     };
 
-    const fetchMomentumData = async () => {
+    const fetchMomentumData = async (forceRefresh: boolean = false) => {
         try {
-            const response = await fetch(`${API_URL}/api/scanner/momentum`, {
+            const url = `${API_URL}/api/scanner/momentum${forceRefresh ? '?force_refresh=true' : ''}`;
+            const response = await fetch(url, {
                 headers: getAuthHeaders()
             });
             if (response.ok) {
@@ -201,8 +203,8 @@ const MomentAlert: React.FC = () => {
         setIsRefreshing(true);
         try {
             await Promise.all([
-                fetchMomentumData(),
-                fetchWeek52Breakouts()
+                fetchMomentumData(true),
+                fetchWeek52Breakouts(true)
             ]);
         } catch (error) {
             console.error('Refresh error:', error);

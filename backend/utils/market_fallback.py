@@ -101,101 +101,109 @@ async def fetch_live_indices_yfinance() -> List[Dict[str, Any]]:
         return []
 
 async def fetch_top_movers_yfinance() -> Dict[str, Any]:
-    """Fetch Nifty 100 top movers from yfinance as fallback"""
+    """Fetch Nifty 100 top movers from yfinance using fast batch download"""
     try:
         from database import AsyncSessionLocal
-        from sqlalchemy import select
-        from models_ml import Nifty100Daily
+        from sqlalchemy import text
         
-        # 1. Fetch symbols dynamically from the database
+        # 1. Fetch symbols dynamically from instrument_master (new schema)
         async with AsyncSessionLocal() as db:
-            stmt = select(Nifty100Daily.symbol).distinct()
-            res = await db.execute(stmt)
-            symbols = [r[0] for r in res.fetchall()][:20]  # Take top 20 symbols from DB
+            result = await db.execute(text("""
+                SELECT symbol FROM instrument_master 
+                WHERE is_active = TRUE AND exchange = 'NSE' AND series = 'EQ'
+                ORDER BY symbol
+                LIMIT 30
+            """))
+            symbols = [r[0] for r in result.fetchall()]
         
         if not symbols:
-            logger.warning("No symbols found in database for yfinance fallback")
+            logger.warning("No symbols found in instrument_master for yfinance fallback")
             return {"error": "No symbols available for analysis"}
+        
+        logger.info(f"yfinance fallback: batch downloading {len(symbols)} symbols")
             
-        NIFTY_100_FALLBACK_SYMBOLS = [f"{s}.NS" for s in symbols]
+        NIFTY_SYMBOLS = [f"{s}.NS" for s in symbols]
+        tickers_str = " ".join(NIFTY_SYMBOLS)
         
         # Use session with User-Agent to avoid blocking
         session = requests.Session()
         session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
 
-        tickers_str = " ".join(NIFTY_100_FALLBACK_SYMBOLS)
+        # Fast batch download - use 1d period with 1m interval to get latest prices
         try:
-            # We fetch 5 days of daily data for previous close and 1m data for today's price
-            # But to keep it simple and avoid many calls, we fetch '1d' and handle the rows.
             data = await asyncio.wait_for(
-                asyncio.to_thread(yf.download, tickers_str, period="5d", interval="1d", progress=False, group_by='ticker', session=session),
-                timeout=15.0
+                asyncio.to_thread(
+                    yf.download, 
+                    tickers_str, 
+                    period="1d",  # Just today's data
+                    interval="1m",  # 1-minute bars give current price
+                    progress=False, 
+                    group_by='ticker',
+                    session=session
+                ),
+                timeout=30.0  # 30 second timeout
             )
-        except Exception as te:
-            logger.warning(f"yfinance top movers timed out/failed: {te}")
+        except asyncio.TimeoutError:
+            logger.warning("yfinance batch download timed out")
             return {"error": "Timeout fetching market data"}
 
         if data is None or (isinstance(data, pd.DataFrame) and data.empty):
+            logger.warning("yfinance returned no data")
             return {"error": "No market data available"}
         
-        # Determine today's date in IST-like comparison
-        # yfinance dates are usually UTC but indexed by date.
         movers = []
-        for full_symbol in NIFTY_100_FALLBACK_SYMBOLS:
+        
+        for full_symbol in NIFTY_SYMBOLS:
             try:
                 symbol = full_symbol.replace(".NS", "")
-                ticker_data = data[full_symbol].dropna()
                 
-                if ticker_data.empty or len(ticker_data) < 2:
+                # Get ticker's data - handle both single and multi-ticker DataFrames
+                if len(NIFTY_SYMBOLS) > 1 and full_symbol in data.columns.get_level_values(0):
+                    ticker_data = data[full_symbol]
+                elif len(NIFTY_SYMBOLS) == 1:
+                    ticker_data = data
+                else:
+                    continue
+                
+                # Drop NaN rows for valid Close prices
+                valid_rows = ticker_data.dropna(subset=['Close']) if 'Close' in ticker_data.columns else pd.DataFrame()
+                
+                if valid_rows.empty or len(valid_rows) < 1:
+                    continue
+                
+                # Latest price is the last valid row
+                ltp = float(valid_rows['Close'].iloc[-1])
+                day_high = float(valid_rows['High'].max()) if 'High' in valid_rows else ltp
+                day_low = float(valid_rows['Low'].min()) if 'Low' in valid_rows else ltp
+                volume = int(valid_rows['Volume'].sum()) if 'Volume' in valid_rows else 0
+                
+                # Get previous close from the first row's Open (start of day represents previous close continuation)
+                prev_close = float(valid_rows['Open'].iloc[0]) if 'Open' in valid_rows else ltp
+                
+                if ltp <= 0 or prev_close <= 0:
                     continue
                     
-                # Improved yFinance detail fetching (same logic as live_price_enricher)
-                ltp = 0
-                prev_close = 0
-                
-                if not ticker_data.empty:
-                    # Filter only rows with Close values
-                    valid_rows = ticker_data.dropna(subset=['Close'])
-                    if not valid_rows.empty:
-                        ltp = valid_rows['Close'].iloc[-1]
-                        
-                        # Get previous close by looking for a different day
-                        latest_date = valid_rows.index[-1].date()
-                        for i in range(len(valid_rows)-2, -1, -1):
-                            if valid_rows.index[i].date() < latest_date:
-                                prev_close = valid_rows['Close'].iloc[i]
-                                break
-                        
-                        if not prev_close:
-                            prev_close = valid_rows['Close'].iloc[0]
-                
-                # If still no price, try ticker.info (The "AlphaPrime" way)
-                if not ltp or ltp <= 0:
-                    try:
-                        ticker_obj = yf.Ticker(full_symbol)
-                        ltp = ticker_obj.info.get('currentPrice') or ticker_obj.info.get('regularMarketPrice')
-                        prev_close = ticker_obj.info.get('regularMarketPreviousClose') or ticker_obj.info.get('previousClose')
-                    except:
-                        pass
-
-                if not ltp or ltp <= 0:
-                    continue
-                    
-                change_pct = ((ltp - prev_close) / prev_close) * 100 if prev_close else 0
+                change_pct = ((ltp - prev_close) / prev_close) * 100
                 
                 movers.append({
                     "symbol": symbol,
-                    "ltp": round(float(ltp), 2),
-                    "change_pct": round(float(change_pct), 2),
-                    "prev_close": round(float(prev_close), 2),
-                    "volume": int(ticker_data.iloc[-1]['Volume']) if not ticker_data.empty and 'Volume' in ticker_data.iloc[-1] else 0,
-                    "day_high": round(float(ticker_data.iloc[-1]['High']), 2) if not ticker_data.empty else round(float(ltp), 2),
-                    "day_low": round(float(ticker_data.iloc[-1]['Low']), 2) if not ticker_data.empty else round(float(ltp), 2)
+                    "ltp": round(ltp, 2),
+                    "change_pct": round(change_pct, 2),
+                    "prev_close": round(prev_close, 2),
+                    "volume": volume,
+                    "day_high": round(day_high, 2),
+                    "day_low": round(day_low, 2)
                 })
             except Exception as e:
+                logger.debug(f"yfinance processing failed for {full_symbol}: {e}")
                 continue
+        
+        logger.info(f"yfinance processed {len(movers)} symbols from batch download")
+        
+        if not movers:
+            return {"error": "No live market data available"}
                 
         # Sort and pick top 5 gainers and losers
         movers.sort(key=lambda x: x['change_pct'], reverse=True)
@@ -206,8 +214,8 @@ async def fetch_top_movers_yfinance() -> Dict[str, Any]:
             "as_of": datetime.now().isoformat(),
             "gainers": gainers,
             "losers": losers,
-            "source": "yfinance",
-            "is_market_hours": False # yfinance for NSE is usually delayed
+            "source": "yfinance_live",
+            "is_market_hours": True
         }
     except Exception as e:
         logger.error(f"yfinance top movers fetch failed: {e}")

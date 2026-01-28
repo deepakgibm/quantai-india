@@ -195,23 +195,30 @@ class Nifty100RankingService:
         
         logger.info(f"CACHE MISS: {cache_key}, fetching live data")
         
-        # 2. Compute from MarketDataOrchestrator cache if available
+        # 2. Compute from MarketDataOrchestrator cache if available AND source is live (not DB)
         from services.market_data_orchestrator import get_market_data_orchestrator
         orchestrator = get_market_data_orchestrator()
         
-        # Get Nifty 100 symbols to filter the global cache
-        nifty100_symbols = get_nifty_symbols()
+        # Check if orchestrator has live data (WS or REST, not DB)
+        orchestrator_source = orchestrator.current_source.value if orchestrator.current_source else "NONE"
+        is_orchestrator_live = orchestrator_source in ["WS", "REST"]
         
-        orchestrator_data = []
-        for symbol in nifty100_symbols:
-            tick = orchestrator._data_cache.get(symbol.upper())
-            if tick and tick.ltp and tick.ltp > 0:
-                orchestrator_data.append(tick)
-        
-        if len(orchestrator_data) >= 5:
-            result = self._compute_rankings_from_orchestrator(orchestrator_data)
-            await self._write_to_cache(result)
-            return asdict(result)
+        if is_orchestrator_live:
+            # Get Nifty 100 symbols to filter the global cache
+            nifty100_symbols = get_nifty_symbols()
+            
+            orchestrator_data = []
+            for symbol in nifty100_symbols:
+                tick = orchestrator._data_cache.get(symbol.upper())
+                if tick and tick.ltp and tick.ltp > 0:
+                    orchestrator_data.append(tick)
+            
+            if len(orchestrator_data) >= 5:
+                result = self._compute_rankings_from_orchestrator(orchestrator_data)
+                await self._write_to_cache(result)
+                return asdict(result)
+        else:
+            logger.info(f"Orchestrator source is {orchestrator_source}, skipping stale data")
         
         # 3. PRIMARY: Try Upstox REST API first (fast-fail if token expired)
         try:

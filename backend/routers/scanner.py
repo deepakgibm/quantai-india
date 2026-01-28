@@ -317,11 +317,17 @@ async def delete_preset(
     raise HTTPException(status_code=404, detail="Preset not found")
 
 @router.get("/momentum")
-async def get_momentum_data(current_user: User = Depends(get_current_user)):
+async def get_momentum_data(
+    force_refresh: bool = False,
+    current_user: User = Depends(get_current_user)
+):
     """
     REST endpoint for momentum data.
     Delegates to ScannerEngine.
     """
+    if force_refresh:
+        logger.info("Force refresh requested for momentum data")
+    
     if not _scanner_available or scanner is None:
         raise HTTPException(status_code=503, detail="Scanner engine not available")
     
@@ -367,25 +373,41 @@ async def get_trendfinder_data(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/week52-breakouts")
-async def get_week52_breakouts(current_user: User = Depends(get_current_user)):
+async def get_week52_breakouts(
+    force_refresh: bool = False,
+    current_user: User = Depends(get_current_user)
+):
     """Get stocks making new 52-week highs and 52-week low breakdowns."""
-    # 1. Check Route Cache
-    cached = get_cached_scanner_data("week52-breakouts")
-    if cached:
-        # Enrich cached stocks with live prices
-        try:
-            if isinstance(cached, dict) and "data" in cached and cached["data"]:
-                access_token = settings.UPSTOX_ACCESS_TOKEN
-                enrich_results = await enrich_scanner_results(cached["data"], access_token)
-                
-                # Re-map high/low lists after enrichment since price changed
-                cached["data"] = enrich_results
-                cached["high_breakouts"] = [m for m in enrich_results if m.get("breakout_type") == "52W_HIGH"]
-                cached["low_breakdowns"] = [m for m in enrich_results if m.get("breakout_type") == "52W_LOW"]
-                
-        except Exception as e:
-            logger.error(f"week52-breakouts: Failed to enrich cached results: {e}")
-        return cached
+    cache_key = "week52-breakouts"
+    
+    # If force_refresh, invalidate cache before proceeding
+    if force_refresh:
+        logger.info(f"Force refresh requested - clearing cache for {cache_key}")
+        cache = get_cache()
+        if cache.is_available():
+            try:
+                cache.delete(f"qai:scanner:route:{cache_key}")
+            except Exception as e:
+                logger.warning(f"Failed to clear cache: {e}")
+    
+    # 1. Check Route Cache (skip if force_refresh)
+    if not force_refresh:
+        cached = get_cached_scanner_data(cache_key)
+        if cached:
+            # Enrich cached stocks with live prices
+            try:
+                if isinstance(cached, dict) and "data" in cached and cached["data"]:
+                    access_token = settings.UPSTOX_ACCESS_TOKEN
+                    enrich_results = await enrich_scanner_results(cached["data"], access_token)
+                    
+                    # Re-map high/low lists after enrichment since price changed
+                    cached["data"] = enrich_results
+                    cached["high_breakouts"] = [m for m in enrich_results if m.get("breakout_type") == "52W_HIGH"]
+                    cached["low_breakdowns"] = [m for m in enrich_results if m.get("breakout_type") == "52W_LOW"]
+                    
+            except Exception as e:
+                logger.error(f"week52-breakouts: Failed to enrich cached results: {e}")
+            return cached
 
     from services.yearly_breakout_engine import YearlyBreakoutEngine
     
