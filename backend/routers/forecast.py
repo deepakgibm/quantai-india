@@ -182,23 +182,12 @@ async def _fetch_historical_data(
     Uses existing data fetcher with WebSocket -> REST -> DB fallback.
     """
     try:
-        # Import data fetcher
-        from services.data_fetcher import UnifiedDataFetcher
+        # Fallback to database directly for new schema
+        return await _fetch_from_database(symbol, timeframe, lookback_candles)
         
-        fetcher = UnifiedDataFetcher()
-        df, data_source = await fetcher.fetch(
-            symbol=symbol,
-            timeframe=timeframe,
-            limit=lookback_candles
-        )
-        
-        if df is not None and len(df) > 0:
-            # Ensure required columns exist
-            required_cols = ['open', 'high', 'low', 'close', 'volume']
-            if all(col in df.columns for col in required_cols):
-                return df
-        
-        return None
+    except Exception as e:
+        logger.error(f"Data fetch error for {symbol}: {e}")
+        return await _fetch_from_database(symbol, timeframe, lookback_candles)
         
     except ImportError:
         # Fallback: try database directly
@@ -219,77 +208,51 @@ async def _fetch_from_database(
     """
     try:
         from database import get_db
-        from models_ml import Nifty100Daily
+        from models_alpha import StockCandle, InstrumentMaster, TimeframeMapper
         from sqlalchemy import select, desc
-        from sqlalchemy.ext.asyncio import AsyncSession
+        
+        # Get integer timeframe for new schema
+        tf_minutes = TimeframeMapper.to_minutes(timeframe)
         
         # Get database session
         async for db in get_db():
-            # Query based on timeframe
-            if timeframe in ['1d', 'D']:
-                stmt = (
-                    select(Nifty100Daily)
-                    .where(Nifty100Daily.symbol == symbol)
-                    .order_by(desc(Nifty100Daily.timestamp))
-                    .limit(limit)
-                )
-                
-                result = await db.execute(stmt)
-                records = result.scalars().all()
-                
-                if not records:
-                    return None
-                
-                # Convert to DataFrame
-                data = []
-                for r in records:
-                    data.append({
-                        'timestamp': r.timestamp,
-                        'open': r.open,
-                        'high': r.high,
-                        'low': r.low,
-                        'close': r.close,
-                        'volume': r.volume
-                    })
-                
-                df = pd.DataFrame(data)
-                df = df.sort_values('timestamp').reset_index(drop=True)
-                df.set_index('timestamp', inplace=True)
-                return df
-            else:
-                # For intraday, try Nifty100Intraday if available
-                try:
-                    from models_ml import Nifty100Intraday
-                    stmt = (
-                        select(Nifty100Intraday)
-                        .where(Nifty100Intraday.symbol == symbol)
-                        .order_by(desc(Nifty100Intraday.timestamp))
-                        .limit(limit)
-                    )
-                    
-                    result = await db.execute(stmt)
-                    records = result.scalars().all()
-                    
-                    if records:
-                        data = [{
-                            'timestamp': r.timestamp,
-                            'open': r.open,
-                            'high': r.high,
-                            'low': r.low,
-                            'close': r.close,
-                            'volume': r.volume
-                        } for r in records]
-                        
-                        df = pd.DataFrame(data)
-                        df = df.sort_values('timestamp').reset_index(drop=True)
-                        df.set_index('timestamp', inplace=True)
-                        return df
-                except ImportError:
-                    pass
-                
-                # Fallback to daily data
-                return await _fetch_from_database(symbol, '1d', limit)
+            # Join instrument_master and stock_candle
+            stmt = (
+                select(StockCandle)
+                .join(InstrumentMaster, StockCandle.instrument_id == InstrumentMaster.instrument_id)
+                .where(InstrumentMaster.symbol == symbol)
+                .where(StockCandle.timeframe == tf_minutes)
+                .order_by(desc(StockCandle.candle_ts))
+                .limit(limit)
+            )
+            
+            result = await db.execute(stmt)
+            records = result.scalars().all()
+            
+            if not records:
+                logger.warning(f"No data found in DB for {symbol} with timeframe {timeframe} ({tf_minutes}m)")
+                return None
+            
+            # Convert to DataFrame
+            data = []
+            for r in records:
+                data.append({
+                    'timestamp': r.candle_ts,
+                    'open': float(r.open) if r.open else 0.0,
+                    'high': float(r.high) if r.high else 0.0,
+                    'low': float(r.low) if r.low else 0.0,
+                    'close': float(r.close) if r.close else 0.0,
+                    'volume': int(r.volume) if r.volume else 0
+                })
+            
+            df = pd.DataFrame(data)
+            # Algorithms expect chronological order
+            df = df.sort_values('timestamp').reset_index(drop=True)
+            df.set_index('timestamp', inplace=True)
+            
+            logger.info(f"Fetched {len(df)} candles for {symbol} from database")
+            return df
                 
     except Exception as e:
-        logger.error(f"Database fetch error for {symbol}: {e}")
+        logger.error(f"Database fetch error for {symbol}: {e}", exc_info=True)
         return None

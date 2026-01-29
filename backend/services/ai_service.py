@@ -38,15 +38,25 @@ class AIService:
     def _get_working_model(self) -> str:
         """Dynamically finds the best available 'flash' model."""
         try:
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            # Prioritize flash models for speed
-            flash_models = [m for m in available_models if 'flash' in m.lower()]
-            if flash_models:
-                # Use latest flash model
-                return sorted(flash_models, reverse=True)[0]
-            # Fallback to any model
-            return "gemini-1.5-pro" if "models/gemini-1.5-pro" in available_models else "gemini-pro"
-        except Exception:
+            models = list(genai.list_models())
+            available_models = [m.name for m in models if 'generateContent' in m.supported_generation_methods]
+            logger.info(f"AIService: Discovered {len(available_models)} compatible models")
+            
+            # 1. Prioritize flash models (2.0 > 1.5 > pro)
+            flash_20 = [m for m in available_models if 'gemini-2.0-flash' in m.lower()]
+            if flash_20: return sorted(flash_20, reverse=True)[0]
+            
+            flash_15 = [m for m in available_models if 'gemini-1.5-flash' in m.lower()]
+            if flash_15: return sorted(flash_15, reverse=True)[0]
+            
+            # 2. Fallback to standard models
+            if "models/gemini-pro" in available_models: return "models/gemini-pro"
+            if "models/gemini-1.5-pro" in available_models: return "models/gemini-1.5-pro"
+            
+            # 3. Last resort if list_models failed to show standard names
+            return "gemini-1.5-flash"
+        except Exception as e:
+            logger.warning(f"AIService: Model listing failed: {e}. Falling back to default.")
             return "gemini-1.5-flash"
 
     async def process_prompt(self, prompt: str, access_token: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -83,8 +93,15 @@ Guidelines:
 - Only respond with the JSON array, nothing else"""
 
         try:
+            logger.info(f"AIService: Processing prompt with model {self._model.model_name}")
             response = self._model.generate_content(enhanced_prompt)
+            
+            if not response or not response.candidates:
+                logger.error("AIService: Empty response or no candidates")
+                return []
+                
             response_text = response.text.strip()
+            logger.debug(f"AIService: Raw response length: {len(response_text)}")
             
             # Extract JSON from potential markdown
             if "```json" in response_text:
@@ -92,34 +109,64 @@ Guidelines:
             elif "```" in response_text:
                 response_text = response_text.split("```")[1].strip()
             
-            parsed_response = json.loads(response_text)
+            try:
+                parsed_response = json.loads(response_text)
+            except json.JSONDecodeError as je:
+                logger.error(f"AIService: JSON parse failed. Response text: {response_text[:500]}")
+                # Try a more aggressive extraction
+                import re
+                json_match = re.search(r'\[\s*{.*}\s*\]', response_text, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed_response = json.loads(json_match.group())
+                    except:
+                        raise je
+                else:
+                    raise je
+
             if not isinstance(parsed_response, list):
-                return []
+                if isinstance(parsed_response, dict):
+                    parsed_response = [parsed_response]
+                else:
+                    return []
 
             results = []
             for stock_rec in parsed_response:
                 symbol = stock_rec.get("symbol")
                 if not symbol: continue
                 
-                # Enrich with live price
-                price_result = await get_live_ltp(symbol, access_token or settings.UPSTOX_ACCESS_TOKEN)
-                current_price = price_result.get("ltp")
-                
-                if current_price and current_price > 0:
-                    stock_rec["price"] = current_price
-                    # Default levels if missing
-                    if not stock_rec.get("entry_price"):
-                        stock_rec["entry_price"] = round(current_price * 0.995, 2) if stock_rec.get("action") == "BUY" else round(current_price * 1.005, 2)
-                    if not stock_rec.get("target_price"):
-                        stock_rec["target_price"] = round(current_price * 1.03, 2) if stock_rec.get("action") == "BUY" else round(current_price * 0.97, 2)
-                    if not stock_rec.get("stop_loss"):
-                        stock_rec["stop_loss"] = round(current_price * 0.98, 2) if stock_rec.get("action") == "BUY" else round(current_price * 1.02, 2)
+                # Enrich with live price - use auth token if available
+                try:
+                    price_result = await get_live_ltp(symbol, access_token or settings.UPSTOX_ACCESS_TOKEN)
+                    current_price = price_result.get("ltp")
+                    
+                    if current_price and current_price > 0:
+                        stock_rec["price"] = current_price
+                        stock_rec["price_source"] = price_result.get("source", "NONE")
+                        # Default levels if missing/invalid
+                        for field, multiplier in [("entry_price", 0.995), ("target_price", 1.05), ("stop_loss", 0.97)]:
+                            val = stock_rec.get(field)
+                            if not val or not isinstance(val, (int, float)) or val <= 0:
+                                stock_rec[field] = round(current_price * multiplier, 2)
+                    else:
+                        logger.warning(f"AIService: LTP unavailable for {symbol}")
+                except Exception as pe:
+                    logger.warning(f"AIService: Price enrichment failed for {symbol}: {pe}")
                 
                 results.append(stock_rec)
+            
+            logger.info(f"AIService: Successfully processed {len(results)} recommendations")
             return results
         except Exception as e:
-            logger.error(f"AIService: Prompt processing failed: {e}")
-            raise HTTPException(status_code=500, detail=f"AI processing error: {str(e)}")
+            logger.error(f"AIService: Prompt processing failed: {e}", exc_info=True)
+            # Check if it's a safety block
+            error_msg = str(e)
+            if "safety" in error_msg.lower():
+                error_msg = "Response blocked by safety filters. Please try a different prompt."
+            elif "parse" in error_msg.lower():
+                error_msg = "AI returned an invalid format. Please try again."
+            
+            raise HTTPException(status_code=500, detail=f"AI processing error: {error_msg}")
 
     async def run_scanner(self, scanner_class, scanner_name: str, cache_key: str, limit: int = 10, timeout: float = 10.0) -> Dict[str, Any]:
         """Generic runner for AI technical scanners with caching and enrichment."""

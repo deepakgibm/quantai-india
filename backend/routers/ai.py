@@ -47,7 +47,7 @@ async def process_ai_prompt(request: AIPromptRequest, current_user: User = Depen
     results = await ai_service.process_prompt(request.prompt, getattr(current_user, "upstox_access_token", None))
     return {
         "status": "success",
-        "recommendations": results
+        "suggested_stocks": results
     }
 
 @router.get("/market-analysis", response_model=MarketAnalysisResponse)

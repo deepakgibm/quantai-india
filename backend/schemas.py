@@ -94,7 +94,7 @@ class AIPromptRequest(BaseModel):
 
 class AIPromptResponse(BaseModel):
     status: str
-    recommendations: List[Dict[str, Any]]
+    suggested_stocks: List[Dict[str, Any]]
 
 class AICommandRequest(BaseModel):
     command: str = Field(..., min_length=1)
