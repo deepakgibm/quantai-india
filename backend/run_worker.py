@@ -116,7 +116,8 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
         for symbol, sym_rows in symbol_rows.items():
             # Take first 200 (already ordered DESC, so these are most recent)
             recent_rows = sym_rows[:200]
-            if len(recent_rows) >= 20:
+            # Allow even 1 candle for basic heatmap/latest price visibility
+            if len(recent_rows) >= 1:
                 candles_map[symbol] = [
                     {
                         'open': float(r[2]),
@@ -146,7 +147,7 @@ def run_scan_cycle(symbols: List[str], candles_map: Dict[str, List[Dict]]):
     tasks = []
     for symbol in symbols:
         candles = candles_map.get(symbol)
-        if candles and len(candles) >= 20:
+        if candles and len(candles) >= 1: # Allow 1+ for snapshots
             tasks.append(ComputeTask(
                 symbol=symbol,
                 interval="1day",

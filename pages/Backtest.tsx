@@ -263,7 +263,8 @@ const Backtest: React.FC = () => {
 
         try {
             const token = localStorage.getItem('access_token');
-            const response = await fetch(`${API_URL}/api/quant/backtest/run`, {
+            // Use the new V2 Feature-Based Backtest Engine
+            const response = await fetch(`${API_URL}/api/quant/backtest/v2/run`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
@@ -276,7 +277,8 @@ const Backtest: React.FC = () => {
                         fast_period: fastPeriod,
                         slow_period: slowPeriod,
                         ma_type: maType,
-                        position_size_pct: positionSizePct
+                        position_size_pct: positionSizePct,
+                        timeframe: timeframe.toLowerCase()
                     }
                 })
             });

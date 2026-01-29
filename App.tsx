@@ -23,6 +23,7 @@ import ExperimentLab from './pages/ExperimentLab';
 import PriceForecast from './pages/PriceForecast';
 import AdminIndices from './pages/AdminIndices';
 import AdminMonitoring from './pages/AdminMonitoring';
+import MLTrainingControl from './pages/MLTrainingControl';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -131,6 +132,8 @@ const App: React.FC = () => {
         return <AdminIndices />;
       case Page.ADMIN_MONITORING:
         return <AdminMonitoring />;
+      case Page.AI_TRAINING:
+        return <MLTrainingControl />;
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }

@@ -401,6 +401,14 @@ except ImportError as e:
 # Debug endpoints for price status
 app.include_router(debug.router, prefix="/api", tags=["Debug"])
 
+# ML Training Control API
+try:
+    from routers import ml_training
+    app.include_router(ml_training.router)
+    logger.info("Registered ML Training API at /api/v1/ml")
+except ImportError as e:
+    logger.warning(f"ML Training router not loaded: {e}")
+
 @app.get("/")
 async def root():
     return {"message": "QuantAI India Trading Bot API", "status": "running"}

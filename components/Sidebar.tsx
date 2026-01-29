@@ -40,6 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, onLogout, dar
     { page: Page.WALK_FORWARD_BACKTEST, icon: TrendingUp, label: 'Walk-Forward' },
     { page: Page.EXPERIMENT_LAB, icon: FlaskConical, label: 'Experiment Lab' },
     { page: Page.PRICE_FORECAST, icon: TrendingUp, label: 'AI Forecast' },
+    { page: Page.AI_TRAINING, icon: Activity, label: 'AI Training' },
     { page: Page.ADMIN_INDICES, icon: List, label: 'Index Management' },
     { page: Page.ADMIN_MONITORING, icon: Activity, label: 'System Monitoring' },
     // { page: Page.ALGO_BUILDER, icon: Zap, label: 'Algo Builder' },

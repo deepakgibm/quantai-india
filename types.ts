@@ -22,6 +22,7 @@ export enum Page {
   PRICE_FORECAST = 'price_forecast',
   ADMIN_INDICES = 'ADMIN_INDICES',
   ADMIN_MONITORING = 'ADMIN_MONITORING',
+  AI_TRAINING = 'AI_TRAINING',
 }
 
 export interface Stock {

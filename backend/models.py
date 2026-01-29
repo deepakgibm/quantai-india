@@ -78,7 +78,10 @@ class Holding(Base):
 class BacktestResult(Base):
     __tablename__ = "backtest_results"
     id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(String, unique=True, index=True)
     strategy_name = Column(String)
+    symbol = Column(String, index=True)
+    timeframe = Column(String)
     start_date = Column(DateTime)
     end_date = Column(DateTime)
     initial_capital = Column(Float)

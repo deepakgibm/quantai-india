@@ -46,7 +46,7 @@ def compute_indicators_process(task: ComputeTask) -> ComputeResult:
     start = time.time()
     
     candles = task.candles
-    if not candles or len(candles) < 20:
+    if not candles or len(candles) < 1:
         return ComputeResult(
             symbol=task.symbol,
             interval=task.interval,

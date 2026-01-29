@@ -1,133 +1,101 @@
-"""
-APF - Offline Trainer
-CLI script for training APF models offline.
-
-Usage:
-    python -m backend.ml.trainer --symbol RELIANCE --timeframe 5m
-    python -m backend.ml.trainer --symbol ALL --timeframe 5m  # Train for all symbols
-"""
-
-import argparse
+import torch
+import torch.nn as nn
+import torch.optim as optim
 import logging
-import sys
-from datetime import datetime, timedelta
-from pathlib import Path
+import os
+from typing import Dict, Any, List
+from backend.ml.transformer_model import QuantAIInformer
+from backend.ml.dataset import get_dataloader
 
-# Add backend to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from ml.feature_builder import FeatureBuilder
-from ml.ensemble import APFEnsemble
-from services.db_data_fetcher import get_db_data_fetcher
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
-
-def get_training_symbols() -> list:
-    """Get list of symbols to train."""
-    # Top Nifty 50 symbols
-    return [
-        "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
-        "HINDUNILVR", "SBIN", "BHARTIARTL", "KOTAKBANK", "ITC",
-        "BAJFINANCE", "LT", "AXISBANK", "ASIANPAINT", "MARUTI",
-        "HCLTECH", "SUNPHARMA", "TITAN", "WIPRO", "ULTRACEMCO"
-    ]
-
-
-def train_model(symbol: str, timeframe: str) -> bool:
+class QuantAITrainer:
     """
-    Train APF model for a single symbol.
-    
-    Args:
-        symbol: Stock symbol
-        timeframe: Candle timeframe
+    Handles training and evaluation of the QuantAI Informer model.
+    """
+    def __init__(self, 
+                 num_features: int, 
+                 num_symbols: int, 
+                 num_timeframes: int,
+                 model_path: str = None):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = QuantAIInformer(
+            num_features=num_features,
+            num_symbols=num_symbols,
+            num_timeframes=num_timeframes
+        ).to(self.device)
         
-    Returns:
-        True if training successful
-    """
-    logger.info(f"Training APF model for {symbol} {timeframe}")
-    
-    # Fetch historical data
-    fetcher = get_db_data_fetcher()
-    end_date = datetime.now()
-    
-    # Adjust lookback based on timeframe
-    if timeframe == "1d":
-        start_date = end_date - timedelta(days=365)
-    elif timeframe == "1h":
-        start_date = end_date - timedelta(days=90)
-    else:
-        start_date = end_date - timedelta(days=60)
-    
-    df = fetcher.get_historical_data(
-        symbol, 
-        timeframe, 
-        start_date.strftime("%Y-%m-%d"),
-        end_date.strftime("%Y-%m-%d")
-    )
-    
-    if df is None or len(df) < 100:
-        logger.warning(f"Insufficient data for {symbol} (got {len(df) if df is not None else 0} rows)")
+        self.model_path = model_path or os.path.join("models", "transformer_v1.pt")
+        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
+        
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4, weight_decay=1e-5)
+        self.mse_loss = nn.MSELoss()
+        
+    def quantile_loss(self, preds: torch.Tensor, target: torch.Tensor, quantiles: List[float]) -> torch.Tensor:
+        """
+        Pinball loss for quantile regression.
+        preds: [batch, len(quantiles)]
+        target: [batch, 1]
+        """
+        loss = 0
+        for i, q in enumerate(quantiles):
+            errors = target - preds[:, i:i+1]
+            loss += torch.max((q - 1) * errors, q * errors).mean()
+        return loss / len(quantiles)
+
+    def train_epoch(self, dataloader):
+        self.model.train()
+        total_loss = 0
+        
+        for batch in dataloader:
+            x, s_idx, t_idx, y_ret, y_vol = [b.to(self.device) for b in batch]
+            
+            self.optimizer.zero_grad()
+            
+            ret_pred, vol_pred, q_pred = self.model(x, s_idx, t_idx)
+            
+            # 1. Prediction Loss (Multi-horizon returns)
+            loss_ret = self.mse_loss(ret_pred, y_ret) # t+1, t+3, t+5
+            
+            # 2. Volatility Loss
+            # Target is the volatility_20 calculated in pipeline
+            loss_vol = self.mse_loss(vol_pred, y_vol)
+            
+            # 3. Quantile Loss (for t+1 return)
+            # quantiles are 5%, 25%, 50%, 75%, 95%
+            quantiles = [0.05, 0.25, 0.5, 0.75, 0.95]
+            loss_q = self.quantile_loss(q_pred, y_ret[:, 0:1], quantiles)
+            
+            # Combined Loss
+            loss = loss_ret + 0.1 * loss_vol + 0.5 * loss_q
+            
+            loss.backward()
+            self.optimizer.step()
+            
+            total_loss += loss.item()
+            
+        return total_loss / len(dataloader)
+
+    def save_model(self):
+        torch.save(self.model.state_dict(), self.model_path)
+        logger.info(f"Model saved to {self.model_path}")
+
+    def load_model(self):
+        if os.path.exists(self.model_path):
+            self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+            logger.info("Model loaded successfully.")
+            return True
         return False
-    
-    logger.info(f"Loaded {len(df)} candles for {symbol}")
-    
-    # Build features
-    feature_builder = FeatureBuilder()
-    X, y, timestamps = feature_builder.get_feature_matrix(df)
-    
-    if X is None or len(X) < 50:
-        logger.warning(f"Feature building failed for {symbol}")
-        return False
-    
-    logger.info(f"Built {len(X)} feature samples with {X.shape[1]} features")
-    
-    # Train model
-    model = APFEnsemble(symbol=symbol, timeframe=timeframe)
-    metrics = model.train(X, y, feature_builder.feature_names)
-    
-    logger.info(f"Training metrics: {metrics}")
-    
-    # Save model
-    path = model.save()
-    logger.info(f"Model saved to {path}")
-    
-    return True
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Train APF models offline")
-    parser.add_argument("--symbol", type=str, default="ALL", help="Symbol to train (or ALL)")
-    parser.add_argument("--timeframe", type=str, default="5m", help="Timeframe (5m, 15m, 1h, 1d)")
-    
-    args = parser.parse_args()
-    
-    logger.info(f"APF Trainer started: symbol={args.symbol}, timeframe={args.timeframe}")
-    
-    if args.symbol.upper() == "ALL":
-        symbols = get_training_symbols()
-    else:
-        symbols = [args.symbol.upper()]
-    
-    success_count = 0
-    fail_count = 0
-    
-    for symbol in symbols:
-        try:
-            if train_model(symbol, args.timeframe):
-                success_count += 1
-            else:
-                fail_count += 1
-        except Exception as e:
-            logger.error(f"Failed to train {symbol}: {e}")
-            fail_count += 1
-    
-    logger.info(f"Training complete: {success_count} success, {fail_count} failed")
-
-
-if __name__ == "__main__":
-    main()
+        
+    def predict_latest(self, x: torch.Tensor, s_idx: int, t_idx: int):
+        """
+        Inference on a single sample or batch.
+        """
+        self.model.eval()
+        with torch.no_grad():
+            x = x.to(self.device).unsqueeze(0) if x.dim() == 2 else x.to(self.device)
+            s_idx = torch.tensor([s_idx]).to(self.device)
+            t_idx = torch.tensor([t_idx]).to(self.device)
+            
+            returns, vol, quantiles = self.model(x, s_idx, t_idx)
+            return returns.cpu().numpy(), vol.cpu().numpy(), quantiles.cpu().numpy()

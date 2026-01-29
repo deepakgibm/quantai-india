@@ -380,25 +380,51 @@ class ARIMAStable(ForecastAlgorithm):
         return predicted, upper_band, lower_band, confidence
 
 
-class LSTMDeepLearning(ForecastAlgorithm):
+class TransformerInformerDL(ForecastAlgorithm):
     """
-    LSTM Deep Learning - Sequential model for complex pattern recognition.
-    Best for capturing long-term dependencies in price action.
+    Transformer/Informer Deep Learning - Advanced attention-based model for price forecasting.
+    Uses symbol and timeframe embeddings for global generalization.
     """
     
+    def __init__(self):
+        self.pipeline = None
+        self.trainer = None
+        self.mapper = None
+
+    def _lazy_init(self, num_features: int = 12):
+        """Lazy initialization to avoid model overhead on startup."""
+        if self.trainer is None:
+            from .trainer import QuantAITrainer
+            from .metadata_utils import SymbolMapper
+            from services.feature_pipeline import get_feature_pipeline
+            
+            self.pipeline = get_feature_pipeline()
+            self.mapper = SymbolMapper()
+            
+            # These counts should ideally be from a config or registry
+            num_symbols = 1000 # High upper bound for embeddings
+            num_timeframes = 8
+            
+            self.trainer = QuantAITrainer(
+                num_features=num_features,
+                num_symbols=num_symbols,
+                num_timeframes=num_timeframes
+            )
+            self.trainer.load_model()
+
     @property
     def metadata(self) -> AlgorithmInfo:
         return AlgorithmInfo(
-            id="lstm_deep_v1",
-            name="LSTM Deep Learning",
+            id="transformer_informer_dl",
+            name="Transformer Informer DL",
             version="1.0",
             type="dl",
-            recommended=False,
+            recommended=True,
             supports_confidence_bands=True,
             supported_timeframes=["5m", "15m", "1h", "1d"],
             max_horizon=30,
-            description="Recurrent Neural Network (LSTM) optimized for sequential price data. Best for volatile markets and trend reversals.",
-            features_used=["OHLCV", "Sequential Returns", "Momentum Vectors"],
+            description="Encoder-only Transformer with Multi-Head Attention. Uses Symbol & Timeframe embeddings for superior generalization.",
+            features_used=["Log-Returns", "Momentum", "Volatility", "Symbol Embeddings"],
             estimated_latency_ms=450
         )
     
@@ -409,48 +435,102 @@ class LSTMDeepLearning(ForecastAlgorithm):
         confidence_level: float = 0.95
     ) -> Tuple[List[float], List[float], List[float], float]:
         """
-        Sequential prediction using LSTM.
-        Placeholder implementation using adaptive moving averages for now.
+        Forecasting using the Transformer model.
         """
         if len(df) < 50:
-            raise ValueError("Insufficient data for LSTM Deep Learning (need 50+ candles)")
+            raise ValueError("Insufficient data for Transformer DL (need 50+ candles)")
         
-        # In a real DL model, we'd use a pre-trained model or train on-the-fly
-        # For this version, we'll use a high-order adaptive model to simulate DL output
-        close = df['close'].values
+        # 1. Initialize logic
+        self._lazy_init()
         
-        # Simulate LSTM sequential thinking
-        # (Weighted combination of multiple EMAs to simulate complex pattern)
-        ema_short = df['close'].ewm(span=5, adjust=False).mean()
-        ema_mid = df['close'].ewm(span=20, adjust=False).mean()
-        ema_long = df['close'].ewm(span=50, adjust=False).mean()
-        
-        last_short = ema_short.iloc[-1]
-        last_mid = ema_mid.iloc[-1]
-        last_long = ema_long.iloc[-1]
-        
-        # Determine current trend/momentum
-        momentum = (last_short - last_long) / last_long
-        
-        predicted = []
-        current_price = close[-1]
-        
-        for i in range(1, horizon + 1):
-            # Decay momentum over time
-            step_momentum = momentum * np.exp(-i / 10)
-            pred = current_price * (1 + step_momentum * 0.2)
-            predicted.append(float(pred))
-            current_price = pred
+        # 2. Build features
+        features_df = self.pipeline.build_features(df)
+        if features_df.empty:
+            raise ValueError("Feature extraction failed")
             
-        # Standard deviation for bands
-        std = df['close'].rolling(20).std().iloc[-1]
-        z_factor = 1.96 if confidence_level >= 0.95 else 1.0
+        # 3. Prepare inputs
+        feature_cols = [
+            'log_return', 'volatility_20', 'rsi_14', 
+            'macd_line', 'macd_signal', 'macd_hist',
+            'bb_pct_b', 'atr_14_pct', 'adx_14', 
+            'plus_di', 'minus_di', 'volume_ratio_20'
+        ]
         
-        upper_band = [p + std * z_factor * np.sqrt(i/2 + 1) for i, p in enumerate(predicted, 1)]
-        lower_band = [p - std * z_factor * np.sqrt(i/2 + 1) for i, p in enumerate(predicted, 1)]
+        # Get sequence (last seq_len steps)
+        seq_len = 50
+        seq_data = features_df[feature_cols].tail(seq_len).values.astype(np.float32)
         
-        confidence = 0.82
-        return predicted, upper_band, lower_band, confidence
+        if len(seq_data) < seq_len:
+            # Pad if needed, but we usually should have enough data
+            padding = np.zeros((seq_len - len(seq_data), len(feature_cols)), dtype=np.float32)
+            seq_data = np.vstack([padding, seq_data])
+            
+        x_tensor = torch.from_numpy(seq_data)
+        
+        # Resolve embeddings
+        # We need symbol from df or context. If not provided, use a default index.
+        symbol = df['symbol'].iloc[0] if 'symbol' in df.columns else "DEFAULT"
+        timeframe = df['timeframe'].iloc[0] if 'timeframe' in df.columns else "1d"
+        
+        from .metadata_utils import TIMEFRAME_TO_IDX
+        s_idx = self.mapper.get_idx(symbol)
+        t_idx = TIMEFRAME_TO_IDX.get(timeframe, 6)
+        
+        # 4. Model Inference
+        import torch
+        with torch.no_grad():
+            self.trainer.model.eval()
+            # s_idx, t_idx as tensors
+            s_tensor = torch.tensor([s_idx]).to(self.trainer.device)
+            t_tensor = torch.tensor([t_idx]).to(self.trainer.device)
+            x_tensor = x_tensor.unsqueeze(0).to(self.trainer.device)
+            
+            returns, vol, quantiles = self.trainer.model(x_tensor, s_tensor, t_tensor)
+            
+            # predicted_returns: [batch, 3] -> t+1, t+3, t+5
+            ret_np = returns.cpu().numpy()[0]
+            # quantiles: [batch, 5] -> 5%, 25%, 50%, 75%, 95%
+            q_np = quantiles.cpu().numpy()[0] 
+            
+        # 5. Project back to price
+        last_close = df['close'].iloc[-1]
+        
+        # For simplicity, we interpolate between t+1, t+3, t+5 for the horizon
+        predicted_prices = []
+        for i in range(1, horizon + 1):
+            if i == 1:
+                r = ret_np[0]
+            elif i <= 3:
+                # linear interpolation between 1 and 3
+                weight = (i - 1) / 2
+                r = ret_np[0] * (1 - weight) + ret_np[1] * weight
+            else:
+                # linear interpolation between 3 and 5 or just extension
+                weight = min(1.0, (i - 3) / 2)
+                r = ret_np[1] * (1 - weight) + ret_np[2] * weight
+            
+            predicted_prices.append(float(last_close * np.exp(r)))
+            
+        # 6. Bands using quantiles (for t+1) and scaled for horizon
+        # 95% band uses q[0] (5%) and q[4] (95%)
+        # 68% band uses q[1] (25%) and q[3] (75%)
+        
+        if confidence_level >= 0.95:
+            low_q, high_q = q_np[0], q_np[4]
+        else:
+            low_q, high_q = q_np[1], q_np[3]
+            
+        upper_band = []
+        lower_band = []
+        
+        for i, p in enumerate(predicted_prices, 1):
+            # Scale uncertainty with sqrt of time
+            scale = np.sqrt(i)
+            upper_band.append(float(last_close * np.exp(high_q * scale)))
+            lower_band.append(float(last_close * np.exp(low_q * scale)))
+            
+        confidence = 0.85
+        return predicted_prices, upper_band, lower_band, confidence
 
 
 # ============================================================================
@@ -477,7 +557,7 @@ class AlgorithmRegistry:
         self._algorithms = {}
         self.register(AdaptiveEnsembleV2())
         self.register(XGBoostFast())
-        self.register(LSTMDeepLearning())
+        self.register(TransformerInformerDL())
         self.register(ARIMAStable())
         logger.info(f"Algorithm Registry initialized with {len(self._algorithms)} algorithms")
     

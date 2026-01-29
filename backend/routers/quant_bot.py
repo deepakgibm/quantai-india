@@ -257,19 +257,12 @@ async def run_backtest(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Run a backtest for a strategy
-    
-    Returns performance metrics including:
-    - Total return
-    - Sharpe ratio
-    - Max drawdown
-    - Win rate
-    - Number of trades
+    Run a backtest for a strategy using the legacy engine.
     """
     try:
         from core.backtest.engine import BacktestEngine, BacktestConfig
         
-        logger.info(f"Running backtest: {request.strategy} on {request.symbol}")
+        logger.info(f"Running legacy backtest: {request.strategy} on {request.symbol}")
         
         # Load data
         data = await load_data_for_symbol(
@@ -318,6 +311,65 @@ async def run_backtest(
     except Exception as e:
         logger.error(f"Backtest failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Backtest execution failed: {str(e)}")
+
+
+@router.post("/backtest/v2/run")
+async def run_backtest_v2(
+    request: BacktestRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Run a backtest using the new High-Performance Feature-Based Engine (V2).
+    Operates directly on the Parquet Feature Store.
+    """
+    try:
+        from ml.backtest_engine_v2 import QuantAIBacktester
+        
+        logger.info(f"Running V2 backtest: {request.symbol} {request.strategy}")
+        
+        backtester = QuantAIBacktester(
+            initial_capital=request.initial_capital,
+            risk_per_trade=0.01 # Can be parametric
+        )
+        
+        # Determine timeframe
+        # Mapping frontend (1D, 1H) to backend (1d, 1h)
+        tf = request.params.get('timeframe', '1d').lower() if request.params else '1d'
+        
+        result = backtester.run_backtest(
+            symbol=request.symbol,
+            timeframe=tf,
+            feature_version="v1", # Production version
+            start_date=request.start_date.isoformat(),
+            end_date=request.end_date.isoformat()
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+            
+        # Persist to DB for auditing
+        backtester.save_results_to_db(
+            symbol=request.symbol,
+            timeframe=tf,
+            start_date=request.start_date.isoformat(),
+            end_date=request.end_date.isoformat(),
+            metrics=result
+        )
+        
+        return {
+            "status": "success",
+            "run_id": backtester.run_id,
+            "strategy": "QuantAI_Redesign_V2",
+            "symbol": request.symbol,
+            "metrics": result,
+            "equity_curve": [{"date": str(i), "equity": e} for i, e in enumerate(result.get("equity_curve_raw", []))],
+            "trade_count": result.get("total_trades", 0),
+            "duration_seconds": 0.5
+        }
+        
+    except Exception as e:
+        logger.error(f"V2 Backtest failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"V2 Backtest execution failed: {str(e)}")
 
 
 @router.post("/walkforward/run", response_model=WFAResponse)

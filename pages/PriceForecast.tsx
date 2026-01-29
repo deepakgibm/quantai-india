@@ -313,11 +313,11 @@ const PriceForecast: React.FC = () => {
                             <div className="flex items-center gap-3">
                                 <h1 className="text-2xl font-bold text-white tracking-tight">Price Forecast</h1>
                                 <span className="px-2 py-0.5 bg-[#252d37] text-slate-400 text-[10px] font-bold rounded border border-[#2d3748]">
-                                    v2.2 (PRO)
+                                    TRANSFORMER V1
                                 </span>
                                 <PriceForecastHelpGuide />
                             </div>
-                            <p className="text-slate-500 text-sm mt-0.5">Automated technical analysis & predictive modeling</p>
+                            <p className="text-slate-500 text-sm mt-0.5">Attention-based predictive modeling via Parquet Feature Store</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
