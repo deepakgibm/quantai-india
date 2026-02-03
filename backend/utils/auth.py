@@ -77,13 +77,13 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authentication token",
+            detail="Authentication token is missing. Please log in.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Could not validate credentials. Session may have expired.",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:

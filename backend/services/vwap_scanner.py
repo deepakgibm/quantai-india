@@ -129,6 +129,7 @@ class VWAPScanner:
             "vwap": round(vwap, 2),
             "vwap_distance": round(vwap_distance_pct, 2),
             "volume_ratio": round(vol_ratio, 2),
+            "atr": round(df['high'].iloc[-1] - df['low'].iloc[-1], 2), # Simple current bar range as ATR fallback
             "target_price": target,
             "stop_loss": stop,
             "reason": f"{signal}. VWAP {vwap:.2f}. {vol_ratio:.1f}x vol"

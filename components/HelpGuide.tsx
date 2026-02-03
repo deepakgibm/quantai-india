@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle, X, ChevronDown, ChevronRight, BookOpen, Lightbulb, AlertTriangle, CheckCircle, TrendingUp, Zap, Target } from 'lucide-react';
+import { HelpCircle, X, ChevronDown, ChevronRight, BookOpen, Lightbulb, AlertTriangle, CheckCircle, TrendingUp, Zap, Target, Activity } from 'lucide-react';
 
 interface HelpSection {
     title: string;
@@ -11,9 +11,10 @@ interface HelpGuideProps {
     title: string;
     sections: HelpSection[];
     buttonLabel?: string;
+    iconOnly?: boolean;
 }
 
-const HelpGuide: React.FC<HelpGuideProps> = ({ title, sections, buttonLabel = "How It Works" }) => {
+const HelpGuide: React.FC<HelpGuideProps> = ({ title, sections, buttonLabel = "How It Works", iconOnly = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0]));
 
@@ -32,10 +33,14 @@ const HelpGuide: React.FC<HelpGuideProps> = ({ title, sections, buttonLabel = "H
             {/* Trigger Button */}
             <button
                 onClick={() => setIsOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors text-sm font-medium"
+                title={iconOnly ? buttonLabel : undefined}
+                className={iconOnly
+                    ? "p-2 text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-all"
+                    : "flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors text-sm font-medium"
+                }
             >
-                <HelpCircle size={16} />
-                {buttonLabel}
+                <HelpCircle size={iconOnly ? 20 : 16} />
+                {!iconOnly && buttonLabel}
             </button>
 
             {/* Modal Overlay */}
@@ -266,89 +271,178 @@ export const ExperimentLabHelpGuide: React.FC = () => {
 export const PriceForecastHelpGuide: React.FC = () => {
     const sections: HelpSection[] = [
         {
-            title: "What is AI Price Forecasting?",
+            title: "What is Price Forecast?",
             icon: <TrendingUp size={18} className="text-indigo-500" />,
             content: `
-                <p class="mb-3">AI Price Forecasting uses <strong>machine learning and statistical models</strong> to predict future price movements based on historical price action (OHLCV) and technical indicators.</p>
-                <p class="mb-3">Unlike traditional analysis, these models analyze thousands of previous patterns to find the most probable direction and volatility for the upcoming sessions.</p>
+                <p class="mb-3">Price Forecast uses a <strong>trained AI model</strong> to predict the <strong>probable future price range</strong> of a selected stock over a chosen time horizon using historical price, volume, and market structure data.</p>
                 <div class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
                     <strong>Note:</strong> Predictive modeling is probabilistic. It identifies "likely" paths, not guaranteed certainties.
                 </div>
             `
         },
         {
-            title: "Understanding Algorithms",
+            title: "How to Use Price Forecast",
             icon: <Zap size={18} className="text-amber-500" />,
             content: `
                 <div class="space-y-4">
                     <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded font-bold">RECOMMENDED</span>
-                            <strong class="text-slate-800 dark:text-white">Adaptive Ensemble</strong>
-                        </div>
-                        <p class="text-xs opacity-80">Combines XGBoost and Ridge regression. It balances different model strengths to provide the most stable and accurate forecasts across various market regimes.</p>
+                        <strong class="text-slate-800 dark:text-white block mb-1">Step 1: Select a Stock</strong>
+                        <ul class="list-disc pl-5 text-xs opacity-80">
+                            <li>Choose an NSE-listed stock</li>
+                            <li>Ensure the stock has sufficient historical data</li>
+                        </ul>
                     </div>
                     <div>
-                        <strong class="text-slate-800 dark:text-white">LSTM (Deep Learning)</strong>
-                        <p class="text-xs opacity-80">A Recurrent Neural Network designed to remember long-term dependencies. Best for identifying complex trend reversals and volatile breakouts.</p>
+                        <strong class="text-slate-800 dark:text-white block mb-1">Step 2: Choose Forecast Settings</strong>
+                        <ul class="list-disc pl-5 text-xs opacity-80">
+                            <li><strong>Timeframe:</strong> 5m / 15m / 1D</li>
+                            <li><strong>Forecast Horizon:</strong> Next N candles / Next trading day(s)</li>
+                            <li><strong>Model:</strong> Auto-selected based on training availability</li>
+                        </ul>
                     </div>
                     <div>
-                        <strong class="text-slate-800 dark:text-white">XGBoost Fast</strong>
-                        <p class="text-xs opacity-80">A high-speed Gradient Boosting model. Optimized for quick turnaround, ideal for intraday "scalping" forecasts where speed is prioritized over depth.</p>
-                    </div>
-                    <div>
-                        <strong class="text-slate-800 dark:text-white">ARIMA Stable</strong>
-                        <p class="text-xs opacity-80">A classical statistical model (AutoRegressive Integrated Moving Average). Highly reliable for stable, trending markets without excessive "noise".</p>
+                        <strong class="text-slate-800 dark:text-white block mb-1">Step 3: Generate Forecast</strong>
+                        <ul class="list-disc pl-5 text-xs opacity-80">
+                            <li>Click <strong>“Generate Forecast”</strong></li>
+                            <li>The system uses the <strong>latest trained AI model</strong></li>
+                            <li>Real-time price is synced before prediction</li>
+                        </ul>
                     </div>
                 </div>
             `
         },
         {
-            title: "How to Configure",
+            title: "Understanding Output",
+            icon: <Target size={18} className="text-blue-500" />,
+            content: `
+                <div class="space-y-3">
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><strong>Predicted Price Path:</strong> The dashed line representing the most likely trajectory.</li>
+                        <li><strong>Confidence Band:</strong> Shaded area (upper & lower range). Narrower = Higher confidence.</li>
+                        <li><strong>Forecast Timestamp:</strong> When the prediction was generated.</li>
+                        <li><strong>Model Version:</strong> Which specific AI architecture was used.</li>
+                    </ul>
+                    <div class="mt-4 p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                        <strong class="text-xs uppercase text-slate-500 block mb-1">Confidence Meaning</strong>
+                        <p class="text-xs">Wide band → Volatile or uncertain market. Narrow band → Stable trend.</p>
+                    </div>
+                </div>
+            `
+        },
+        {
+            title: "Reliability Checks",
             icon: <CheckCircle size={18} className="text-emerald-500" />,
             content: `
-                <ul class="space-y-3">
-                    <li><strong>Hybrid Chart View:</strong> The chart now displays <strong>Historical data as Candlesticks</strong> (OHLC) and <strong>Forecast data as a Line graph</strong> for maximum clarity.</li>
-                    <li><strong>Interval (Timeframe):</strong> Choose the resolution of data. <br/><span class="text-xs opacity-70">Example: 5m for intraday, 1d for swing trading.</span></li>
-                    <li><strong>Horizon:</strong> How many future candles to predict. <br/><span class="text-xs opacity-70">Note: Confidence typically decreases as you move further into the future (longer horizons).</span></li>
-                    <li><strong>Confidence Bands:</strong> The shaded area around the forecast line. There is a statistical probability that price will stay within this range.</li>
+                <p class="mb-2">Forecast is considered valid only if:</p>
+                <ul class="list-disc pl-5 space-y-1 text-xs">
+                    <li>Market is <strong>OPEN</strong></li>
+                    <li>Model status = <strong>TRAINED</strong></li>
+                    <li>Price data timestamp is fresh</li>
+                    <li>Model training is recent (not expired)</li>
+                </ul>
+                <p class="mt-3 text-red-500 text-xs font-bold">⚠️ If these conditions fail, a warning is shown.</p>
+            `
+        },
+        {
+            title: "Common Warnings",
+            icon: <AlertTriangle size={18} className="text-red-500" />,
+            content: `
+                <ul class="space-y-2 text-xs">
+                    <li><strong>“Model not trained”</strong> → Train AI first on Training page.</li>
+                    <li><strong>“Data stale”</strong> → Refresh price feed.</li>
+                    <li><strong>“Low confidence”</strong> → Avoid heavy decision-making.</li>
                 </ul>
             `
         },
         {
-            title: "Interpreting Results",
-            icon: <Target size={18} className="text-blue-500" />,
+            title: "Best Practices",
+            icon: <Lightbulb size={18} className="text-purple-500" />,
             content: `
-                <div class="space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1">Confidence Score</div>
-                            <div class="text-sm font-bold text-slate-800 dark:text-white">>80% is high stability</div>
-                        </div>
-                        <div class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1">Predicted Delta</div>
-                            <div class="text-sm font-bold text-slate-800 dark:text-white">The expected % move</div>
-                        </div>
-                    </div>
-                    <p class="text-xs italic">A "Service Online" badge indicates the neural inference engine is ready for real-time calculations.</p>
-                </div>
-            `
-        },
-        {
-            title: "Risk & Limitations",
-            icon: <AlertTriangle size={18} className="text-red-500" />,
-            content: `
-                <ul class="list-disc pl-5 space-y-2">
-                    <li>External news events (black swans) can invalidate any statistical model.</li>
-                    <li>Forecasts are more reliable in high-liquidity assets (e.g., Nifty 50 constituents).</li>
-                    <li>Always combine AI forecasts with your own risk management (Stop-Loss/Take-Profit).</li>
-                    <li>Model performance may vary based on market volatility (High/Medium/Low).</li>
+                <ul class="list-disc pl-5 space-y-1 text-xs">
+                    <li>Use forecasts with <strong>trend & momentum scanners</strong>.</li>
+                    <li>Avoid using during low-liquidity periods (market open/close gaps).</li>
+                    <li><strong>Re-train models</strong> after major market events or earnings.</li>
                 </ul>
             `
         }
     ];
 
-    return <HelpGuide title="AI Forecast Guide" sections={sections} buttonLabel="Help & Documentation" />;
+    return <HelpGuide title="AI Price Forecast Guide" sections={sections} buttonLabel="Price Forecast Help" iconOnly={true} />;
+};
+
+export const MLTrainingHelpGuide: React.FC = () => {
+    const sections: HelpSection[] = [
+        {
+            title: "What Is AI Training?",
+            icon: <TrendingUp size={18} className="text-indigo-500" />,
+            content: `
+                <p class="mb-3">AI Training teaches the system how a stock behaves using <strong>historical data</strong>, so it can make future price predictions.</p>
+            `
+        },
+        {
+            title: "Step-by-Step Training Guide",
+            icon: <Zap size={18} className="text-amber-500" />,
+            content: `
+                <div class="space-y-4">
+                    <div>
+                        <strong class="text-slate-800 dark:text-white block mb-1">Step 1: Select Training Scope</strong>
+                        <ul class="list-disc pl-5 text-xs opacity-80">
+                            <li>Stock / Index selection</li>
+                            <li>Timeframe: Intraday (5m, 15m) or Daily</li>
+                            <li>Lookback Period: e.g., 6 months, 1 year</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <strong class="text-slate-800 dark:text-white block mb-1">Step 2: Start Training</strong>
+                        <ul class="list-disc pl-5 text-xs opacity-80">
+                            <li>Click <strong>“Start Training”</strong></li>
+                            <li>Training runs asynchronously</li>
+                            <li>You can leave the page safely while it processes</li>
+                        </ul>
+                    </div>
+                </div>
+            `
+        },
+        {
+            title: "Training Status Explained",
+            icon: <Activity size={18} className="text-blue-500" />,
+            content: `
+                <table class="w-full text-xs">
+                    <tr class="border-b border-slate-200 dark:border-slate-700">
+                        <td class="py-2 font-bold text-blue-500">IN_PROGRESS</td>
+                        <td class="py-2">Training is currently running</td>
+                    </tr>
+                    <tr class="border-b border-slate-200 dark:border-slate-700">
+                        <td class="py-2 font-bold text-emerald-500">SUCCESS</td>
+                        <td class="py-2">Model trained & ready for forecast</td>
+                    </tr>
+                    <tr class="border-b border-slate-200 dark:border-slate-700">
+                        <td class="py-2 font-bold text-red-500">FAILED</td>
+                        <td class="py-2">Training error encountered</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2 font-bold text-amber-500">EXPIRED</td>
+                        <td class="py-2">Model is outdated, retrain suggested</td>
+                    </tr>
+                </table>
+            `
+        },
+        {
+            title: "Quality Checks & Retraining",
+            icon: <CheckCircle size={18} className="text-emerald-500" />,
+            content: `
+                <ul class="list-disc pl-5 space-y-2 text-xs">
+                    <li><strong>Automatic Checks:</strong> Data sufficiency, Overfitting detection, Outlier handling.</li>
+                    <li><strong>Retrain If:</strong> Market regime changes, Volatility increases, Model is older than recommended window.</li>
+                </ul>
+                <div class="mt-3 p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                    <p class="text-[10px] text-slate-500 italic">Pro Tip: Best results come from combining AI Forecast with Trend scanners and Risk management rules.</p>
+                </div>
+            `
+        }
+    ];
+
+    return <HelpGuide title="AI Training Guide" sections={sections} buttonLabel="AI Training Help" iconOnly={true} />;
 };
 
 export default HelpGuide;

@@ -1,11 +1,14 @@
 import httpx
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from urllib.parse import quote
 from config import settings
 from database import AsyncSessionLocal
 from sqlalchemy import text
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import comprehensive Nifty 500 mapping
 try:
@@ -13,22 +16,22 @@ try:
 except ImportError:
     NIFTY_500_MAPPING = {}
 
+from services.upstox_price_resolver import get_upstox_price_resolver
+
+from utils.trade_logic import (
+    calculate_atr_levels
+)
+
 # Use the comprehensive mapping (300+ Nifty 500 stocks)
 INSTRUMENT_MAPPING = NIFTY_500_MAPPING
 
-
 async def get_database_prices(symbols: List[str]) -> Dict[str, float]:
-    """
-    Fallback to database for prices when live APIs fail.
-    Fetches the most recent close prices from stock_candle table.
-    """
+    """Fallback to database for prices when live APIs fail."""
     if not symbols:
         return {}
-        
     prices = {}
     try:
         async with AsyncSessionLocal() as session:
-            # Get the latest close price for each symbol using new schema
             query = text("""
                 SELECT im.symbol, sc.close
                 FROM (
@@ -42,474 +45,241 @@ async def get_database_prices(symbols: List[str]) -> Dict[str, float]:
                 WHERE sc.rn = 1
                 AND im.symbol = ANY(:symbols)
             """)
-            
             result = await session.execute(query, {"symbols": symbols})
             rows = result.fetchall()
-            
             for symbol, close in rows:
                 prices[symbol] = float(close)
-        
-        if prices:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"📊 Got {len(prices)} prices from database fallback")
-            
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"⚠️ Database fallback error: {e}")
-    
+        logger.error(f"Database fallback error: {e}")
     return prices
 
+async def get_database_movers_data(symbols: List[str]) -> Dict[str, Dict[str, float]]:
+    """Used for calculating change percentage when live feeds are down."""
+    if not symbols:
+        return {}
+    movers_data = {}
+    try:
+        async with AsyncSessionLocal() as session:
+            query = text("""
+                WITH ranked_candles AS (
+                    SELECT im.symbol, sc.close, sc.candle_ts,
+                           ROW_NUMBER() OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts DESC) as rn
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE sc.timeframe = 1440
+                    AND sc.close > 0
+                    AND im.symbol = ANY(:symbols)
+                )
+                SELECT symbol, close, rn
+                FROM ranked_candles
+                WHERE rn <= 2
+            """)
+            result = await session.execute(query, {"symbols": symbols})
+            rows = result.fetchall()
+            temp_data = {}
+            for symbol, close, rn in rows:
+                if symbol not in temp_data:
+                    temp_data[symbol] = {}
+                if rn == 1:
+                    temp_data[symbol]["ltp"] = float(close)
+                elif rn == 2:
+                    temp_data[symbol]["prev_close"] = float(close)
+            for symbol, data in temp_data.items():
+                if "ltp" in data and "prev_close" in data:
+                    movers_data[symbol] = data
+                elif "ltp" in data:
+                    movers_data[symbol] = {"ltp": data["ltp"], "prev_close": 0.0}
+    except Exception as e:
+        logger.error(f"Database movers fetch error: {e}")
+    return movers_data
 
 async def get_yfinance_price(symbol: str) -> Optional[float]:
-    """Fallback to Yahoo Finance for symbols not in Upstox mapping."""
+    """Fallback to Yahoo Finance."""
     try:
         import yfinance as yf
-        # yfinance is blocking, run in thread
         def _fetch():
             ticker = yf.Ticker(f"{symbol}.NS")
             info = ticker.info
             return info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-            
         price = await asyncio.to_thread(_fetch)
         if price and price > 0:
             return float(price)
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"⚠️ yFinance fallback failed for {symbol}: {e}")
+        logger.error(f"yFinance fallback failed for {symbol}: {e}")
     return None
 
-
 def get_instrument_key(symbol: str) -> Optional[str]:
-    """Get Upstox instrument key for a symbol, returns None if not found."""
     return INSTRUMENT_MAPPING.get(symbol.upper())
 
-
 async def fetch_live_ltp(symbols: List[str], access_token: str = None) -> Dict[str, float]:
-    """
-    Fetch live LTP for multiple symbols from Upstox using BATCH requests.
-    """
-    if not symbols:
-        return {}
-        
-    if not access_token:
-        access_token = settings.UPSTOX_ACCESS_TOKEN
-    
-    if not access_token:
-        return {}
-    
+    if not symbols: return {}
+    if not access_token: access_token = settings.UPSTOX_ACCESS_TOKEN
+    if not access_token: return {}
     prices = {}
-    
-    # Batch size for Upstox (limit is 50 instruments per request)
-    tasks = []
     batch_size = 50
+    tasks = []
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i:i + batch_size]
         tasks.append(_fetch_batch_ltp(batch, access_token))
-    
     batch_results = await asyncio.gather(*tasks)
     for res in batch_results:
         prices.update(res)
-    
     return prices
 
+async def fetch_live_full_quotes(symbols: List[str], access_token: str = None) -> Dict[str, Dict[str, Any]]:
+    if not symbols: return {}
+    if not access_token: access_token = settings.UPSTOX_ACCESS_TOKEN
+    if not access_token: return {}
+    results = {}
+    batch_size = 50
+    for i in range(0, len(symbols), batch_size):
+        batch = symbols[i:i + batch_size]
+        try:
+            instrument_keys = []
+            key_to_symbol = {}
+            for s in batch:
+                ik = get_instrument_key(s)
+                if ik:
+                    instrument_keys.append(ik)
+                    key_to_symbol[ik] = s
+                    key_to_symbol[ik.replace('|', ':')] = s
+            if not instrument_keys: continue
+            keys_param = ",".join(instrument_keys)
+            encoded_keys = quote(keys_param, safe=',')
+            url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}"
+            headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("status") == "success" and data.get("data"):
+                        for key, q in data["data"].items():
+                            symbol = key_to_symbol.get(key)
+                            if not symbol and ":" in key:
+                                symbol = key_to_symbol.get(key.split(':')[-1])
+                            if symbol:
+                                results[symbol] = {
+                                    "ltp": q.get("last_price"),
+                                    "prev_close": q.get("ohlc", {}).get("close"),
+                                    "volume": q.get("volume"),
+                                    "timestamp": q.get("timestamp")
+                                }
+        except Exception as e:
+            logger.error(f"Upstox full quote batch failed: {e}")
+    return results
 
 async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, float]:
-    """Fetch LTP for a batch of symbols in a SINGLE async request."""
     prices = {}
-    
-    # 1. Map symbols to instrument keys
     key_to_symbol = {}
     instrument_keys = []
-    
     for symbol in symbols:
         inst_key = get_instrument_key(symbol)
         if inst_key:
             instrument_keys.append(inst_key)
-            # Map all possible key formats that Upstox might return
             key_to_symbol[inst_key] = symbol
-            # Standard Upstox V2 response format: NSE_EQ:SYMBOL
             key_to_symbol[f"NSE_EQ:{symbol}"] = symbol
             key_to_symbol[f"BSE_EQ:{symbol}"] = symbol
-            
             symbol_part = inst_key.split('|')[-1]
             key_to_symbol[f"NSE_EQ:{symbol_part}"] = symbol
             key_to_symbol[symbol_part] = symbol
-            
-    # 2. Call Upstox Batch LTP API
     if instrument_keys:
         try:
             keys_param = ",".join(instrument_keys)
-            encoded_keys = quote(keys_param, safe=',')
-            url = f"https://api.upstox.com/v2/market-quote/ltp?instrument_key={encoded_keys}"
-            
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Accept": "application/json"
-            }
-            
+            url = f"https://api.upstox.com/v2/market-quote/ltp?instrument_key={quote(keys_param, safe=',')}"
+            headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, headers=headers, timeout=5)
-                
                 if response.status_code == 200:
                     data = response.json()
                     if data.get("status") == "success" and data.get("data"):
-                        for key, quote_data in data["data"].items():
-                            ltp = quote_data.get("last_price")
-                            if ltp and ltp > 0:
-                                # Try full key, then split parts
+                        for key, q_data in data["data"].items():
+                            ltp = q_data.get("last_price")
+                            if ltp:
                                 symbol = key_to_symbol.get(key)
-                                if not symbol:
-                                    # Try extracting symbol from NSE_EQ:SYMBOL
-                                    if ":" in key:
-                                        parts = key.split(':')
-                                        symbol = key_to_symbol.get(parts[-1])
-                                        
+                                if not symbol and ":" in key:
+                                    symbol = key_to_symbol.get(key.split(':')[-1])
                                 if symbol:
                                     prices[symbol] = ltp
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"⚠️ Upstox batch LTP failed: {e}")
-
-    # 3. yFinance Fallback for missing symbols
-    missing_symbols = [s for s in symbols if s not in prices]
-    if missing_symbols:
-        try:
-            import yfinance as yf
-            
-            def _fetch_yf_batch():
-                # Use period="2d" to ensure we get data even if market hasn't opened today
-                # interval="1m" is fine if we check multiple rows
-                tickers = " ".join([f"{s}.NS" for s in missing_symbols])
-                return yf.download(tickers, period="2d", interval="1m", progress=False, group_by='ticker')
-            
-            data = await asyncio.to_thread(_fetch_yf_batch)
-            
-            for s in missing_symbols:
-                ticker = f"{s}.NS"
-                try:
-                    if len(missing_symbols) == 1:
-                        # For single symbol, yf returns simple columns
-                        if not data.empty:
-                            price = data['Close'].iloc[-1]
-                        else:
-                            # Fallback to Ticker info for very fresh price
-                            tick = yf.Ticker(ticker)
-                            price = tick.info.get('currentPrice') or tick.info.get('regularMarketPrice')
-                    else:
-                        # For multiple symbols, yf returns MultiIndex
-                        symbol_data = data[ticker]
-                        if not symbol_data.empty:
-                            price = symbol_data['Close'].dropna().iloc[-1]
-                        else:
-                            # Try info fallback
-                            tick = yf.Ticker(ticker)
-                            price = tick.info.get('currentPrice') or tick.info.get('regularMarketPrice')
-                            
-                    if price and price > 0:
-                        prices[s] = float(price)
-                except:
-                    pass
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"⚠️ yFinance batch fallback failed: {e}")
-            
+            logger.error(f"Upstox batch LTP failed: {e}")
     return prices
 
-
 async def enrich_scanner_results(results: List[Dict], access_token: str = None) -> List[Dict]:
-    """
-    Enrich scanner results with live prices and source metadata.
-    
-    Uses centralized get_ltp_bulk() which implements:
-    1. WebSocket cache (during market hours)
-    2. Upstox REST API
-    3. Database fallback
-    
-    CRITICAL: This function ensures:
-    - entry_price, target_price, stop_loss are NEVER undefined/None
-    - current_price is always populated with source badge
-    - All numeric values are properly rounded
-    """
-    if not results:
-        return results
-    
+    if not results: return results
     symbols = [r.get("symbol") for r in results if r.get("symbol")]
-    if not symbols:
-        return results
-    
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    # Use centralized bulk LTP fetcher with source metadata
-    bulk_prices = await get_ltp_bulk(symbols, access_token)
-    
+    resolver = get_upstox_price_resolver()
+    bulk_prices = await resolver.get_prices_bulk(symbols)
     enriched = []
     for result in results:
         symbol = result.get("symbol", "").upper()
-        price_data = bulk_prices.get(symbol, {})
-        live_price = price_data.get("ltp")
-        price_source = price_data.get("source", "NONE")
-        
-        enriched_result = result.copy()
-        
-        # Determine base price (live or from result)
-        if live_price and live_price > 0:
-            rounded_price = round(float(live_price), 2)
-        elif result.get("ltp") and result.get("ltp") > 0:
-            rounded_price = round(float(result.get("ltp")), 2)
-            price_source = "CACHED"
-        elif result.get("close") and result.get("close") > 0:
-            rounded_price = round(float(result.get("close")), 2)
-            price_source = "CACHED"
-        elif result.get("current_price") and result.get("current_price") > 0:
-            rounded_price = round(float(result.get("current_price")), 2)
-            price_source = "CACHED"
+        p_data = bulk_prices.get(symbol, {})
+        ltp = p_data.get("price")
+        source = p_data.get("price_source", "NONE")
+        res = result.copy()
+        if ltp and ltp > 0:
+            res["current_price"] = round(float(ltp), 2)
+            res["price_source"] = source
+        elif result.get("ltp"):
+            res["current_price"] = round(float(result["ltp"]), 2)
+            res["price_source"] = "CACHED"
         else:
-            # Cannot enrich without a valid price - sanitize and skip
-            enriched_result = _sanitize_trade_levels(enriched_result, None)
-            enriched_result["price_source"] = "NONE"
-            enriched_result["entry_reason"] = "LTP_UNAVAILABLE"
-            enriched.append(enriched_result)
+            res["current_price"] = None
+            res["price_source"] = "NONE"
+            enriched.append(res)
             continue
-        
-        # Update all common price fields for consistency
-        enriched_result["current_price"] = rounded_price
-        enriched_result["ltp"] = rounded_price
-        enriched_result["price_source"] = price_source  # WS, REST, DB, or NONE
-        if "price" in enriched_result or result.get("price"):
-            enriched_result["price"] = rounded_price
-        
-        # Determine trend/action for trade level calculation
-        trend = enriched_result.get("trend") or enriched_result.get("signal_type", "BULLISH")
-        action = enriched_result.get("action") or enriched_result.get("signal", "BUY")
-        is_bullish = trend == "BULLISH" or action == "BUY" or "BUY" in str(action).upper()
-        
-        # ALWAYS calculate trade levels (overwrite any invalid values)
-        entry = enriched_result.get("entry_price")
-        target = enriched_result.get("target_price") or enriched_result.get("target_1")
-        stoploss = enriched_result.get("stop_loss")
-        
-        # Fix entry if missing, None, 0, or undefined
-        if not entry or entry <= 0 or str(entry).lower() == 'undefined':
-            enriched_result["entry_price"] = round(rounded_price * (0.995 if is_bullish else 1.005), 2)
-            enriched_result["entry_reason"] = "AUTO_CALCULATED"
+        res["ltp"] = res["current_price"]
+        trend = res.get("trend") or res.get("signal") or "BULLISH"
+        is_bull = "BEARISH" not in str(trend).upper() and "SELL" not in str(trend).upper()
+        atr = res.get("atr")
+        if atr and atr > 0:
+            levels = calculate_atr_levels(is_bull, res["current_price"], atr)
+            res.update(levels)
         else:
-            enriched_result["entry_price"] = round(float(entry), 2)
-            
-        # Fix target if missing, None, 0, or undefined
-        if not target or target <= 0 or str(target).lower() == 'undefined':
-            enriched_result["target_price"] = round(rounded_price * (1.05 if is_bullish else 0.95), 2)
-        else:
-            enriched_result["target_price"] = round(float(target), 2)
-            
-        # Fix stoploss if missing, None, 0, or undefined
-        if not stoploss or stoploss <= 0 or str(stoploss).lower() == 'undefined':
-            enriched_result["stop_loss"] = round(rounded_price * (0.97 if is_bullish else 1.03), 2)
-        else:
-            enriched_result["stop_loss"] = round(float(stoploss), 2)
-        
-        # Ensure target_1 is also set for frontends that expect it
-        enriched_result["target_1"] = enriched_result["target_price"]
-        
-        enriched.append(enriched_result)
-    
+            res["entry_price"] = res["current_price"]
+            res["target_price"] = round(res["current_price"] * (1.05 if is_bull else 0.95), 2)
+            res["stop_loss"] = round(res["current_price"] * (0.97 if is_bull else 1.03), 2)
+        res["signal_active"] = True
+        enriched.append(res)
     return enriched
 
-
-def _sanitize_trade_levels(result: Dict, price: Optional[float]) -> Dict:
-    """
-    Sanitize trade levels to never return undefined/None.
-    If price is available, calculate reasonable defaults.
-    If no price, set to None (frontend should display '--')
-    """
-    if price and price > 0:
-        result["current_price"] = round(price, 2)
-        result["entry_price"] = round(price * 0.995, 2)
-        result["target_price"] = round(price * 1.05, 2)
-        result["stop_loss"] = round(price * 0.97, 2)
-    else:
-        # Set to None explicitly (not undefined)
-        result["current_price"] = None
-        result["entry_price"] = None
-        result["target_price"] = None
-        result["stop_loss"] = None
-    
-    return result
-
-
 async def get_single_live_price(symbol: str, access_token: str = None) -> Optional[float]:
-    """Get live price for a single symbol."""
-    prices = await fetch_live_ltp([symbol], access_token)
-    return prices.get(symbol)
-
+    resolver = get_upstox_price_resolver()
+    data = await resolver.get_price(symbol)
+    return data.get("price")
 
 async def get_live_ltp(symbol: str, access_token: str = None) -> Dict:
-    """
-    AUTHORITATIVE live LTP function - use this for all price lookups.
-    
-    Priority (during market hours):
-    1. WebSocket cache (MarketDataOrchestrator)
-    2. Upstox REST API
-    3. Database fallback
-    
-    Priority (after market hours):
-    1. Upstox REST API (skip WS)
-    2. Database fallback
-    
-    Returns:
-        {
-            "symbol": "RELIANCE",
-            "ltp": 2850.50,
-            "source": "WS" | "REST" | "DB",
-            "timestamp": "2026-01-21T12:15:01+05:30",
-            "stale": false
-        }
-    """
-    from datetime import datetime
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    from services.market_hours_service import get_market_hours_service
-    from services.market_data_orchestrator import get_market_data_orchestrator
-    
-    if not access_token:
-        access_token = settings.UPSTOX_ACCESS_TOKEN
-    
-    market_service = get_market_hours_service()
-    is_market_open = market_service.is_market_open()
-    
-    result = {
-        "symbol": symbol.upper(),
-        "ltp": None,
-        "source": "NONE",
-        "timestamp": datetime.now().isoformat(),
-        "stale": False,
-        "market_open": is_market_open
+    resolver = get_upstox_price_resolver()
+    data = await resolver.get_price(symbol)
+    source_map = {"UPSTOX_WS": "WS", "UPSTOX_REST": "REST", "DB_EOD": "DB"}
+    return {
+        "symbol": data["symbol"],
+        "ltp": data["price"],
+        "source": source_map.get(data["price_source"], "NONE"),
+        "timestamp": data["timestamp"],
+        "stale": not data["is_live"],
+        "price_source": data["price_source"]
     }
-    
-    # 1. During market hours, try WebSocket cache first
-    if is_market_open:
-        try:
-            orchestrator = get_market_data_orchestrator()
-            tick = orchestrator._data_cache.get(symbol.upper())
-            if tick and hasattr(tick, 'ltp') and tick.ltp and tick.ltp > 0:
-                # Check staleness (>10 seconds old)
-                if hasattr(tick, 'timestamp'):
-                    tick_time = datetime.fromisoformat(tick.timestamp.replace('Z', '+00:00')) if isinstance(tick.timestamp, str) else tick.timestamp
-                    age_seconds = (datetime.now() - tick_time.replace(tzinfo=None)).total_seconds()
-                    if age_seconds <= 10:
-                        result["ltp"] = round(tick.ltp, 2)
-                        result["source"] = "WS"
-                        logger.debug(f"🔴 {symbol}: ₹{result['ltp']} from WS cache (fresh)")
-                        return result
-                    else:
-                        logger.debug(f"⚠️ {symbol}: WS tick is {age_seconds:.1f}s old, trying REST")
-                else:
-                    # No timestamp, use it anyway
-                    result["ltp"] = round(tick.ltp, 2)
-                    result["source"] = "WS"
-                    return result
-        except Exception as e:
-            logger.debug(f"WS cache miss for {symbol}: {e}")
-    
-    # 2. Try Upstox REST API
-    try:
-        prices = await fetch_live_ltp([symbol], access_token)
-        if prices.get(symbol) and prices[symbol] > 0:
-            result["ltp"] = round(prices[symbol], 2)
-            result["source"] = "REST"
-            logger.debug(f"🟡 {symbol}: ₹{result['ltp']} from REST API")
-            return result
-    except Exception as e:
-        logger.warning(f"REST API failed for {symbol}: {e}")
-    
-    # 3. Final fallback to Database
-    try:
-        db_prices = await get_database_prices([symbol])
-        if db_prices.get(symbol) and db_prices[symbol] > 0:
-            result["ltp"] = round(db_prices[symbol], 2)
-            result["source"] = "DB"
-            result["stale"] = True  # DB price is always potentially stale
-            logger.debug(f"🟢 {symbol}: ₹{result['ltp']} from DB (EOD)")
-            return result
-    except Exception as e:
-        logger.error(f"DB fallback failed for {symbol}: {e}")
-    
-    logger.error(f"❌ {symbol}: LTP_UNAVAILABLE from all sources")
-    result["source"] = "NONE"
-    return result
-
 
 async def get_ltp_bulk(symbols: List[str], access_token: str = None) -> Dict[str, Dict]:
-    """
-    Bulk LTP fetch using the unified MarketDataOrchestrator.
-    Consolidates WS, REST, and DB routing.
-    """
-    from services.market_data_orchestrator import get_market_data_orchestrator
-    orchestrator = get_market_data_orchestrator()
-    
-    # Fetch bulk prices from orchestrator (handles WS/REST/DB routing)
-    prices = await orchestrator.get_ltp_bulk(symbols)
-    
-    # Format according to expectations of enrich_scanner_results
+    resolver = get_upstox_price_resolver()
+    prices = await resolver.get_prices_bulk(symbols)
+    source_map = {"UPSTOX_WS": "WS", "UPSTOX_REST": "REST", "DB_EOD": "DB"}
     results = {}
-    now = datetime.now()
-    for symbol in symbols:
-        symbol_up = symbol.upper()
-        if symbol_up in prices:
-            # We don't have the source in get_ltp_bulk return dict yet (it returns symbol: price)
-            # Let's check the orchestrator cache to see where it came from if possible
-            tick = orchestrator._data_cache.get(symbol_up)
-            source = tick.source if tick else "REST"
-            results[symbol_up] = {
-                "ltp": prices[symbol_up],
-                "source": source,
-                "timestamp": now.isoformat(),
-                "stale": source == "DB"
-            }
-        else:
-            results[symbol_up] = {
-                "ltp": None,
-                "source": "NONE",
-                "timestamp": now.isoformat(),
-                "stale": True
-            }
-            
+    for sym, d in prices.items():
+        results[sym] = {
+            "ltp": d["price"],
+            "source": source_map.get(d["price_source"], "NONE"),
+            "timestamp": d["timestamp"],
+            "stale": not d["is_live"],
+            "price_source": d["price_source"]
+        }
     return results
 
-
 def get_price_source_status() -> Dict:
-    """
-    Get current price source status for debugging.
-    Returns cache state and health info.
-    """
-    from datetime import datetime
-    import logging
-    logger = logging.getLogger(__name__)
-    
     from services.market_hours_service import get_market_hours_service
-    
-    try:
-        from services.market_data_orchestrator import get_market_data_orchestrator
-        orchestrator = get_market_data_orchestrator()
-        orchestrator_status = orchestrator.get_status()
-    except Exception as e:
-        orchestrator_status = {"error": str(e)}
-    
     market_service = get_market_hours_service()
-    market_status = market_service.get_market_status()
-    
     return {
         "timestamp": datetime.now().isoformat(),
-        "market_status": market_status,
-        "orchestrator": orchestrator_status,
-        "upstox_token_configured": bool(settings.UPSTOX_ACCESS_TOKEN),
-        "instrument_mapping_size": len(INSTRUMENT_MAPPING)
+        "market_status": market_service.get_market_status(),
+        "upstox_token_configured": bool(settings.UPSTOX_ACCESS_TOKEN)
     }
-
-

@@ -8,7 +8,8 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple
+from sqlalchemy.ext.asyncio import AsyncSession
 import numpy as np
 import pandas as pd
 
@@ -92,6 +93,7 @@ class AdaptiveEnsembleV2(ForecastAlgorithm):
             name="Adaptive Ensemble",
             version="2.3",
             type="ensemble",
+            is_pro=True,
             recommended=True,
             supports_confidence_bands=True,
             supported_timeframes=["1m", "5m", "15m", "30m", "1h", "1d"],
@@ -107,68 +109,50 @@ class AdaptiveEnsembleV2(ForecastAlgorithm):
         horizon: int,
         confidence_level: float = 0.95
     ) -> Tuple[List[float], List[float], List[float], float]:
-        """Use existing APF ensemble predictor logic."""
-        from .feature_builder import FeatureBuilder
+        """Inference-only prediction using pre-trained ensemble."""
         from .ensemble import APFEnsemble
+        from .feature_builder import FeatureBuilder
         
-        # Build features
+        symbol = df['symbol'].iloc[0] if 'symbol' in df.columns else "default"
+        timeframe = df['timeframe'].iloc[0] if 'timeframe' in df.columns else "5m"
+        
+        # 1. Load Pre-trained Ensemble
+        ensemble = APFEnsemble(symbol=symbol, timeframe=timeframe)
+        if not ensemble.load():
+            # Fallback to a global/generic model if specific one fails
+            logger.info(f"Symbol-specific model for {symbol} not found, trying global model")
+            ensemble = APFEnsemble(symbol="default", timeframe=timeframe)
+            if not ensemble.load():
+                # Final fallback: Statistical prediction if NO models available
+                logger.warning(f"No pre-trained models found for {symbol}. Falling back to statistical forecast.")
+                from .algorithm_registry import ARIMAStable
+                return ARIMAStable().predict(df, horizon, confidence_level)
+
+        # 2. Build Features
         feature_builder = FeatureBuilder()
         features_df = feature_builder.build_features(df)
-        
-        if features_df is None or len(features_df) < 50:
-            raise ValueError("Insufficient data for Adaptive Ensemble (need 50+ candles)")
-        
-        # Drop NaN rows from feature building
-        features_df = features_df.dropna()
-        
-        if len(features_df) < 30:
-            raise ValueError("Insufficient data after feature processing")
-        
-        # Get feature column names (exclude target and OHLCV)
-        feature_cols = [col for col in features_df.columns if col not in 
+        if features_df.empty or len(features_df) < 5:
+            raise ValueError("Insufficient data for feature extraction")
+            
+        feature_cols = ensemble.feature_names or [col for col in features_df.columns if col not in 
                        ['open', 'high', 'low', 'close', 'volume', 'target', 'timestamp']]
         
-        # Prepare training data - use features to predict next close
-        X = features_df[feature_cols].iloc[:-1].values
-        y = features_df['close'].iloc[1:].values
-        
-        # Ensure X and y have same length
-        min_len = min(len(X), len(y))
-        X = X[:min_len]
-        y = y[:min_len]
-        
-        # Train ensemble
-        ensemble = APFEnsemble(symbol="forecast", timeframe="runtime")
-        ensemble.train(X, y, feature_names=feature_cols)
-        
-        # Generate predictions
-        predicted = []
-        upper_band = []
-        lower_band = []
-        
-        last_features = features_df[feature_cols].iloc[-1:].values
+        # 3. Generate Predictions (Autoregressive)
+        predicted, upper_band, lower_band = [], [], []
+        current_features = features_df[feature_cols].tail(1).values
         last_close = df['close'].iloc[-1]
         
         for _ in range(horizon):
-            pred, upper, lower, conf = ensemble.predict(last_features)
+            pred, upper, lower, conf = ensemble.predict(current_features)
             predicted.append(float(pred[0]))
             upper_band.append(float(upper[0]))
             lower_band.append(float(lower[0]))
             
-            # Update features for next prediction (simplified autoregressive)
-            if len(last_features[0]) > 0:
-                last_features = self._update_features(last_features, pred[0], last_close)
-                last_close = pred[0]
-        
-        # Adjust bands based on confidence level
-        if confidence_level != 0.90:  # Default quantile is 90%
-            z_factor = 1.96 if confidence_level >= 0.95 else 1.0  # 95% -> 1.96, 68% -> 1.0
-            band_width = [(u - l) / 2 for u, l in zip(upper_band, lower_band)]
-            upper_band = [p + w * z_factor / 1.5 for p, w in zip(predicted, band_width)]
-            lower_band = [p - w * z_factor / 1.5 for p, w in zip(predicted, band_width)]
-        
-        confidence = conf if 'conf' in dir() else 0.75
-        return predicted, upper_band, lower_band, confidence
+            # Autoregressive update (simplified)
+            current_features[0, 0] = (pred[0] - last_close) / last_close if last_close > 0 else 0
+            last_close = pred[0]
+            
+        return predicted, upper_band, lower_band, conf
     
     def _update_features(self, features: np.ndarray, new_pred: float, prev_close: float) -> np.ndarray:
         """Simple feature update for autoregressive prediction."""
@@ -192,6 +176,7 @@ class XGBoostFast(ForecastAlgorithm):
             name="XGBoost Fast",
             version="1.0",
             type="ml",
+            is_pro=False,
             recommended=False,
             supports_confidence_bands=True,
             supported_timeframes=["1m", "5m", "15m", "30m", "1h"],
@@ -207,8 +192,28 @@ class XGBoostFast(ForecastAlgorithm):
         horizon: int,
         confidence_level: float = 0.95
     ) -> Tuple[List[float], List[float], List[float], float]:
-        """XGBoost-only prediction with volatility-based bands."""
-        # Calculate simple features
+        """Inference-only XGBoost prediction."""
+        import os
+        import joblib
+        
+        symbol = df['symbol'].iloc[0] if 'symbol' in df.columns else "default"
+        model_path = Path(__file__).parent / "models" / f"xgb_fast_{symbol}.joblib"
+        
+        if not model_path.exists():
+            model_path = Path(__file__).parent / "models" / "xgb_fast_default.joblib"
+            
+        if not model_path.exists():
+            logger.info("XGBoost model not found, falling back to EMA")
+            return self._fallback_prediction(df, horizon, confidence_level)
+
+        try:
+            model_data = joblib.load(model_path)
+            model = model_data['model']
+            feature_cols = model_data.get('feature_cols', ['returns', 'ema_9', 'ema_21', 'rsi', 'atr'])
+        except Exception:
+            return self._fallback_prediction(df, horizon, confidence_level)
+            
+        # Calculate features (must match training features)
         df = df.copy()
         df['returns'] = df['close'].pct_change()
         df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
@@ -217,29 +222,9 @@ class XGBoostFast(ForecastAlgorithm):
         df['atr'] = self._calculate_atr(df, 14)
         
         df = df.dropna()
-        if len(df) < 30:
-            raise ValueError("Insufficient data for XGBoost Fast (need 30+ candles)")
-        
-        # Prepare features
-        feature_cols = ['returns', 'ema_9', 'ema_21', 'rsi', 'atr']
-        X = df[feature_cols].values[:-1]
-        y = df['close'].iloc[1:].values
-        
-        # Train XGBoost
-        try:
-            import xgboost as xgb
-            model = xgb.XGBRegressor(
-                n_estimators=50,
-                max_depth=4,
-                learning_rate=0.1,
-                random_state=42
-            )
-            model.fit(X, y)
-        except ImportError:
-            # Fallback to simple moving average
+        if len(df) < 1:
             return self._fallback_prediction(df, horizon, confidence_level)
-        
-        # Generate predictions
+
         predicted = []
         last_close = df['close'].iloc[-1]
         last_features = df[feature_cols].iloc[-1:].values
@@ -249,18 +234,15 @@ class XGBoostFast(ForecastAlgorithm):
             pred = model.predict(last_features)[0]
             predicted.append(float(pred))
             
-            # Update features
-            new_return = (pred - last_close) / last_close if last_close > 0 else 0
-            last_features[0, 0] = new_return
+            # Update features for autoregressive
+            last_features[0, 0] = (pred - last_close) / last_close if last_close > 0 else 0
             last_close = pred
         
-        # Calculate confidence bands based on ATR
         z_factor = 1.96 if confidence_level >= 0.95 else 1.0
         upper_band = [p + atr * z_factor for p in predicted]
         lower_band = [p - atr * z_factor for p in predicted]
         
-        confidence = 0.70
-        return predicted, upper_band, lower_band, confidence
+        return predicted, upper_band, lower_band, 0.70
     
     def _calculate_rsi(self, series: pd.Series, period: int = 14) -> pd.Series:
         delta = series.diff()
@@ -314,6 +296,7 @@ class ARIMAStable(ForecastAlgorithm):
             name="ARIMA Stable",
             version="1.0",
             type="statistical",
+            is_pro=False,
             recommended=False,
             supports_confidence_bands=True,
             supported_timeframes=["15m", "30m", "1h", "1d"],
@@ -419,6 +402,7 @@ class TransformerInformerDL(ForecastAlgorithm):
             name="Transformer Informer DL",
             version="1.0",
             type="dl",
+            is_pro=True,
             recommended=True,
             supports_confidence_bands=True,
             supported_timeframes=["5m", "15m", "1h", "1d"],
@@ -578,11 +562,34 @@ class AlgorithmRegistry:
         # Fallback to first algorithm
         return list(self._algorithms.values())[0] if self._algorithms else None
     
-    def list_all(self) -> List[AlgorithmInfo]:
-        """Get metadata for all registered algorithms."""
-        return [algo.metadata for algo in self._algorithms.values()]
-    
-    def run_forecast(
+    async def list_all(self, db: Optional[AsyncSession] = None, symbol: Optional[str] = None, timeframe: Optional[str] = None) -> List[AlgorithmInfo]:
+        """Get metadata for all registered algorithms with training status."""
+        from .models_ai import AIModelRegistry
+        from sqlalchemy import select
+        
+        algos = [algo.metadata for algo in self._algorithms.values()]
+        
+        if db and symbol and timeframe:
+            # Query registry for status
+            result = await db.execute(
+                select(AIModelRegistry).where(
+                    AIModelRegistry.symbol == symbol,
+                    AIModelRegistry.timeframe == timeframe
+                )
+            )
+            registry_entries = {r.model_id: r for r in result.scalars().all()}
+            
+            for algo in algos:
+                entry = registry_entries.get(algo.id)
+                if entry:
+                    algo.training_status = entry.status
+                    algo.last_trained = entry.trained_at.isoformat() if entry.trained_at else None
+                else:
+                    algo.training_status = "UNTRAINED"
+        
+        return algos
+
+    async def run_forecast(
         self,
         algorithm_id: str,
         df: pd.DataFrame,
@@ -591,7 +598,8 @@ class AlgorithmRegistry:
         timeframe: str,
         horizon: int,
         confidence_level: float = 0.95,
-        include_confidence_bands: bool = True
+        include_confidence_bands: bool = True,
+        db: Optional[AsyncSession] = None
     ) -> ForecastRunResponse:
         """
         Run a forecast with the specified algorithm.
@@ -628,6 +636,21 @@ class AlgorithmRegistry:
             horizon = algorithm.metadata.max_horizon
             warnings.append(f"Horizon capped to {horizon} for this algorithm")
         
+        # Check Model Registry if DB provided
+        if db:
+            from .models_ai import AIModelRegistry
+            from sqlalchemy import select
+            result = await db.execute(
+                select(AIModelRegistry).where(
+                    AIModelRegistry.model_id == algorithm.metadata.id,
+                    AIModelRegistry.symbol == symbol,
+                    AIModelRegistry.timeframe == timeframe
+                )
+            )
+            registry_entry = result.scalar_one_or_none()
+            if not registry_entry or registry_entry.status != "READY":
+                warnings.append(f"Algorithm '{algorithm.metadata.id}' for {symbol} is {(registry_entry.status if registry_entry else 'UNTRAINED')}. Predictions may be unreliable.")
+
         # Run prediction
         try:
             predicted, upper_band, lower_band, confidence = algorithm.predict(

@@ -122,16 +122,30 @@ class ScannerStock(BaseModel):
     trend: Optional[str] = None
     action: Optional[str] = None
 
+class ScannerDebugInfo(BaseModel):
+    symbols_expected: int = 503
+    symbols_scanned: int = 0
+    symbols_failed: int = 0
+    symbols_missing: int = 0
+    buy_signals: int = 0
+    sell_signals: int = 0
+    tables_used: List[str] = []
+    price_source: Optional[str] = "websocket"
+    indicator_timeframe: Optional[str] = "15m"
+    execution_time_ms: int = 0
+    completed: bool = False
+
 class ScannerResponse(BaseModel):
     status: str
-    count: int
-    stocks: List[ScannerStock]
+    count: int = 0
+    stocks: List[ScannerStock] = []
     scan_type: str
     description: str
-    buy_signals: Optional[List[ScannerStock]] = []
-    sell_signals: Optional[List[ScannerStock]] = []
+    buy_signals: List[ScannerStock] = []
+    sell_signals: List[ScannerStock] = []
     error_code: Optional[str] = None
     message: Optional[str] = None
+    debug: ScannerDebugInfo = Field(default_factory=ScannerDebugInfo)
 
 class MarketAnalysisResponse(BaseModel):
     status: str

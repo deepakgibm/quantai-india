@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from pathlib import Path
 from config import settings
 

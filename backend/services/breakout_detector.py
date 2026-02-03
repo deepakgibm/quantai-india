@@ -191,7 +191,8 @@ class BreakoutDetector:
         breakouts = latest_df[latest_df['score'] >= self.min_score].sort_values('score', ascending=False).head(limit)
         
         t3 = time.time()
-        logger.info(f"Vectorized Scan: Fetch={t1-t0:.2f}s, Calc={t2-t1:.2f}s, Filter={t3-t2:.2f}s. Total={t3-t0:.2f}s")
+        elapsed = (time.time() - t0) * 1000
+        logger.info(f"Vectorized Scan: Fetch={t1-t0:.2f}s, Calc={t2-t1:.2f}s, Filter={t3-t2:.2f}s. Total={elapsed:.1f}ms")
         
         # 5. Format Output
         results = []
@@ -209,15 +210,18 @@ class BreakoutDetector:
                     return float(v)
                 except:
                     return default
+            
+            val_score = clean_val(row['score'])
 
             results.append({
                 "symbol": str(row['symbol']),
                 "name": str(row['symbol']),
                 "breakout_type": breakout_type,
                 "volume_ratio": round(clean_val(row['volume_ratio']), 2),
-                "strength": int(clean_val(row['score'])),
+                "strength": int(val_score),
                 "current_price": round(clean_val(row['close']), 2),
                 "breakout_level": round(clean_val(row['high_52w'] if breakout_type == "52W_HIGH" else row['high_20d']), 2),
+                "atr": round(clean_val(row['atr_20d']), 2),
                 "target_price": round(clean_val(row['close'] * 1.08), 2),
                 "stop_loss": round(clean_val(row['close'] * 0.97), 2),
                 "indicators": {
@@ -225,10 +229,24 @@ class BreakoutDetector:
                     "atr_expansion": round(clean_val(row['atr_expansion']), 2),
                     "high_52w": round(clean_val(row['high_52w']), 2)
                 },
+                "trend": "BULLISH",
+                "action": "BUY",
                 "reason": f"{breakout_type} with {clean_val(row['volume_ratio']):.1f}x Vol"
             })
             
-        return results
+        return {
+            "stocks": results,
+            "symbols_processed": len(latest_df),
+            "total_symbols": len(latest_df),
+            "completed_all": True,
+            "filter_stats": {
+                "filtered_by_rule": len(latest_df) - len(results)
+            },
+            "tables_used": ["nifty100_daily"],
+            "metrics": {
+                "total_ms": int(elapsed)
+            }
+        }
 
     def get_symbols(self) -> List[str]:
         from utils.symbol_utils import get_all_symbols

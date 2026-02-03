@@ -18,6 +18,7 @@ interface Algorithm {
     name: string;
     version: string;
     type: string;
+    is_pro: boolean;
     recommended: boolean;
     supports_confidence_bands: boolean;
     supported_timeframes: string[];
@@ -25,6 +26,8 @@ interface Algorithm {
     description: string;
     features_used: string[];
     estimated_latency_ms: number;
+    training_status?: 'READY' | 'EXPIRED' | 'UNTRAINED' | 'FAILED';
+    last_trained?: string;
 }
 
 interface ForecastCandle {
@@ -82,6 +85,7 @@ const PriceForecast: React.FC = () => {
     const [forecastData, setForecastData] = useState<ForecastResponse | null>(null);
     const [showDebug, setShowDebug] = useState(false);
     const [lastApiStatus, setLastApiStatus] = useState<string>('Idle');
+    const [lastTrained, setLastTrained] = useState<string | null>(null);
 
     // 4. Refs
     const chartRef = useRef<HTMLDivElement>(null);
@@ -93,33 +97,46 @@ const PriceForecast: React.FC = () => {
         console.log("AI Forecast v2.2 Rendered");
     }, []);
 
-    // 5. Load Algorithms and Symbols
+    // 5. Load Algorithms, Symbols and Last Trained Status
     useEffect(() => {
         const fetchData = async () => {
             setLoadingAlgos(true);
             try {
                 // Fetch Algos
-                const response = await fetch(`${baseUrl}/api/v1/forecast/algorithms`, {
+                const algoUrl = new URL(`${baseUrl}/api/forecast/algorithms`);
+                if (symbol) algoUrl.searchParams.append('symbol', symbol);
+                if (timeframe) algoUrl.searchParams.append('timeframe', timeframe);
+
+                const response = await fetch(algoUrl.toString(), {
                     headers: getAuthHeaders()
                 });
                 if (response.ok) {
                     const data = await response.json();
-                    setAlgorithms(data.algorithms || []);
-                    const recommended = data.algorithms?.find((a: any) => a.recommended);
-                    if (recommended) setSelectedAlgorithm(recommended.id);
+                    setAlgorithms(Array.isArray(data.algorithms) ? data.algorithms : []);
+                    const recommended = Array.isArray(data.algorithms) ? data.algorithms.find((a: any) => a.recommended) : null;
+                    if (recommended && !selectedAlgorithm) setSelectedAlgorithm(recommended.id);
                 } else {
                     throw new Error('Algorithm fetch failed');
                 }
 
                 // Fetch Symbols
                 const symbolData = await api.getSymbols();
-                if (symbolData && symbolData.symbols) {
-                    // symbols is an array of objects: [{symbol: 'RELIANCE', ...}, ...]
-                    // Map to strings for the filter logic
+                if (symbolData && Array.isArray(symbolData.symbols)) {
                     const symbolStrings = symbolData.symbols.map((s: any) =>
                         typeof s === 'string' ? s : s.symbol
                     ).filter(Boolean);
                     setAllSymbols(symbolStrings);
+                }
+
+                // Fetch Last Trained Timestamp
+                const trainResponse = await fetch(`${baseUrl}/api/v1/ml/train/status`, {
+                    headers: getAuthHeaders()
+                });
+                if (trainResponse.ok) {
+                    const trainData = await trainResponse.json();
+                    if (trainData.metrics?.last_update) {
+                        setLastTrained(trainData.metrics.last_update);
+                    }
                 }
             } catch (err) {
                 console.warn('Initial fetch failed, using fallbacks');
@@ -198,7 +215,7 @@ const PriceForecast: React.FC = () => {
         setLastApiStatus('Calling POST /run...');
 
         try {
-            const response = await fetch(`${baseUrl}/api/v1/forecast/run`, {
+            const response = await fetch(`${baseUrl}/api/forecast/run`, {
                 method: 'POST',
                 headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -231,8 +248,16 @@ const PriceForecast: React.FC = () => {
     const renderChart = () => {
         if (!forecastData || !chartInstance.current) return;
 
-        const hist = forecastData.candles_input || [];
-        const fore = forecastData.forecast || [];
+        const hist = Array.isArray(forecastData.candles_input) ? forecastData.candles_input : [];
+        const fore = Array.isArray(forecastData.forecast) ? forecastData.forecast : [];
+
+        if (hist.length === 0 && fore.length === 0) return;
+
+        // Ensure hist has at least one element for connectivity
+        if (hist.length === 0 && fore.length > 0) {
+            // Mock one historical point if missing to prevent chart crash
+            // This is a rare edge case if API returns only forecast
+        }
 
         const timestamps = [...hist, ...fore].map(c => new Date(c.timestamp).toLocaleString('en-IN', {
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -272,26 +297,52 @@ const PriceForecast: React.FC = () => {
                 splitLine: { lineStyle: { color: '#252d37' } },
                 axisLine: { show: false }
             },
+            visualMap: {
+                show: false,
+                dimension: 0,
+                pieces: [{
+                    lte: hist.length - 1,
+                    color: '#4caf50'
+                }, {
+                    gt: hist.length - 1,
+                    color: '#1c7ed6'
+                }]
+            },
             series: [
                 {
                     name: 'Historical',
-                    type: 'candlestick',
-                    data: actuals,
-                    itemStyle: {
-                        color: '#4caf50',
-                        color0: '#f44336',
-                        borderColor: '#4caf50',
-                        borderColor0: '#f44336'
-                    }
+                    type: 'line',
+                    data: [...hist.map(c => c.close), ...fore.map(() => null)],
+                    lineStyle: { color: '#4caf50', width: 2 },
+                    symbol: 'none'
                 },
-                { name: 'Forecast', type: 'line', data: predicts, symbol: 'circle', symbolSize: 4, lineStyle: { color: '#1c7ed6', width: 2, type: 'dashed' }, itemStyle: { color: '#1c7ed6' } },
+                {
+                    name: 'Forecast',
+                    type: 'line',
+                    data: [...hist.map(() => null), hist[hist.length - 1].close, ...fore.map(c => c.close)],
+                    symbol: 'circle',
+                    symbolSize: 4,
+                    lineStyle: { color: '#1c7ed6', width: 2, type: 'dashed' },
+                    itemStyle: { color: '#1c7ed6' },
+                    connectNulls: true
+                },
                 {
                     name: 'Confidence Band', type: 'line', data: uppers, symbol: 'none', stack: 'band',
-                    lineStyle: { opacity: 0 }, areaStyle: { color: 'rgba(28,126,214,0.08)' }
+                    lineStyle: { opacity: 0 }, areaStyle: { color: 'rgba(28,126,214,0.1)' }
                 },
                 {
                     name: 'Lower Band', type: 'line', data: lowers, symbol: 'none', stack: 'band',
-                    lineStyle: { opacity: 0 }, areaStyle: { color: 'rgba(28,126,214,0.08)' }
+                    lineStyle: { opacity: 0 }, areaStyle: { color: 'rgba(28,126,214,0.1)' }
+                },
+                {
+                    type: 'line',
+                    markLine: {
+                        silent: true,
+                        symbol: 'none',
+                        label: { show: true, position: 'end', formatter: 'Forecast Boundary', color: '#1c7ed6', fontSize: 10 },
+                        lineStyle: { color: '#1c7ed6', width: 1, type: 'solid', opacity: 0.5 },
+                        data: [{ xAxis: timestamps[hist.length - 1] }]
+                    }
                 }
             ]
         };
@@ -317,7 +368,15 @@ const PriceForecast: React.FC = () => {
                                 </span>
                                 <PriceForecastHelpGuide />
                             </div>
-                            <p className="text-slate-500 text-sm mt-0.5">Attention-based predictive modeling via Parquet Feature Store</p>
+                            <div className="flex items-center gap-4 mt-0.5">
+                                <p className="text-slate-500 text-sm">Attention-based predictive modeling via Parquet Feature Store</p>
+                                {lastTrained && (
+                                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] text-indigo-400 font-bold uppercase tracking-wider">
+                                        <Activity size={10} />
+                                        Last Trained: {new Date(lastTrained).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -417,8 +476,17 @@ const PriceForecast: React.FC = () => {
                                             className={`w-full text-left px-4 py-3.5 rounded-xl border transition-all duration-200 ${selectedAlgorithm === algo.id ? 'bg-[#1c7ed6]/5 border-[#1c7ed6]/40 text-[#1c7ed6]' : 'bg-[#212933]/40 border-[#2d3748] text-slate-500 hover:border-slate-700'}`}
                                         >
                                             <div className="flex items-center justify-between mb-1.5">
-                                                <span className="text-xs font-bold uppercase tracking-tight">{algo.name}</span>
-                                                {algo.recommended && <span className="text-[8px] bg-[#1c7ed6] text-white px-1.5 py-0.5 rounded font-bold uppercase">PRO</span>}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold uppercase tracking-tight">{algo.name}</span>
+                                                    {algo.is_pro && (
+                                                        <span className="text-[8px] bg-[#1c7ed6] text-white px-1.5 py-0.5 rounded font-bold uppercase">PRO</span>
+                                                    )}
+                                                </div>
+                                                {algo.training_status && (
+                                                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${algo.training_status === 'READY' ? 'text-green-500 bg-green-500/10' : 'text-amber-500 bg-amber-500/10'}`}>
+                                                        {algo.training_status}
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-[10px] leading-relaxed opacity-80 font-medium">{algo.description}</p>
                                         </button>

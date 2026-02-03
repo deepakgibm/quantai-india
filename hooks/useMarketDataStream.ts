@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { API_URL } from '../services/api';
 
 interface MarketIndex {
     name: string;
@@ -15,8 +16,16 @@ interface UseMarketDataStreamOptions {
 }
 
 export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) => {
+    // Derive WS URL from API_URL (handle both http/https and relative paths)
+    const getWsUrl = () => {
+        const baseUrl = API_URL || window.location.origin;
+        const proto = baseUrl.startsWith('https') ? 'wss' : 'ws';
+        const host = baseUrl.replace(/^https?:\/\//, '');
+        return `${proto}://${host}/api/scanner/ws`;
+    };
+
     const {
-        url = 'ws://127.0.0.1:8000/api/scanner/ws/scanner',
+        url = getWsUrl(),
         enabled = true
     } = options;
 

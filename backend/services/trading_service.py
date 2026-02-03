@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from datetime import datetime, date
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, cast, Date, text
 
@@ -205,10 +205,25 @@ class TradingService:
         try:
             async with AsyncSessionLocal() as session:
                 for name in [n for n in needed_names if n not in results_map]:
-                    res = await session.execute(text("SELECT sc.close, sc.candle_ts FROM stock_candle sc JOIN instrument_master im ON sc.instrument_id = im.instrument_id WHERE im.symbol = :sym AND sc.timeframe = 1440 ORDER BY sc.candle_ts DESC LIMIT 1"), {"sym": name})
-                    row = res.first()
-                    if row: results_map[name] = {"name": name, "value": round(float(row[0]), 2), "change": 0, "percent": 0, "source": "database", "stale": True}
-        except Exception: pass
+                    # Fetch last 2 daily candles to calculate change
+                    res = await session.execute(text("SELECT sc.close, sc.candle_ts FROM stock_candle sc JOIN instrument_master im ON sc.instrument_id = im.instrument_id WHERE im.symbol = :sym AND sc.timeframe = 1440 ORDER BY sc.candle_ts DESC LIMIT 2"), {"sym": name})
+                    rows = res.fetchall()
+                    if rows:
+                        current_close = float(rows[0][0])
+                        prev_close = float(rows[1][0]) if len(rows) > 1 else current_close
+                        change = current_close - prev_close
+                        percent = (change / prev_close * 100) if prev_close != 0 else 0.0
+                        
+                        results_map[name] = {
+                            "name": name, 
+                            "value": round(current_close, 2), 
+                            "change": round(change, 2), 
+                            "percent": round(percent, 2), 
+                            "source": "database", 
+                            "stale": True
+                        }
+        except Exception as e:
+            logger.warning(f"Database indices fetch failed: {e}")
 
         return list(results_map.values())
 

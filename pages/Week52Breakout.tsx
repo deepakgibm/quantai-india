@@ -63,10 +63,13 @@ const Week52Breakout: React.FC = () => {
                 const data = await response.json();
 
                 // Extra safety: Filter out any rows with missing critical data
-                const validHighs = (data.high_breakouts || []).filter((s: Week52BreakoutStock) =>
+                const highs = Array.isArray(data.high_breakouts) ? data.high_breakouts : [];
+                const lows = Array.isArray(data.low_breakdowns) ? data.low_breakdowns : [];
+
+                const validHighs = highs.filter((s: Week52BreakoutStock) =>
                     s.symbol && s.industry && s.industry !== 'N/A'
                 );
-                const validLows = (data.low_breakdowns || []).filter((s: Week52BreakoutStock) =>
+                const validLows = lows.filter((s: Week52BreakoutStock) =>
                     s.symbol && s.industry && s.industry !== 'N/A'
                 );
 

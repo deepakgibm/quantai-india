@@ -41,13 +41,13 @@ export const API_ENDPOINTS = {
     SCANNER: {
         MOMENTUM: `${API_BASE_URL}/api/scanner/momentum`,
         WEEK52_BREAKOUTS: `${API_BASE_URL}/api/scanner/week52-breakouts`,
-        WS: `${WS_BASE_URL}/api/scanner/ws/scanner`,
+        WS: `${WS_BASE_URL}/api/scanner/ws`,
     },
     // Quant
     QUANT: {
         SYMBOLS: `${API_BASE_URL}/api/quant/symbols`,
-        STRATEGIES: `${API_BASE_URL}/api/quant/strategies`,
-        BACKTEST: `${API_BASE_URL}/api/quant/backtest/run`,
+        STRATEGIES: `${API_BASE_URL}/api/v1/backtest/strategies`,
+        BACKTEST: `${API_BASE_URL}/api/v1/backtest/run`,
         OPTIMIZE: `${API_BASE_URL}/api/quant/optimize/run`,
     },
     // Alerts

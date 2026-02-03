@@ -20,8 +20,10 @@ const SectorHeatmapPage: React.FC = () => {
     const fetchSectors = async () => {
         setLoadingSectors(true);
         const response = await api.getSectorHeatmap();
-        if (response?.status === 'success') {
+        if (response?.status === 'success' && Array.isArray(response.data)) {
             setSectors(response.data);
+        } else {
+            setSectors([]);
         }
         setLoadingSectors(false);
     };
@@ -36,7 +38,7 @@ const SectorHeatmapPage: React.FC = () => {
 
         try {
             const response = await api.getSectorStocks(sectorName);
-            if (response?.status === 'success') {
+            if (response?.status === 'success' && Array.isArray(response.stocks)) {
                 setStocks(response.stocks);
             } else {
                 setStocks([]);

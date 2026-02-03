@@ -98,7 +98,7 @@ class TopMoversService:
         # 1. Try Dragonfly Cache (Fastest)
         try:
             cache = get_cache()
-            snapshots = cache.get(CacheKeys.all_snapshots())
+            snapshots = await cache.get_async(CacheKeys.all_snapshots())
             
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             

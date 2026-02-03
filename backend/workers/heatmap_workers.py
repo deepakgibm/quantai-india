@@ -199,7 +199,7 @@ class SectorAggregationWorker:
             pass
         
         # Approach: Read `CacheKeys.all_snapshots()` (populated by existing HP Scanner).
-        data_json = self.cache.get(CacheKeys.all_snapshots())
+        data_json = await self.cache.get_async(CacheKeys.all_snapshots())
         if not data_json:
             return
 
@@ -241,7 +241,8 @@ class SectorAggregationWorker:
             sector_groups[sector].append(mapped_stock)
 
         sector_snapshots = []
-        # Aggregate and Write
+        # Prepare batch writes
+        sector_mapping = {}
         for sector, stocks in sector_groups.items():
             avg_pct = sum(s.get("change_pct", 0) for s in stocks) / len(stocks)
             advancers = sum(1 for s in stocks if s.get("change_pct", 0) > 0)
@@ -263,14 +264,13 @@ class SectorAggregationWorker:
             }
             sector_snapshots.append(snapshot)
             
-            # Write to Cache: Individual Sector
-            key = CacheKeys.sector_snapshot(sector)
-            self.cache.set(key, snapshot, ttl=300) # Increased to 5 mins
+            # Batch writes
+            sector_mapping[CacheKeys.sector_snapshot(sector)] = snapshot
+            sector_mapping[f"{CacheKeys.sector_snapshot(sector)}:stocks"] = stocks
             
-            # Write to Cache: Stock List for Drill-Down
-            list_key = f"{key}:stocks" 
-            self.cache.set(list_key, stocks, ttl=300) # Increased to 5 mins
-            
-        # Write to Cache: All Sectors List (for Main Page)
-        self.cache.set(CacheKeys.heatmap_all(), sector_snapshots, ttl=300) # Increased to 5 mins
+        if sector_mapping:
+            # Add the summary data to the batch
+            sector_mapping[CacheKeys.heatmap_all()] = sector_snapshots
+            # Write all in one pipeline
+            await self.cache.mset_async(sector_mapping, ttl=300)
 

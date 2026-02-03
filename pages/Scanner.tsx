@@ -31,7 +31,7 @@ import { PriceWithSource } from '../components/PriceSourceBadge';
 interface Strategy {
     name: string;
     description: string;
-    tier: string;
+    tier?: string; // Added tier field
     min_bars: number;
 }
 
@@ -108,9 +108,26 @@ const Scanner: React.FC = () => {
         try {
             const data = await api.getStrategies();
             if (data && data.strategies) {
-                setStrategies(data.strategies);
-                const tier1 = data.strategies['Tier 1 - Highest Win Rate'] || [];
-                const tier2 = data.strategies['Tier 2 - Solid Strategies'] || [];
+                // Handle both List and Object formats for backward compatibility
+                let grouped: Record<string, Strategy[]> = {};
+
+                if (Array.isArray(data.strategies)) {
+                    // New Format: List of strategies -> Group by Tier
+                    data.strategies.forEach((s: Strategy) => {
+                        const tier = s.tier || 'Other Strategies';
+                        if (!grouped[tier]) grouped[tier] = [];
+                        grouped[tier].push(s);
+                    });
+                } else if (typeof data.strategies === 'object') {
+                    // Old Format: Already grouped object
+                    grouped = data.strategies;
+                }
+
+                setStrategies(grouped);
+
+                // Auto-select top tiers
+                const tier1 = grouped['Tier 1 - Highest Win Rate'] || [];
+                const tier2 = grouped['Tier 2 - Solid Strategies'] || [];
                 const autoSelected = [...tier1, ...tier2].map((s: Strategy) => s.name);
                 setSelectedStrategies(autoSelected);
             } else {
@@ -134,6 +151,8 @@ const Scanner: React.FC = () => {
 
     const selectAllStrategies = (tier: string) => {
         const tierStrategies = strategies[tier]?.map(s => s.name) || [];
+        if (!tierStrategies.length) return;
+
         setSelectedStrategies(prev => {
             const existing = prev.filter(s => !tierStrategies.includes(s));
             return [...existing, ...tierStrategies];
@@ -146,6 +165,8 @@ const Scanner: React.FC = () => {
 
     const deselectTier = (tier: string) => {
         const tierStrategies = strategies[tier]?.map(s => s.name) || [];
+        if (!tierStrategies.length) return;
+
         setSelectedStrategies(prev => prev.filter(s => !tierStrategies.includes(s)));
     };
 
@@ -194,10 +215,12 @@ const Scanner: React.FC = () => {
             return a.symbol.localeCompare(b.symbol) * multiplier;
         });
 
-    const filteredStrategies = (Object.entries(strategies) as [string, Strategy[]][]).reduce((acc, [tier, strats]) => {
+    const filteredStrategies = Object.entries(strategies || {}).reduce((acc, [tier, strats]) => {
+        if (!Array.isArray(strats)) return acc;
+
         const filtered = strats.filter(s =>
-            s.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-            s.description.toLowerCase().includes(debouncedSearch.toLowerCase())
+            (s.name && s.name.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+            (s.description && s.description.toLowerCase().includes(debouncedSearch.toLowerCase()))
         );
         if (filtered.length > 0) acc[tier] = filtered;
         return acc;

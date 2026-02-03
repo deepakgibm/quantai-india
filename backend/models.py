@@ -17,6 +17,7 @@ class User(Base):
     upstox_refresh_token = Column(String, nullable=True)
     failed_login_attempts = Column(Integer, default=0)
     locked_until = Column(DateTime, nullable=True)
+    subscription_level = Column(String, default="FREE") # FREE, PRO, ELITE
     created_at = Column(DateTime, default=datetime.utcnow)
     
     orders = relationship("Order", back_populates="user")
@@ -138,10 +139,7 @@ class UserSettings(Base):
     notifications = Column(Boolean, default=True)
     user = relationship("User", back_populates="settings")
 
-# Import AlphaPrime models to ensure they're registered with Base
 
-
-# Import precomputed indicators model
 
 
 class DailyTopGainersSnapshot(Base):

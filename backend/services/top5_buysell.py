@@ -327,7 +327,9 @@ class Top5BuySellEngine:
                 sells = latest[(latest['action'] == 'SELL') & (latest['score'] >= self.min_score)].nlargest(limit, 'score')
                 
                 t1 = time.time()
-                print(f"⚡ Vectorized scan completed in {t1-t0:.2f}s (found {len(buys)} BUY, {len(sells)} SELL)")
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Top5BuySell: Vectorized scan of {len(df['symbol'].unique())} symbols completed in {(t1-t0)*1000:.0f}ms. Found {len(buys)} BUY, {len(sells)} SELL.")
                 
                 # Format output
                 def format_row(row, action):
@@ -342,21 +344,28 @@ class Top5BuySellEngine:
                         stop = round(price * 1.015, 2)
                         expected = f"-3%"
                     
+                    # Sanitize indicators for JSON
+                    def s(val):
+                        import math
+                        if isinstance(val, (float, int)) and (math.isnan(val) or math.isinf(val)):
+                            return 0.0
+                        return val
+
                     return {
                         "symbol": row['symbol'],
                         "name": row['symbol'],
                         "action": action,
-                        "confidence": int(row['score']),
-                        "current_price": round(price, 2),
-                        "entry_range": f"{round(price*0.995,2)}-{round(price*1.005,2)}",
-                        "target_1": target,
-                        "target_2": round(target * 1.02, 2),
-                        "stop_loss": stop,
+                        "confidence": int(s(row['score'])),
+                        "current_price": round(s(price), 2),
+                        "entry_range": f"{round(s(price)*0.995,2)}-{round(s(price)*1.005,2)}",
+                        "target_1": s(target),
+                        "target_2": round(s(target) * 1.02, 2),
+                        "stop_loss": s(stop),
                         "expected_move": expected,
                         "indicators": {
-                            "rsi": round(row['rsi'], 2),
-                            "volume_ratio": round(row['vol_ratio'], 2),
-                            "macd_histogram": round(row['macd_histogram'], 4)
+                            "rsi": round(s(row['rsi']), 2),
+                            "volume_ratio": round(s(row['vol_ratio']), 2),
+                            "macd_histogram": round(s(row['macd_histogram']), 4)
                         },
                         "reason": f"{'Bullish' if action=='BUY' else 'Bearish'} EMA crossover"
                     }
@@ -364,13 +373,30 @@ class Top5BuySellEngine:
                 buy_signals = [format_row(row, 'BUY') for _, row in buys.iterrows()]
                 sell_signals = [format_row(row, 'SELL') for _, row in sells.iterrows()]
                 
-                return {"buy": buy_signals, "sell": sell_signals}
+                elapsed = (time.time() - t0) * 1000
+                total_symbols = len(latest)
+                
+                return {
+                    "stocks": buy_signals + sell_signals,
+                    "symbols_processed": total_symbols,
+                    "total_symbols": total_symbols,
+                    "completed_all": True,
+                    "filter_stats": {
+                        "filtered_by_rule": total_symbols - (len(buy_signals) + len(sell_signals))
+                    },
+                    "tables_used": ["stock_candle", "instrument_master"],
+                    "metrics": {
+                        "total_ms": int(elapsed)
+                    }
+                }
                 
             finally:
                 session.close()
                 
         except Exception as e:
-            print(f"Vectorized scan error: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Top5BuySell: Vectorized scan error: {e}", exc_info=True)
             return {"buy": [], "sell": []}
     
     def scan_all(self, limit: int = 5) -> Dict[str, List[Dict]]:

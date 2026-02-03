@@ -1,0 +1,954 @@
+{
+  "run_timestamp": "2026-02-01T18:53:36.302521+00:00",
+  "total_endpoints": 46,
+  "passed": 46,
+  "failed": 0,
+  "avg_latency_ms": 32.55,
+  "p95_latency_ms": 134.98,
+  "endpoints_over_target": 0,
+  "price_verifications_total": 22,
+  "price_verifications_passed": 22,
+  "results": [
+    {
+      "endpoint": "/",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 4.41,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "service",
+        "version",
+        "api_root",
+        "timestamp"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/health/",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 16.05,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "timestamp",
+        "checks"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/health/ready",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 2.98,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/auth/signup",
+      "method": "POST",
+      "status_code": 200,
+      "latency_ms": 12.63,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "email",
+        "username",
+        "full_name",
+        "id",
+        "is_active",
+        "is_upstox_connected",
+        "created_at"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status_code": 200,
+      "latency_ms": 234.35,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "access_token",
+        "token_type"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/auth/me",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 33.88,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "email",
+        "username",
+        "full_name",
+        "id",
+        "is_active",
+        "is_upstox_connected",
+        "created_at"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/upstox/status",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 6.96,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "upstox",
+        "message"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/upstox/auth-url",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 32.63,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "auth_url"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/upstox/user-profile",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 29.09,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "id",
+        "email",
+        "full_name",
+        "username",
+        "upstox_connected",
+        "upstox_id"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/upstox/portfolio",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 16.91,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "message",
+        "data"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/upstox/positions",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 22.61,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "message",
+        "data"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/upstox/market-quote/ABB",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 31.39,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "symbol",
+        "message",
+        "data"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/trading/health",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 7.03,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "service"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/trading/market-indices",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 8.11,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/trading/instruments",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 6.28,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "instruments",
+        "count"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/trading/stats",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 85.34,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "total_pnl",
+        "daily_pnl",
+        "capital_used",
+        "total_capital",
+        "active_algorithms",
+        "win_rate",
+        "total_trades"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/trading/dashboard",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 82.28,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "total_pnl",
+        "daily_pnl",
+        "capital_used",
+        "total_capital",
+        "active_algorithms",
+        "win_rate",
+        "total_trades"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/trading/top-gainers",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 36.15,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [
+        {
+          "symbol": "INDIA VIX",
+          "app_price": 15.1,
+          "upstox_price": 15.1,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:34.614391+00:00"
+        },
+        {
+          "symbol": "MEDANTA",
+          "app_price": 1120.1,
+          "upstox_price": 1120.1,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:34.675217+00:00"
+        },
+        {
+          "symbol": "ANANTRAJ",
+          "app_price": 531.05,
+          "upstox_price": 531.05,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:34.713618+00:00"
+        },
+        {
+          "symbol": "NETWEB",
+          "app_price": 3305.7,
+          "upstox_price": 3305.7,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:34.753217+00:00"
+        },
+        {
+          "symbol": "AMBER",
+          "app_price": 5993.0,
+          "upstox_price": 5993.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:34.890608+00:00"
+        }
+      ],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/trading/gainers-losers",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 12.66,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/market/heatmap",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 9.14,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/market/sector/IT",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 11.77,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/ai/strategies",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 10.02,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "strategies"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/ai/market-analysis",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 134.98,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "analysis",
+        "sentiment",
+        "trend",
+        "top_sectors",
+        "stocks_to_watch",
+        "timestamp",
+        "retry_after_seconds"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/ai/sentiment",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 13.0,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "sentiment",
+        "trend",
+        "analysis",
+        "timestamp"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/ai/prompt",
+      "method": "POST",
+      "status_code": 200,
+      "latency_ms": 42.7,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "suggested_stocks"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/orders/",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 13.33,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/risk/",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 17.22,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "max_capital",
+        "max_risk_per_trade",
+        "auto_trade",
+        "notifications",
+        "current_capital_used",
+        "available_capital",
+        "max_loss_per_trade"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/forecast/algorithms",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 8.77,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "algorithms",
+        "count"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/forecast/predict",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 188.4,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "symbol",
+        "timeframe",
+        "horizon",
+        "timestamps",
+        "actual",
+        "predicted",
+        "upper_band",
+        "lower_band",
+        "confidence",
+        "model_version"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/scanner/strategies",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 3.22,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "strategies",
+        "total_count"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/scanner/presets",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 12.33,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "presets"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/scanner/hp/momentum",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 19.31,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [
+        {
+          "symbol": "BDL",
+          "app_price": 1384.1,
+          "upstox_price": 1384.1,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.651907+00:00"
+        },
+        {
+          "symbol": "ABB",
+          "app_price": 5437.0,
+          "upstox_price": 5437.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.708897+00:00"
+        },
+        {
+          "symbol": "ANGELONE",
+          "app_price": 2313.0,
+          "upstox_price": 2313.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.761394+00:00"
+        },
+        {
+          "symbol": "GRSE",
+          "app_price": 2522.2,
+          "upstox_price": 2522.2,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.797336+00:00"
+        },
+        {
+          "symbol": "BANKINDIA",
+          "app_price": 150.44,
+          "upstox_price": 150.44,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.859389+00:00"
+        }
+      ],
+      "response_keys": [
+        "type",
+        "data",
+        "count",
+        "source"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/scanner/hp/breakout",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 10.18,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [
+        {
+          "symbol": "BDL",
+          "app_price": 1384.1,
+          "upstox_price": 1384.1,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.869978+00:00"
+        },
+        {
+          "symbol": "ABB",
+          "app_price": 5437.0,
+          "upstox_price": 5437.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.869978+00:00"
+        },
+        {
+          "symbol": "ANGELONE",
+          "app_price": 2313.0,
+          "upstox_price": 2313.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.869978+00:00"
+        },
+        {
+          "symbol": "GRSE",
+          "app_price": 2522.2,
+          "upstox_price": 2522.2,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.869978+00:00"
+        },
+        {
+          "symbol": "BANKINDIA",
+          "app_price": 150.44,
+          "upstox_price": 150.44,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.869978+00:00"
+        }
+      ],
+      "response_keys": [
+        "type",
+        "data",
+        "count",
+        "source"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/scanner/ai/momentum",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 123.42,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [
+        {
+          "symbol": "ABB",
+          "app_price": 5437.0,
+          "upstox_price": 5437.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:35.993972+00:00"
+        }
+      ],
+      "response_keys": [
+        "status",
+        "count",
+        "stocks",
+        "buy_signals",
+        "sell_signals",
+        "scan_type",
+        "description",
+        "message",
+        "debug"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/scanner/ai/vwap",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 18.08,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [
+        {
+          "symbol": "ABB",
+          "app_price": 5437.0,
+          "upstox_price": 5437.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:36.013559+00:00"
+        }
+      ],
+      "response_keys": [
+        "status",
+        "count",
+        "stocks",
+        "buy_signals",
+        "sell_signals",
+        "scan_type",
+        "description",
+        "message",
+        "debug"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/market/top-movers",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 4.39,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [
+        {
+          "symbol": "INDIA VIX",
+          "app_price": 15.1,
+          "upstox_price": 15.1,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:36.019439+00:00"
+        },
+        {
+          "symbol": "MEDANTA",
+          "app_price": 1120.1,
+          "upstox_price": 1120.1,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:36.019439+00:00"
+        },
+        {
+          "symbol": "ANANTRAJ",
+          "app_price": 531.05,
+          "upstox_price": 531.05,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:36.019439+00:00"
+        },
+        {
+          "symbol": "NETWEB",
+          "app_price": 3305.7,
+          "upstox_price": 3305.7,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:36.019439+00:00"
+        },
+        {
+          "symbol": "AMBER",
+          "app_price": 5993.0,
+          "upstox_price": 5993.0,
+          "deviation_pct": 0.0,
+          "verdict": "VERIFIED_REAL_PRICE",
+          "timestamp": "2026-02-01T18:53:36.019439+00:00"
+        }
+      ],
+      "response_keys": [
+        "status",
+        "timestamp",
+        "gainers",
+        "losers",
+        "source"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/market/status",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 4.71,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "last_update"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/market/heatmap",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 10.67,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/market/sector/IT",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 9.71,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/analytics/overview",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 8.54,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "market_sentiment",
+        "active_alerts",
+        "daily_volume_status"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/analytics/momentum/top",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 23.02,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "data",
+        "count",
+        "lookback_days"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/analytics/volatility/ABB",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 18.86,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "symbol",
+        "message",
+        "data",
+        "lookback_days"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/analytics/support-resistance/ABB",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 23.22,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "symbol",
+        "levels",
+        "lookback_days"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/analytics/archive/list",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 18.34,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "archives",
+        "count"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/analytics/archive/stats",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 23.39,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "archive_dir",
+        "total_files",
+        "total_size_mb",
+        "total_rows",
+        "archives"
+      ],
+      "recommended_fix": ""
+    },
+    {
+      "endpoint": "/api/analytics/indicators/latest/ABB",
+      "method": "GET",
+      "status_code": 200,
+      "latency_ms": 34.84,
+      "success": true,
+      "failure_category": "NONE",
+      "error_message": "",
+      "price_verifications": [],
+      "response_keys": [
+        "status",
+        "symbol",
+        "interval",
+        "message",
+        "indicators"
+      ],
+      "recommended_fix": ""
+    }
+  ]
+}

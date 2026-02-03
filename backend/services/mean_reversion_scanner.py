@@ -131,19 +131,21 @@ class MeanReversionScanner:
         bb_position = (current_price - lower_band) / (upper_band - lower_band) if upper_band != lower_band else 0.5
         
         scores = {}
-        if bb_position < 0.2 and rsi < 35:
+        # Relaxed thresholds: BB < 0.25 and RSI < 40 (was 0.2 and 35)
+        if bb_position < 0.25 and rsi < 40:
             signal = "OVERSOLD_BUY"
             scores["bb"] = 90
             scores["rsi"] = 90
-        elif bb_position > 0.8 and rsi > 65:
+        # Relaxed thresholds: BB > 0.75 and RSI > 60 (was 0.8 and 65)
+        elif bb_position > 0.75 and rsi > 60:
             signal = "OVERBOUGHT_SELL"
             scores["bb"] = 90
             scores["rsi"] = 90
-        elif bb_position < 0.3:
+        elif bb_position < 0.35:
             signal = "NEAR_SUPPORT"
             scores["bb"] = 70
             scores["rsi"] = 60
-        elif bb_position > 0.7:
+        elif bb_position > 0.65:
             signal = "NEAR_RESISTANCE"
             scores["bb"] = 70
             scores["rsi"] = 60
@@ -181,25 +183,67 @@ class MeanReversionScanner:
     
     def scan_all(self, limit: int = 10) -> List[Dict]:
         """Scan all stocks for mean reversion using bulk optimization."""
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+        t0 = time.time()
+        
         # 1. Fetch bulk data
-        print("📊 Fetching bulk OHLCV data...")
+        logger.info("MeanReversion: Fetching bulk OHLCV data...")
         symbol_data_map = self._get_bulk_ohlcv_data()
         
         if not symbol_data_map:
-            print("⚠️ No data found in database.")
+            logger.warning("MeanReversion: No data found in database (1440m timeframe).")
             return []
             
-        print(f"✅ Loaded data for {len(symbol_data_map)} stocks. Scanning...")
+        logger.info(f"MeanReversion: Loaded data for {len(symbol_data_map)} stocks. Scanning...")
         
         results = []
+        skipped_insufficient = 0
+        skipped_no_signal = 0
+        skipped_low_score = 0
+        
         # 2. Process in memory
         for symbol, df in symbol_data_map.items():
+            if len(df) < 20:
+                skipped_insufficient += 1
+                continue
+                
             try:
                 analysis = self.analyze_stock(symbol, df)
-                if analysis and analysis["strength"] >= self.min_score:
-                    results.append(analysis)
-            except:
+                if analysis:
+                    if analysis["strength"] >= self.min_score:
+                        results.append(analysis)
+                    else:
+                        skipped_low_score += 1
+                else:
+                    skipped_no_signal += 1
+            except Exception as e:
+                logger.error(f"Error scanning {symbol}: {e}")
                 continue
         
         results.sort(key=lambda x: x["strength"], reverse=True)
-        return results[:limit]
+        top_results = results[:limit]
+        
+        elapsed = (time.time() - t0) * 1000
+        logger.info(
+            f"MeanReversion: Scan Complete in {elapsed:.1f}ms. "
+            f"Universe: {len(symbol_data_map)}. "
+            f"Matches: {len(results)}. "
+            f"Rejections: [Insufficient Data: {skipped_insufficient}, No Pattern: {skipped_no_signal}, Low Score (<{self.min_score}): {skipped_low_score}]"
+        )
+        
+        return {
+            "stocks": top_results,
+            "symbols_processed": len(symbol_data_map),
+            "total_symbols": len(symbol_data_map),
+            "completed_all": True,
+            "filter_stats": {
+                "insufficient_history": skipped_insufficient,
+                "filtered_by_rule": skipped_no_signal + skipped_low_score
+            },
+            "tables_used": ["stock_candle", "instrument_master"],
+            "metrics": {
+                "total_ms": int(elapsed)
+            }
+        }

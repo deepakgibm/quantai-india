@@ -1,3 +1,4 @@
+
 """
 Real-Time Scanner Engine
 Processes live market data using the Market Data Orchestrator
@@ -12,10 +13,8 @@ import logging
 from typing import Dict, List
 from datetime import datetime
 
-from services.market_data_orchestrator import (
-    get_market_data_orchestrator,
-    MarketDataOrchestrator
-)
+from services.upstox_price_resolver import get_upstox_price_resolver, UpstoxPriceResolver
+from services.websocket_feed_manager import get_websocket_feed_manager
 from services.db_data_fetcher import get_db_data_fetcher
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,8 @@ class RealTimeScannerEngine:
     ]
     
     def __init__(self):
-        self.orchestrator: MarketDataOrchestrator = get_market_data_orchestrator()
+        self.resolver: UpstoxPriceResolver = get_upstox_price_resolver()
+        self.feed_manager = get_websocket_feed_manager()
         self.stock_state: Dict[str, Dict] = {}
         self.index_state: Dict[str, Dict] = {
             "NIFTY 50": {"name": "NIFTY 50", "value": 0, "change": 0, "percent": 0},
@@ -52,16 +52,23 @@ class RealTimeScannerEngine:
         self.nifty_returns: List[float] = []
         self._is_initialized = False
         
-        # Register for tick updates from orchestrator
-        self.orchestrator.add_callback(self._on_tick)
+        # Register for tick updates from the raw WebSocket manager
+        # (This is okay as FeedManager bridges basic ticks)
+        from services.upstox_ws_manager import get_upstox_ws_manager
+        get_upstox_ws_manager().add_callback(self._on_tick_raw)
         
     async def initialize(self):
-        """Start the orchestrator and begin receiving data."""
+        """Start the resolver feed and begin receiving data."""
         if self._is_initialized:
             return
             
         logger.info("Initializing Real-Time Scanner Engine")
-        await self.orchestrator.start()
+        # Resolver proactively managed its feed; just ensure it's active
+        await self.feed_manager.ensure_active()
+        
+        # Start cache loop
+        asyncio.create_task(self._cache_write_loop())
+        
         self._is_initialized = True
         
         # Hydrate indices from DB immediately
@@ -72,10 +79,104 @@ class RealTimeScannerEngine:
                 for idx in indices:
                     logger.info(f"Hydrating index {idx['name']} from DB: {idx['value']}")
                     self.index_state[idx['name']] = idx
+                    
+            # Hydrate Stocks from DB (Fallback when market closed)
+            await self._hydrate_from_db()
+            
         except Exception as e:
-            logger.error(f"Failed to hydrate indices from DB: {e}")
+            logger.error(f"Failed to hydrate indices/stocks from DB: {e}")
 
+    async def _hydrate_from_db(self):
+        """
+        Hydrate stock state from the database.
+        This acts as a fallback when WebSocket is inactive (market closed).
+        """
+        try:
+            db_fetcher = get_db_data_fetcher()
+            # Fetch latest daily data (or intraday if we had it, but daily is safer for 'close')
+            # Using existing fetch_latest_data method
+            ticks = await asyncio.to_thread(db_fetcher.fetch_latest_data)
+            
+            count = 0
+            for symbol, tick in ticks.items():
+                # Map DatabaseTick to internal dict structure (matches _on_tick)
+                # Ensure we calculate momentum score using the same logic
+                change_pct = tick.change_pct
+                # Recalculate buckets/score to be consistent with engine logic
+                legacy_bucket = self._map_to_legacy_bucket(change_pct, tick.direction)
+                momentum_score = self._calculate_momentum_score(change_pct)
+                
+                self.stock_state[symbol] = {
+                    "symbol": symbol,
+                    "ltp": tick.ltp,
+                    "prev_close": tick.prev_close,
+                    "change_pct": change_pct,
+                    "momentum_score": momentum_score,
+                    "bucket": legacy_bucket,
+                    "pct_bucket": tick.bucket, # Using DatabaseTick's bucket as pct_bucket? No, DatabaseTick bucket is comparable to legacy?
+                                               # DatabaseTick bucket is "STRONG_BULLISH" etc.
+                                               # Let's trust self._map_to_legacy_bucket for consistency.
+                    "direction": tick.direction,
+                    "correlation": self._calculate_correlation(symbol),
+                    "source": "DB", # Explicitly mark as DB
+                    "confidence": "LOW", # Historical data has low real-time confidence
+                    "last_update": datetime.now().isoformat()
+                }
+                count += 1
+                
+            logger.info(f"Hydrated {count} stocks from DB into RealTimeScannerEngine.")
+            
+        except Exception as e:
+            logger.error(f"Error hydrating form DB: {e}")
+
+    async def _cache_write_loop(self):
+        """Periodically write full state to Redis for REST consumers."""
+        from services.dragonfly_client import get_cache, CacheKeys
+        cache = get_cache()
         
+        while True:
+            try:
+                if self.stock_state:
+                    # Convert dict to list
+                    data = list(self.stock_state.values())
+                    # Sort by momentum score
+                    data.sort(key=lambda x: x['momentum_score'], reverse=True)
+                    
+                    cache.set(CacheKeys.momentum(), data, ttl=60)
+            except Exception as e:
+                logger.error(f"Cache write error: {e}")
+                
+            await asyncio.sleep(1) # Write every 1 second
+        
+    def _on_tick_raw(self, raw_tick: Dict):
+        """Process incoming raw tick from WebSocket manager."""
+        try:
+            symbol = raw_tick.get("symbol")
+            if not symbol: return
+            
+            # Map raw tick to the format expected by _on_tick
+            # (Basically adapting Upstox Protobuf fields)
+            ltp = raw_tick.get("last_price", 0)
+            prev_close = raw_tick.get("prev_close") or raw_tick.get("previous_close", 0)
+            
+            if ltp <= 0: return
+            
+            change_pct = 0.0
+            if prev_close > 0:
+                change_pct = round(((ltp - prev_close) / prev_close) * 100, 2)
+                
+            tick_data = {
+                "symbol": symbol,
+                "ltp": ltp,
+                "prev_close": prev_close,
+                "change_pct": change_pct,
+                "source": "WS",
+                "timestamp": datetime.now().isoformat()
+            }
+            self._on_tick(tick_data)
+        except Exception as e:
+            logger.error(f"Error processing raw tick: {e}")
+
     def _on_tick(self, tick_data: Dict):
         """Process incoming tick from orchestrator."""
         try:
@@ -202,17 +303,17 @@ class RealTimeScannerEngine:
         
     def get_status(self) -> Dict:
         """Get current status including data source."""
-        orchestrator_status = self.orchestrator.get_status()
+        from services.market_data_orchestrator import get_market_data_orchestrator
+        orchestrator = get_market_data_orchestrator()
+        orchestrator_status = orchestrator.get_status()
         return {
             **orchestrator_status,
             "stock_count": len(self.stock_state),
             "is_initialized": self._is_initialized
         }
 
-
 # Singleton instance
 _realtime_scanner_engine = None
-
 
 def get_realtime_scanner_engine() -> RealTimeScannerEngine:
     """Get singleton instance of RealTimeScannerEngine."""

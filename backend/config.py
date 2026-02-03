@@ -42,6 +42,7 @@ def _validate_upstox_token(token: str) -> str:
 class Settings:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/quantai")
+    # DATABASE_URL = "postgresql+asyncpg://postgres:admin@192.168.65.254:5432/quantai"
     
     # Dragonfly/Redis Configuration
     DRAGONFLY_HOST = os.getenv("DRAGONFLY_HOST", "localhost")

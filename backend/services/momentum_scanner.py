@@ -109,6 +109,17 @@ class MomentumScanner:
         df['pos_mf_14'] = g['pos_flow'].transform(lambda x: x.rolling(14).sum())
         df['neg_mf_14'] = g['neg_flow'].transform(lambda x: x.rolling(14).sum())
         
+        # 3. ATR (20d) for Trade Levels
+        tr = pd.concat([
+            (df['high'] - df['low']),
+            (df['high'] - g['close'].shift(1)).abs(),
+            (df['low'] - g['close'].shift(1)).abs()
+        ], axis=1).max(axis=1)
+        df['atr'] = g['symbol'].apply(lambda x: tr.loc[x.index].rolling(20).mean()) # Corrected vectorized ATR
+        # Actually simpler:
+        df['tr'] = tr
+        df['atr_20d'] = g['tr'].transform(lambda x: x.rolling(20).mean())
+        
         # Avoid division by zero
         df['neg_mf_14'] = df['neg_mf_14'].replace(0, 1) # or handle infinity
         
@@ -200,6 +211,7 @@ class MomentumScanner:
                 "roc_10d": round(roc_10, 2),
                 "roc_20d": round(row['roc_20'], 2),
                 "mfi": round(mfi_val, 2),
+                "atr": round(row['atr_20d'], 2) if 'atr_20d' in row else round(row['close'] * 0.02, 2),
                 "target_price": round(row['close'] * 1.05, 2),
                 "stop_loss": round(row['close'] * 0.97, 2),
                 "reason": f"ROC {roc_10:.1f}%. MFI {mfi_val:.0f}"

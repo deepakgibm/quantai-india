@@ -50,7 +50,7 @@ const SymbolSearch: React.FC<SymbolSearchProps> = ({
 
                 const data = await response.json();
 
-                if (data.symbols && data.symbols.length > 0) {
+                if (data.symbols && Array.isArray(data.symbols) && data.symbols.length > 0) {
                     setAvailableSymbols(data.symbols);
                 } else {
                     setError('No symbols available for this timeframe');

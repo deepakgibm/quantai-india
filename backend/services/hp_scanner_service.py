@@ -7,11 +7,10 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-import threading
 import time
 
 from services.dragonfly_client import (
-    get_cache, CacheKeys, TTLPolicy
+    get_cache, CacheKeys, TTLPolicy, cache_stats
 )
 
 logger = logging.getLogger(__name__)
@@ -34,8 +33,8 @@ class HPScannerService:
         self._last_scan_time: Optional[datetime] = None
         self._scan_count = 0
         self._symbols: List[str] = []
-        self._lock = threading.Lock()
-        self._worker_thread: Optional[threading.Thread] = None
+        self._lock = asyncio.Lock()
+        self._loop_task: Optional[asyncio.Task] = None
     
     async def start(self):
         """Start the HP scanner service."""
@@ -62,13 +61,8 @@ class HPScannerService:
                 "1day"
             )
         
-        # Start background worker thread
-        self._worker_thread = threading.Thread(
-            target=self._run_worker_loop,
-            daemon=True,
-            name="HPScannerWorker"
-        )
-        self._worker_thread.start()
+        # Start background loop
+        self._loop_task = asyncio.create_task(self._run_loop())
 
     async def stop(self):
         """Stop the HP scanner service."""
@@ -78,10 +72,14 @@ class HPScannerService:
         logger.info("Stopping HP Scanner Service")
         self._is_running = False
         
-        # Stop worker thread
-        if self._worker_thread:
-            self._worker_thread.join(timeout=5)
-            self._worker_thread = None
+        # Stop background loop
+        if self._loop_task:
+            self._loop_task.cancel()
+            try:
+                await self._loop_task
+            except asyncio.CancelledError:
+                pass
+            self._loop_task = None
         
         # Stop indicator worker
         from workers.indicator_worker import stop_indicator_workers
@@ -90,47 +88,45 @@ class HPScannerService:
         logger.info("HP Scanner Service stopped")
 
     async def _load_symbols(self):
-        """Load Nifty 100 symbols from database for scanning."""
-        from services.top_movers_service import NIFTY_100_SYMBOLS
+        """Load symbols from database for scanning."""
+        from utils.symbol_utils import get_nifty_symbols
         from database import AsyncSessionLocal
         
         try:
             async with AsyncSessionLocal() as session:
-                # We prioritize the predefined NIFTY_100_SYMBOLS
-                # but verify they exist in our master list to get metadata if needed.
-                self._symbols = NIFTY_100_SYMBOLS
-                logger.info(f"Loaded {len(self._symbols)} Nifty 100 symbols for HP scanning")
+                self._symbols = get_nifty_symbols()
+                logger.info(f"Loaded {len(self._symbols)} symbols for HP scanning")
         except Exception as e:
             logger.error(f"Failed to load symbols for HP Scanner: {e}")
-            # Fallback to hardcoded list if DB fails
-            self._symbols = NIFTY_100_SYMBOLS[:20] 
+            self._symbols = [] 
 
-    def _run_worker_loop(self):
-        """Background worker loop (runs in separate thread)."""
-        logger.info("HP Scanner worker loop started")
+    async def _run_loop(self):
+        """Background loop."""
+        logger.info("HP Scanner loop started")
         
         while self._is_running:
             try:
                 start = time.time()
-                self._run_scan_cycle()
+                await self._run_scan_cycle_async()
                 elapsed = (time.time() - start) * 1000
                 
-                logger.info(
-                    f"Scan cycle #{self._scan_count}: "
-                    f"{len(self._symbols)} symbols in {elapsed:.0f}ms"
-                )
+                if elapsed > 1000:
+                    logger.info(
+                        f"Scan cycle #{self._scan_count}: "
+                        f"{len(self._symbols)} symbols in {elapsed:.0f}ms"
+                    )
                 self._scan_count += 1
                 
             except Exception as e:
                 logger.error(f"Scan cycle error: {e}")
             
             # Sleep until next cycle
-            time.sleep(self._scan_interval)
+            await asyncio.sleep(self._scan_interval)
         
-        logger.info("HP Scanner worker loop stopped")
+        logger.info("HP Scanner loop stopped")
     
-    def _run_scan_cycle(self):
-        """Execute one scan cycle."""
+    async def _run_scan_cycle_async(self):
+        """Execute one scan cycle asynchronously."""
         from workers.indicator_worker import (
             get_indicator_worker, ComputeTask
         )
@@ -173,11 +169,16 @@ class HPScannerService:
         if not tasks:
             return
         
-        # Compute in parallel using multiprocessing
-        results = worker.compute_batch(tasks)
+        # Compute in parallel using multiprocessing (offloaded to thread pool to avoid blocking event loop)
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(None, worker.compute_batch, tasks)
         
-        # Write results to cache
+        # Write results to cache in batch
         cache = get_cache()
+        
+        snapshot_mapping = {}
+        indicator_mapping = {}
+        
         all_snapshots = []
         momentum_data = []
         breakout_data = []
@@ -191,19 +192,9 @@ class HPScannerService:
             snapshot = result.snapshot
             symbol = result.symbol
             
-            # Cache individual snapshot
-            cache.set(
-                CacheKeys.snapshot(symbol),
-                snapshot,
-                TTLPolicy.SNAPSHOT
-            )
-            
-            # Cache indicators
-            cache.set(
-                CacheKeys.indicator(symbol, "1d"),
-                result.indicators,
-                TTLPolicy.INDICATOR
-            )
+            # Batch individual outputs
+            snapshot_mapping[CacheKeys.snapshot(symbol)] = snapshot
+            indicator_mapping[CacheKeys.indicator(symbol, "1d")] = result.indicators
             
             # Collect for aggregated caches
             all_snapshots.append(snapshot)
@@ -212,18 +203,12 @@ class HPScannerService:
             change_pct = snapshot.get('change_pct', 0)
             signals = snapshot.get('signals', [])
             
-            # Momentum
             momentum_data.append(snapshot)
-            
-            # Breakout (>2% move)
             if abs(change_pct) > 2.0:
                 breakout_data.append(snapshot)
-            
-            # Reversal (RSI extremes)
             if 'RSI_OVERSOLD' in signals or 'RSI_OVERBOUGHT' in signals:
                 reversal_data.append(snapshot)
             
-            # Active signals
             if signals:
                 all_signals.append({
                     'symbol': symbol,
@@ -232,23 +217,30 @@ class HPScannerService:
                     'updated_at': snapshot.get('updated_at')
                 })
         
-        # Sort by change_pct for momentum
+        # Batch cache writes
+        if snapshot_mapping:
+            await cache.mset_async(snapshot_mapping, TTLPolicy.SNAPSHOT)
+        if indicator_mapping:
+            await cache.mset_async(indicator_mapping, TTLPolicy.INDICATOR)
+        
+        # Sort data
         momentum_data.sort(key=lambda x: abs(x.get('change_pct', 0)), reverse=True)
         breakout_data.sort(key=lambda x: abs(x.get('change_pct', 0)), reverse=True)
         
-        # Cache aggregated results
-        cache.set(CacheKeys.all_snapshots(), all_snapshots, TTLPolicy.SCANNER)
-        cache.set(CacheKeys.momentum(), momentum_data, TTLPolicy.SCANNER)
-        cache.set(CacheKeys.breakout(), breakout_data, TTLPolicy.SCANNER)
-        cache.set(CacheKeys.reversal(), reversal_data, TTLPolicy.SCANNER)
-        cache.set(CacheKeys.signals(), all_signals, TTLPolicy.SCANNER)
+        # Aggregated cache writes (standard mset)
+        agg_mapping = {
+            CacheKeys.all_snapshots(): all_snapshots,
+            CacheKeys.momentum(): momentum_data,
+            CacheKeys.breakout(): breakout_data,
+            CacheKeys.reversal(): reversal_data,
+            CacheKeys.signals(): all_signals
+        }
+        await cache.mset_async(agg_mapping, TTLPolicy.SCANNER)
         
-        self._scan_count += 1
         self._last_scan_time = datetime.now()
     
     def get_status(self) -> Dict[str, Any]:
         """Get service status."""
-        from services.memcached_client import cache_stats
         
         return {
             'is_running': self._is_running,

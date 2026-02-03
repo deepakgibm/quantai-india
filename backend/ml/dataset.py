@@ -3,8 +3,7 @@ import numpy as np
 import pandas as pd
 import logging
 from torch.utils.data import Dataset, DataLoader
-from typing import List, Tuple, Dict
-from backend.services.feature_store import get_feature_store
+from typing import List
 from backend.ml.metadata_utils import SymbolMapper, TIMEFRAME_TO_IDX
 
 class QuantAIDataset(Dataset):

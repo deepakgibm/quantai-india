@@ -37,6 +37,7 @@ class SymbolManager:
         self._Session = sessionmaker(bind=self._engine)
         self._symbol_cache = []
         self._name_cache = {}
+        self._sector_cache = {} # symbol -> sector
         self._last_refresh = None
         self.initialized = True
         
@@ -63,6 +64,7 @@ class SymbolManager:
                 if results:
                     self._symbol_cache = [r.symbol for r in results]
                     self._name_cache = {r.symbol: r.company_name or r.symbol for r in results}
+                    self._sector_cache = {r.symbol: r.sector or 'Others' for r in results}
                     self._last_refresh = datetime.now()
                     logger.info(f"Loaded {len(results)} symbols from instrument_master")
                     return
@@ -76,14 +78,14 @@ class SymbolManager:
                 self._symbol_cache = [s[0] for s in symbols]
                 # No names in V2 table, default to symbol
                 self._name_cache = {s: s for s in self._symbol_cache} 
+                self._sector_cache = {}
                 self._last_refresh = datetime.now()
                 logger.info(f"Loaded {len(symbols)} symbols from Nifty100Daily")
             except Exception as e:
                 logger.error(f"Fallback symbol fetch failed: {e}")
-                # Emergency Fallback if DB is down (should technically return empty list to avoid mocks)
-                # But returning empty list allows services to handle "No Data" gracefully
                 self._symbol_cache = []
                 self._name_cache = {}
+                self._sector_cache = {}
                 
         except Exception as e:
             logger.error(f"Symbol refresh failed: {e}")
@@ -99,6 +101,16 @@ class SymbolManager:
         """Get company name for a symbol."""
         self._refresh_cache_if_needed()
         return self._name_cache.get(symbol, symbol)
+        
+    def get_stock_sector(self, symbol: str) -> str:
+        """Get sector for a symbol."""
+        self._refresh_cache_if_needed()
+        return self._sector_cache.get(symbol, 'Others')
+
+    def get_sector_map(self) -> dict:
+        """Get full symbol -> sector map."""
+        self._refresh_cache_if_needed()
+        return self._sector_cache.copy()
 
 # Global Instance
 _symbol_manager = SymbolManager()
@@ -114,3 +126,7 @@ def get_nifty_symbols() -> List[str]:
 def get_company_name(symbol: str) -> str:
     """Public API to get company name."""
     return _symbol_manager.get_stock_name(symbol)
+
+def get_stock_sector(symbol: str) -> str:
+    """Public API to get stock sector."""
+    return _symbol_manager.get_stock_sector(symbol)

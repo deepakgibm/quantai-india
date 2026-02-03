@@ -116,6 +116,7 @@ class GapScanner:
             "strength": int(round(score)),
             "current_price": float(round(current_price, 2)),
             "volume_ratio": float(round(vol_ratio, 2)),
+            "atr": float(round(df['high'].iloc[-5:].max() - df['low'].iloc[-5:].min(), 2)), # Local ATR approx
             "entry_price": float(entry),
             "target_price": float(target),
             "stop_loss": float(stop),

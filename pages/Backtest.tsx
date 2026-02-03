@@ -264,7 +264,7 @@ const Backtest: React.FC = () => {
         try {
             const token = localStorage.getItem('access_token');
             // Use the new V2 Feature-Based Backtest Engine
-            const response = await fetch(`${API_URL}/api/quant/backtest/v2/run`, {
+            const response = await fetch(`${API_URL}/api/v1/backtest/run`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({

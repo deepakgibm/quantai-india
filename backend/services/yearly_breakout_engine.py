@@ -180,9 +180,14 @@ class YearlyBreakoutEngine:
             logger.error(f"Error processing {symbol}: {e}")
             return None
 
-    async def run_scanner(self):
-        """Run breakout detection for all Nifty 500 stocks."""
-        logger.info("Starting Yearly Breakout Scanner...")
+    async def run_scanner(self, timeout: float = 30.0):
+        """
+        Run breakout detection for all Nifty 500 stocks.
+        Supports execution budget and partial results.
+        """
+        import time
+        t_start = time.time()
+        logger.info(f"Starting Yearly Breakout Scanner with {timeout}s budget...")
         
         # Clear existing cache to ensure we don't serve stale data if the scan takes a while
         cache = get_cache_manager()
@@ -197,6 +202,11 @@ class YearlyBreakoutEngine:
         # Process in batches to respect rate limits
         batch_size = 10
         for i in range(0, len(symbols), batch_size):
+            # Check remaining budget
+            if time.time() - t_start > timeout - 1.0: # 1s buffer
+                logger.warning(f"YearlyBreakoutEngine: Timeout reached. Returning partial results ({len(results)} signals).")
+                break
+                
             batch = symbols[i:i + batch_size]
             tasks = [self.process_stock(s) for s in batch]
             batch_results = await asyncio.gather(*tasks)

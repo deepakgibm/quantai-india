@@ -33,9 +33,6 @@ services:
     env_file:
       - ./backend/.env
     environment:
-
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
-      - SYNC_DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
       - DRAGONFLY_HOST=dragonfly
       - DRAGONFLY_PORT=6379
       - UPSTOX_API_KEY=${UPSTOX_API_KEY:-}
@@ -45,6 +42,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-QuantAI_Dev_SecretKey_2025_Secure_RandomToken_AbCdEfGhIjKlMnOpQrStUvWxYz123456789}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-supersecretkey}
+      - DATABASE_URL=postgresql+asyncpg://postgres:admin@host.docker.internal:5432/quantai
 
     volumes:
       - ./backend:/app
@@ -56,7 +54,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health/" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -73,10 +71,9 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
-      - SYNC_DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@host.docker.internal:5432/${POSTGRES_DB:-quantai}
       - DRAGONFLY_HOST=dragonfly
       - DRAGONFLY_PORT=6379
+      - DATABASE_URL=postgresql+asyncpg://postgres:admin@host.docker.internal:5432/quantai
     depends_on:
       dragonfly:
         condition: service_healthy
@@ -143,15 +140,6 @@ services:
       - "3001:3000"
     depends_on:
       - prometheus
-    restart: unless-stopped
-
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter
-    container_name: quantai-postgres-exporter
-    environment:
-      - DATA_SOURCE_NAME=postgresql://postgres:admin@host.docker.internal:5432/quantai?sslmode=disable
-    ports:
-      - "9187:9187"
     restart: unless-stopped
 
   redis-exporter:

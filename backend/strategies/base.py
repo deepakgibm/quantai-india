@@ -50,7 +50,9 @@ class ScanResult:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to API response format."""
-        return {
+        from utils.json_utils import sanitize_for_json
+        
+        data = {
             "symbol": self.symbol,
             "index": self.index,
             "timeframe": self.timeframe,
@@ -65,6 +67,7 @@ class ScanResult:
             "volume_ratio": round(self.volume_ratio, 2),
             "timestamp": self.timestamp.isoformat()
         }
+        return sanitize_for_json(data)
 
 
 class BaseStrategy(ABC):
@@ -85,7 +88,15 @@ class BaseStrategy(ABC):
         if df is None or len(df) < self.min_bars_required:
             return False
         required_cols = ['open', 'high', 'low', 'close', 'volume']
-        return all(col in df.columns for col in required_cols)
+        
+        if not all(col in df.columns for col in required_cols):
+            return False
+            
+        # Critical: extensive NaN check in recent data
+        if df['close'].iloc[-self.min_bars_required:].isnull().any():
+            return False
+            
+        return True
     
     def get_trend(self, df: pd.DataFrame, period: int = 20) -> str:
         """Determine trend direction using SMA."""

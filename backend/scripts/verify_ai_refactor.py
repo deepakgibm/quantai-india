@@ -14,7 +14,6 @@ genai.GenerativeModel = MagicMock()
 genai.list_models = MagicMock(return_value=[MagicMock(name="models/gemini-1.5-flash", supported_generation_methods=["generateContent"])])
 
 from services.ai_service import get_ai_service
-from schemas import AIPromptRequest
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

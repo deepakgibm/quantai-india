@@ -14,6 +14,7 @@ import {
     Zap
 } from 'lucide-react';
 import { getAuthHeaders, API_URL } from '../services/api';
+import { MLTrainingHelpGuide } from '../components/HelpGuide';
 
 interface TrainingStatus {
     is_running: boolean;
@@ -108,7 +109,10 @@ const MLTrainingControl: React.FC = () => {
                         <Cpu size={24} className="text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">AI Training Control</h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">AI Training Control</h1>
+                            <MLTrainingHelpGuide />
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                             <div className={`w-2 h-2 rounded-full ${status?.is_running ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
                             <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">

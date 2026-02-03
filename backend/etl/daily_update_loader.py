@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 # Add project root to sys.path
-project_root = Path(__file__).resolve().parent.parent.parent
+project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
@@ -21,11 +21,11 @@ backend_dir = Path(__file__).resolve().parent
 if str(backend_dir) in sys.path:
     sys.path.remove(str(backend_dir))
 
-from backend.database import AsyncSessionLocal
-from backend.models_ml import Nifty100Daily
-from backend.models_alpha import ETLLog
-from backend.services.upstox_client import get_upstox_client
-from backend.config import settings
+from database import AsyncSessionLocal
+from models_ml import Nifty100Daily
+from models_alpha import ETLLog
+from services.upstox_client import get_upstox_client
+from config import settings
 
 class Nifty100DailyUpdater:
     def __init__(self):

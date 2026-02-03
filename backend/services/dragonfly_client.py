@@ -3,22 +3,32 @@ Dragonfly/Redis Cache Client - High-Performance Cache Layer (PRODUCTION MODE)
 PRODUCTION MANDATE: No in-memory fallbacks. Fail-fast if cache unavailable.
 
 Dragonfly is Redis-compatible but 25x faster with 4x memory efficiency.
+Supports both Sync and Async modes for high-performance FastAPI and Background Workers.
 """
 
 import json
 import logging
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict
 import os
-
-try:
-    import redis
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
-    redis = None
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# Redis Import Handling (Sync and Async)
+# =============================================================================
+try:
+    import redis as redis_sync
+    REDIS_SYNC_AVAILABLE = True
+except ImportError:
+    redis_sync = None
+    REDIS_SYNC_AVAILABLE = False
+
+try:
+    import redis.asyncio as redis_async
+    REDIS_ASYNC_AVAILABLE = True
+except (ImportError, AttributeError):
+    redis_async = None
+    REDIS_ASYNC_AVAILABLE = False
 
 # =============================================================================
 # Configuration
@@ -27,134 +37,71 @@ DRAGONFLY_HOST = os.getenv("DRAGONFLY_HOST", "localhost")
 DRAGONFLY_PORT = int(os.getenv("DRAGONFLY_PORT", "6379"))
 DRAGONFLY_DB = int(os.getenv("DRAGONFLY_DB", "0"))
 
+# DEV_MODE: Enable in-memory fallback when Redis/Dragonfly is unavailable
+DEV_MODE = os.getenv("DEV_MODE", "false").lower() == "true"
 
-# =============================================================================
-# TTL Policies (in seconds)
-# =============================================================================
+# In-memory cache for DEV_MODE fallback
+_in_memory_cache: Dict[str, Any] = {}
+
 class TTLPolicy:
     """TTL policies for different data types."""
-    CANDLE = 60          # Latest candle - 1 minute
-    INDICATOR = 5        # Computed indicators - 5 seconds (refresh frequently)
-    SCANNER = 5          # Scanner results - 5 seconds
-    SNAPSHOT = 5         # Symbol snapshots - 5 seconds
-    WARMUP = 300         # Warm-up status - 5 minutes
-    STRATEGY = 10        # Strategy signals - 10 seconds
-    METADATA = 3600      # Static metadata - 1 hour
-    
-    # NIFTY 100 Top Movers
-    TOP_MOVERS_LIVE = 10     # During market hours: 10 seconds
-    TOP_MOVERS_EOD = 18000   # After market: 5 hours (until next session)
+    CANDLE = 60
+    INDICATOR = 5
+    SCANNER = 5
+    SNAPSHOT = 5
+    WARMUP = 300
+    STRATEGY = 10
+    METADATA = 3600
+    TOP_MOVERS_LIVE = 10
+    TOP_MOVERS_EOD = 18000
 
 
-# =============================================================================
-# Custom Exceptions
-# =============================================================================
 class CacheUnavailableError(Exception):
     """Raised when DragonflyDB/Redis is not available."""
     pass
 
 
-# =============================================================================
-# Cache Key Builder
-# =============================================================================
 class CacheKeys:
-    """
-    Standardized cache key generation.
-    All keys are prefixed with 'qai:' for namespace isolation.
-    """
+    """Standardized cache key generation."""
     PREFIX = "qai"
     
     @staticmethod
-    def candle(symbol: str, interval: str) -> str:
-        """Latest candle for symbol + interval."""
-        return f"{CacheKeys.PREFIX}:candle:{symbol}:{interval}"
-    
+    def candle(symbol: str, interval: str) -> str: return f"{CacheKeys.PREFIX}:candle:{symbol}:{interval}"
     @staticmethod
-    def indicator(symbol: str, interval: str) -> str:
-        """All indicators for symbol + interval."""
-        return f"{CacheKeys.PREFIX}:ind:{symbol}:{interval}"
-    
+    def indicator(symbol: str, interval: str) -> str: return f"{CacheKeys.PREFIX}:ind:{symbol}:{interval}"
     @staticmethod
-    def scanner(scanner_type: str) -> str:
-        """Scanner results by type."""
-        return f"{CacheKeys.PREFIX}:scan:{scanner_type}"
-    
+    def scanner(scanner_type: str) -> str: return f"{CacheKeys.PREFIX}:scan:{scanner_type}"
     @staticmethod
-    def snapshot(symbol: str) -> str:
-        """Symbol snapshot with all data."""
-        return f"{CacheKeys.PREFIX}:snap:{symbol}"
-    
+    def snapshot(symbol: str) -> str: return f"{CacheKeys.PREFIX}:snap:{symbol}"
     @staticmethod
-    def sector_snapshot(sector: str) -> str:
-        """Sector snapshot with aggregated data."""
-        return f"{CacheKeys.PREFIX}:sector:{sector}"
-    
+    def sector_snapshot(sector: str) -> str: return f"{CacheKeys.PREFIX}:sector:{sector}"
     @staticmethod
-    def all_snapshots() -> str:
-        """All symbol snapshots combined."""
-        return f"{CacheKeys.PREFIX}:snap:all"
-    
+    def all_snapshots() -> str: return f"{CacheKeys.PREFIX}:snap:all"
     @staticmethod
-    def heatmap_all() -> str:
-        """Full heatmap data (all sectors)."""
-        return f"{CacheKeys.PREFIX}:heatmap:all"
-
+    def heatmap_all() -> str: return f"{CacheKeys.PREFIX}:heatmap:all"
     @staticmethod
-    def momentum() -> str:
-        """Momentum scanner results."""
-        return f"{CacheKeys.PREFIX}:scan:momentum"
-    
+    def momentum() -> str: return f"{CacheKeys.PREFIX}:scan:momentum"
     @staticmethod
-    def breakout() -> str:
-        """Breakout scanner results."""
-        return f"{CacheKeys.PREFIX}:scan:breakout"
-    
+    def breakout() -> str: return f"{CacheKeys.PREFIX}:scan:breakout"
     @staticmethod
-    def reversal() -> str:
-        """Reversal scanner results."""
-        return f"{CacheKeys.PREFIX}:scan:reversal"
-    
+    def reversal() -> str: return f"{CacheKeys.PREFIX}:scan:reversal"
     @staticmethod
-    def signals() -> str:
-        """Active strategy signals."""
-        return f"{CacheKeys.PREFIX}:signals:active"
-    
+    def signals() -> str: return f"{CacheKeys.PREFIX}:signals:active"
     @staticmethod
-    def warmup_status() -> str:
-        """Cache warm-up status."""
-        return f"{CacheKeys.PREFIX}:warmup:status"
-    
+    def warmup_status() -> str: return f"{CacheKeys.PREFIX}:warmup:status"
     @staticmethod
-    def metrics() -> str:
-        """Cache metrics (hits, misses)."""
-        return f"{CacheKeys.PREFIX}:metrics"
-    
+    def metrics() -> str: return f"{CacheKeys.PREFIX}:metrics"
     @staticmethod
-    def nifty100_top_movers(trading_date: str) -> str:
-        """NIFTY 100 Top Gainers/Losers by trading date."""
-        return f"nifty100:top_gainers_losers:{trading_date}"
-    
+    def nifty100_top_movers(trading_date: str) -> str: return f"nifty100:top_gainers_losers:{trading_date}"
     @staticmethod
-    def worker_status() -> str:
-        """Worker process status."""
-        return f"{CacheKeys.PREFIX}:worker:status"
+    def worker_status() -> str: return f"{CacheKeys.PREFIX}:worker:status"
 
 
-# =============================================================================
-# Cache Manager (Dragonfly/Redis) - PRODUCTION MODE
-# =============================================================================
 class CacheManager:
     """
-    High-performance cache manager using Dragonfly (Redis-compatible).
-    PRODUCTION MANDATE: No in-memory fallbacks. Fail-fast if unavailable.
-    
-    Features:
-    - Connection pooling
-    - Automatic JSON serialization
-    - TTL management
-    - Hit/miss tracking
+    High-performance cache manager supporting both Sync and Async Redis clients.
+    Falls back to sync-only mode if redis.asyncio is unavailable.
     """
-    
     _instance = None
     
     def __new__(cls):
@@ -167,346 +114,219 @@ class CacheManager:
         if self._initialized:
             return
         
-        self._client: Optional[redis.Redis] = None
+        self._async_client = None
+        self._sync_client = None
+        self._sync_pool = None
+        
         self._hits = 0
         self._misses = 0
-        self._is_connected = False
+        self._is_connected_sync = False
+        self._is_connected_async = False
         
-        # Try to connect to Dragonfly/Redis
-        self._connect()
         self._initialized = True
-    
-    def _connect(self):
-        """Connect to Dragonfly/Redis server. Log critical error if unavailable."""
-        if not REDIS_AVAILABLE:
-            logger.critical("FATAL: redis-py not installed. DragonflyDB cache layer unavailable.")
-            self._is_connected = False
+        logger.info(f"CacheManager: Initialized (Sync={REDIS_SYNC_AVAILABLE}, Async={REDIS_ASYNC_AVAILABLE})")
+
+    # --- SYNC METHODS (For Threads/ETL and Fallback) ---
+
+    def _ensure_sync_connected(self):
+        if not REDIS_SYNC_AVAILABLE:
+            if DEV_MODE:
+                logger.warning("DEV_MODE: Using in-memory cache fallback (redis-py not installed)")
+                return  # Allow fallback
+            raise CacheUnavailableError("redis-py not installed")
+            
+        if self._is_connected_sync and self._sync_client:
             return
-        
+            
         try:
-            # Create connection pool
-            pool = redis.ConnectionPool(
-                host=DRAGONFLY_HOST,
-                port=DRAGONFLY_PORT,
-                db=DRAGONFLY_DB,
-                decode_responses=True,
-                socket_timeout=1.0,
-                socket_connect_timeout=1.0,
-                max_connections=20,
-            )
-            
-            self._client = redis.Redis(connection_pool=pool)
-            
-            # Test connection
-            self._client.ping()
-            self._is_connected = True
-            logger.info(f"Connected to Dragonfly/Redis at {DRAGONFLY_HOST}:{DRAGONFLY_PORT}")
-                
+            if not self._sync_pool:
+                self._sync_pool = redis_sync.ConnectionPool(
+                    host=DRAGONFLY_HOST, port=DRAGONFLY_PORT, db=DRAGONFLY_DB,
+                    decode_responses=True, socket_timeout=0.5, max_connections=20
+                )
+            self._sync_client = redis_sync.Redis(connection_pool=self._sync_pool)
+            self._sync_client.ping()
+            self._is_connected_sync = True
+            logger.info(f"Connected to Redis/Dragonfly (Sync) at {DRAGONFLY_HOST}:{DRAGONFLY_PORT}")
         except Exception as e:
-            logger.critical(f"DragonflyDB/Redis connection failed: {e}")
-            self._client = None
-            self._is_connected = False
-    
-    def _ensure_connected(self):
-        """Ensure cache is connected. Raises CacheUnavailableError if not."""
-        if not self._is_connected or not self._client:
-            raise CacheUnavailableError("DragonflyDB/Redis is not available")
-    
-    def _serialize(self, value: Any) -> str:
-        """Serialize value to JSON string."""
-        return json.dumps(value)
-    
-    def _deserialize(self, value: str) -> Any:
-        """Deserialize JSON string to value."""
-        if value is None:
+            logger.error(f"Sync Cache connection failed: {e}")
+            self._is_connected_sync = False
+            if DEV_MODE:
+                logger.warning("DEV_MODE: Using in-memory cache fallback")
+                return  # Allow fallback
+            raise CacheUnavailableError(str(e))
+
+    def get(self, key: str) -> Optional[Any]:
+        """Synchronous cache get."""
+        self._ensure_sync_connected()
+        # DEV_MODE: Use in-memory fallback if Redis not connected
+        if DEV_MODE and not self._is_connected_sync:
+            val = _in_memory_cache.get(key)
+            if val is not None:
+                self._hits += 1
+                return val
+            self._misses += 1
             return None
         try:
-            return json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            return value
-    
-    def get(self, key: str) -> Optional[Any]:
-        """Get value from cache. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
-        import time
-        start = time.perf_counter()
-        try:
-            value = self._client.get(key)
-            duration = time.perf_counter() - start
-            
-            # Record metrics
-            try:
-                from core.observability.metrics import get_metrics
-                metrics = get_metrics()
-                if value is not None:
-                    self._hits += 1
-                    metrics.record_cache_operation("get", "hit", duration)
-                else:
-                    self._misses += 1
-                    metrics.record_cache_operation("get", "miss", duration)
-            except ImportError:
-                if value is not None:
-                    self._hits += 1
-                else:
-                    self._misses += 1
-                    
-            return self._deserialize(value)
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
-        except Exception as e:
-            duration = time.perf_counter() - start
-            logger.error(f"Cache get error: {e}")
-            # Record error metric
-            try:
-                from core.observability.metrics import get_metrics
-                get_metrics().record_cache_operation("get", "error", duration)
-            except ImportError:
-                pass
+            val = self._sync_client.get(key)
+            if val is not None:
+                self._hits += 1
+                return self._deserialize(val)
             self._misses += 1
-            raise
-    
+            return None
+        except Exception as e:
+            logger.error(f"Sync cache get error: {e}")
+            return None
+
     def set(self, key: str, value: Any, ttl: int = TTLPolicy.INDICATOR) -> bool:
-        """Set value in cache with TTL. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
-        import time
-        start = time.perf_counter()
-        try:
-            self._client.setex(key, ttl, self._serialize(value))
-            duration = time.perf_counter() - start
-            
-            # Record metrics
-            try:
-                from core.observability.metrics import get_metrics
-                get_metrics().record_cache_operation("set", "success", duration)
-            except ImportError:
-                pass
-                
+        """Synchronous cache set."""
+        self._ensure_sync_connected()
+        # DEV_MODE: Use in-memory fallback if Redis not connected
+        if DEV_MODE and not self._is_connected_sync:
+            _in_memory_cache[key] = value
             return True
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
-        except Exception as e:
-            duration = time.perf_counter() - start
-            logger.error(f"Cache set error: {e}")
-            # Record error metric
-            try:
-                from core.observability.metrics import get_metrics
-                get_metrics().record_cache_operation("set", "error", duration)
-            except ImportError:
-                pass
-            raise
-    
-    def delete(self, key: str) -> bool:
-        """Delete key from cache. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
         try:
-            self._client.delete(key)
+            self._sync_client.setex(key, ttl, self._serialize(value))
             return True
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
         except Exception as e:
-            logger.error(f"Cache delete error: {e}")
-            raise
-    
-    def get_multi(self, keys: List[str]) -> Dict[str, Any]:
-        """Get multiple values from cache. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
+            logger.error(f"Sync cache set error: {e}")
+            return False
+
+    def mset(self, mapping: Dict[str, Any], ttl: int = TTLPolicy.INDICATOR) -> bool:
+        """Synchronous pipelined batch set with TTL."""
+        self._ensure_sync_connected()
         try:
-            values = self._client.mget(keys)
-            result = {}
-            for key, value in zip(keys, values):
-                if value is not None:
-                    result[key] = self._deserialize(value)
-                    self._hits += 1
-                else:
-                    self._misses += 1
-            return result
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
-        except Exception as e:
-            logger.error(f"Cache get_multi error: {e}")
-            raise
-    
-    def set_multi(self, items: Dict[str, Any], ttl: int = TTLPolicy.INDICATOR) -> bool:
-        """Set multiple values in cache. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
-        try:
-            pipe = self._client.pipeline()
-            for key, value in items.items():
+            pipe = self._sync_client.pipeline()
+            for key, value in mapping.items():
                 pipe.setex(key, ttl, self._serialize(value))
             pipe.execute()
             return True
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
         except Exception as e:
-            logger.error(f"Cache set_multi error: {e}")
-            raise
-    
-    # ==========================================================================
-    # Redis-specific features (sorted sets for rankings)
-    # ==========================================================================
-    
-    def zadd_momentum(self, symbol: str, change_pct: float) -> bool:
-        """Add symbol to momentum sorted set. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
+            logger.error(f"Sync mset error: {e}")
+            return False
+
+    # --- ASYNC METHODS (For FastAPI) ---
+
+    async def _ensure_async_connected(self):
+        if not REDIS_ASYNC_AVAILABLE:
+            # Fall back to sync client wrapped in thread executor
+            self._ensure_sync_connected()
+            return
+            
+        if self._is_connected_async and self._async_client:
+            return
+            
         try:
-            self._client.zadd(f"{CacheKeys.PREFIX}:zset:momentum", {symbol: change_pct})
-            return True
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
-        except Exception as e:
-            logger.error(f"ZADD error: {e}")
-            raise
-    
-    def get_top_gainers(self, limit: int = 20) -> List[tuple]:
-        """Get top gainers from sorted set. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
-        try:
-            return self._client.zrevrange(
-                f"{CacheKeys.PREFIX}:zset:momentum", 
-                0, limit - 1, 
-                withscores=True
+            self._async_client = redis_async.Redis(
+                host=DRAGONFLY_HOST, port=DRAGONFLY_PORT, db=DRAGONFLY_DB,
+                decode_responses=True, socket_timeout=1.0
             )
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
+            await self._async_client.ping()
+            self._is_connected_async = True
+            logger.info(f"Connected to Redis/Dragonfly (Async) at {DRAGONFLY_HOST}:{DRAGONFLY_PORT}")
         except Exception as e:
-            logger.error(f"ZREVRANGE error: {e}")
-            raise
-    
-    def get_top_losers(self, limit: int = 20) -> List[tuple]:
-        """Get top losers from sorted set. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
+            logger.error(f"Async Cache connection failed: {e}")
+            self._is_connected_async = False
+            if DEV_MODE:
+                logger.warning("DEV_MODE: Using in-memory cache fallback (async)")
+                return  # Allow fallback
+            raise CacheUnavailableError(str(e))
+
+    async def get_async(self, key: str) -> Optional[Any]:
+        """Async cache get - falls back to sync if async unavailable."""
+        if not REDIS_ASYNC_AVAILABLE:
+            # Use sync fallback
+            return self.get(key)
+            
+        await self._ensure_async_connected()
+        # DEV_MODE: Use in-memory fallback if Redis not connected
+        if DEV_MODE and not self._is_connected_async:
+            val = _in_memory_cache.get(key)
+            if val is not None:
+                self._hits += 1
+                return val
+            self._misses += 1
+            return None
         try:
-            return self._client.zrange(
-                f"{CacheKeys.PREFIX}:zset:momentum", 
-                0, limit - 1, 
-                withscores=True
-            )
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
+            val = await self._async_client.get(key)
+            if val is not None:
+                self._hits += 1
+                return self._deserialize(val)
+            self._misses += 1
+            return None
         except Exception as e:
-            logger.error(f"ZRANGE error: {e}")
-            raise
-    
-    def publish(self, channel: str, message: Any) -> bool:
-        """Publish message to channel. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
-        try:
-            self._client.publish(channel, self._serialize(message))
+            logger.error(f"Async cache get error: {e}")
+            return None
+
+    async def set_async(self, key: str, value: Any, ttl: int = TTLPolicy.INDICATOR) -> bool:
+        """Async cache set - falls back to sync if async unavailable."""
+        if not REDIS_ASYNC_AVAILABLE:
+            return self.set(key, value, ttl)
+            
+        await self._ensure_async_connected()
+        # DEV_MODE: Use in-memory fallback if Redis not connected
+        if DEV_MODE and not self._is_connected_async:
+            _in_memory_cache[key] = value
             return True
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
+        try:
+            await self._async_client.setex(key, ttl, self._serialize(value))
+            return True
         except Exception as e:
-            logger.error(f"PUBLISH error: {e}")
-            raise
+            logger.error(f"Async cache set error: {e}")
+            return False
+
+    async def mset_async(self, mapping: Dict[str, Any], ttl: int = TTLPolicy.INDICATOR) -> bool:
+        """Async pipelined batch set with TTL."""
+        if not REDIS_ASYNC_AVAILABLE:
+            return self.mset(mapping, ttl)
+            
+        await self._ensure_async_connected()
+        try:
+            async with self._async_client.pipeline(transaction=False) as pipe:
+                for key, value in mapping.items():
+                    pipe.setex(key, ttl, self._serialize(value))
+                await pipe.execute()
+            return True
+        except Exception as e:
+            logger.error(f"Async mset error: {e}")
+            return False
+
+    # --- SHARED UTILS ---
+
+    def _serialize(self, value: Any) -> str: return json.dumps(value)
     
+    def _deserialize(self, value: str) -> Any:
+        if value is None: return None
+        try: return json.loads(value)
+        except: return value
+
+    def is_available(self) -> bool:
+        return self._is_connected_sync or self._is_connected_async
+
     def get_stats(self) -> Dict[str, Any]:
-        """Get cache statistics."""
         total = self._hits + self._misses
-        hit_rate = (self._hits / total * 100) if total > 0 else 0
-        
         return {
-            "backend": "dragonfly" if self._is_connected else "unavailable",
-            "is_connected": self._is_connected,
+            "is_connected_sync": self._is_connected_sync,
+            "is_connected_async": self._is_connected_async,
             "hits": self._hits,
             "misses": self._misses,
-            "hit_rate": round(hit_rate, 2),
+            "hit_rate": round((self._hits / total * 100) if total > 0 else 0, 2),
         }
-    
-    def reset_stats(self):
-        """Reset hit/miss counters."""
-        self._hits = 0
-        self._misses = 0
-    
-    def flush(self):
-        """Flush all cache data. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
-        try:
-            # Only flush our namespace
-            keys = self._client.keys(f"{CacheKeys.PREFIX}:*")
-            if keys:
-                self._client.delete(*keys)
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
-        except Exception as e:
-            logger.error(f"Cache flush error: {e}")
-            raise
-    
-    def info(self) -> Dict[str, Any]:
-        """Get Dragonfly/Redis server info. Raises CacheUnavailableError if not connected."""
-        self._ensure_connected()
-        try:
-            info = self._client.info()
-            return {
-                "server": info.get("redis_version", "unknown"),
-                "used_memory_human": info.get("used_memory_human", "N/A"),
-                "connected_clients": info.get("connected_clients", 0),
-                "total_commands_processed": info.get("total_commands_processed", 0),
-            }
-        except redis.ConnectionError as e:
-            logger.error(f"DragonflyDB connection error: {e}")
-            self._is_connected = False
-            raise CacheUnavailableError(f"Cache connection lost: {e}")
-        except Exception as e:
-            logger.error(f"Cache info error: {e}")
-            raise
-    
-    def is_available(self) -> bool:
-        """Check if cache is available."""
-        return self._is_connected
 
 
-# =============================================================================
 # Singleton Accessor
-# =============================================================================
-_cache_manager: Optional[CacheManager] = None
-
+_cache_manager = None
 
 def get_cache() -> CacheManager:
-    """Get the global cache manager instance."""
     global _cache_manager
     if _cache_manager is None:
         _cache_manager = CacheManager()
     return _cache_manager
 
-
-# =============================================================================
-# Convenience Functions
-# =============================================================================
-def cache_get(key: str) -> Optional[Any]:
-    """Get value from cache. Raises CacheUnavailableError if not connected."""
-    return get_cache().get(key)
-
-
-def cache_set(key: str, value: Any, ttl: int = TTLPolicy.INDICATOR) -> bool:
-    """Set value in cache. Raises CacheUnavailableError if not connected."""
-    return get_cache().set(key, value, ttl)
-
-
-def cache_delete(key: str) -> bool:
-    """Delete key from cache. Raises CacheUnavailableError if not connected."""
-    return get_cache().delete(key)
-
-
-def cache_stats() -> Dict[str, Any]:
-    """Get cache statistics."""
+def cache_stats():
     return get_cache().get_stats()
+
+# Legacy convenience function for sync cache get
+def cache_get(key: str):
+    """Sync cache get - for backward compatibility."""
+    return get_cache().get(key)

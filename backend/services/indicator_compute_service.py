@@ -102,7 +102,7 @@ class IndicatorComputer:
         Compute all indicators for a DataFrame with OHLCV columns.
         Returns DataFrame with indicator columns added.
         """
-        if df.empty or len(df) < 50:
+        if df.empty or len(df) < 30:
             return pd.DataFrame()
         
         result = df.copy()
@@ -110,45 +110,50 @@ class IndicatorComputer:
         # Momentum
         result['rsi_14'] = self.compute_rsi(df['close'], 14)
         result['roc_10'] = self.compute_roc(df['close'], 10)
-        result['roc_20'] = self.compute_roc(df['close'], 20)
         
-        macd, macd_signal, macd_hist = self.compute_macd(df['close'])
-        result['macd'] = macd
+        macd_line, macd_signal, macd_hist = self.compute_macd(df['close'])
+        result['macd'] = macd_line
         result['macd_signal'] = macd_signal
         result['macd_histogram'] = macd_hist
         
-        # Volume
-        result['mfi_14'] = self.compute_mfi(df['high'], df['low'], df['close'], df['volume'])
-        result['vwap'] = self.compute_vwap(df['high'], df['low'], df['close'], df['volume'])
-        result['volume_sma_20'] = self.compute_sma(df['volume'].astype(float), 20)
-        result['volume_ratio'] = df['volume'] / result['volume_sma_20']
-        
-        # Volatility
-        result['atr_14'] = self.compute_atr(df['high'], df['low'], df['close'])
-        bb_upper, bb_mid, bb_lower, bb_pct = self.compute_bollinger(df['close'])
-        result['bollinger_upper'] = bb_upper
-        result['bollinger_mid'] = bb_mid
-        result['bollinger_lower'] = bb_lower
-        result['bollinger_pct'] = bb_pct
-        
         # Trend
-        result['ema_9'] = self.compute_ema(df['close'], 9)
         result['ema_20'] = self.compute_ema(df['close'], 20)
         result['ema_50'] = self.compute_ema(df['close'], 50)
-        result['sma_20'] = self.compute_sma(df['close'], 20)
-        result['sma_50'] = self.compute_sma(df['close'], 50)
         
-        # Composite scores
-        result['momentum_score'] = result.apply(
-            lambda row: self.compute_momentum_score(
-                row['rsi_14'], row['roc_10'], row['macd_histogram']
-            ), axis=1
-        )
+        # Volatility
+        bb_upper, bb_mid, bb_lower, bb_pct = self.compute_bollinger(df['close'])
+        result['bb_upper'] = bb_upper
+        result['bb_lower'] = bb_lower
         
-        # Volatility score (normalized ATR as % of price)
-        result['volatility_score'] = (result['atr_14'] / df['close'] * 100).clip(0, 100)
+        # Volume
+        result['vwap'] = self.compute_vwap(df['high'], df['low'], df['close'], df['volume'])
         
         return result
+
+    def compute_batch_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute indicators for a multi-symbol DataFrame (grouped by symbol).
+        """
+        if df.empty: return df
+        
+        df = df.sort_values(['symbol', 'timestamp'])
+        g = df.groupby('symbol')
+        
+        # 1. Momentum (Vectorized per group)
+        df['rsi_14'] = g['close'].transform(lambda x: self.compute_rsi(x, 14))
+        df['roc_10'] = g['close'].transform(lambda x: self.compute_roc(x, 10))
+        
+        # 2. Moving Averages
+        df['ema_20'] = g['close'].transform(lambda x: self.compute_ema(x, 20))
+        df['ema_50'] = g['close'].transform(lambda x: self.compute_ema(x, 50))
+        
+        # 3. VWAP (Cumulative per symbol)
+        # Note: Proper VWAP should reset per session, but for batch OHLC it's cumulative in DF
+        df['tp'] = (df['high'] + df['low'] + df['close']) / 3
+        df['tpv'] = df['tp'] * df['volume']
+        df['vwap'] = g['tpv'].cumsum() / g['volume'].cumsum()
+        
+        return df
 
 
 class IndicatorComputeService:
@@ -315,6 +320,48 @@ class IndicatorComputeService:
         
         return self.save_indicators(symbol, interval, indicators_df)
     
+    async def compute_batch(self, symbols: List[str], interval: str = "15m", lookback_days: int = 5) -> pd.DataFrame:
+        """
+        Compute indicators for a batch of symbols.
+        Returns a single combined DataFrame.
+        """
+        from models_alpha import TimeframeMapper
+        import pandas as pd
+        from sqlalchemy import text
+        
+        tf_minutes = TimeframeMapper.to_minutes(interval)
+        cutoff = datetime.now() - timedelta(days=lookback_days)
+        
+        # 1. Bulk Fetch Data
+        query = text("""
+            SELECT im.symbol, sc.candle_ts as timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE im.symbol = ANY(:symbols) 
+              AND sc.timeframe = :tf_minutes
+              AND sc.candle_ts >= :cutoff
+            ORDER BY im.symbol, sc.candle_ts ASC
+        """)
+        
+        # Use sync engine for now as per base implementation
+        with self._engine.connect() as conn:
+            result = conn.execute(query, {
+                "symbols": symbols,
+                "tf_minutes": tf_minutes,
+                "cutoff": cutoff
+            })
+            df = pd.DataFrame(result.fetchall(), columns=['symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            
+            # Convert decimal/strings to numeric
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        if df.empty:
+            return df
+            
+        # 2. Batch Compute Indicators
+        return self._computer.compute_batch_indicators(df)
+
     def compute_all(self, interval: str = "1d", symbol_limit: int = None) -> Dict:
         """
         Compute indicators for all symbols.

@@ -41,7 +41,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (currentUser) {
                 try {
                     // CRITICAL: Always verify or refresh the backend token to prevent 401s
-                    // Get a fresh Firebase ID token
                     const idToken = await currentUser.getIdToken(true); // true = force refresh
 
                     // Sync with backend to get a fresh local JWT
@@ -53,10 +52,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         console.warn('[Auth] Sync returned no token, clearing legacy state');
                         localStorage.removeItem('access_token');
                     }
-                } catch (err) {
-                    console.error('[Auth] Critical sync failure:', err);
-                    // Clear stale token on failure to avoid infinite 401 loop
-                    localStorage.removeItem('access_token');
+                } catch (err: any) {
+                    console.error('[Auth] Sync failure:', err);
+
+                    // IMPORTANT: Only clear token if it's a definitive auth failure (401/403)
+                    // Do NOT clear on network errors (fetch failure) as the backend might just be restarting
+                    const isAuthError = err.message?.includes('401') || err.message?.includes('403') || err.message?.includes('Unauthorized');
+                    if (isAuthError) {
+                        console.warn('[Auth] Definitive auth failure, clearing token');
+                        localStorage.removeItem('access_token');
+                    } else {
+                        console.warn('[Auth] Non-auth failure (network?), retaining existing token');
+                    }
                 }
             } else {
                 localStorage.removeItem('access_token');

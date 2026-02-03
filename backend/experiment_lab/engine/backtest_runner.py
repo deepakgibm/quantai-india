@@ -91,6 +91,36 @@ class ExperimentRunner:
         Fetch OHLCV data for backtesting.
         Uses database or generates sample data for testing.
         """
+        # 1. Try Feature Store (Parquet/DuckDB) - FASTEST
+        try:
+            from services.feature_store import get_feature_store
+            store = get_feature_store()
+            
+            # Normalize timeframe (e.g. 1D -> 1d)
+            tf_norm = timeframe.lower()
+            
+            df = store.query_features(
+                symbols=[symbol], 
+                timeframes=[tf_norm],
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            if df is not None and not df.empty:
+                # Ensure timestamp format is consistent for backtesting engine
+                if 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp'])
+                    df.set_index('timestamp', inplace=True)
+                
+                # Verify required columns exist
+                required_cols = ['open', 'high', 'low', 'close', 'volume']
+                if all(col in df.columns for col in required_cols):
+                    print(f"✅ Loaded {len(df)} rows from Feature Store (Parquet)")
+                    return df
+        except Exception as e:
+            print(f"Feature Store fetch failed: {e}")
+
+        # 2. Try DB Fetcher (Postgres) - FALLBACK
         if self.db_fetcher:
             try:
                 df = self.db_fetcher.get_historical_data(
@@ -104,7 +134,7 @@ class ExperimentRunner:
             except Exception as e:
                 print(f"DB fetch failed: {e}")
         
-        # Try to fetch from existing services
+        # 3. Try Service Fetcher (Postgres) - FALLBACK
         try:
             from services.db_data_fetcher import DBDataFetcher
             fetcher = DBDataFetcher()
@@ -114,7 +144,7 @@ class ExperimentRunner:
         except Exception as e:
             print(f"Service fetch failed: {e}")
         
-        # Generate sample data for testing if no data available
+        # 4. Generate sample data if no data available
         return self._generate_sample_data(symbol, start_date, end_date, timeframe)
     
     def _generate_sample_data(

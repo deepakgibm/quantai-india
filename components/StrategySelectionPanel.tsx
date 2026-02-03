@@ -92,23 +92,24 @@ const StrategySelectionPanel: React.FC<StrategySelectionPanelProps> = ({
                 const data = await response.json();
 
                 // Transform to tier groups
+                // Transform to tier groups
                 const groups: TierGroup[] = [
                     {
                         name: data.tier_1?.name || 'Tier 1: Mean Reversion & Classic Breakouts',
                         tier_id: 'tier_1',
-                        categories: data.tier_1?.categories || [],
+                        categories: Array.isArray(data.tier_1?.categories) ? data.tier_1.categories : [],
                         expanded: true
                     },
                     {
                         name: data.tier_2?.name || 'Tier 2: Momentum & Trend Confirmation',
                         tier_id: 'tier_2',
-                        categories: data.tier_2?.categories || [],
+                        categories: Array.isArray(data.tier_2?.categories) ? data.tier_2.categories : [],
                         expanded: true
                     },
                     {
                         name: data.tier_3?.name || 'Tier 3: Advanced & Structural',
                         tier_id: 'tier_3',
-                        categories: data.tier_3?.categories || [],
+                        categories: Array.isArray(data.tier_3?.categories) ? data.tier_3.categories : [],
                         expanded: false
                     }
                 ];

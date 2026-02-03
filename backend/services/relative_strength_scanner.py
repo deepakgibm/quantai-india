@@ -4,11 +4,11 @@ Finds stocks outperforming the market/sector.
 """
 
 import pandas as pd
-from typing import List, Dict, Optional
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from config import settings
-from utils.symbol_utils import get_company_name
+from typing import List, Dict, Optional, Any
+from datetime import datetime, timedelta
+from database import SessionLocal
+from models_alpha import InstrumentMaster, StockCandle
+from utils.symbol_utils import get_company_name, get_all_symbols
 
 
 class RelativeStrengthScanner:
@@ -17,47 +17,72 @@ class RelativeStrengthScanner:
     """
     
     def __init__(self):
-        self._engine = create_engine(settings.SYNC_DATABASE_URL)
-        self._Session = sessionmaker(bind=self._engine)
+        self._Session = SessionLocal
         self.min_score = 60
         
-    def _get_ohlcv_data(self, symbol: str, days: int = 30) -> Optional[pd.DataFrame]:
+    def _get_bulk_ohlcv_data(self, days: int = 60) -> Dict[str, pd.DataFrame]:
+        """Fetch daily OHLCV data for ALL symbols in one optimized query."""
         try:
-            from models_ml import Nifty100Daily
-            from sqlalchemy import desc
             session = self._Session()
             try:
-                results = session.query(Nifty100Daily).filter(
-                    Nifty100Daily.symbol == symbol
-                ).order_by(desc(Nifty100Daily.timestamp)).limit(days).all()
-                if not results or len(results) < 10:
-                    return None
-                results = results[::-1]
-                data = [{'timestamp': r.timestamp, 'close': float(r.close)} for r in results]
+                cutoff_date = datetime.now() - timedelta(days=days)
+                
+                # Bulk query joining StockCandle and InstrumentMaster
+                results = session.query(
+                    InstrumentMaster.symbol,
+                    StockCandle.candle_ts.label('timestamp'),
+                    StockCandle.close
+                ).join(
+                    InstrumentMaster,
+                    StockCandle.instrument_id == InstrumentMaster.instrument_id
+                ).filter(
+                    StockCandle.timeframe == 1440,
+                    StockCandle.candle_ts >= cutoff_date
+                ).order_by(InstrumentMaster.symbol, StockCandle.candle_ts.asc()).all()
+                
+                if not results:
+                    return {}
+                
+                # Convert to DataFrame
+                data = [{
+                    'symbol': r.symbol,
+                    'timestamp': r.timestamp,
+                    'close': float(r.close)
+                } for r in results]
+                
                 df = pd.DataFrame(data)
-                df.set_index('timestamp', inplace=True)
-                return df
+                
+                # Split by symbol
+                symbol_dfs = {}
+                for symbol, group in df.groupby('symbol'):
+                    group.set_index('timestamp', inplace=True)
+                    symbol_dfs[symbol] = group.drop('symbol', axis=1)
+                    
+                return symbol_dfs
             finally:
                 session.close()
         except Exception as e:
-            print(f"RelativeStrengthScanner ohlcv error for {symbol}: {e}")
-            return None
-    
-    def analyze_stock(self, symbol: str, benchmark_return: float = 0) -> Optional[Dict]:
-        df = self._get_ohlcv_data(symbol)
-        if df is None:
+            import logging
+            logging.getLogger(__name__).error(f"RelativeStrengthScanner bulk fetch error: {e}")
+            return {}
+
+    def analyze_stock(self, symbol: str, df: Optional[pd.DataFrame] = None, benchmark_return: float = 0) -> Optional[Dict]:
+        if df is None or len(df) < 20:
             return None
         
         close = df['close']
         current_price = close.iloc[-1]
         
         # Calculate returns
+        # 5d return (approx 5 bars)
         return_5d = ((close.iloc[-1] - close.iloc[-5]) / close.iloc[-5]) * 100 if len(close) >= 5 else 0
+        # 20d return (approx 20 bars)
         return_20d = ((close.iloc[-1] - close.iloc[-20]) / close.iloc[-20]) * 100 if len(close) >= 20 else 0
         
         # Relative strength vs benchmark
+        # benchmark_return is usually Nifty 50 return for same period
         rs_5d = return_5d - benchmark_return
-        rs_20d = return_20d - (benchmark_return * 4)  # Approximate 20d benchmark
+        rs_20d = return_20d - (benchmark_return * 4)  # Simple scaling, improve if actual benchmark series available
         
         # Score based on outperformance
         if rs_5d > 5:
@@ -91,19 +116,67 @@ class RelativeStrengthScanner:
         }
     
     def get_symbols(self) -> List[str]:
-        from utils.symbol_utils import get_all_symbols
         return get_all_symbols()
     
-    def scan_all(self, limit: int = 10) -> List[Dict]:
-        symbols = self.get_symbols()
+    async def scan_all(self, limit: int = 10) -> Dict[str, Any]:
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+        t0 = time.time()
+        
+        # 1. Fetch bulk data
+        logger.info("RelativeStrengthScanner: Fetching bulk OHLCV data from stock_candle...")
+        symbol_data_map = self._get_bulk_ohlcv_data()
+        
+        if not symbol_data_map:
+            logger.warning("RelativeStrengthScanner: No daily data found in stock_candle table.")
+            return {
+                "stocks": [],
+                "symbols_processed": 0,
+                "total_symbols": 0,
+                "completed_all": True,
+                "filter_stats": {"no_data": 0},
+                "metrics": {"total_ms": int((time.time() - t0) * 1000)}
+            }
+            
+        logger.info(f"RelativeStrengthScanner: Loaded data for {len(symbol_data_map)} stocks. Scanning...")
+        
         results = []
-        for symbol in symbols:
+        skipped_filtered = 0
+        skipped_insufficient = 0
+        
+        # 2. Process in memory
+        for symbol, df in symbol_data_map.items():
+            if len(df) < 20: # Require at least 20 bars for 20d analysis
+                skipped_insufficient += 1
+                continue
             try:
-                analysis = self.analyze_stock(symbol, benchmark_return=0.5)  # Assume 0.5% benchmark
+                # benchmark_return=0.5 is a generic hurdle rate if Nifty is not queried
+                analysis = self.analyze_stock(symbol, df, benchmark_return=0.5)
                 if analysis:
                     results.append(analysis)
+                else:
+                    skipped_filtered += 1
             except Exception as e:
-                print(f"RelativeStrengthScanner error for {symbol}: {e}")
+                logger.debug(f"RS Scan error for {symbol}: {e}")
+                skipped_filtered += 1
                 continue
+                
         results.sort(key=lambda x: x["strength"], reverse=True)
-        return results[:limit]
+        top_results = results[:limit]
+        elapsed = (time.time() - t0) * 1000
+        
+        return {
+            "stocks": top_results,
+            "symbols_processed": len(symbol_data_map),
+            "total_symbols": len(symbol_data_map),
+            "completed_all": True,
+            "filter_stats": {
+                "insufficient_history": skipped_insufficient,
+                "filtered_by_rule": skipped_filtered
+            },
+            "tables_used": ["stock_candle", "instrument_master"],
+            "metrics": {
+                "total_ms": int(elapsed)
+            }
+        }

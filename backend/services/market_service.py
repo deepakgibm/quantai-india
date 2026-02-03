@@ -1,16 +1,15 @@
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime
 
 from services.dragonfly_client import get_cache
-from services.market_hours_service import get_market_hours_service
 from services.nifty100_ranking_service import get_nifty100_ranking_service
 from utils.market_fallback import fetch_live_indices_yfinance
 
 logger = logging.getLogger(__name__)
 
 class MarketService:
-    async def get_nifty100_top_movers(self, limit: int = 5) -> Dict[str, Any]:
+    async def get_nifty100_top_movers(self, limit: int = 10) -> Dict[str, Any]:
         """Get top gainers and losers from Nifty 100."""
         service = get_nifty100_ranking_service()
         rankings = await service.get_rankings()

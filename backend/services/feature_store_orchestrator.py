@@ -1,12 +1,11 @@
 import logging
-import asyncio
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from sqlalchemy import text
-from database import get_db, engine
+from database import get_db
 from backend.services.feature_store import get_feature_store
 from backend.services.feature_pipeline import get_feature_pipeline
-from models_alpha import TimeframeMapper, StockCandle, InstrumentMaster
+from models_alpha import TimeframeMapper
 import pandas as pd
 
 logger = logging.getLogger(__name__)

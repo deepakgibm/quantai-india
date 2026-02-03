@@ -328,7 +328,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                <div className="flex items-center gap-3">
                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">AI Trading Engines</h3>
                   <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
-                     {algorithms.filter(a => a.active).length} Active
+                     {Array.isArray(algorithms) ? algorithms.filter(a => a.active).length : 0} Active
                   </span>
                </div>
 

@@ -1,9 +1,8 @@
 import os
 import pandas as pd
-import numpy as np
 import logging
 import duckdb
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from pathlib import Path
 from datetime import datetime
 from config import settings

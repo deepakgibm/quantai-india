@@ -1,10 +1,9 @@
 import logging
 import os
-import traceback
 import firebase_admin
 from firebase_admin import auth as firebase_auth
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException, status
@@ -21,12 +20,16 @@ class AuthService:
         """Create a new user with default settings."""
         # Check if user exists
         result = await db.execute(select(User).where(User.email == user.email))
-        if result.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Email already registered")
+        existing_user = result.scalar_one_or_none()
+        if existing_user:
+            # Return the existing user instead of raising error
+            return existing_user
         
         result = await db.execute(select(User).where(User.username == user.username))
         if result.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Username already taken")
+            # Generate unique username
+            import random
+            user.username = f"{user.username}_{random.randint(100, 999)}"
         
         hashed_password = get_password_hash(user.password)
         

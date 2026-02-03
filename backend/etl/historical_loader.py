@@ -16,7 +16,7 @@ from typing import List, Tuple
 from sqlalchemy.exc import IntegrityError
 
 # Ensure project root is on PYTHONPATH for imports
-project_root = Path(__file__).resolve().parents[2]
+project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 
 from database import AsyncSessionLocal
@@ -62,7 +62,7 @@ class HistoricalLoader:
                 return 0
                 
             df = await self.client.get_historical_data(
-                symbol, instrument_key, from_date, to_date, "1minute"
+                symbol, instrument_key, from_date, to_date, "day"
             )
             
             if df is None or df.empty:
@@ -78,7 +78,7 @@ class HistoricalLoader:
                     low=float(row["low"]),
                     close=float(row["close"]),
                     volume=int(row["volume"]),
-                    timeframe=1,  # 1min
+                    timeframe=1440,  # 1day
                 )
                 try:
                     session.add(stock_candle)
@@ -128,18 +128,18 @@ class HistoricalLoader:
 
         async with AsyncSessionLocal() as session:
             # Create ETL log entry
-            etl_log = ETLLog(
-                job_type="historical_load",
-                job_id=job_id,
-                symbols=[s[0] for s in self.symbols],
-                start_time=from_date,
-                end_time=to_date,
-                status="running",
-                source="upstox",
-                triggered_by="manual",
-            )
-            session.add(etl_log)
-            await session.commit()
+            # etl_log = ETLLog(
+            #     job_type="historical_load",
+            #     job_id=job_id,
+            #     symbols=[s[0] for s in self.symbols],
+            #     start_time=from_date,
+            #     end_time=to_date,
+            #     status="running",
+            #     source="upstox",
+            #     triggered_by="manual",
+            # )
+            # session.add(etl_log)
+            # await session.commit()
 
             for idx, (symbol, instrument_key) in enumerate(self.symbols, 1):
                 print(f"[{idx}/{len(self.symbols)}] Processing {symbol}...")
@@ -156,12 +156,12 @@ class HistoricalLoader:
 
             # Update ETL log
             duration = (datetime.now() - start_time).total_seconds()
-            etl_log.status = "success" if self.stats["errors"] == 0 else "partial"
-            etl_log.records_fetched = self.stats["total_records"]
-            etl_log.records_inserted = self.stats["inserted"]
-            etl_log.records_skipped = self.stats["skipped"]
-            etl_log.duration_seconds = duration
-            await session.commit()
+            # etl_log.status = "success" if self.stats["errors"] == 0 else "partial"
+            # etl_log.records_fetched = self.stats["total_records"]
+            # etl_log.records_inserted = self.stats["inserted"]
+            # etl_log.records_skipped = self.stats["skipped"]
+            # etl_log.duration_seconds = duration
+            # await session.commit()
 
         # Summary output
         print("\n" + "=" * 60)

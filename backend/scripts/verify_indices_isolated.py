@@ -1,13 +1,10 @@
-import asyncio
 import os
 import sys
 import logging
-from sqlalchemy import text
 
 # Set PYTHONPATH
 sys.path.append(os.getcwd())
 
-from database import sync_engine
 from utils.index_config import get_index_constituents, get_available_indices
 
 logging.basicConfig(level=logging.INFO)

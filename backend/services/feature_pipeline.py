@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Optional
 from core.scanner.indicator_utils import (
     rsi, macd, bollinger_bands, atr, adx, volume_ratio
 )

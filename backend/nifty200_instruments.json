@@ -798,5 +798,33 @@
   [
     "ZYDUSLIFE",
     "NSE_EQ|INE010B01027"
+  ],
+  [
+    "MEDANTA",
+    "NSE_EQ|INE474Q01031"
+  ],
+  [
+    "AMBER",
+    "NSE_EQ|INE371P01015"
+  ],
+  [
+    "NETWEB",
+    "NSE_EQ|INE0NT901020"
+  ],
+  [
+    "ANANTRAJ",
+    "NSE_EQ|INE242C01024"
+  ],
+  [
+    "ANGELONE",
+    "NSE_EQ|INE732I01013"
+  ],
+  [
+    "GRSE",
+    "NSE_EQ|INE382Z01011"
+  ],
+  [
+    "INDIA VIX",
+    "NSE_INDEX|India VIX"
   ]
 ]

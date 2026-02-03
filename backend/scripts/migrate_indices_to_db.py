@@ -2,16 +2,11 @@ import json
 import os
 import sys
 import logging
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
 
 # Set PYTHONPATH
 sys.path.append(os.getcwd())
 
-from config import settings
 from database import Base, sync_engine as engine, SessionLocal as Session
-import models  # Ensure all models are loaded
-import models_alpha
 from models_alpha import IndexMaster, IndexConstituent, InstrumentMaster
 
 logging.basicConfig(level=logging.INFO)

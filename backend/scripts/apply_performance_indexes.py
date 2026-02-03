@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from sqlalchemy import text
-from database import AsyncSessionLocal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

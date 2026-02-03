@@ -99,7 +99,13 @@ export const getAuthHeaders = () => {
     'Content-Type': 'application/json'
   };
 
-  if (token && token !== 'null' && token !== 'undefined') {
+  // Robust token detection
+  const isValidToken = token &&
+    token !== 'null' &&
+    token !== 'undefined' &&
+    token.trim().length > 10; // Basic length check for JWT
+
+  if (isValidToken) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -265,7 +271,9 @@ export const api = {
       });
 
       if (!res.ok) {
-        throw new Error('Firebase login sync failed');
+        const errorData = await res.json().catch(() => ({}));
+        const message = errorData.detail || `Firebase login sync failed with status ${res.status}`;
+        throw new Error(message);
       }
 
       const data = await res.json();
@@ -385,7 +393,7 @@ export const api = {
 
   getGainersLosers: async () => {
     try {
-      const res = await fetch(`${API_URL}/api/market/nifty100/top-movers`, {
+      const res = await fetch(`${API_URL}/api/market/top-movers`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();
@@ -397,7 +405,7 @@ export const api = {
 
   getSectorHeatmap: async () => {
     try {
-      const res = await fetch(`${API_URL}/api/heatmap/sectors`, {
+      const res = await fetch(`${API_URL}/api/market/heatmap`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();
@@ -409,7 +417,7 @@ export const api = {
 
   getSectorStocks: async (sector: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/heatmap/sector/${encodeURIComponent(sector)}`, {
+      const res = await fetch(`${API_URL}/api/market/sector/${encodeURIComponent(sector)}`, {
         headers: getAuthHeaders()
       });
       if (res.ok) return await res.json();
@@ -656,7 +664,7 @@ export const api = {
         timeframe,
         horizon: horizon.toString()
       });
-      const res = await fetch(`${API_URL}/api/v1/ml/predict?${params}`);
+      const res = await fetch(`${API_URL}/api/forecast/predict?${params}`);
       if (!res.ok) {
         const error = await res.json().catch(() => ({ detail: { message: 'Prediction failed' } }));
         throw new Error(error.detail?.message || 'Prediction failed');
@@ -670,26 +678,26 @@ export const api = {
 
   // --- ADMIN & MONITORING ---
   getAdminIndices: async () => {
-    const res = await apiGet<any[]>('/api/v1/admin/indices/');
+    const res = await apiGet<any[]>('/api/admin/indices/');
     if (res.success) return res.data;
     throw res.error;
   },
 
   createAdminIndex: async (name: string, description: string = "", baseIndexId?: number) => {
-    const res = await apiPost<any>('/api/v1/admin/indices/', { name, description, base_index_id: baseIndexId });
+    const res = await apiPost<any>('/api/admin/indices/', { name, description, base_index_id: baseIndexId });
     if (res.success) return res.data;
     throw res.error;
   },
 
   addIndexConstituent: async (indexId: number, symbol: string) => {
-    const res = await apiPost<any>(`/api/v1/admin/indices/${indexId}/constituents/${symbol}`, {});
+    const res = await apiPost<any>(`/api/admin/indices/${indexId}/constituents/${symbol}`, {});
     if (res.success) return res.data;
     throw res.error;
   },
 
   removeIndexConstituent: async (indexId: number, symbol: string) => {
     // using apiRequest because delete isn't in helpers yet
-    const res = await apiRequest<any>(`${API_URL}/api/v1/admin/indices/${indexId}/constituents/${symbol}`, {
+    const res = await apiRequest<any>(`${API_URL}/api/admin/indices/${indexId}/constituents/${symbol}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
@@ -698,7 +706,7 @@ export const api = {
   },
 
   deleteAdminIndex: async (indexId: number) => {
-    const res = await apiRequest<any>(`${API_URL}/api/v1/admin/indices/${indexId}`, {
+    const res = await apiRequest<any>(`${API_URL}/api/admin/indices/${indexId}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
@@ -707,14 +715,14 @@ export const api = {
   },
 
   getSystemHealth: async () => {
-    const res = await apiGet<any>('/health');
+    const res = await apiGet<any>('/api/health/');
     if (res.success) return res.data;
     throw res.error;
   },
 
   getEtlLogs: async () => {
     // Using existing endpoint
-    const res = await apiGet<any>('/api/v1/etl/status');
+    const res = await apiGet<any>('/api/etl/status');
     if (res.success) return res.data;
     throw res.error;
   },

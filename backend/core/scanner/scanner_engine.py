@@ -71,61 +71,51 @@ class ScannerEngine:
         progress_callback: Optional[callable] = None
     ) -> List[Dict[str, Any]]:
         """
-        Execute scan across selected indices and strategies.
-        
-        Args:
-            indices: List of index names
-            timeframe: Timeframe string (e.g., "15m", "1d")
-            strategies: List of strategy names to run
-            progress_callback: Optional callback for progress updates
-        
-        Returns:
-            List of enhanced scan results with derivatives data and final signals
+        Execute scan using high-performance batch processing.
         """
         results: List[ScanResult] = []
-        symbol_data: Dict[str, pd.DataFrame] = {}  # Cache data for derivatives calc
         
-        # Get all symbols for selected indices
+        # 1. Get unique symbols for all selected indices
         symbols = self._get_symbols_for_indices(indices)
         total = len(symbols)
+        logger.info(f"Starting batch scan: {total} symbols, {len(strategies)} strategies")
+
+        # 2. Batch Compute Indicators (High Performance)
+        from services.indicator_compute_service import get_indicator_service
+        id_service = get_indicator_service()
+        lookback = 30 if timeframe != "1d" else 100
+        batch_df = await id_service.compute_batch(symbols, timeframe, lookback_days=lookback)
         
-        logger.info(f"Starting scan: {total} symbols, {len(strategies)} strategies")
-        
-        for i, symbol in enumerate(symbols):
-            # Fetch data
-            df = await self._fetch_data(symbol, timeframe)
-            
-            if df is None or len(df) < 30:
-                continue
-            
-            # Cache data for derivatives calculation
-            symbol_data[symbol] = df
-            
-            # Determine which index this symbol belongs to
+        if batch_df.empty:
+            logger.warning("Batch computation returned no data")
+            return []
+
+        # 3. Evaluate Strategies against Batch Data
+        # Group by symbol to pass slice to strategy
+        for i, (symbol, symbol_df) in enumerate(batch_df.groupby('symbol')):
             symbol_index = self._get_symbol_index(symbol, indices)
             
-            # Run each strategy
             for strategy_name in strategies:
                 strategy_cls = StrategyRegistry.get(strategy_name)
-                if not strategy_cls:
-                    continue
+                if not strategy_cls: continue
                 
                 try:
                     strategy = strategy_cls()
-                    result = strategy.scan(df, symbol, symbol_index, timeframe)
+                    # Strategies now receive pre-computed DataFrame slice
+                    result = strategy.scan(symbol_df, symbol, symbol_index, timeframe)
                     if result:
                         results.append(result)
                 except Exception as e:
                     logger.error(f"Strategy {strategy_name} failed on {symbol}: {e}")
             
-            # Progress update
             if progress_callback:
                 await progress_callback(i + 1, total)
-        
-        # Sort by confidence score
+
+        # 4. Sorting and Post-Enrichment
         results.sort(key=lambda x: x.confidence_score, reverse=True)
         
-        # Enhance results with derivatives data and decision engine
+        # Build symbol_data map for derivatives enhancement
+        symbol_data = {s: df for s, df in batch_df.groupby('symbol')}
         enhanced_results = await self._enhance_with_derivatives(results, symbol_data)
         
         return enhanced_results

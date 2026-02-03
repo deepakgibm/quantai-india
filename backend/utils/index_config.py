@@ -7,7 +7,7 @@ Supports hierarchical index definitions (e.g., NIFTY 100 includes NIFTY 50).
 
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List
 from functools import lru_cache
 import logging
 from sqlalchemy import text

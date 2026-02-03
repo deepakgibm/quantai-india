@@ -103,8 +103,8 @@ const MomentAlert: React.FC = () => {
             });
             if (response.ok) {
                 const data = await response.json();
-                setHighBreakouts(data.high_breakouts || []);
-                setLowBreakdowns(data.low_breakdowns || []);
+                setHighBreakouts(Array.isArray(data.high_breakouts) ? data.high_breakouts : []);
+                setLowBreakdowns(Array.isArray(data.low_breakdowns) ? data.low_breakdowns : []);
             }
         } catch (error) {
             console.error('Error fetching 52-week breakouts:', error);
@@ -114,7 +114,7 @@ const MomentAlert: React.FC = () => {
     };
 
     const handleDataUpdate = (message: any) => {
-        if (message.type === 'bucket_update') {
+        if (message.type === 'bucket_update' && Array.isArray(message.data)) {
             const sortedTicks = (message.data as StockTick[]).sort((a, b) => b.momentum_score - a.momentum_score);
             setTicks(sortedTicks);
             setLastUpdate(message.timestamp);
@@ -127,7 +127,7 @@ const MomentAlert: React.FC = () => {
     };
 
     const connectWS = () => {
-        const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws/scanner`;
+        const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws`;
         ws.current = new WebSocket(wsUrl);
 
         ws.current.onopen = () => {

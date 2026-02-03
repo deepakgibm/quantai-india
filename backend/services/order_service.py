@@ -1,11 +1,11 @@
 import logging
 import httpx
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from models import User, Order, UserSettings, Position
-from schemas import OrderCreate, OrderResponse
+from schemas import OrderCreate
 from services.dragonfly_client import get_cache
 from services.live_price_enricher import get_single_live_price
 

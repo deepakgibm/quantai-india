@@ -5,7 +5,6 @@ Pydantic models for API request/response
 
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
 
 class ForecastRequest(BaseModel):
@@ -19,15 +18,18 @@ class ForecastResponse(BaseModel):
     """Response model for price forecast."""
     symbol: str
     timeframe: str
-    timestamps: List[str] = Field(description="ISO datetime strings")
-    actual: List[Optional[float]] = Field(description="Historical actual prices")
-    predicted: List[Optional[float]] = Field(description="Predicted prices (null for historical)")
-    upper_band: List[Optional[float]] = Field(description="Upper confidence band")
-    lower_band: List[Optional[float]] = Field(description="Lower confidence band")
-    confidence: float = Field(ge=0, le=1, description="Model confidence score")
+    horizon: Optional[int] = Field(default=None, description="Number of candles predicted")
+    timestamps: List[str] = Field(default_factory=list, description="ISO datetime strings")
+    actual: List[Optional[float]] = Field(default_factory=list, description="Historical actual prices")
+    predicted: List[Optional[float]] = Field(default_factory=list, description="Predicted prices (null for historical)")
+    upper_band: List[Optional[float]] = Field(default_factory=list, description="Upper confidence band")
+    lower_band: List[Optional[float]] = Field(default_factory=list, description="Lower confidence band")
+    confidence: float = Field(default=0.0, ge=0, le=1, description="Model confidence score")
     model_version: str = Field(default="apf_v1")
-    data_source: str = Field(description="LIVE, DELAYED, or DB")
+    data_source: str = Field(default="UNAVAILABLE", description="LIVE, DELAYED, or DB")
     last_trained: Optional[str] = Field(default=None, description="Last model training timestamp")
+    status: Optional[str] = Field(default="success", description="Response status: success, no_data, error")
+    message: Optional[str] = Field(default=None, description="Error or status message")
 
 
 class ForecastError(BaseModel):
@@ -48,6 +50,7 @@ class AlgorithmInfo(BaseModel):
     name: str = Field(..., description="Display name")
     version: str = Field(..., description="Version string")
     type: str = Field(..., description="Type: ensemble, ml, dl, statistical")
+    is_pro: bool = Field(default=False, description="Whether this model requires PRO subscription")
     recommended: bool = Field(default=False, description="Is this the default/recommended algorithm")
     supports_confidence_bands: bool = Field(default=True)
     supported_timeframes: List[str] = Field(default_factory=lambda: ["1m", "5m", "15m", "30m", "1h", "1d"])
@@ -55,6 +58,8 @@ class AlgorithmInfo(BaseModel):
     description: str = Field(default="")
     features_used: List[str] = Field(default_factory=list, description="Features used by this algorithm")
     estimated_latency_ms: int = Field(default=500, description="Estimated prediction latency in ms")
+    training_status: str = Field(default="READY", description="READY, EXPIRED, or UNTRAINED")
+    last_trained: Optional[str] = Field(default=None)
 
 
 class AlgorithmListResponse(BaseModel):

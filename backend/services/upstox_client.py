@@ -11,8 +11,12 @@ Production-grade wrapper with:
 import asyncio
 import time
 import httpx
-import pandas as pd
 import urllib.parse
+import logging
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -94,20 +98,62 @@ class UpstoxClient:
         Make HTTP request with retry logic.
         Only retries on network errors, not on HTTP status errors (401, 429, etc.).
         """
+        from core.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
+
+        if not hasattr(self, '_cb'):
+            self._cb = CircuitBreaker("UpstoxAPI", failure_threshold=10, recovery_timeout=30.0)
+
         url = f"{self.BASE_URL}{endpoint}"
         
-        try:
+        async def _execute():
             response = await self.client.request(method, url, **kwargs)
+            # Raise for status but don't count 401 as a system failure in CB
+            # CB counts exceptions provided in expected_exceptions
+            # We want CB to open on 5xx or Connection Errors
+            if response.status_code >= 500:
+                raise httpx.HTTPStatusError("Server Error", request=response.request, response=response)
             response.raise_for_status()
             return response.json()
+
+        try:
+             # Circuit Breaker wraps the execution
+            return await self._cb.call(_execute)
+            
+        except CircuitBreakerOpenException:
+            # Fallback for when Upstox is down
+            logger.error(f"Upstox Circuit Open: Skipping request to {endpoint}")
+            return {"status": "error", "message": "Upstox Service Temporarily Unavailable", "data": {}}
+            
         except httpx.HTTPStatusError as e:
-            # Don't log 401 errors excessively - they're expected with expired tokens
+            # Handle 401 Unauthorized (Session Expired)
+            if e.response.status_code == 401:
+                logger.warning(f"Upstox 401 Unauthorized: Session may have expired for {endpoint}")
+                # Attempt to refresh token if logic is available
+                if await self.refresh_access_token():
+                    logger.info("Token refreshed successfully, retrying request...")
+                    # Update headers and retry once
+                    self.headers["Authorization"] = f"Bearer {self.access_token}"
+                    return await _execute()
+                else:
+                    logger.error("Token refresh failed or not available. Manual re-login required.")
+            
             if e.response.status_code != 401:
-                print(f"HTTP Error: {e.response.status_code} - {e.response.text}")
+                 logger.error(f"HTTP Error: {e.response.status_code} - {e.response.text}")
             raise
         except Exception as e:
-            print(f"Request error: {e}")
+            logger.error(f"Request error: {e}")
             raise
+
+    async def refresh_access_token(self) -> bool:
+        """
+        Attempt to refresh the Upstox access token.
+        Currently logs the requirement for manual refresh as Upstox V2 
+        tokens are long-lived (24h) and usually require re-auth.
+        """
+        # In a real production environment, this would use a refresh_token or a headless login
+        # For now, we signal that refresh is not possible automatically if it's the system token
+        logger.error("UpstoxClient: Auto-refresh not implemented. Please update UPSTOX_ACCESS_TOKEN in .env")
+        return False
     
     async def get_historical_data(
         self,
@@ -141,7 +187,7 @@ class UpstoxClient:
             data = await self._make_request("GET", endpoint)
             
             if data.get("status") != "success" or not data.get("data", {}).get("candles"):
-                print(f"No data for {symbol} from {from_date} to {to_date}")
+                logger.info(f"No data for {symbol} from {from_date} to {to_date}")
                 return pd.DataFrame()
             
             # Parse candles into DataFrame
@@ -156,7 +202,7 @@ class UpstoxClient:
             return df[["symbol", "timestamp", "open", "high", "low", "close", "volume"]]
             
         except Exception as e:
-            print(f"Error fetching historical data for {symbol}: {e}")
+            logger.error(f"Error fetching historical data for {symbol}: {e}")
             return pd.DataFrame()
     
     async def get_live_quotes(self, instrument_keys: List[str]) -> Dict[str, Dict]:
@@ -239,7 +285,7 @@ class UpstoxClient:
             return results
             
         except Exception as e:
-            print(f"Error fetching batch live quotes: {e}")
+            logger.error(f"Error fetching batch live quotes: {e}")
             return {}
 
     async def get_live_quote(self, instrument_key: str, symbol: str) -> Optional[Dict]:
@@ -317,7 +363,7 @@ class UpstoxClient:
                 pass
             return None
         except Exception as e:
-            print(f"Error fetching live quote for {symbol}: {e}")
+            logger.error(f"Error fetching live quote for {symbol}: {e}")
             return None
     
     async def get_nifty_200_symbols(self) -> List[Tuple[str, str]]:
@@ -340,7 +386,7 @@ class UpstoxClient:
                 # data is list of [symbol, instrument_key] pairs
                 return [(item[0], item[1]) for item in data]
             except Exception as e:
-                print(f"Error reading nifty200_instruments.json: {e}")
+                logger.error(f"Error reading nifty200_instruments.json: {e}")
         
         # Fallback to Database query
         try:
@@ -356,7 +402,7 @@ class UpstoxClient:
             if db_data:
                 return db_data
         except Exception as e:
-            print(f"Error fetching symbols from DB fallback: {e}")
+            logger.error(f"Error fetching symbols from DB fallback: {e}")
 
         # Final empty fallback - better than hardcoded stale data
         return []
@@ -383,7 +429,7 @@ class UpstoxClient:
         all_data = []
         
         for symbol, instrument_key in symbols:
-            print(f"Fetching {symbol} from {from_date.date()} to {to_date.date()}...")
+            logger.info(f"Fetching {symbol} from {from_date.date()} to {to_date.date()}...")
             
             df = await self.get_historical_data(
                 symbol=symbol,

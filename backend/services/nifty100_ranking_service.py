@@ -195,28 +195,24 @@ class Nifty100RankingService:
         
         logger.info(f"CACHE MISS: {cache_key}, fetching live data")
         
-        # 2. Compute from MarketDataOrchestrator cache if available AND source is live (not DB)
-        from services.market_data_orchestrator import get_market_data_orchestrator
-        orchestrator = get_market_data_orchestrator()
+        # 2. Compute from UpstoxPriceResolver bulk fetch
+        from services.upstox_price_resolver import get_upstox_price_resolver
+        resolver = get_upstox_price_resolver()
         
-        # Check if orchestrator has live data (WS or REST, not DB)
-        orchestrator_source = orchestrator.current_source.value if orchestrator.current_source else "NONE"
-        is_orchestrator_live = orchestrator_source in ["WS", "REST"]
+        nifty100_symbols = get_nifty_symbols()
+        # Fetch prices for all Nifty 100 symbols in one bulk call
+        prices = await resolver.get_prices_bulk(nifty100_symbols)
         
-        if is_orchestrator_live:
-            # Get Nifty 100 symbols to filter the global cache
-            nifty100_symbols = get_nifty_symbols()
+        if len(prices) >= 5:
+            # Format data for ranking computation
+            ticks = []
+            for symbol, data in prices.items():
+                if data.get("price") and data.get("price") > 0:
+                    ticks.append(data)
             
-            orchestrator_data = []
-            for symbol in nifty100_symbols:
-                tick = orchestrator._data_cache.get(symbol.upper())
-                if tick and tick.ltp and tick.ltp > 0:
-                    orchestrator_data.append(tick)
-            
-            if len(orchestrator_data) >= 5:
-                result = self._compute_rankings_from_orchestrator(orchestrator_data)
-                await self._write_to_cache(result)
-                return asdict(result)
+            result = self._compute_rankings_from_resolver(ticks)
+            await self._write_to_cache(result)
+            return asdict(result)
         else:
             logger.info(f"Orchestrator source is {orchestrator_source}, skipping stale data")
         
@@ -306,14 +302,14 @@ class Nifty100RankingService:
         logger.info("Starting LIVE mode - Consuming from Orchestrator")
         
         try:
-            from services.market_data_orchestrator import get_market_data_orchestrator
-            self._orchestrator = get_market_data_orchestrator()
+            from services.websocket_feed_manager import get_websocket_feed_manager
+            self._feed_manager = get_websocket_feed_manager()
             
-            # Subscribe to Nifty 100 symbols via Orchestrator/WS
+            # Subscribe to Nifty 100 symbols via the centralized FeedManager
             symbols = get_nifty_symbols()
-            await self._orchestrator.ws_manager.subscribe(symbols)
+            await self._feed_manager.ensure_active(symbols)
             
-            # Start cache refresh loop (now just reading from Orchestrator cache)
+            # Start cache refresh loop (now querying from Resolver's cache)
             asyncio.create_task(self._live_refresh_loop())
             
         except Exception as e:
@@ -416,19 +412,16 @@ class Nifty100RankingService:
             try:
                 await asyncio.sleep(Config.REFRESH_INTERVAL)
                 
-                # Use orchestrator data instead of internal self._live_prices
-                from services.market_data_orchestrator import get_market_data_orchestrator
-                orchestrator = get_market_data_orchestrator()
+                # Use UpstoxPriceResolver instead of orchestrator
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
                 
                 nifty100_symbols = get_nifty_symbols()
-                orchestrator_data = []
-                for symbol in nifty100_symbols:
-                    tick = orchestrator._data_cache.get(symbol.upper())
-                    if tick and tick.ltp and tick.ltp > 0:
-                        orchestrator_data.append(tick)
+                prices = await resolver.get_prices_bulk(nifty100_symbols)
                 
-                if len(orchestrator_data) >= 5:
-                    result = self._compute_rankings_from_orchestrator(orchestrator_data)
+                if len(prices) >= 5:
+                    ticks = [data for symbol, data in prices.items() if data.get("price")]
+                    result = self._compute_rankings_from_resolver(ticks)
                     await self._write_to_cache(result, ttl=Config.CACHE_TTL_LIVE)
                     
             except asyncio.CancelledError:
@@ -455,31 +448,46 @@ class Nifty100RankingService:
     # Ranking Computation
     # =========================================================================
     
-    def _compute_rankings_from_orchestrator(self, ticks: List[Any]) -> TopMoversResult:
-        """Compute rankings from Orchestrator momentum ticks."""
+    def _compute_rankings_from_resolver(self, ticks: List[Dict]) -> TopMoversResult:
+        """Compute rankings from PriceResolver unified JSON packets."""
         valid_stocks = []
         
+        # We need previous close to compute change_pct if resolver doesn't provide it
+        # Actually, let's try to get change_pct from snapshots or DB fallback if missing
+        
         for tick in ticks:
+            # Consume metrics from Resolver's enhanced contract
+            price = tick.get("price", 0)
+            symbol = tick.get("symbol")
+            change_pct = tick.get("change_pct", 0)
+            prev_close = tick.get("prev_close", 0)
+            
             valid_stocks.append({
-                "symbol": tick.symbol,
-                "ltp": tick.ltp,
-                "change_pct": tick.change_pct,
-                "prev_close": tick.prev_close,
-                "volume": getattr(tick, 'volume', 0),
-                "day_high": getattr(tick, 'high', tick.ltp),
-                "day_low": getattr(tick, 'low', tick.ltp)
+                "symbol": symbol,
+                "ltp": price,
+                "change_pct": change_pct,
+                "prev_close": prev_close,
+                "volume": 0, # Future: Add volume to Resolver
+                "day_high": price,
+                "day_low": price
             })
         
         # Sort for gainers (descending) and losers (ascending)
-        gainers = sorted(valid_stocks, key=lambda x: x["change_pct"], reverse=True)[:5]
-        losers = sorted(valid_stocks, key=lambda x: x["change_pct"])[:5]
+        # We now compute 10 of each to support larger UI widgets
+        gainers = sorted(valid_stocks, key=lambda x: x["change_pct"], reverse=True)[:10]
+        losers = sorted(valid_stocks, key=lambda x: x["change_pct"])[:10]
+        
+        # Diagnostics
+        missing_prev = [s["symbol"] for s in valid_stocks if s["prev_close"] <= 0]
+        if missing_prev:
+            logger.warning(f"Nifty100RankingService: Missing prev_close for {len(missing_prev)} symbols: {missing_prev[:5]}...")
         
         return TopMoversResult(
             as_of=datetime.now().isoformat(),
             trading_date=self._market_hours.get_trading_date(),
             gainers=gainers,
             losers=losers,
-            source=f"orchestrator_{ticks[0].source}" if ticks else "orchestrator",
+            source=f"resolver_{ticks[0].get('price_source')}" if ticks else "resolver",
             is_market_open=True,
             cache_metadata={
                 "cached_at": datetime.now().isoformat(),

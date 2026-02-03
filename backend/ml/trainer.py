@@ -3,9 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import logging
 import os
-from typing import Dict, Any, List
+from typing import List
 from backend.ml.transformer_model import QuantAIInformer
-from backend.ml.dataset import get_dataloader
 
 logger = logging.getLogger(__name__)
 
