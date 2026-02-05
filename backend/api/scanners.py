@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from utils.auth import get_current_user
 from services.dragonfly_client import get_cache, CacheKeys, cache_get
+from services.market_hours_service import get_market_hours_service
+from services.momentum_scanner import MomentumScanner
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -108,8 +110,12 @@ async def scanner_websocket(websocket: WebSocket):
         logger.info("WebSocket accepted")
         
         from core.scanner.realtime_scanner_engine import get_realtime_scanner_engine
+        from services.realtime_yearly_breakout_engine import get_realtime_yearly_breakout_engine
+        
         engine = get_realtime_scanner_engine()
-        logger.info("RealTimeScannerEngine obtained")
+        breakout_engine = get_realtime_yearly_breakout_engine()
+        
+        logger.info("RealTimeScannerEngines obtained")
         
         while True:
             # Check connection state
@@ -118,11 +124,13 @@ async def scanner_websocket(websocket: WebSocket):
                 
             data = engine.get_all_stock_data()
             indices = engine.get_indices()
+            breakouts = list(breakout_engine.breakouts.values())
             
             await websocket.send_json({
-                "type": "update", 
+                "type": "bucket_update", 
                 "data": data, 
                 "indices": indices,
+                "breakouts": breakouts,
                 "timestamp": datetime.now().isoformat()
             })
             await asyncio.sleep(1)
@@ -149,10 +157,68 @@ async def get_momentum_data(
         logger.info("Force refresh requested for momentum data")
     
     # Use HP scanner if available, else standard
+    market_service = get_market_hours_service()
     data = await get_hp_momentum()
+    
+    # Validation: Ensure data is valid list
     if data and isinstance(data, dict) and "data" in data:
-        return data["data"]
-    return []
+        data = data["data"]
+    
+    if data and len(data) > 0 and market_service.is_market_open():
+         # Wrap in bucket_update for Frontend
+         return {
+             "type": "bucket_update",
+             "data": data,
+             "timestamp": datetime.now().isoformat()
+         }
+
+    # Fallback to DB Scanning (if market closed or cache empty)
+    logger.info("Momentum fallback: Using DB scanner (Market Closed/Cache Empty)")
+    try:
+        scanner = MomentumScanner()
+        # Scan synchronous, run in threadpool
+        raw_results = await asyncio.to_thread(scanner.scan_all)
+        
+        # Map to Frontend StockTick format
+        mapped_results = []
+        for r in raw_results:
+            roc = r.get("roc_10d", 0)
+            score = r.get("strength", 50)
+            
+            # Determine Bucket
+            bucket = "NEUTRAL"
+            if roc >= 3: 
+                bucket = "STRONG_BULLISH"
+            elif roc > 0: 
+                bucket = "MODERATE_BULLISH"
+            elif roc <= -3: 
+                bucket = "STRONG_BEARISH"
+            elif roc < 0: 
+                bucket = "MODERATE_BEARISH"
+                
+            mapped_results.append({
+                "symbol": r["symbol"],
+                "ltp": r["current_price"],
+                "prev_close": r["current_price"], # Approximation for DB fallback
+                "change_pct": roc,
+                "momentum_score": score,
+                "bucket": bucket,
+                "pct_bucket": "0%", # Placeholder
+                "direction": "Bullish" if roc > 0 else "Bearish",
+                "correlation": 0.5, # Default
+                "source": "DB_FALLBACK",
+                "confidence": "LOW",
+                "last_update": datetime.now().isoformat()
+            })
+            
+        return {
+            "type": "bucket_update",
+            "data": mapped_results,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Momentum DB fallback failed: {e}")
+        return []
 
 @router.get("/week52-breakouts")
 async def get_week52_breakouts(

@@ -145,7 +145,24 @@ class DatabaseDataFetcher:
             logger.info(f"stock_candle query returned {len(rows)} rows")
             
             if not rows:
-                logger.warning("No daily data found")
+                logger.warning("No daily data found in stock_candle, attempting fallback to nifty100_daily")
+                # Fallback to nifty100_daily
+                cursor.execute("SELECT MAX(timestamp) FROM nifty100_daily")
+                max_date_row = cursor.fetchone()
+                if max_date_row and max_date_row[0]:
+                    max_date = max_date_row[0]
+                    logger.info(f"Latest date in nifty100_daily: {max_date}")
+                    
+                    cursor.execute("""
+                        SELECT symbol, timestamp::date as trade_date, close
+                        FROM nifty100_daily
+                        WHERE timestamp >= %s::timestamp - interval '10 days'
+                        ORDER BY symbol, timestamp DESC
+                    """, (max_date,))
+                    rows = cursor.fetchall()
+                    logger.info(f"nifty100_daily fallback returned {len(rows)} rows")
+            
+            if not rows:
                 return {}
             
             return self._process_momentum_rows(rows, conn)

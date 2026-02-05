@@ -17,6 +17,7 @@ import {
     BarChart3
 } from 'lucide-react';
 import { getAuthHeaders, API_URL } from '../services/api';
+import { isMarketOpen } from '../utils/marketHours';
 
 interface StockTick {
     symbol: string;
@@ -80,8 +81,24 @@ const MomentAlert: React.FC = () => {
     const wsRetryCount = useRef(0);
     const maxWsRetries = 3;
 
+    // Check market hours
+    const checkMarketStatus = () => {
+        // We import dynamically or assuming valid import exists from top level
+        // For now, let's implement validation logic here or rely on the imported util
+        // We need to import it at the top of the file
+        return isMarketOpen();
+    };
+
     useEffect(() => {
-        connectWS();
+        const marketOpen = checkMarketStatus();
+
+        if (marketOpen) {
+            connectWS();
+        } else {
+            console.log("Market closed. Using REST polling.");
+            startRestPolling();
+        }
+
         fetchWeek52Breakouts();
 
         // Refresh 52-week data every 5 minutes
@@ -127,6 +144,13 @@ const MomentAlert: React.FC = () => {
     };
 
     const connectWS = () => {
+        // Double check market hours before connecting
+        if (!checkMarketStatus()) {
+            console.log("Market closed during connect attempt. Switching to REST.");
+            startRestPolling();
+            return;
+        }
+
         const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws`;
         ws.current = new WebSocket(wsUrl);
 

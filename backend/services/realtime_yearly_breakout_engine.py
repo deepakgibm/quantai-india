@@ -85,7 +85,7 @@ class RealTimeYearlyBreakoutEngine:
                             MAX(sch.high) as year_high, 
                             MIN(sch.low) as year_low
                         FROM stock_candle_history sch
-                        JOIN instrument_master mk ON sch.instrument_key = mk.instrument_key
+                        JOIN instrument_master mk ON sch.instrument_id = mk.instrument_id
                         WHERE sch.candle_ts > NOW() - INTERVAL '365 days'
                         GROUP BY mk.symbol
                     ),
@@ -95,7 +95,7 @@ class RealTimeYearlyBreakoutEngine:
                             sch.close as last_price,
                             sch.candle_ts
                         FROM stock_candle_history sch
-                        JOIN instrument_master mk ON sch.instrument_key = mk.instrument_key
+                        JOIN instrument_master mk ON sch.instrument_id = mk.instrument_id
                         ORDER BY mk.symbol, sch.candle_ts DESC
                     )
                     SELECT 

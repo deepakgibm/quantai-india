@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Zap,
     TrendingUp,
@@ -16,6 +16,7 @@ import {
     ChevronDown
 } from 'lucide-react';
 import { API_URL, getAuthHeaders } from '../services/api';
+import { isMarketOpen } from '../utils/marketHours';
 import { PriceWithSource } from '../components/PriceSourceBadge';
 
 interface Week52BreakoutStock {
@@ -40,6 +41,10 @@ const Week52Breakout: React.FC = () => {
     const [lowBreakdowns, setLowBreakdowns] = useState<Week52BreakoutStock[]>([]);
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<string>('');
+    const [isConnected, setIsConnected] = useState(false);
+    const ws = useRef<WebSocket | null>(null);
+    const wsRetryCount = useRef(0);
+    const maxWsRetries = 3;
 
     // Search state
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -51,6 +56,70 @@ const Week52Breakout: React.FC = () => {
     // Sorting state for low breakdowns
     const [lowSortField, setLowSortField] = useState<SortField>('breakout_pct');
     const [lowSortOrder, setLowSortOrder] = useState<SortOrder>('desc');
+
+    useEffect(() => {
+        const marketOpen = isMarketOpen();
+
+        if (marketOpen) {
+            connectWS();
+        } else {
+            console.log("Market closed. Fetching via REST.");
+            fetchBreakouts();
+        }
+
+        return () => {
+            if (ws.current) ws.current.close();
+        };
+    }, []);
+
+    const connectWS = () => {
+        if (!isMarketOpen()) {
+            fetchBreakouts();
+            return;
+        }
+
+        const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws`;
+        ws.current = new WebSocket(wsUrl);
+
+        ws.current.onopen = () => {
+            setIsConnected(true);
+            setLoading(false);
+            wsRetryCount.current = 0;
+            console.log('Connected to Scanner WS for Breakouts');
+        };
+
+        ws.current.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'bucket_update' && message.breakouts) {
+                    handleBreakoutUpdate(message.breakouts);
+                    setLastRefresh(new Date().toLocaleTimeString());
+                }
+            } catch (e) {
+                console.error("WS Message Error", e);
+            }
+        };
+
+        ws.current.onclose = () => {
+            setIsConnected(false);
+            wsRetryCount.current += 1;
+            if (wsRetryCount.current < maxWsRetries) {
+                setTimeout(connectWS, 3000);
+            } else {
+                fetchBreakouts();
+            }
+        };
+    };
+
+    const handleBreakoutUpdate = (breakouts: Week52BreakoutStock[]) => {
+        if (!Array.isArray(breakouts)) return;
+
+        const highs = breakouts.filter(b => ["52W_HIGH", "Yearly High", "Breakout"].includes(b.breakout_type));
+        const lows = breakouts.filter(b => ["52W_LOW", "Yearly Low"].includes(b.breakout_type));
+
+        setHighBreakouts(highs);
+        setLowBreakdowns(lows);
+    };
 
     const fetchBreakouts = async (forceRefresh: boolean = true) => {
         try {
@@ -83,11 +152,6 @@ const Week52Breakout: React.FC = () => {
             setLoading(false);
         }
     };
-
-    useEffect(() => {
-        fetchBreakouts();
-        // Removed auto-polling to ensure refresh is user-triggered only
-    }, []);
 
     // Sort function
     const sortStocks = (stocks: Week52BreakoutStock[], field: SortField, order: SortOrder) => {

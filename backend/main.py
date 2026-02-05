@@ -113,6 +113,10 @@ async def startup_event():
         
         from services.realtime_yearly_breakout_engine import start_realtime_breakout_service
         asyncio.create_task(start_realtime_breakout_service())
+
+        # Initialize Real-Time Scanner Engine (Hydrate from DB/WS)
+        from core.scanner.realtime_scanner_engine import get_realtime_scanner_engine
+        await get_realtime_scanner_engine().initialize()
         
         logger.info("?? Real-time data engines initiated.")
     except Exception as e:

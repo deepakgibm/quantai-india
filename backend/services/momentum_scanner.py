@@ -28,7 +28,7 @@ class MomentumScanner:
     
     def __init__(self):
         self._Session = SessionLocal
-        self.min_score = 60
+        self.min_score = 40
         # Precomputed check logic removed/simplified as vectorization is fast enough
         # But we can keep it if needed. For now, vectorization is the priority refactor.
         self._use_precomputed = False 
@@ -115,8 +115,9 @@ class MomentumScanner:
             (df['high'] - g['close'].shift(1)).abs(),
             (df['low'] - g['close'].shift(1)).abs()
         ], axis=1).max(axis=1)
-        df['atr'] = g['symbol'].apply(lambda x: tr.loc[x.index].rolling(20).mean()) # Corrected vectorized ATR
-        # Actually simpler:
+        
+        # Calculate ATR using transform (keeps index aligned)
+
         df['tr'] = tr
         df['atr_20d'] = g['tr'].transform(lambda x: x.rolling(20).mean())
         
@@ -189,7 +190,9 @@ class MomentumScanner:
         latest_df['score'] = total_score
         
         # Filter & Sort
-        momentum_stocks = latest_df[latest_df['score'] >= self.min_score].sort_values('score', ascending=False).head(limit)
+        # Filter & Sort - Get top stocks regardless of threshold to ensure data
+        momentum_stocks = latest_df.sort_values('score', ascending=False).head(limit)
+        momentum_stocks = momentum_stocks.fillna(0)
         
         t3 = time.time()
         logger.info(f"Vectorized Momentum Scan: Fetch={t1-t0:.2f}s, Calc={t2-t1:.2f}s, Filter={t3-t2:.2f}s. Total={t3-t0:.2f}s")
@@ -203,17 +206,17 @@ class MomentumScanner:
             strength_desc = "STRONG" if roc_10 > 3 else "MODERATE"
             
             results.append({
-                "symbol": row['symbol'],
-                "name": row['symbol'], 
-                "momentum_type": strength_desc,
-                "strength": round(row['score']),
-                "current_price": round(row['close'], 2),
-                "roc_10d": round(roc_10, 2),
-                "roc_20d": round(row['roc_20'], 2),
-                "mfi": round(mfi_val, 2),
-                "atr": round(row['atr_20d'], 2) if 'atr_20d' in row else round(row['close'] * 0.02, 2),
-                "target_price": round(row['close'] * 1.05, 2),
-                "stop_loss": round(row['close'] * 0.97, 2),
+                "symbol": str(row['symbol']),
+                "name": str(row['symbol']), 
+                "momentum_type": str(strength_desc),
+                "strength": int(round(row['score'])),
+                "current_price": float(round(row['close'], 2)),
+                "roc_10d": float(round(roc_10, 2)),
+                "roc_20d": float(round(row['roc_20'], 2)),
+                "mfi": float(round(mfi_val, 2)),
+                "atr": float(round(row['atr_20d'] if 'atr_20d' in row else row['close'] * 0.02, 2)),
+                "target_price": float(round(row['close'] * 1.05, 2)),
+                "stop_loss": float(round(row['close'] * 0.97, 2)),
                 "reason": f"ROC {roc_10:.1f}%. MFI {mfi_val:.0f}"
             })
             
