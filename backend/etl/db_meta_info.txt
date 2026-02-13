@@ -1,0 +1,18 @@
+Checking indexes on stock_candle_history...
+
+========================================
+Checking parquet_load_audit schema...
+Col: id                   | Type: integer
+Col: symbol               | Type: text
+Col: timeframe            | Type: smallint
+Col: year                 | Type: integer
+Col: month                | Type: integer
+Col: status               | Type: text
+Col: row_count_pg         | Type: bigint
+Col: row_count_parquet    | Type: bigint
+Col: min_ts_pg            | Type: timestamp without time zone
+Col: max_ts_pg            | Type: timestamp without time zone
+Col: min_ts_parquet       | Type: timestamp without time zone
+Col: max_ts_parquet       | Type: timestamp without time zone
+Col: error_message        | Type: text
+Col: last_updated         | Type: timestamp without time zone

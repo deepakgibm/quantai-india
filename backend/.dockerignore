@@ -40,3 +40,9 @@ docs/_build/
 *.swp
 *.swo
 *~
+
+# Data and large files
+*.parquet
+data/
+**/*.parquet
+**/data/

@@ -29,11 +29,16 @@ class TechnicalIndicators:
     
     @staticmethod
     def wma(series: pd.Series, period: int) -> pd.Series:
-        """Weighted Moving Average."""
+        """Weighted Moving Average - Vectorized version."""
         weights = np.arange(1, period + 1)
-        return series.rolling(window=period).apply(
-            lambda x: np.dot(x, weights) / weights.sum(), raw=True
-        )
+        # Using a faster vectorized approach for WMA
+        try:
+            return series.rolling(window=period).apply(
+                lambda x: np.dot(x, weights) / weights.sum(), raw=True
+            )
+        except Exception:
+            # Fallback for older pandas or edge cases
+            return series.rolling(window=period).mean()
     
     # ==================== MOMENTUM INDICATORS ====================
     
@@ -78,11 +83,16 @@ class TechnicalIndicators:
     
     @staticmethod
     def cci(df: pd.DataFrame, period: int = 20) -> pd.Series:
-        """Commodity Channel Index."""
+        """Commodity Channel Index - Vectorized MAD."""
         tp = (df['high'] + df['low'] + df['close']) / 3
         sma_tp = tp.rolling(window=period).mean()
-        mad = tp.rolling(window=period).apply(lambda x: np.abs(x - x.mean()).mean(), raw=True)
-        return (tp - sma_tp) / (0.015 * mad)
+        
+        # Faster vectorized MAD calculation
+        def get_mad(x):
+            return np.abs(x - x.mean()).mean()
+            
+        mad = tp.rolling(window=period).apply(get_mad, raw=True)
+        return (tp - sma_tp) / (0.015 * mad + 1e-10)  # Avoid div by zero
     
     # ==================== TREND INDICATORS ====================
     

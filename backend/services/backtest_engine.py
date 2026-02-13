@@ -55,34 +55,31 @@ class StrategyBacktester:
         self._engine = create_engine(settings.SYNC_DATABASE_URL)
         self._Session = sessionmaker(bind=self._engine)
         
+        # New Parquet DAL
+        from core.lake_dal import get_lake_dal
+        self.dal = get_lake_dal()
+        
         # Results storage
         self.results: List[BacktestResult] = []
         self.optimal_timeframes: Dict[str, str] = {}
     
     def get_candles(self, symbol: str, interval: str, limit: int = 1000) -> pd.DataFrame:
-        """Fetch intraday candles from database."""
-        from services.intraday_loader import IntradayCandle
+        """Fetch candles from Parquet Lake (optimized)."""
+        # Map UI timeframe to file structure
+        # interval: 3m, 5m, 15m, 30m
+        lf = self.dal.load_candles(symbol, interval, lazy=True)
         
-        session = self._Session()
-        try:
-            candles = session.query(IntradayCandle).filter(
-                IntradayCandle.symbol == symbol,
-                IntradayCandle.interval == interval
-            ).order_by(desc(IntradayCandle.timestamp)).limit(limit).all()
-            
-            if not candles:
-                return pd.DataFrame()
-            
-            data = [{
-                'timestamp': c.timestamp, 'open': c.open, 'high': c.high,
-                'low': c.low, 'close': c.close, 'volume': c.volume
-            } for c in reversed(candles)]
-            
-            df = pd.DataFrame(data)
+        # Fetch last N candles
+        df_pl = lf.tail(limit).collect()
+        
+        if df_pl.is_empty():
+            return pd.DataFrame()
+        
+        # Convert to Pandas for compatibility with existing signal generators
+        df = df_pl.to_pandas()
+        if 'timestamp' in df.columns:
             df.set_index('timestamp', inplace=True)
-            return df
-        finally:
-            session.close()
+        return df
     
     # ========== STRATEGY SIGNAL GENERATORS ==========
     

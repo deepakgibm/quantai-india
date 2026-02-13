@@ -21,3 +21,13 @@ coverage
 .cache
 .npm
 .eslintcache
+
+# Data and large files
+*.parquet
+**/data/
+data/
+backend/data/
+quantai_review_later/
+reconciliation_report.csv
+stock_data_inventory.csv
+discovery_metadata.csv

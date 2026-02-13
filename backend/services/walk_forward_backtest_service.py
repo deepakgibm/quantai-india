@@ -292,80 +292,42 @@ class WalkForwardBacktestService:
         }
     
     async def _load_data(self, symbols: List[str], timeframe: str) -> pd.DataFrame:
-        """Load historical data from PostgreSQL database using stock_candle + instrument_master."""
-        import asyncpg
-        from models_alpha import TimeframeMapper
+        """Load historical data from Parquet Lake (optimized)."""
+        from core.lake_dal import get_lake_dal
+        import polars as pl
         
-        all_data = []
+        dal = get_lake_dal()
+        all_dfs = []
         
-        # Map frontend timeframe to database timeframe (minutes)
-        tf_minutes = TimeframeMapper.to_minutes(timeframe)
+        logger.info(f"Loading data for {symbols} with timeframe {timeframe} from Lake")
         
-        logger.info(f"Loading data for {symbols} with timeframe {tf_minutes} minutes")
-        
-        # Build async connection URL (convert from SQLAlchemy format)
-        db_url = settings.SYNC_DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").replace("postgresql://", "")
-        
-        try:
-            # Use asyncpg for non-blocking database access
-            conn = await asyncpg.connect(f"postgresql://{db_url}")
+        for symbol in symbols:
+            # Map frontend timeframe if needed, but here we use timeframe as is or mapped
+            # TimeframeMapper.to_minutes was used before, but LakeDAL uses tf strings
+            lf = dal.load_candles(symbol, timeframe, lazy=True)
+            df_pl = lf.collect()
             
-            try:
-                # Step 1: Batch resolve instrument_ids from instrument_master
-                instrument_rows = await conn.fetch(
-                    "SELECT symbol, instrument_id FROM instrument_master WHERE symbol = ANY($1)",
-                    symbols
-                )
-                symbol_to_id = {row['symbol']: row['instrument_id'] for row in instrument_rows}
-                
-                # Get valid instrument IDs
-                valid_symbols = [s for s in symbols if s in symbol_to_id]
-                instrument_ids = [symbol_to_id[s] for s in valid_symbols]
-                
-                if not instrument_ids:
-                    logger.warning(f"Could not resolve any instrument_ids for {symbols}")
-                    return pd.DataFrame()
-                
-                # Step 2: Batch query all candles using new schema
-                rows = await conn.fetch("""
-                    SELECT im.symbol, sc.candle_ts as timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
-                    FROM stock_candle sc
-                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-                    WHERE sc.instrument_id = ANY($1) 
-                    AND sc.timeframe = $2
-                    ORDER BY im.symbol, sc.candle_ts ASC
-                """, instrument_ids, tf_minutes)
-                
-                if not rows:
-                    logger.warning(f"No data found in stock_candle for {valid_symbols} with timeframe {tf_minutes}")
-                    return pd.DataFrame()
-                
-                # Convert to DataFrame
-                df = pd.DataFrame(
-                    [(row['symbol'], row['timestamp'], row['open'], row['high'], 
-                      row['low'], row['close'], row['volume']) for row in rows],
-                    columns=['symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume']
-                )
-                
-                # Ensure timestamp is datetime and handle timezone
-                df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_localize(None)
-                df['open'] = pd.to_numeric(df['open'], errors='coerce').fillna(0)
-                df['high'] = pd.to_numeric(df['high'], errors='coerce').fillna(0)
-                df['low'] = pd.to_numeric(df['low'], errors='coerce').fillna(0)
-                df['close'] = pd.to_numeric(df['close'], errors='coerce').fillna(0)
-                df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0).astype(int)
-                
-                df = df.sort_values(['symbol', 'timestamp']).reset_index(drop=True)
-                logger.info(f"Loaded {len(df)} rows for {len(valid_symbols)} symbols using stock_candle")
-                
-                return df
-                
-            finally:
-                await conn.close()
-                
-        except Exception as e:
-            logger.error(f"PostgreSQL async error: {e}")
+            if not df_pl.is_empty():
+                df_pd = df_pl.to_pandas()
+                df_pd['symbol'] = symbol
+                all_dfs.append(df_pd)
+        
+        if not all_dfs:
+            logger.warning(f"No data found in Lake for {symbols} with timeframe {timeframe}")
             return pd.DataFrame()
+        
+        df = pd.concat(all_dfs, ignore_index=True)
+        
+        # Ensure timestamp is datetime and handle types for compatibility
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        df['volume'] = df['volume'].astype(int)
+        
+        df = df.sort_values(['symbol', 'timestamp']).reset_index(drop=True)
+        logger.info(f"Loaded {len(df)} rows for {len(symbols)} symbols from Lake")
+        
+        return df
     
     def _generate_windows(
         self,
@@ -837,7 +799,7 @@ class WalkForwardBacktestService:
         oos_equity_curves: List[Dict]
     ):
         """Calculate aggregated summary from OOS results"""
-        from api.v1.routers.walk_forward_backtest import WalkForwardSummary
+        from api.v1.walk_forward import WalkForwardSummary
         
         if not window_results:
             return WalkForwardSummary(

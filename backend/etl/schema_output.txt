@@ -1,0 +1,12 @@
+--- COLUMNS ---
+Col: instrument_id, Type: bigint, Null: NO, Default: None
+Col: timeframe, Type: smallint, Null: NO, Default: None
+Col: candle_ts, Type: timestamp without time zone, Null: NO, Default: None
+Col: open, Type: numeric, Null: YES, Default: None
+Col: high, Type: numeric, Null: YES, Default: None
+Col: low, Type: numeric, Null: YES, Default: None
+Col: close, Type: numeric, Null: YES, Default: None
+Col: volume, Type: bigint, Null: YES, Default: None
+
+--- CONSTRAINTS ---
+Name: stock_candle_history_pkey, Def: PRIMARY KEY (instrument_id, timeframe, candle_ts)

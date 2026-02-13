@@ -45,3 +45,7 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Data
+data/
+*.parquet

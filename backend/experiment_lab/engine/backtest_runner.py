@@ -210,8 +210,14 @@ class ExperimentRunner:
         if df is None or df.empty:
             raise ValueError(f"No data available for {config.symbol}")
         
+        # Pre-calculate ATR once for all strategies (used for position sizing)
+        from ..indicators.technical import TechnicalIndicators
+        atr_series = TechnicalIndicators.atr(df, 14)
+        
         # Run each strategy
-        for strategy_id in config.strategy_ids:
+        total_strategies = len(config.strategy_ids)
+        for idx, strategy_id in enumerate(config.strategy_ids):
+            print(f"[{idx+1}/{total_strategies}] Running strategy ID: {strategy_id}...")
             cache_key = f"{config.to_cache_key()}_{strategy_id}"
             
             # Check cache
@@ -236,7 +242,8 @@ class ExperimentRunner:
                 initial_capital=config.initial_capital,
                 risk_mode=RiskMode(config.risk_mode),
                 risk_percent=config.risk_percent,
-                max_holding_bars=config.max_holding_bars
+                max_holding_bars=config.max_holding_bars,
+                atr_series=atr_series
             )
             
             # Calculate metrics
@@ -273,7 +280,8 @@ class ExperimentRunner:
         initial_capital: float,
         risk_mode: RiskMode,
         risk_percent: float,
-        max_holding_bars: int
+        max_holding_bars: int,
+        atr_series: Optional[pd.Series] = None
     ) -> List[TradeRecord]:
         """
         Simulate trades from signals.
@@ -316,8 +324,10 @@ class ExperimentRunner:
                     if signal.signal == SignalType.BUY:
                         # Enter long position
                         atr = None
-                        if i >= 14:
-                            # Calculate ATR for position sizing
+                        if atr_series is not None:
+                            atr = atr_series.iloc[i]
+                        elif i >= 14:
+                            # Fallback if no pre-calculated series
                             tr = pd.concat([
                                 df['high'].iloc[i-14:i] - df['low'].iloc[i-14:i],
                                 abs(df['high'].iloc[i-14:i] - df['close'].iloc[i-15:i-1].values),

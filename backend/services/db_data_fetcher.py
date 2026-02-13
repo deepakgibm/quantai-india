@@ -262,10 +262,30 @@ class DatabaseDataFetcher:
     ) -> Optional[pd.DataFrame]:
         """
         Fetch historical OHLCV data for backtesting.
-        Uses stock_candle + instrument_master.
+        Prioritizes Parquet Lake (via LakeDAL) with PG fallback.
         """
+        # 1. Try Parquet Lake (FASTEST)
+        try:
+            from core.lake_dal import get_lake_dal
+            dal = get_lake_dal()
+            
+            # Convert start/end strings to datetime
+            start_dt = pd.to_datetime(start_date)
+            end_dt = pd.to_datetime(end_date)
+            
+            lf = dal.load_candles(symbol, interval, start_date=start_dt, end_date=end_dt, lazy=False)
+            if not lf.is_empty():
+                df = lf.to_pandas()
+                if 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
+                    df.set_index('timestamp', inplace=True)
+                logger.info(f"✅ Loaded {len(df)} rows for {symbol} from Parquet Lake")
+                return df
+        except Exception as e:
+            logger.warning(f"Parquet Lake fetch failed for {symbol}: {e}")
+
+        # 2. PG Fallback (Legacy)
         from models_alpha import TimeframeMapper
-        
         tf_minutes = TimeframeMapper.to_minutes(interval)
         conn = self._get_connection()
         if not conn:
@@ -273,18 +293,12 @@ class DatabaseDataFetcher:
             
         try:
             cursor = conn.cursor()
-            
-            # Step 1: Resolve instrument_id from instrument_master
             cursor.execute("SELECT instrument_id FROM instrument_master WHERE symbol = %s", (symbol,))
             id_row = cursor.fetchone()
             if not id_row:
-                logger.warning(f"Could not resolve instrument_id for {symbol}")
                 return None
             
             instrument_id = id_row[0]
-            logger.info(f"Fetching historical {interval} data for {symbol} (id={instrument_id}) from stock_candle")
-            
-            # Step 2: Query stock_candle using instrument_id
             cursor.execute("""
                 SELECT candle_ts, open, high, low, close, volume
                 FROM stock_candle
@@ -296,21 +310,16 @@ class DatabaseDataFetcher:
             
             rows = cursor.fetchall()
             if not rows:
-                logger.warning(f"No historical data for {symbol} in stock_candle")
                 return None
                 
             df = pd.DataFrame(rows, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
             df.set_index('timestamp', inplace=True)
             
-            # Enforce numeric types
             for col in ['open', 'high', 'low', 'close', 'volume']:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
                 
             return df
-        except Exception as e:
-            logger.error(f"Error fetching historical data: {e}")
-            return None
         finally:
             conn.close()
 

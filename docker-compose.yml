@@ -46,6 +46,7 @@ services:
 
     volumes:
       - ./backend:/app
+      - ./data:/data
     command: [ "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
     ports:
       - "8000:8000"
@@ -70,6 +71,7 @@ services:
     container_name: quantai-worker
     volumes:
       - ./backend:/app
+      - ./data:/data
     environment:
       - DRAGONFLY_HOST=dragonfly
       - DRAGONFLY_PORT=6379

@@ -60,6 +60,7 @@ ta==0.10.2
 redis==5.0.1
 
 duckdb
+polars
 pyarrow
 fastparquet
 prometheus_client==0.19.0
