@@ -103,8 +103,9 @@ class UpstoxPriceResolver:
         # 2. Strategy: Use a single batch REST call for remaining
         try:
             from services.live_price_enricher import fetch_live_full_quotes
-            logger.info(f"Resolver: Batch REST fetch for {len(pending_symbols)} symbols")
+            logger.info(f"Resolver: Batch REST fetch for {len(pending_symbols)} symbols. Symbols: {pending_symbols[:10]}")
             rest_data = await fetch_live_full_quotes(pending_symbols)
+            logger.info(f"Resolver: Batch REST returned {len(rest_data)} symbols. Data keys: {list(rest_data.keys())[:10]}")
             
             still_pending = []
             for s in pending_symbols:

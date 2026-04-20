@@ -14,14 +14,25 @@ class MarketService:
         service = get_nifty100_ranking_service()
         rankings = await service.get_rankings()
         
-        # Rankings structure contains 'gainers', 'losers', 'timestamp', 'source'
-        return {
-            "status": "success",
-            "timestamp": rankings.get("timestamp", datetime.now().isoformat()),
-            "gainers": rankings.get("gainers", [])[:limit],
-            "losers": rankings.get("losers", [])[:limit],
-            "source": rankings.get("source", "unknown")
-        }
+        # Rankings structure contains 'gainers', 'losers', 'as_of', 'source', 'is_market_open', 'cache_metadata'
+        # We ensure compatibility with the frontend's expected keys
+        if isinstance(rankings, dict):
+            # Already a dict from cache
+            result = rankings
+        else:
+            # Dataclass from service
+            from dataclasses import asdict
+            result = asdict(rankings)
+            
+        # Limit the results if requested
+        result["gainers"] = result.get("gainers", [])[:limit]
+        result["losers"] = result.get("losers", [])[:limit]
+        
+        # Add frontend-specific compatibility fields if missing
+        if "is_market_hours" not in result and "is_market_open" in result:
+            result["is_market_hours"] = result["is_market_open"]
+            
+        return result
 
     async def get_global_market_context(self) -> Dict[str, Any]:
         """Fetch global market context for sentiment analysis."""

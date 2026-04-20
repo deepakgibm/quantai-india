@@ -92,9 +92,16 @@ class FeatureBuilder:
         # Target variable: next close (for training)
         result['target'] = result['close'].shift(-1)
         
-        # Store feature names
-        self.feature_names = [col for col in result.columns if col not in 
-                             ['open', 'high', 'low', 'close', 'volume', 'target', 'timestamp']]
+        # Store feature names - exclude OHLCV, target, metadata, and non-numeric columns
+        exclude_cols = {
+            'open', 'high', 'low', 'close', 'volume', 'target', 'timestamp',
+            'symbol', 'timeframe', 'feature_version', 'year', 'month',
+            'instrument_key', 'instrument_id', 'company_name', 'exchange', 'series',
+        }
+        self.feature_names = [
+            col for col in result.columns 
+            if col not in exclude_cols and result[col].dtype in ('float64', 'float32', 'int64', 'int32', 'int8', 'bool')
+        ]
         
         return result
     
@@ -119,7 +126,15 @@ class FeatureBuilder:
         
         X = features_df[self.feature_names].values
         y = features_df['target'].values
-        timestamps = features_df.index.strftime('%Y-%m-%dT%H:%M:%S').tolist()
+        
+        # Handle timestamps whether they are in a column or in the index
+        if 'timestamp' in features_df.columns:
+            ts = pd.to_datetime(features_df['timestamp'])
+            timestamps = ts.dt.strftime('%Y-%m-%dT%H:%M:%S').tolist()
+        elif hasattr(features_df.index, 'strftime'):
+            timestamps = features_df.index.strftime('%Y-%m-%dT%H:%M:%S').tolist()
+        else:
+            timestamps = list(range(len(features_df)))
         
         return X, y, timestamps
     

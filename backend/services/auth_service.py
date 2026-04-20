@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 
 from models import User, UserSettings
 from schemas import UserCreate, UserLogin, FirebaseLogin
-from utils.auth import get_password_hash, verify_password_async, create_access_token
+from utils.auth import get_password_hash, verify_password_async, create_access_token, create_refresh_token
 from config import settings as app_settings
 
 logger = logging.getLogger(__name__)
@@ -95,8 +95,13 @@ class AuthService:
         access_token = create_access_token(
             data={"sub": db_user.email}, expires_delta=access_token_expires
         )
+        refresh_token = create_refresh_token(data={"sub": db_user.email})
         
-        return {"access_token": access_token, "token_type": "bearer"}
+        return {
+            "access_token": access_token, 
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
 
     async def firebase_login(self, data: FirebaseLogin, db: AsyncSession) -> Dict[str, str]:
         """Authenticate using a Firebase ID token."""
@@ -153,8 +158,13 @@ class AuthService:
         access_token = create_access_token(
             data={"sub": db_user.email}, expires_delta=access_token_expires
         )
+        refresh_token = create_refresh_token(data={"sub": db_user.email})
         
-        return {"access_token": access_token, "token_type": "bearer"}
+        return {
+            "access_token": access_token, 
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
 
 _auth_service = None
 def get_auth_service():

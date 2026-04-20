@@ -11,10 +11,11 @@ import logging
 from utils.auth import get_current_user
 from models import User
 from fastapi import Depends
+from utils.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["analytics"])
+router = APIRouter(tags=["analytics"], dependencies=[Depends(rate_limit(60, 60, "analytics"))])
 
 
 # ============================================
@@ -191,6 +192,11 @@ async def execute_custom_query(request: QueryRequest, current_user: User = Depen
         from services.analytics_engine import get_analytics_engine
         
         engine = get_analytics_engine()
+        
+        # Ensure core tables are available for custom queries
+        engine._ensure_table_exists('stock_candle')
+        engine._ensure_table_exists('instrument_master')
+        
         df = engine.query(request.sql, request.params)
         
         return {
@@ -366,39 +372,36 @@ async def trigger_indicator_computation(
 async def get_latest_indicators(symbol: str, interval: str = "1d", current_user: User = Depends(get_current_user)):
     """Get latest precomputed indicators for a symbol."""
     try:
-        from database import AsyncSessionLocal
-        from sqlalchemy import text
+        from core.duckdb_indicators import indicator_engine
         
-        async with AsyncSessionLocal() as session:
-            query = text("""
-                SELECT * FROM precomputed_indicators
-                WHERE symbol = :symbol AND interval = :interval
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """)
-            
-            result = await session.execute(query, {"symbol": symbol, "interval": interval})
-            row = result.fetchone()
-            
-            if not row:
-                return {
-                    "status": "no_data",
-                    "symbol": symbol,
-                    "interval": interval,
-                    "message": f"No precomputed indicators for {symbol}. Run indicator computation first.",
-                    "indicators": None
-                }
-            
-            # Convert row to dict
-            columns = result.keys()
-            data = dict(zip(columns, row))
-            
+        # Pull massive dataframe instantly using PyArrow/DuckDB internals
+        df = indicator_engine.get_indicators(symbol=symbol, interval=interval)
+        
+        if df.empty:
             return {
-                "status": "success",
+                "status": "no_data",
                 "symbol": symbol,
                 "interval": interval,
-                "indicators": data
+                "message": f"No Parquet market data available for {symbol}.",
+                "indicators": None
             }
+            
+        # Get latest row
+        latest = df.iloc[0]
+        import numpy as np
+        # Convert to dict and handle NaNs
+        data = latest.replace({np.nan: None}).to_dict()
+        
+        # Timestamp might be a pd.Timestamp, make sure it's string JSON serializable
+        if pd.notnull(data.get('timestamp')):
+            data['timestamp'] = str(data['timestamp'])
+        
+        return {
+            "status": "success",
+            "symbol": symbol,
+            "interval": interval,
+            "indicators": data
+        }
             
     except HTTPException:
         raise

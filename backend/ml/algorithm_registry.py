@@ -8,6 +8,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 import numpy as np
@@ -421,6 +422,15 @@ class TransformerInformerDL(ForecastAlgorithm):
         """
         Forecasting using the Transformer model.
         """
+        try:
+            import torch  # noqa: F401
+        except ImportError:
+            raise RuntimeError(
+                "Transformer Informer DL requires PyTorch which is not installed in this environment. "
+                "Please use 'XGBoost Fast' or 'ARIMA Stable' algorithms instead, "
+                "or install PyTorch: pip install torch"
+            )
+        
         if len(df) < 50:
             raise ValueError("Insufficient data for Transformer DL (need 50+ candles)")
         
@@ -537,12 +547,24 @@ class AlgorithmRegistry:
         return cls._instance
     
     def _initialize_algorithms(self):
-        """Register default algorithms."""
+        """Register default algorithms (Project Aegis Aware)."""
+        from config import settings
         self._algorithms = {}
-        self.register(AdaptiveEnsembleV2())
-        self.register(XGBoostFast())
-        self.register(TransformerInformerDL())
+        
+        # Always register statistical/math-only fallbacks
         self.register(ARIMAStable())
+        
+        if settings.ENABLE_AI_FEATURES:
+            try:
+                self.register(AdaptiveEnsembleV2())
+                self.register(XGBoostFast())
+                self.register(TransformerInformerDL())
+                logger.info(f"AI Algorithms registered successfully.")
+            except Exception as e:
+                logger.warning(f"Failed to register AI algorithms: {e}")
+        else:
+            logger.info("Project Aegis: AI algorithms disabled in Safe Mode.")
+            
         logger.info(f"Algorithm Registry initialized with {len(self._algorithms)} algorithms")
     
     def register(self, algorithm: ForecastAlgorithm):

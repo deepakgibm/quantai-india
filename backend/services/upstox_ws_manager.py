@@ -7,20 +7,26 @@ Uses Protobuf for decoding tick data.
 import asyncio
 import json
 import logging
+import os
 import ssl
 import certifi
 import websockets
 from typing import Dict, List, Optional, Callable, Set
 
+import httpx
 from services.upstox_client import get_upstox_client
 from utils.upstox_proto import decode_market_data
+from services.auth.token_manager import TokenManagerService
+from services.dragonfly_client import get_cache
+from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
 class UpstoxWSManager:
     """
     Manages WebSocket connection to Upstox Market Data Feed.
-    Handles authentication, subscription, and Protobuf decoding.
+    Handles authentication via Analytics Token, subscription, and Protobuf decoding,
+    pushing directly to Redis PubSub.
     """
     
     WS_URL = "wss://api.upstox.com/v2/feed/market-data-feed"
@@ -97,16 +103,43 @@ class UpstoxWSManager:
         self.callbacks.append(callback)
         
     async def _get_authorized_url(self) -> str:
-        """Fetch authorized WebSocket URL from Upstox."""
-        endpoint = "/feed/market-data-feed/authorize"
+        """Fetch authorized WebSocket URL from Upstox using the 1-year Analytics Token."""
+        db = SessionLocal()
         try:
-            # Await the async _make_request method
-            response = await self.client._make_request("GET", endpoint)
-            if response.get("status") == "success":
-                return response["data"]["authorized_redirect_url"]
-            raise Exception(f"Failed to authorize WS: {response}")
+            manager = TokenManagerService(db)
+            analytics_token = manager.get_analytics_token()
+        finally:
+            db.close()
+            
+        if not analytics_token:
+            logger.error("NO ANALYTICS TOKEN AVAILABLE! Market Data WS cannot connect.")
+            raise Exception("Analytics Token Missing")
+
+        endpoint = "https://api.upstox.com/v2/feed/market-data-feed/authorize"
+        try:
+            # Institutional tokens require both Bearer and Api-Key headers
+            headers = {
+                "Accept": "application/json",
+                "Authorization": f"Bearer {analytics_token}",
+                "Api-Key": os.getenv("UPSTOX_API_KEY", "")
+            }
+            async with httpx.AsyncClient() as client:
+                response = await client.get(endpoint, headers=headers)
+                
+                # CRITICAL: If unauthorized, don't retry. Fail fast.
+                if response.status_code == 401:
+                    logger.critical("UPSTOX AUTH FAILURE: 401 Unauthorized on WS Authorization endpoint. Token expired or API Key invalid.")
+                    raise PermissionError("Upstox Unauthorized: Check Analytics Token/API Key")
+                
+                response.raise_for_status()
+                data = response.json()
+                if data.get("status") == "success":
+                    return data["data"]["authorized_redirect_url"]
+                raise Exception(f"Failed to authorize WS: {data}")
+        except PermissionError:
+            raise # Re-raise for connect() to catch
         except Exception as e:
-            logger.error(f"Error authorizing Upstox WS: {e}")
+            logger.error(f"Error authorizing Upstox WS with Analytics Token: {e}")
             raise
 
     async def connect(self, max_retries: int = 5):
@@ -133,7 +166,6 @@ class UpstoxWSManager:
                     ping_timeout=10
                 )
                 self.is_running = True
-                self._reconnect_attempts = 0
                 logger.info(f"Connected to Upstox WebSocket (attempt {attempt + 1})")
                 
                 # Start background listener
@@ -144,6 +176,12 @@ class UpstoxWSManager:
                     await self.subscribe(list(self.subscribed_symbols))
                 
                 return  # Success
+            
+            except (PermissionError, httpx.HTTPStatusError) as e:
+                # Fatal auth error or client-side HTTP error. No point in retrying.
+                logger.error(f"WebSocket permanent failure (No retry): {e}")
+                self.is_running = False
+                raise
                 
             except Exception as e:
                 wait_time = 2 ** attempt  # 1, 2, 4, 8, 16 seconds
@@ -221,7 +259,15 @@ class UpstoxWSManager:
             tick["symbol"] = symbol
             self.last_ticks[symbol] = tick
             
-            # Notify callbacks
+            # 1. Publish to Redis PubSub for scalable EDA
+            cache = get_cache()
+            if cache.is_available():
+                # Launch background task so we don't block tick handling
+                asyncio.create_task(
+                    cache.publish_async(f"market.quote.{symbol}", tick)
+                )
+
+            # 2. Notify any local callbacks
             for callback in self.callbacks:
                 try:
                     callback(tick)

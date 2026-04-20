@@ -1,8 +1,7 @@
 """
 Core Indicators Package
 =======================
-Re-exports indicator functions from the canonical implementation in 
-core.scanner.indicator_utils for backward compatibility.
+Re-exports indicator functions from core.scanner.indicator_utils for backward compatibility.
 
 All indicator calculations should use this module's exports.
 """

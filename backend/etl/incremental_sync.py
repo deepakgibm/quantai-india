@@ -142,7 +142,7 @@ def main():
     df_symbols = pl.read_database(query, conn)
     
     # Get timeframes to sync (production standard)
-    timeframes = [1, 5, 15, 60, 1440]
+    timeframes = [1, 3, 5, 15, 30, 60, 1440]
     
     for sym_row in df_symbols.to_dicts():
         if args.symbol and sym_row['symbol'] != args.symbol:

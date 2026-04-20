@@ -79,18 +79,52 @@ class LakeDAL:
             return pl.DataFrame() if not lazy else pl.LazyFrame()
 
         # Using recursive search to capture all nested parquet files (year/month)
-        lf = pl.scan_parquet(str(input_dir / "**" / "*.parquet"), hive_partitioning=True)
+        # We use DuckDB as the engine for loading because it handles Decimal-to-Double 
+        # unification much better than Polars native scanner when partitions mismatch.
+        parquet_glob = str(input_dir / "**" / "*.parquet").replace("\\", "/")
+        logger.info(f"🔍 Attempting to load {symbol} ({timeframe}) from {parquet_glob}")
+        
+        try:
+            # 1. Attempt DuckDB (Robust)
+            logger.debug("Trying DuckDB read_parquet...")
+            sql = f"SELECT * FROM read_parquet('{parquet_glob}', hive_partitioning=1) LIMIT 0"
+            self.db.execute(sql) # Check schema
+            
+            sql_full = f"""
+                SELECT 
+                    instrument_id, 
+                    timeframe, 
+                    candle_ts, 
+                    CAST(open AS DOUBLE) as open, 
+                    CAST(high AS DOUBLE) as high, 
+                    CAST(low AS DOUBLE) as low, 
+                    CAST(close AS DOUBLE) as close, 
+                    volume
+                FROM read_parquet('{parquet_glob}', hive_partitioning=1)
+            """
+            df = self.db.execute(sql_full).pl()
+            lf = df.lazy()
+            logger.info(f"✅ Success: Loaded {len(df)} rows via DuckDB engine")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ DuckDB scan failed: {e}")
+            try:
+                # 2. Attempt Polars (Native)
+                logger.debug("Trying Polars scan_parquet...")
+                lf = pl.scan_parquet(str(input_dir / "**" / "*.parquet"), hive_partitioning=True)
+                # Test schema access which triggers partition unification
+                schema = lf.collect_schema()
+                logger.info(f"✅ Success: Loaded schema via Polars native: {schema}")
+            except Exception as e2:
+                logger.error(f"❌ Critical: Polars scan also failed: {e2}")
+                return pl.DataFrame() if not lazy else pl.LazyFrame()
         
         # Standardize column naming if necessary
-        # Most of our app uses 'timestamp', but the user's parquet uses 'candle_ts'
-        schema = lf.schema
+        schema = lf.collect_schema()
         if 'candle_ts' in schema and 'timestamp' not in schema:
             lf = lf.with_columns(pl.col('candle_ts').alias('timestamp'))
-            
-        # Cast Decimal columns to Float64 for better compatibility with pandas/scipy
-        decimal_cols = [name for name, dtype in lf.schema.items() if isinstance(dtype, pl.Decimal)]
-        if decimal_cols:
-            lf = lf.with_columns([pl.col(c).cast(pl.Float64) for c in decimal_cols])
+        elif 'timestamp' in schema and 'candle_ts' not in schema:
+            lf = lf.with_columns(pl.col('timestamp').alias('candle_ts'))
             
         if start_date:
             lf = lf.filter(pl.col("timestamp") >= start_date)

@@ -1,7 +1,7 @@
 # QuantAI India - Docker Compose Configuration
-# Full stack: Frontend, Backend API, HP Scanner Worker, Dragonfly Cache, PostgreSQL
+# Full stack: Frontend, Backend API, HP Scanner Worker, Dragonfly Cache, Monitoring
 
-version: '3.9'
+# QuantAI Docker Orchestration
 
 services:
   # ==========================================================================
@@ -16,6 +16,8 @@ services:
       - dragonfly_data:/data
     command: dragonfly --logtostderr
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: '1.0'
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -23,7 +25,7 @@ services:
       retries: 5
 
   # ==========================================================================
-  # Backend API (FastAPI)
+  # Backend API (FastAPI) — Multi-worker, no --reload
   # ==========================================================================
   backend:
     build:
@@ -31,7 +33,7 @@ services:
       dockerfile: Dockerfile
     container_name: quantai-backend
     env_file:
-      - ./backend/.env
+      - .env
     environment:
       - DRAGONFLY_HOST=dragonfly
       - DRAGONFLY_PORT=6379
@@ -43,23 +45,34 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-supersecretkey}
       - DATABASE_URL=postgresql+asyncpg://postgres:admin@host.docker.internal:5432/quantai
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173
+      - ENVIRONMENT=production
+      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY:-generate_your_own_key_here}
+      - CELERY_BROKER_URL=redis://dragonfly:6379/1
+      - CELERY_RESULT_BACKEND=redis://dragonfly:6379/2
+      - ENABLE_AI_FEATURES=false
+      - SAFE_MODE=true
+      - MOCK_AI_RESPONSES=true
+      - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
     volumes:
       - ./backend:/app
       - ./data:/data
-    command: [ "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
+    # command: [ "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2" ]
     ports:
       - "8000:8000"
+    mem_limit: 2g
+    cpus: '2.0'
     depends_on:
       dragonfly:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health/" ]
+      test: [ "CMD", "curl", "-s", "http://127.0.0.1:8000/api/health/" ]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 60s
 
   # ==========================================================================
   # HP Scanner Worker (Background processing)
@@ -72,23 +85,110 @@ services:
     volumes:
       - ./backend:/app
       - ./data:/data
+    env_file:
+      - .env
     environment:
       - DRAGONFLY_HOST=dragonfly
       - DRAGONFLY_PORT=6379
       - DATABASE_URL=postgresql+asyncpg://postgres:admin@host.docker.internal:5432/quantai
+      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY:-generate_your_own_key_here}
+      - ENABLE_AI_FEATURES=${ENABLE_AI_FEATURES:-false}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - MOCK_AI_RESPONSES=${MOCK_AI_RESPONSES:-true}
+    mem_limit: 4g
+    cpus: '2.0'
     depends_on:
       dragonfly:
         condition: service_healthy
       backend:
         condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import os; exit(0)" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================================================
+  # Celery Worker (Task Queue — ML Training, Backtesting)
+  # ==========================================================================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.celery
+    container_name: quantai-celery-worker
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+    env_file:
+      - .env
+    environment:
+      - DRAGONFLY_HOST=dragonfly
+      - DRAGONFLY_PORT=6379
+      - DATABASE_URL=postgresql+asyncpg://postgres:admin@host.docker.internal:5432/quantai
+      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY:-generate_your_own_key_here}
+      - CELERY_BROKER_URL=redis://dragonfly:6379/1
+      - CELERY_RESULT_BACKEND=redis://dragonfly:6379/2
+      - ENABLE_AI_FEATURES=${ENABLE_AI_FEATURES:-false}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - MOCK_AI_RESPONSES=${MOCK_AI_RESPONSES:-true}
+    mem_limit: 4g
+    cpus: '2.0'
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "celery", "-A", "celery_app", "inspect", "ping", "--timeout", "5" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ==========================================================================
+  # Market Data Service (Real-time Ingestion & Pub/Sub)
+  # ==========================================================================
+  market-data-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.market
+    container_name: quantai-market-service
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+    env_file:
+      - .env
+    environment:
+      - DRAGONFLY_HOST=dragonfly
+      - DRAGONFLY_PORT=6379
+      - DATABASE_URL=postgresql+asyncpg://postgres:admin@host.docker.internal:5432/quantai
+      - ENVIRONMENT=production
+      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY:-generate_your_own_key_here}
+      - ENABLE_AI_FEATURES=${ENABLE_AI_FEATURES:-false}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - MOCK_AI_RESPONSES=${MOCK_AI_RESPONSES:-true}
+    ports:
+      - "8001:8001"
+    mem_limit: 2g
+    cpus: '1.0'
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ==========================================================================
   # Frontend (React + Vite + nginx)
   # ==========================================================================
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL}
@@ -102,6 +202,8 @@ services:
     container_name: quantai-frontend
     ports:
       - "127.0.0.1:3000:80"
+    mem_limit: 256m
+    cpus: '0.5'
     depends_on:
       - backend
     restart: unless-stopped
@@ -127,7 +229,14 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
     ports:
       - "9090:9090"
+    mem_limit: 512m
+    cpus: '0.5'
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   grafana:
     image: grafana/grafana:latest
@@ -140,9 +249,16 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     ports:
       - "3001:3000"
+    mem_limit: 256m
+    cpus: '0.5'
     depends_on:
       - prometheus
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   redis-exporter:
     image: oliver006/redis_exporter
@@ -151,11 +267,17 @@ services:
       - REDIS_ADDR=redis://dragonfly:6379
     ports:
       - "9121:9121"
+    mem_limit: 128m
+    cpus: '0.25'
     depends_on:
       - dragonfly
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9121/metrics" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
   # Node exporter removed as it is Linux-specific and fails on Windows host.
-
 
   # ==========================================================================
   # Volumes

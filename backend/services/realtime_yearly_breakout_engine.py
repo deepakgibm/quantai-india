@@ -84,7 +84,7 @@ class RealTimeYearlyBreakoutEngine:
                             mk.symbol, 
                             MAX(sch.high) as year_high, 
                             MIN(sch.low) as year_low
-                        FROM stock_candle_history sch
+                        FROM stock_candle sch
                         JOIN instrument_master mk ON sch.instrument_id = mk.instrument_id
                         WHERE sch.candle_ts > NOW() - INTERVAL '365 days'
                         GROUP BY mk.symbol
@@ -94,7 +94,7 @@ class RealTimeYearlyBreakoutEngine:
                             mk.symbol, 
                             sch.close as last_price,
                             sch.candle_ts
-                        FROM stock_candle_history sch
+                        FROM stock_candle sch
                         JOIN instrument_master mk ON sch.instrument_id = mk.instrument_id
                         ORDER BY mk.symbol, sch.candle_ts DESC
                     )
@@ -158,10 +158,28 @@ class RealTimeYearlyBreakoutEngine:
                 
                 logger.info(f"Loaded 52-week levels for {count} symbols. Found {breakout_count} initial breakouts.")
                 
-                logger.info(f"Loaded 52-week levels for {count} symbols from DB.")
-                
         except Exception as e:
             logger.error(f"Failed to load 52-week levels from DB: {e}")
+
+    def bulk_update(self, breakouts: List[Dict]):
+        """
+        Force update internal breakout state with a batch of breakouts (e.g. from manual scan).
+        This synchronizes the WebSocket feed with REST refreshes.
+        """
+        if not breakouts:
+            return
+            
+        logger.info(f"Bulk updating RealTimeYearlyBreakoutEngine state with {len(breakouts)} items")
+        for item in breakouts:
+            symbol = item.get("symbol")
+            if not symbol:
+                continue
+                
+            # Update internal breakout state
+            self.breakouts[symbol] = {
+                **item,
+                "timestamp": item.get("timestamp", datetime.now().isoformat())
+            }
 
     def _on_tick_raw(self, raw_tick: Dict):
         try:

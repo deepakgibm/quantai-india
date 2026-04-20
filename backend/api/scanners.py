@@ -20,10 +20,11 @@ from services.dragonfly_client import get_cache, CacheKeys, cache_get
 from services.market_hours_service import get_market_hours_service
 from services.momentum_scanner import MomentumScanner
 from config import settings
+from utils.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Scanners"])
+router = APIRouter(tags=["Scanners"], dependencies=[Depends(rate_limit(60, 60, "scanner"))])
 
 # --- Models ---
 class ScanRequest(BaseModel):
@@ -103,7 +104,7 @@ async def get_hp_breakout():
 
 @router.websocket("/ws")
 async def scanner_websocket(websocket: WebSocket):
-    """Real-time scanner update feed."""
+    """Real-time scanner update feed with heartbeat."""
     logger.info("New WebSocket connection request")
     try:
         await websocket.accept()
@@ -115,35 +116,60 @@ async def scanner_websocket(websocket: WebSocket):
         engine = get_realtime_scanner_engine()
         breakout_engine = get_realtime_yearly_breakout_engine()
         
-        logger.info("RealTimeScannerEngines obtained")
+        consecutive_errors = 0
+        MAX_CONSECUTIVE_ERRORS = 5
+        tick = 0
         
         while True:
-            # Check connection state
-            if websocket.client_state.name == "DISCONNECTED":
-                break
+            try:
+                # Fetch data
+                data = engine.get_all_stock_data()
+                indices = engine.get_indices()
+                breakouts = list(breakout_engine.breakouts.values()) if hasattr(breakout_engine, 'breakouts') else []
                 
-            data = engine.get_all_stock_data()
-            indices = engine.get_indices()
-            breakouts = list(breakout_engine.breakouts.values())
-            
-            await websocket.send_json({
-                "type": "bucket_update", 
-                "data": data, 
-                "indices": indices,
-                "breakouts": breakouts,
-                "timestamp": datetime.now().isoformat()
-            })
-            await asyncio.sleep(1)
-            
+                payload = {
+                    "type": "bucket_update", 
+                    "data": data, 
+                    "indices": indices,
+                    "breakouts": breakouts,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                await websocket.send_json(payload)
+                consecutive_errors = 0  # Reset on success
+                tick += 1
+                
+                # Send heartbeat ping every 30 ticks (~30s at 1s interval)
+                if tick % 30 == 0:
+                    try:
+                        await websocket.send_json({"type": "ping", "timestamp": datetime.now().isoformat()})
+                    except Exception:
+                        break
+                
+                await asyncio.sleep(1)
+                
+            except (WebSocketDisconnect, RuntimeError):
+                logger.info("Scanner WebSocket disconnected by client")
+                break
+            except Exception as e:
+                consecutive_errors += 1
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    logger.error(f"WebSocket: {MAX_CONSECUTIVE_ERRORS} consecutive errors, closing. Last: {e}")
+                    break
+                logger.warning(f"WebSocket broadcast error ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}")
+                await asyncio.sleep(2)
+                continue
+                
     except WebSocketDisconnect:
-        logger.info("Scanner WebSocket disconnected")
+        logger.info("Scanner WebSocket closed")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}", exc_info=True)
-        # Try to close if not already closed
+        logger.error(f"WebSocket initialization error: {e}", exc_info=True)
+    finally:
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass
+
 @router.get("/momentum")
 async def get_momentum_data(
     force_refresh: bool = False,
@@ -151,74 +177,63 @@ async def get_momentum_data(
 ):
     """
     REST endpoint for momentum data.
-    Delegates to ScannerEngine.
+    Delegates to ScannerEngine or HP Cache.
     """
     if force_refresh:
         logger.info("Force refresh requested for momentum data")
     
-    # Use HP scanner if available, else standard
-    market_service = get_market_hours_service()
-    data = await get_hp_momentum()
-    
-    # Validation: Ensure data is valid list
-    if data and isinstance(data, dict) and "data" in data:
-        data = data["data"]
-    
-    if data and len(data) > 0 and market_service.is_market_open():
-         # Wrap in bucket_update for Frontend
-         return {
-             "type": "bucket_update",
-             "data": data,
-             "timestamp": datetime.now().isoformat()
-         }
+    # 1. Try HP Cache First (Even if market closed, we show last known)
+    try:
+        data_resp = await get_hp_momentum()
+        data = data_resp.get("data", []) if isinstance(data_resp, dict) else []
+        
+        # If we have cached data and NOT a force refresh, serve it
+        if data and not force_refresh:
+            logger.info(f"Serving {len(data)} momentum stocks from HP cache")
+            return {
+                "type": "bucket_update",
+                "data": data,
+                "timestamp": datetime.now().isoformat(),
+                "status": {"source": "CACHE", "is_healthy": True, "stock_count": len(data)}
+            }
+    except Exception as e:
+        logger.warning(f"HP Cache check failed: {e}")
 
-    # Fallback to DB Scanning (if market closed or cache empty)
-    logger.info("Momentum fallback: Using DB scanner (Market Closed/Cache Empty)")
+    # 2. Trigger Scanner Fallback (Market closed OR Cache empty OR Force Refresh)
+    logger.info("Momentum: Using ScannerEngine/DB Fallback")
     try:
         scanner = MomentumScanner()
-        # Scan synchronous, run in threadpool
-        raw_results = await asyncio.to_thread(scanner.scan_all)
+        # Scan all (Default is 10, let's get more for the dashboard)
+        raw_results = await asyncio.to_thread(scanner.scan_all, limit=100)
         
-        # Map to Frontend StockTick format
-        mapped_results = []
-        for r in raw_results:
-            roc = r.get("roc_10d", 0)
-            score = r.get("strength", 50)
-            
-            # Determine Bucket
-            bucket = "NEUTRAL"
-            if roc >= 3: 
-                bucket = "STRONG_BULLISH"
-            elif roc > 0: 
-                bucket = "MODERATE_BULLISH"
-            elif roc <= -3: 
-                bucket = "STRONG_BEARISH"
-            elif roc < 0: 
-                bucket = "MODERATE_BEARISH"
-                
-            mapped_results.append({
-                "symbol": r["symbol"],
-                "ltp": r["current_price"],
-                "prev_close": r["current_price"], # Approximation for DB fallback
-                "change_pct": roc,
-                "momentum_score": score,
-                "bucket": bucket,
-                "pct_bucket": "0%", # Placeholder
-                "direction": "Bullish" if roc > 0 else "Bearish",
-                "correlation": 0.5, # Default
-                "source": "DB_FALLBACK",
-                "confidence": "LOW",
-                "last_update": datetime.now().isoformat()
-            })
-            
+        # Formatting is now handled in MomentumScanner.scan_all
+        
+        # SYNC: Update Real-time Engine state so WebSocket feed doesn't overwrite this with empty data
+        try:
+            logger.info(f"Syncing {len(raw_results)} momentum results to RealTime engine")
+            from core.scanner.realtime_scanner_engine import get_realtime_scanner_engine
+            engine = get_realtime_scanner_engine()
+            engine.bulk_update(raw_results)
+            logger.info(f"Momentum sync successful. Engine now has {len(engine.stock_state)} stocks.")
+        except Exception as e:
+            logger.error(f"Failed to sync momentum results to RealTime engine: {e}", exc_info=True)
+
+        result = {
+            "type": "bucket_update",
+            "data": raw_results,
+            "timestamp": datetime.now().isoformat(),
+            "status": {"source": "DB_SCANNER", "is_healthy": len(raw_results) > 0, "stock_count": len(raw_results)}
+        }
+        logger.info(f"Returning {len(raw_results)} stocks from DB_SCANNER")
+        return result
+    except Exception as e:
+        logger.error(f"Momentum scanner failed: {e}", exc_info=True)
         return {
             "type": "bucket_update",
-            "data": mapped_results,
-            "timestamp": datetime.now().isoformat()
+            "data": [],
+            "timestamp": datetime.now().isoformat(),
+            "status": {"source": "ERROR", "is_healthy": False}
         }
-    except Exception as e:
-        logger.error(f"Momentum DB fallback failed: {e}")
-        return []
 
 @router.get("/week52-breakouts")
 async def get_week52_breakouts(
@@ -233,11 +248,6 @@ async def get_week52_breakouts(
         if hp_data and not force_refresh:
             high_breakouts = [m for m in hp_data if m.get("breakout_type") in ["52W_HIGH", "Yearly High", "Breakout"]]
             low_breakdowns = [m for m in hp_data if m.get("breakout_type") in ["52W_LOW", "Yearly Low"]]
-            
-            # Map legacy types if needed (RealTimeEngine uses "52W_HIGH" etc., Frontend might expect same or mapped)
-            # Frontend code shows it handles "Breakout", "Yearly High", "Yearly Low".
-            # RealTimeEngine produces "52W_HIGH", "Yearly High", "52W_LOW", "Yearly Low".
-            # Let's align types to be safe.
             
             return {
                 "status": "success",
@@ -300,8 +310,17 @@ async def get_week52_breakouts(
                 "volume_ratio": res.get("volume_ratio", 1.0),
                 "volume_strength": res.get("volume_strength", "Normal"),
                 "industry": res.get("industry", "N/A"),
-                "last_update": res.get("timestamp")
+                "timestamp": res.get("timestamp")
             })
+
+        # SYNC: Update Real-time Breakout Engine so WebSocket feed remains consistent
+        try:
+            logger.info(f"Syncing {len(mapped_results)} breakout results to RealTime breakout engine")
+            from services.realtime_yearly_breakout_engine import get_realtime_yearly_breakout_engine
+            get_realtime_yearly_breakout_engine().bulk_update(mapped_results)
+            logger.info("Breakout sync successful")
+        except Exception as e:
+            logger.error(f"Failed to sync breakout results to RealTime engine: {e}", exc_info=True)
 
         high_breakouts = [m for m in mapped_results if m.get("breakout_type") in ["52W_HIGH", "Yearly High", "Breakout"]]
         low_breakdowns = [m for m in mapped_results if m.get("breakout_type") in ["52W_LOW", "Yearly Low"]]

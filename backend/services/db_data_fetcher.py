@@ -77,23 +77,30 @@ class DatabaseDataFetcher:
         self._last_fetch: Optional[datetime] = None
         
     def _get_connection(self):
-        """Get database connection."""
+        """Get a pooled database connection via SQLAlchemy SessionLocal.
+        
+        Uses the shared connection pool (pool_size=10, max_overflow=20) 
+        instead of creating a new TCP connection per call.
+        """
         try:
-            if "postgresql" in settings.DATABASE_URL:
-                # Parse DATABASE_URL for psycopg2
-                result = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
-                return psycopg2.connect(
-                    host=result.hostname or 'localhost',
-                    port=result.port or 5432,
-                    user=result.username or 'postgres',
-                    password=result.password or 'admin',
-                    database=result.path.lstrip('/') or 'quantai'
-                )
-            else:
-                # Fallback or other DBs (not expected here based on USER request)
-                return None
+            from database import SessionLocal
+            session = SessionLocal()
+            return session.connection().connection.dbapi_connection
         except Exception as e:
-            logger.error(f"Database connection error: {e}")
+            logger.error(f"Database connection error (pooled): {e}")
+            # Fallback to direct psycopg2 if SessionLocal is unavailable
+            try:
+                if "postgresql" in settings.DATABASE_URL:
+                    result = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
+                    return psycopg2.connect(
+                        host=result.hostname or 'localhost',
+                        port=result.port or 5432,
+                        user=result.username or 'postgres',
+                        password=result.password or 'admin',
+                        database=result.path.lstrip('/') or 'quantai'
+                    )
+            except Exception as fallback_err:
+                logger.error(f"Fallback connection also failed: {fallback_err}")
             return None
     
     def fetch_latest_data(self, symbols: List[str] = None) -> Dict[str, DatabaseTick]:
@@ -316,8 +323,9 @@ class DatabaseDataFetcher:
             df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
             df.set_index('timestamp', inplace=True)
             
+            # Enforce Float64 to prevent Decimal mismatches
             for col in ['open', 'high', 'low', 'close', 'volume']:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+                df[col] = pd.to_numeric(df[col], errors='coerce').astype('float64')
                 
             return df
         finally:
@@ -408,6 +416,9 @@ class DatabaseDataFetcher:
 # Singleton instance
 _db_data_fetcher = None
 
+
+# Alias for backward compatibility and Experiment Lab support
+DBDataFetcher = DatabaseDataFetcher
 
 def get_db_data_fetcher() -> DatabaseDataFetcher:
     """Get singleton Database data fetcher instance."""

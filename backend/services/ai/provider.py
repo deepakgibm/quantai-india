@@ -1,12 +1,23 @@
 import logging
-import google.generativeai as genai
-from typing import Any
+from typing import Any, Optional
 from config import settings
 from fastapi import HTTPException
 import json
 import re
 
 logger = logging.getLogger(__name__)
+
+# Conditional import for AI hardening (Project Aegis)
+try:
+    if settings.ENABLE_AI_FEATURES:
+        import google.generativeai as genai
+        HAS_GENAI = True
+    else:
+        HAS_GENAI = False
+except ImportError:
+    HAS_GENAI = False
+    if settings.ENABLE_AI_FEATURES:
+        logger.error("AIProvider: ENABLE_AI_FEATURES is True but 'google-generativeai' is not installed.")
 
 class AIProvider:
     _instance = None
@@ -19,6 +30,16 @@ class AIProvider:
         return cls._instance
 
     def _initialize_model(self):
+        if not settings.ENABLE_AI_FEATURES:
+            logger.info("AIProvider: AI features are disabled by configuration.")
+            self._model = None
+            return
+
+        if not HAS_GENAI:
+            logger.warning("AIProvider: Generative AI library not available.")
+            self._model = None
+            return
+
         if settings.GEMINI_API_KEY:
             try:
                 genai.configure(api_key=settings.GEMINI_API_KEY)
@@ -34,6 +55,8 @@ class AIProvider:
 
     def _get_working_model(self) -> str:
         """Dynamically finds the best available 'flash' model."""
+        if not HAS_GENAI: return "gemini-1.5-flash"
+        
         try:
             models = list(genai.list_models())
             available_models = [m.name for m in models if 'generateContent' in m.supported_generation_methods]
@@ -55,10 +78,13 @@ class AIProvider:
             return "gemini-1.5-flash"
 
     async def generate_content(self, prompt: str) -> str:
-        """Generate content from the AI model."""
+        """Generate content from the AI model or a mock if disabled."""
+        if not settings.ENABLE_AI_FEATURES or settings.MOCK_AI_RESPONSES:
+            logger.info("AIProvider: Returning mock AI response (Project Aegis)")
+            return self._get_mock_response(prompt)
+
         from core.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
         
-        # Initialize CB on first use if not exists (or in __init__)
         if not hasattr(self, '_cb'):
             self._cb = CircuitBreaker("GeminiAI", failure_threshold=3, recovery_timeout=60.0)
             
@@ -86,7 +112,6 @@ class AIProvider:
             raise
             
         except Exception as e:
-             # Check if it's a safety block
             error_msg = str(e)
             if "safety" in error_msg.lower():
                 error_msg = "Response blocked by safety filters."
@@ -94,8 +119,15 @@ class AIProvider:
             logger.error(f"AIProvider: Generation failed: {error_msg}")
             raise HTTPException(status_code=500, detail=f"AI processing error: {error_msg}")
 
+    def _get_mock_response(self, prompt: str) -> str:
+        """Generate a generic mock response for AI features."""
+        if "sentiment" in prompt.lower():
+            return '{"sentiment": "NEUTRAL", "score": 0.5, "analysis": "AI Analysis is currently disabled in safe mode."}'
+        if "recommendation" in prompt.lower() or "picks" in prompt.lower():
+            return '{"recommendations": [], "summary": "AI Recommendations are currently disabled."}'
+        return "AI response mocked (Safe Mode)."
+
     def extract_json(self, text: str) -> Any:
-        # ... (rest of method)
         """Extract JSON from potential markdown text."""
         try:
             if "```json" in text:
@@ -103,10 +135,8 @@ class AIProvider:
             elif "```" in text:
                 text = text.split("```")[1].strip()
             
-            # Try parsing
             return json.loads(text)
         except json.JSONDecodeError:
-            # Try regex extraction
             json_match = re.search(r'\[\s*{.*}\s*\]', text, re.DOTALL) or re.search(r'{\s*".*"\s*:.*}', text, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())

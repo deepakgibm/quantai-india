@@ -34,44 +34,52 @@ class MomentumScanner:
         self._use_precomputed = False 
     
     def _get_bulk_ohlcv_df(self, days: int = 60) -> pd.DataFrame:
-        """Fetch OHLCV data for ALL symbols in one query as a single DataFrame."""
+        """Fetch OHLCV data for ALL active symbols from stock_candle table."""
         try:
-            from models_ml import Nifty100Daily
+            from database import SessionLocal
             
-            session = self._Session()
+            session = SessionLocal()
             try:
-                cutoff_date = datetime.now() - timedelta(days=days)
-                
-                # Bulk query
-                query = session.query(
-                    Nifty100Daily.symbol,
-                    Nifty100Daily.timestamp,
-                    Nifty100Daily.open,
-                    Nifty100Daily.high,
-                    Nifty100Daily.low,
-                    Nifty100Daily.close,
-                    Nifty100Daily.volume
-                ).filter(
-                    Nifty100Daily.timestamp >= cutoff_date
-                ).statement
+                # Use raw SQL for efficiency and to avoid model confusion
+                # This ensures we use the NEW SCHEMA correctly
+                query = f"""
+                    SELECT 
+                        im.symbol, 
+                        sc.candle_ts as timestamp, 
+                        sc.open, 
+                        sc.high, 
+                        sc.low, 
+                        sc.close, 
+                        sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE sc.timeframe = 1440
+                    AND im.is_active = TRUE
+                    AND sc.candle_ts >= NOW() - INTERVAL '{days} days'
+                """
                 
                 df = pd.read_sql(query, session.bind)
 
                 if df.empty:
+                    logger.warning("No data found in stock_candle for momentum scan")
                     return pd.DataFrame()
                 
                 # Ensure correct types
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
-                df['close'] = df['close'].astype(float)
-                df['high'] = df['high'].astype(float)
-                df['low'] = df['low'].astype(float)
-                df['volume'] = df['volume'].astype(float)
+                df['close'] = pd.to_numeric(df['close'], errors='coerce')
+                df['high'] = pd.to_numeric(df['high'], errors='coerce')
+                df['low'] = pd.to_numeric(df['low'], errors='coerce')
+                df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
 
+                # Drop NaNs
+                df = df.dropna(subset=['close', 'high', 'low', 'volume'])
+
+                logger.info(f"Fetched {len(df)} rows for {df['symbol'].nunique()} symbols from stock_candle")
                 return df
             finally:
                 session.close()
         except Exception as e:
-            logger.error(f"Error fetching bulk data: {e}")
+            logger.error(f"Error fetching bulk data from stock_candle: {e}")
             return pd.DataFrame()
 
     def _calculate_indicators_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -133,7 +141,8 @@ class MomentumScanner:
         return df
 
     def scan_all(self, limit: int = 10) -> List[Dict]:
-        """Vectorized scan for momentum."""
+        """Perform full scan and return results."""
+        logger.info(f"scan_all: Starting scan with limit={limit}")
         import time
         t0 = time.time()
         
@@ -199,27 +208,43 @@ class MomentumScanner:
         
         # 6. Format
         results = []
+        counts = {"STRONG_BULLISH": 0, "MODERATE_BULLISH": 0, "NEUTRAL": 0, "MODERATE_BEARISH": 0, "STRONG_BEARISH": 0}
+        
         for _, row in momentum_stocks.iterrows():
             roc_10 = row['roc_10']
             mfi_val = row['mfi']
+            score = row['score']
             
-            strength_desc = "STRONG" if roc_10 > 3 else "MODERATE"
+            # Determine Bucket (Align with Frontend BUCKETS)
+            if score >= 80:
+                bucket = "STRONG_BULLISH"
+            elif score >= 60:
+                bucket = "MODERATE_BULLISH"
+            elif score >= 40:
+                bucket = "NEUTRAL"
+            elif score >= 30:
+                bucket = "MODERATE_BEARISH"
+            else:
+                bucket = "STRONG_BEARISH"
+                
+            counts[bucket] = counts.get(bucket, 0) + 1
             
             results.append({
                 "symbol": str(row['symbol']),
-                "name": str(row['symbol']), 
-                "momentum_type": str(strength_desc),
-                "strength": int(round(row['score'])),
-                "current_price": float(round(row['close'], 2)),
-                "roc_10d": float(round(roc_10, 2)),
+                "ltp": float(round(row['close'], 2)),
+                "prev_close": float(round(row['close'] / (1 + roc_10/100), 2)),
+                "change_pct": float(round(roc_10, 2)),
+                "momentum_score": int(round(score)),
+                "bucket": bucket,
+                "direction": "Bullish" if roc_10 >= 0 else "Bearish",
+                "correlation": 0.5,
+                "source": "DB_FALLBACK",
+                "last_update": datetime.now().isoformat(),
                 "roc_20d": float(round(row['roc_20'], 2)),
-                "mfi": float(round(mfi_val, 2)),
-                "atr": float(round(row['atr_20d'] if 'atr_20d' in row else row['close'] * 0.02, 2)),
-                "target_price": float(round(row['close'] * 1.05, 2)),
-                "stop_loss": float(round(row['close'] * 0.97, 2)),
-                "reason": f"ROC {roc_10:.1f}%. MFI {mfi_val:.0f}"
+                "mfi": float(round(mfi_val, 2))
             })
             
+        logger.info(f"Momentum Scan results distribution: {counts}")
         return results
 
     def get_symbols(self) -> List[str]:

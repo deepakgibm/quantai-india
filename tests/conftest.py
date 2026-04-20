@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'backend'))
 
 # Load environment variables
 load_dotenv()
@@ -164,21 +165,21 @@ def api_client(base_url: str, session: requests.Session, auth_headers: Dict[str,
 @pytest.fixture(scope="session")
 def test_symbols():
     """Get test symbols for price validation."""
-    from tests.utils.test_data import TEST_SYMBOLS
+    from tests.test_utils.test_data import TEST_SYMBOLS
     return TEST_SYMBOLS
 
 
 @pytest.fixture(scope="session")
 def quick_test_symbols():
     """Get quick test symbols (subset for fast tests)."""
-    from tests.utils.test_data import QUICK_TEST_SYMBOLS
+    from tests.test_utils.test_data import QUICK_TEST_SYMBOLS
     return QUICK_TEST_SYMBOLS
 
 
 @pytest.fixture(scope="session")
 def symbol_to_instrument_key():
     """Get symbol to instrument key mapping."""
-    from tests.utils.test_data import SYMBOL_TO_INSTRUMENT_KEY
+    from tests.test_utils.test_data import SYMBOL_TO_INSTRUMENT_KEY
     return SYMBOL_TO_INSTRUMENT_KEY
 
 
@@ -189,7 +190,7 @@ def symbol_to_instrument_key():
 @pytest.fixture(scope="session")
 def upstox_client():
     """Get Upstox reference client."""
-    from tests.utils.upstox_reference import get_upstox_client
+    from tests.test_utils.upstox_reference import get_upstox_client
     return get_upstox_client()
 
 
@@ -200,7 +201,7 @@ def upstox_client():
 @pytest.fixture(scope="session")
 def test_report():
     """Create test report for aggregating results."""
-    from tests.utils.validators import TestReport
+    from tests.test_utils.validators import TestReport
     return TestReport()
 
 

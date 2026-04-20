@@ -15,6 +15,7 @@ import logging
 from .data_handler import DataHandler
 from .executor import Executor, Trade
 from .costs import CostCalculator, CostConfig
+from core.risk.risk_manager import RiskConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class BacktestConfig:
     initial_capital: float = 1000000.0
     is_intraday: bool = False
     cost_config: Optional[CostConfig] = None
+    risk_config: Optional[RiskConfig] = None
 
 
 @dataclass

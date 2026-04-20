@@ -2,7 +2,6 @@ import asyncio
 import logging
 import sys
 import os
-import torch
 from datetime import datetime
 
 import json
@@ -12,11 +11,18 @@ root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.append(root_dir)
 sys.path.append(os.path.join(root_dir, "backend"))
 
-from backend.services.feature_store import get_feature_store
-from backend.ml.dataset import get_dataloader
-from backend.ml.trainer import QuantAITrainer
+from services.feature_store import get_feature_store
+from ml.dataset import get_dataloader
+from ml.trainer import QuantAITrainer
 
 STATUS_FILE = os.path.join(root_dir, "data", "ml_status.json")
+
+# Safe PyTorch import
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 def is_market_open():
     """Checks if the Indian market is currently open (09:15 - 15:30 IST)."""
@@ -39,12 +45,12 @@ async def run_production_training(epochs: int = 10, batch_size: int = 64):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("ProdTraining")
     
-    # 0. Preemptive Market Check
-    if not is_market_open():
-        logger.warning("🚨 Market is CLOSED. Preemptive shutdown to follow user rules.")
+    # 0. Check PyTorch availability
+    if not TORCH_AVAILABLE:
+        logger.error("❌ PyTorch not installed. Run: pip install torch")
         update_status({
-            "stage": "stopped",
-            "reason": "Market Closed (Manual/Auto)",
+            "stage": "error",
+            "reason": "PyTorch not installed. Install with: pip install torch",
             "last_update": datetime.now().isoformat()
         })
         return
@@ -100,16 +106,9 @@ async def run_production_training(epochs: int = 10, batch_size: int = 64):
     
     try:
         for epoch in range(1, epochs + 1):
-            # 0. Market Hours Safety Check
-            if not is_market_open():
-                logger.warning("🚨 Market is CLOSED. Stopping training per requirements.")
-                update_status({
-                    "stage": "stopped",
-                    "reason": "Market Closed",
-                    "epoch": epoch,
-                    "best_loss": best_loss
-                })
-                break
+            # 0. Market Hours Safety Check (optional - warn but don't stop)
+            if is_market_open():
+                logger.warning("⚠️ Market is OPEN. Training may impact inference latency.")
 
             # Training
             train_loss = trainer.train_epoch(train_loader)

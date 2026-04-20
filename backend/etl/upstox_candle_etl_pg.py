@@ -1,5 +1,5 @@
 """
-ETL: NIFTY 500 historical candles → PostgreSQL
+ETL: NIFTY 500 historical candles â†’ PostgreSQL
 
 FEATURES:
 - Multi-timeframe (5m, 15m, 30m, 1H, 1D)
@@ -77,11 +77,11 @@ USE_NEW_SCHEMA = True
 
 # Interval config - includes tf_minutes for new schema
 INTERVALS = [
-    {"tf": "5m",  "unit": "minutes", "interval": "5",  "window": "month",   "db_timeframe": "5m",  "tf_minutes": 5},
-    {"tf": "15m", "unit": "minutes", "interval": "15", "window": "month",   "db_timeframe": "15m", "tf_minutes": 15},
-    {"tf": "30m", "unit": "minutes", "interval": "30", "window": "quarter", "db_timeframe": "30m", "tf_minutes": 30},
-    {"tf": "1h",  "unit": "hours",   "interval": "1",  "window": "quarter", "db_timeframe": "1h",  "tf_minutes": 60},
-    {"tf": "1d",  "unit": "days",    "interval": "1",  "window": "year",    "db_timeframe": "1d",  "tf_minutes": 1440},
+    {"tf": "5m",  "unit": "minutes", "interval": "5",  "v3_tf": "5minute",  "window": "month",   "db_timeframe": "5m",  "tf_minutes": 5},
+    {"tf": "15m", "unit": "minutes", "interval": "15", "v3_tf": "15minute", "window": "month",   "db_timeframe": "15m", "tf_minutes": 15},
+    {"tf": "30m", "unit": "minutes", "interval": "30", "v3_tf": "30minute", "window": "quarter", "db_timeframe": "30m", "tf_minutes": 30},
+    {"tf": "1h",  "unit": "hours",   "interval": "1",  "v3_tf": "1hour",    "window": "quarter", "db_timeframe": "1h",  "tf_minutes": 60},
+    {"tf": "1d",  "unit": "days",    "interval": "1",  "v3_tf": "1day",     "window": "year",    "db_timeframe": "1d",  "tf_minutes": 1440},
 ]
 
 # ==========================
@@ -213,23 +213,23 @@ def update_checkpoint(cur, instrument_key, timeframe, last_date):
 # API FETCH
 # ==========================
 
-def fetch_candles(instrument_key, unit, interval, from_date, to_date):
+def fetch_candles(instrument_key, v3_tf, from_date, to_date):
     """Fetch candles from Upstox V3 API."""
     url = (
         f"{BASE_URL}/"
         f"{instrument_key}/"
-        f"{unit}/"
-        f"{interval}/"
+        f"{v3_tf}/"
         f"{to_date}/{from_date}"
     )
+    print(f"  [API] Fetching: {url}")
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=30)
+            r = requests.get(url, headers=HEADERS, timeout=10)
             
             if r.status_code == 429:
                 wait = 2 ** attempt
-                print(f"[WARN] Rate limited → retry in {wait}s")
+                print(f"[WARN] Rate limited -> retry in {wait}s")
                 time.sleep(wait)
                 continue
                 
@@ -240,11 +240,11 @@ def fetch_candles(instrument_key, unit, interval, from_date, to_date):
                 print("[ERROR] Token expired! Please refresh UPSTOX_ACCESS_TOKEN in .env")
                 raise
             wait = 2 ** attempt
-            print(f"[WARN] {e} → retry in {wait}s")
+            print(f"[WARN] {e} -> retry in {wait}s")
             time.sleep(wait)
         except Exception as e:
             wait = 2 ** attempt
-            print(f"[WARN] {e} → retry in {wait}s")
+            print(f"[WARN] {e} -> retry in {wait}s")
             time.sleep(wait)
 
     raise RuntimeError("Max retries exceeded")
@@ -255,30 +255,29 @@ def fetch_candles(instrument_key, unit, interval, from_date, to_date):
 
 INTRADAY_BASE_URL = "https://api.upstox.com/v3/historical-candle/intraday"
 
-def fetch_intraday_candles(instrument_key, unit, interval):
+def fetch_intraday_candles(instrument_key, v3_tf):
     """
     Fetch today's candles from Upstox Intraday Candle V3 API.
     
     This endpoint returns candles for the CURRENT TRADING DAY only.
-    Unlike the historical endpoint, it doesn't require date parameters.
     
     Args:
         instrument_key: e.g., "NSE_EQ|INE002A01018"
-        unit: "minutes", "hours", or "days"
-        interval: "1", "5", "15", "30" for minutes; "1" for hours/days
+        v3_tf: e.g., "5minute", "1hour"
     
     Returns:
         dict with 'data' -> 'candles' array
     """
-    url = f"{INTRADAY_BASE_URL}/{instrument_key}/{unit}/{interval}"
+    url = f"{INTRADAY_BASE_URL}/{instrument_key}/{v3_tf}"
+    print(f"  [API] Fetching Intraday: {url}")
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=30)
+            r = requests.get(url, headers=HEADERS, timeout=10)
             
             if r.status_code == 429:
                 wait = 2 ** attempt
-                print(f"[WARN] Rate limited → retry in {wait}s")
+                print(f"[WARN] Rate limited -> retry in {wait}s")
                 time.sleep(wait)
                 continue
                 
@@ -292,11 +291,11 @@ def fetch_intraday_candles(instrument_key, unit, interval):
                 # Some instruments don't support intraday data
                 return {"data": {"candles": []}}
             wait = 2 ** attempt
-            print(f"[WARN] {e} → retry in {wait}s")
+            print(f"[WARN] {e} -> retry in {wait}s")
             time.sleep(wait)
         except Exception as e:
             wait = 2 ** attempt
-            print(f"[WARN] {e} → retry in {wait}s")
+            print(f"[WARN] {e} -> retry in {wait}s")
             time.sleep(wait)
 
     return {"data": {"candles": []}}  # Return empty on failure
@@ -536,8 +535,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                     try:
                         data = fetch_candles(
                             instrument_key,
-                            cfg["unit"],
-                            cfg["interval"],
+                            cfg["v3_tf"],
                             start.isoformat(),
                             end.isoformat()
                         )
@@ -578,7 +576,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                         conn.commit()
 
                         window_rows += len(candles)
-                        print(f"  [OK] {start} → {end}: {len(candles)} rows")
+                        print(f"  [OK] {start} â†’ {end}: {len(candles)} rows")
                         time.sleep(RATE_LIMIT_SLEEP)
 
                     except Exception as window_error:
@@ -596,8 +594,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                 try:
                     intraday_data = fetch_intraday_candles(
                         instrument_key,
-                        cfg["unit"],
-                        cfg["interval"]
+                        cfg["v3_tf"]
                     )
                     
                     intraday_candles = intraday_data.get("data", {}).get("candles", [])
@@ -744,7 +741,7 @@ if __name__ == "__main__":
                 else:
                     last_date = get_last_data_date(cur, instrument_key, db_timeframe)
                 
-                status = "✓" if last_date and last_date >= TWO_WEEKS_AGO else "✗"
+                status = "âœ“" if last_date and last_date >= TWO_WEEKS_AGO else "âœ—"
                 print(f"{status} {symbol}/{db_timeframe}: {last_date or 'NO DATA'}")
         
         conn.close()

@@ -1,1 +1,1 @@
-{"stage": "running", "epoch": 1, "total_epochs": 1, "train_loss": NaN, "val_loss": NaN, "best_loss": Infinity, "last_update": "2026-01-29T16:36:27.577156"}
+{"stage": "training 19%", "epoch": 1, "total_epochs": 50, "train_loss": 0.02735203690826893, "val_loss": 0.0, "best_loss": 0.0, "last_update": "2026-04-19T09:02:13.859588"}

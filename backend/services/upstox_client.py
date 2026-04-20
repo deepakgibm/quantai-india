@@ -22,6 +22,8 @@ from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from config import settings
+from database import SessionLocal
+from services.auth.token_manager import TokenManagerService
 
 
 class RateLimiter:
@@ -68,7 +70,22 @@ class UpstoxClient:
     BASE_URL = "https://api.upstox.com/v2"
     
     def __init__(self, access_token: Optional[str] = None):
-        self.access_token = access_token or settings.UPSTOX_ACCESS_TOKEN
+        # 1. Provide an explicit access token override (if not a placeholder).
+        # 2. Or fallback to TokenManagerService Analytics Token DB
+        # 3. Or lastly to the .env legacy settings
+        
+        is_placeholder = not access_token or "your-token" in str(access_token).lower()
+        
+        if access_token and not is_placeholder:
+            self.access_token = access_token
+        else:
+            db = SessionLocal()
+            try:
+                manager = TokenManagerService(db)
+                self.access_token = manager.get_analytics_token() or settings.UPSTOX_ACCESS_TOKEN
+            finally:
+                db.close()
+                
         self.rate_limiter = RateLimiter(
             rate_per_minute=settings.UPSTOX_RATE_LIMIT_PER_MINUTE,
             burst=settings.UPSTOX_RATE_LIMIT_BURST
@@ -76,7 +93,8 @@ class UpstoxClient:
         self._client = None
         self.headers = {
             "Accept": "application/json",
-            "Authorization": f"Bearer {self.access_token}"
+            "Authorization": f"Bearer {self.access_token}",
+            "Api-Key": settings.UPSTOX_API_KEY
         }
     
     @property
@@ -88,12 +106,16 @@ class UpstoxClient:
             )
         return self._client
 
+    class UpstoxSystemFailure(Exception): 
+        """Exception that triggers the Circuit Breaker"""
+        pass
+
     @retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=0.5, min=1, max=3),
-        retry=retry_if_exception_type(httpx.RequestError)  # Only retry network errors, not HTTP errors like 401
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException))
     )
-    async def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
+    async def _make_request(self, method: str, endpoint: str, params: Optional[Dict] = None, **kwargs) -> Dict:
         """
         Make HTTP request with retry logic.
         Only retries on network errors, not on HTTP status errors (401, 429, etc.).
@@ -101,19 +123,39 @@ class UpstoxClient:
         from core.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
 
         if not hasattr(self, '_cb'):
-            self._cb = CircuitBreaker("UpstoxAPI", failure_threshold=10, recovery_timeout=30.0)
+            self._cb = CircuitBreaker(
+                "UpstoxAPI", 
+                failure_threshold=5, 
+                recovery_timeout=60.0, 
+                expected_exceptions=(self.UpstoxSystemFailure,)
+            )
 
         url = f"{self.BASE_URL}{endpoint}"
         
         async def _execute():
-            response = await self.client.request(method, url, **kwargs)
-            # Raise for status but don't count 401 as a system failure in CB
-            # CB counts exceptions provided in expected_exceptions
-            # We want CB to open on 5xx or Connection Errors
-            if response.status_code >= 500:
-                raise httpx.HTTPStatusError("Server Error", request=response.request, response=response)
-            response.raise_for_status()
-            return response.json()
+            try:
+                response = await self.client.request(method, url, params=params, **kwargs)
+                
+                # Treat 5xx as system failure
+                if response.status_code >= 500:
+                    logger.error(f"Upstox 5xx Server Error: {response.status_code} for {endpoint}")
+                    raise self.UpstoxSystemFailure(f"Upstox Server Error: {response.status_code}")
+                
+                # Treat 429 as system failure (rate limit exceeded)
+                if response.status_code == 429:
+                    logger.warning(f"Upstox 429 Rate Limit: {endpoint}")
+                    raise self.UpstoxSystemFailure("Upstox Rate Limit Exceeded")
+
+                response.raise_for_status()
+                return response.json()
+                
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                logger.error(f"Upstox Network Error: {e}")
+                raise self.UpstoxSystemFailure(f"Upstox Network Error: {str(e)}")
+            except httpx.HTTPStatusError as e:
+                # 4xx errors (except 429) do NOT trigger the circuit breaker
+                # but we still want to raise them to the caller
+                raise
 
         try:
              # Circuit Breaker wraps the execution
@@ -147,12 +189,20 @@ class UpstoxClient:
     async def refresh_access_token(self) -> bool:
         """
         Attempt to refresh the Upstox access token.
-        Currently logs the requirement for manual refresh as Upstox V2 
-        tokens are long-lived (24h) and usually require re-auth.
+        Always resolves to Analytics Token if standard auth token expires.
         """
-        # In a real production environment, this would use a refresh_token or a headless login
-        # For now, we signal that refresh is not possible automatically if it's the system token
-        logger.error("UpstoxClient: Auto-refresh not implemented. Please update UPSTOX_ACCESS_TOKEN in .env")
+        db = SessionLocal()
+        try:
+            manager = TokenManagerService(db)
+            db_token = manager.get_analytics_token()
+            if db_token and db_token != self.access_token:
+                logger.info("Found newer Analytics Token in database.")
+                self.access_token = db_token
+                return True
+        finally:
+            db.close()
+
+        logger.error("UpstoxClient: Token refresh failed. Analytics Token may be expired.")
         return False
     
     async def get_historical_data(
@@ -179,7 +229,7 @@ class UpstoxClient:
         await self.rate_limiter.acquire()
         
         # Upstox API endpoint for historical data
-        # URL encode the instrument_key because it contains characters like '|'
+        # Historical candle uses path parameters, so we must manually encode the key
         encoded_key = urllib.parse.quote(instrument_key, safe='')
         endpoint = f"/historical-candle/{encoded_key}/{interval}/{to_date.strftime('%Y-%m-%d')}/{from_date.strftime('%Y-%m-%d')}"
         
@@ -221,14 +271,11 @@ class UpstoxClient:
         import urllib.parse
         await self.rate_limiter.acquire()
         
-        # Join keys with comma and encode
-        keys_str = ",".join(instrument_keys)
-        encoded_keys = urllib.parse.quote(keys_str, safe=',')
-        
-        endpoint = f"/market-quote/quotes?instrument_key={encoded_keys}"
+        params = {"instrument_key": ",".join(instrument_keys)}
+        endpoint = "/market-quote/quotes"
         
         try:
-            data = await self._make_request("GET", endpoint)
+            data = await self._make_request("GET", endpoint, params=params)
             
             results = {}
             if data.get("status") == "success" and data.get("data"):
@@ -302,14 +349,11 @@ class UpstoxClient:
         import urllib.parse
         await self.rate_limiter.acquire()
         
-        # URL-encode the instrument key (contains | and spaces)
-        encoded_key = urllib.parse.quote(instrument_key, safe='')
-        
-        # Use full quote endpoint which includes previous close
-        endpoint = f"/market-quote/quotes?instrument_key={encoded_key}"
+        params = {"instrument_key": instrument_key}
+        endpoint = "/market-quote/quotes"
         
         try:
-            data = await self._make_request("GET", endpoint)
+            data = await self._make_request("GET", endpoint, params=params)
             
             if data.get("status") == "success" and data.get("data"):
                 # Extract the quote (key might vary)

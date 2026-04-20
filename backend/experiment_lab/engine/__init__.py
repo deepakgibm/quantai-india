@@ -4,7 +4,7 @@ Experiment Lab Engine Components
 
 from .backtest_runner import ExperimentRunner
 from .metrics_calculator import MetricsCalculator
-from .position_manager import PositionSizer, RiskMode
+from core.risk.risk_manager import RiskManager as PositionSizer, RiskMode
 from .comparison_engine import ComparisonEngine
 
 __all__ = [

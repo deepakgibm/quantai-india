@@ -21,21 +21,43 @@ class GapScanner:
         self._Session = sessionmaker(bind=self._engine)
         self.min_gap_pct = 0.3  # Lowered from 1.5% to detect smaller gaps
         
-    def _get_ohlcv_data(self, symbol: str, days: int = 10) -> Optional[pd.DataFrame]:
+    def _get_ohlcv_data(self, symbol: str, days: int = 14) -> Optional[pd.DataFrame]:
         try:
-            from models_ml import Nifty100Daily
-            from sqlalchemy import desc
             session = self._Session()
             try:
-                results = session.query(Nifty100Daily).filter(
-                    Nifty100Daily.symbol == symbol
-                ).order_by(desc(Nifty100Daily.timestamp)).limit(days).all()
-                if not results or len(results) < 2:
+                # Use raw SQL to join stock_candle with instrument_master for fresh data
+                query = f"""
+                    SELECT 
+                        sc.candle_ts as timestamp, 
+                        sc.open, 
+                        sc.high, 
+                        sc.low, 
+                        sc.close, 
+                        sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = '{symbol}'
+                    AND sc.timeframe = 1440
+                    ORDER BY sc.candle_ts DESC
+                    LIMIT {days}
+                """
+                
+                df = pd.read_sql(query, session.bind)
+                
+                if df.empty or len(df) < 2:
                     return None
-                results = results[::-1]
-                data = [{'timestamp': r.timestamp, 'open': float(r.open), 'high': float(r.high),
-                         'low': float(r.low), 'close': float(r.close), 'volume': int(r.volume)} for r in results]
-                df = pd.DataFrame(data)
+                
+                # Reverse to get chronological order
+                df = df.iloc[::-1].reset_index(drop=True)
+                
+                # Ensure correct types
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df['open'] = pd.to_numeric(df['open'], errors='coerce')
+                df['high'] = pd.to_numeric(df['high'], errors='coerce')
+                df['low'] = pd.to_numeric(df['low'], errors='coerce')
+                df['close'] = pd.to_numeric(df['close'], errors='coerce')
+                df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
+                
                 df.set_index('timestamp', inplace=True)
                 return df
             finally:

@@ -3,11 +3,11 @@ import numpy as np
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from backend.services.feature_store import get_feature_store
+from services.feature_store import get_feature_store
 from dataclasses import dataclass, asdict
 import uuid
 from database import SessionLocal
-from backend.models import BacktestResult as DBBacktestResult
+from models import BacktestResult as DBBacktestResult
 
 logger = logging.getLogger(__name__)
 

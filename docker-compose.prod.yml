@@ -9,27 +9,21 @@ services:
   # ==================
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: quantai-backend
     restart: unless-stopped
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://quantai:${DB_PASSWORD}@postgres:5432/quantai
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY}
-      - UPSTOX_API_KEY=${UPSTOX_API_KEY}
-      - UPSTOX_API_SECRET=${UPSTOX_API_SECRET}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ENVIRONMENT=production
+    env_file:
+      - .env.prod.docker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -44,42 +38,26 @@ services:
   # ==================
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+        - VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
+        - VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
+        - VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
+        - VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET}
+        - VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        - VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID}
+        - VITE_FIREBASE_MEASUREMENTID=${VITE_FIREBASE_MEASUREMENTID}
     container_name: quantai-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_URL=http://backend:8000
+      - "3000:80"
     depends_on:
       - backend
     networks:
       - quantai-network
 
-  # ==================
-  # PostgreSQL Database
-  # ==================
-  postgres:
-    image: postgres:15-alpine
-    container_name: quantai-postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=quantai
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=quantai
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U quantai" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - quantai-network
 
   # ==================
   # Redis Cache
@@ -106,41 +84,39 @@ services:
   # ==================
   celery-worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: quantai-celery-worker
     restart: unless-stopped
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://quantai:${DB_PASSWORD}@postgres:5432/quantai
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
+    env_file:
+      - .env.prod.docker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - postgres
       - redis
     networks:
       - quantai-network
-    command: celery -A tasks.celery_app worker --loglevel=info
+    command: celery -A celery_app worker --loglevel=info
 
   # ==================
   # Celery Beat (Scheduled Tasks)
   # ==================
   celery-beat:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: quantai-celery-beat
     restart: unless-stopped
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://quantai:${DB_PASSWORD}@postgres:5432/quantai
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
+    env_file:
+      - .env.prod.docker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - postgres
       - redis
       - celery-worker
     networks:
       - quantai-network
-    command: celery -A tasks.celery_app beat --loglevel=info
+    command: celery -A celery_app beat --loglevel=info
 
   # ==================
   # Nginx Reverse Proxy
@@ -165,8 +141,6 @@ services:
 # Volumes
 # ==================
 volumes:
-  postgres_data:
-    driver: local
   redis_data:
     driver: local
 

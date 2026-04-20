@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import asyncio
 import json
 import os
+from core.duckdb_engine import engine as duckdb_engine
 
 @celery_app.task
 def fetch_1min_candles():
@@ -37,6 +38,7 @@ async def _fetch_candles_async(interval: str):
                 df = await client.get_historical_data(sym, key, from_dt, to_dt, interval)
                 if not df.empty:
                     print(f"Fetched {len(df)} candles for {sym} ({interval})")
-                    # TODO: Upsert to DB
+                    # Push historical table straight to Parquet datalake!
+                    duckdb_engine.save_to_parquet(sym, interval, df)
             except Exception as e:
                 print(f"Error fetching {sym}: {e}")

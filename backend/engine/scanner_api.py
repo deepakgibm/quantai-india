@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v2/scanner", tags=["High-Performance Scanner"])
+router = APIRouter(tags=["High-Performance Scanner (V3)"])
 
 
 @router.get("/momentum")

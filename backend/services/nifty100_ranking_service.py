@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Now sourced dynamically from utils.symbol_utils
 from utils.symbol_utils import get_nifty_symbols
+from services.live_price_enricher import get_instrument_key
 
 
 # =============================================================================
@@ -184,37 +185,43 @@ class Nifty100RankingService:
         is_open = self._market_hours.is_market_open()
         
         # 1. Try our own cache first (short TTL ensures freshness)
-        try:
-            cached = self._cache.get(cache_key)
-            if cached:
-                elapsed_ms = (time.perf_counter() - start_time) * 1000
-                logger.info(f"CACHE HIT: {cache_key} in {elapsed_ms:.2f}ms")
-                return cached
-        except Exception as e:
-            logger.warning(f"Cache read error: {e}")
+        # try:
+        #     cached = self._cache.get(cache_key)
+        #     if cached:
+        #         elapsed_ms = (time.perf_counter() - start_time) * 1000
+        #         logger.info(f"CACHE HIT: {cache_key} in {elapsed_ms:.2f}ms")
+        #         return cached
+        # except Exception as e:
+        #     logger.warning(f"Cache read error: {e}")
         
         logger.info(f"CACHE MISS: {cache_key}, fetching live data")
         
         # 2. Compute from UpstoxPriceResolver bulk fetch
-        from services.upstox_price_resolver import get_upstox_price_resolver
-        resolver = get_upstox_price_resolver()
-        
-        nifty100_symbols = get_nifty_symbols()
-        # Fetch prices for all Nifty 100 symbols in one bulk call
-        prices = await resolver.get_prices_bulk(nifty100_symbols)
-        
-        if len(prices) >= 5:
-            # Format data for ranking computation
-            ticks = []
-            for symbol, data in prices.items():
-                if data.get("price") and data.get("price") > 0:
-                    ticks.append(data)
+        try:
+            from services.upstox_price_resolver import get_upstox_price_resolver
+            resolver = get_upstox_price_resolver()
             
-            result = self._compute_rankings_from_resolver(ticks)
-            await self._write_to_cache(result)
-            return asdict(result)
-        else:
-            logger.info(f"Orchestrator source is {orchestrator_source}, skipping stale data")
+            nifty100_symbols = get_nifty_symbols()
+            # Expanded indices list
+            indices = ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "NIFTY NEXT 50", "MIDCPNIFTY"]
+            symbols_to_fetch = list(set([s.upper() for s in (nifty100_symbols + indices)]))
+            prices = await resolver.get_prices_bulk(symbols_to_fetch)
+            
+            if len(prices) >= 5:
+                # Format data for ranking computation
+                ticks = []
+                for symbol, data in prices.items():
+                    if data.get("price") and data.get("price") > 0:
+                        ticks.append(data)
+                
+                if len(ticks) >= 5:
+                    result = self._compute_rankings_from_resolver(ticks)
+                    await self._write_to_cache(result)
+                    return asdict(result)
+            
+            logger.info(f"Resolver returned insufficient data ({len(prices)} symbols), moving to next strategy")
+        except Exception as e:
+            logger.error(f"UpstoxPriceResolver bulk fetch failed: {e}")
         
         # 3. PRIMARY: Try Upstox REST API first (fast-fail if token expired)
         try:
@@ -417,7 +424,10 @@ class Nifty100RankingService:
                 resolver = get_upstox_price_resolver()
                 
                 nifty100_symbols = get_nifty_symbols()
-                prices = await resolver.get_prices_bulk(nifty100_symbols)
+                indices = ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "NIFTY NEXT 50", "MIDCPNIFTY"]
+                symbols_to_fetch = list(set([s.upper() for s in (nifty100_symbols + indices)]))
+                
+                prices = await resolver.get_prices_bulk(symbols_to_fetch)
                 
                 if len(prices) >= 5:
                     ticks = [data for symbol, data in prices.items() if data.get("price")]
@@ -458,24 +468,43 @@ class Nifty100RankingService:
         for tick in ticks:
             # Consume metrics from Resolver's enhanced contract
             price = tick.get("price", 0)
-            symbol = tick.get("symbol")
+            symbol = tick.get("symbol", "UNKNOWN").upper()
             change_pct = tick.get("change_pct", 0)
             prev_close = tick.get("prev_close", 0)
+            instrument_key = tick.get("instrument_key", "")
             
+            # Determine segment
+            segment = "EQUITY"
+            if "INDEX" in instrument_key or symbol in ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "MIDCPNIFTY", "NIFTY NEXT 50"]:
+                segment = "INDEX"
+            elif "F&O" in instrument_key or "NSE_FO" in instrument_key:
+                segment = "F&O"
+                
+            # Filter out "neutral" stocks (exactly 0.0 change or no movement)
+            # but only if we have enough other data
+            if abs(change_pct) < 0.0001 and len(ticks) > 20:
+                continue
+
             valid_stocks.append({
                 "symbol": symbol,
                 "ltp": price,
-                "change_pct": change_pct,
+                "change_pct": round(change_pct, 4),
                 "prev_close": prev_close,
-                "volume": 0, # Future: Add volume to Resolver
-                "day_high": price,
-                "day_low": price
+                "volume": tick.get("volume", 0),
+                "day_high": tick.get("high", price),
+                "day_low": tick.get("low", price),
+                "segment": segment
             })
         
         # Sort for gainers (descending) and losers (ascending)
-        # We now compute 10 of each to support larger UI widgets
-        gainers = sorted(valid_stocks, key=lambda x: x["change_pct"], reverse=True)[:10]
-        losers = sorted(valid_stocks, key=lambda x: x["change_pct"])[:10]
+        # Filter again to ensure we don't show 0.0 in top movers if possible
+        actual_movers = [s for s in valid_stocks if abs(s["change_pct"]) > 0.001]
+        
+        # If we have enough actual movers, use them. Otherwise use all valid ones.
+        source_list = actual_movers if len(actual_movers) >= 5 else valid_stocks
+        
+        gainers = sorted(source_list, key=lambda x: x["change_pct"], reverse=True)[:10]
+        losers = sorted(source_list, key=lambda x: x["change_pct"])[:10]
         
         # Diagnostics
         missing_prev = [s["symbol"] for s in valid_stocks if s["prev_close"] <= 0]
@@ -598,8 +627,17 @@ class Nifty100RankingService:
             client = get_upstox_client()
             
             # Build instrument keys
-            symbols = get_nifty_symbols()
-            instrument_keys = [f"NSE_EQ|{sym}" for sym in symbols]
+            nifty100_symbols = get_nifty_symbols()
+            indices = ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "NIFTY NEXT 50", "MIDCPNIFTY"]
+            symbols = list(set(nifty100_symbols + indices))
+            
+            instrument_keys = []
+            for sym in symbols:
+                key = get_instrument_key(sym)
+                if key:
+                    instrument_keys.append(key)
+                if sym in ["NIFTY 50", "INDIA VIX"]:
+                    logger.info(f"DEBUG: Instrument key for {sym}: {key}")
             
             # Fetch in batches using the async get_live_quotes method
             all_quotes = {}
@@ -647,14 +685,20 @@ class Nifty100RankingService:
                 
                 change_pct = ((ltp - prev_close) / prev_close) * 100
                 
+                # Determine segment
+                segment = "EQUITY"
+                if "INDEX" in key or symbol.upper() in ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "MIDCPNIFTY", "NIFTY NEXT 50"]:
+                    segment = "INDEX"
+                
                 valid_stocks.append({
-                    "symbol": symbol,
+                    "symbol": symbol.upper(),
                     "ltp": round(ltp, 2),
-                    "change_pct": round(change_pct, 2),
+                    "change_pct": round(change_pct, 4),
                     "prev_close": round(prev_close, 2),
                     "volume": quote.get("volume", 0),
                     "day_high": round(quote.get("high", ltp), 2),
-                    "day_low": round(quote.get("low", ltp), 2)
+                    "day_low": round(quote.get("low", ltp), 2),
+                    "segment": segment
                 })
             
             # Sort for gainers and losers

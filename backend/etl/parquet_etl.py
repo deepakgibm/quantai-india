@@ -103,7 +103,7 @@ def process_batch(symbol, instrument_id, timeframe, year, month, base_path):
         # 2. Get stats from PG for this month
         cur.execute("""
             SELECT COUNT(*), MIN(candle_ts), MAX(candle_ts)
-            FROM stock_candle_history
+            FROM stock_candle
             WHERE instrument_id = %s AND timeframe = %s 
               AND EXTRACT(YEAR FROM candle_ts) = %s 
               AND EXTRACT(MONTH FROM candle_ts) = %s
@@ -126,7 +126,7 @@ def process_batch(symbol, instrument_id, timeframe, year, month, base_path):
         # 3. Extract data using Polars
         query = f"""
             SELECT instrument_id, timeframe, candle_ts, open, high, low, close, volume
-            FROM stock_candle_history
+            FROM stock_candle
             WHERE instrument_id = {instrument_id} AND timeframe = {timeframe}
               AND EXTRACT(YEAR FROM candle_ts) = {year} 
               AND EXTRACT(MONTH FROM candle_ts) = {month}
@@ -195,7 +195,7 @@ def main():
     query_discovery = """
         SELECT m.symbol, h.instrument_id, h.timeframe, 
                MIN(h.candle_ts) as min_ts, MAX(h.candle_ts) as max_ts
-        FROM stock_candle_history h
+        FROM stock_candle h
         JOIN instrument_master m ON h.instrument_id = m.instrument_id
         GROUP BY m.symbol, h.instrument_id, h.timeframe
     """

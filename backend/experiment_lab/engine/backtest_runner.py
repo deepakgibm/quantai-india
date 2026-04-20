@@ -11,7 +11,7 @@ import hashlib
 
 from ..registry import StrategyRegistry
 from ..lab_strategies.base import SignalType, SignalResult
-from .position_manager import PositionSizer, RiskMode
+from core.risk.risk_manager import RiskManager, RiskMode
 from .metrics_calculator import MetricsCalculator, BacktestMetrics, TradeRecord
 
 
@@ -295,11 +295,7 @@ class ExperimentRunner:
             return []
         
         trades = []
-        position_sizer = PositionSizer(
-            initial_capital=initial_capital,
-            risk_mode=risk_mode,
-            risk_percent=risk_percent
-        )
+        risk_manager = RiskManager()
         
         current_capital = initial_capital
         in_position = False
@@ -335,17 +331,20 @@ class ExperimentRunner:
                             ], axis=1).max(axis=1)
                             atr = tr.mean()
                         
-                        pos_size = position_sizer.calculate_position(
+                        pos_result = risk_manager.calculate_position_size(
+                            account_equity=current_capital,
                             entry_price=price,
-                            stop_loss=signal.stop_loss,
+                            stop_loss=signal.stop_loss or (price - (atr * 2) if atr else price * 0.98),
+                            risk_per_trade_pct=risk_percent,
+                            method=RiskMode(risk_mode),
                             atr=atr
                         )
                         
-                        if pos_size.quantity > 0 and pos_size.position_value <= current_capital:
+                        if pos_result.quantity > 0 and pos_result.amount <= current_capital:
                             in_position = True
                             entry_signal = signal
                             entry_bar_idx = i
-                            quantity = pos_size.quantity
+                            quantity = pos_result.quantity
             
             else:
                 # Check exit conditions
@@ -400,7 +399,6 @@ class ExperimentRunner:
                     
                     # Update capital
                     current_capital += pnl
-                    position_sizer.update_capital(current_capital)
                     
                     # Reset position
                     in_position = False

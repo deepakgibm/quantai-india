@@ -8,7 +8,7 @@ Supports both Sync and Async modes for high-performance FastAPI and Background W
 
 import json
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List, Callable
 import os
 
 logger = logging.getLogger(__name__)
@@ -33,9 +33,11 @@ except (ImportError, AttributeError):
 # =============================================================================
 # Configuration
 # =============================================================================
+# Dragonfly/Redis Configuration
 DRAGONFLY_HOST = os.getenv("DRAGONFLY_HOST", "localhost")
 DRAGONFLY_PORT = int(os.getenv("DRAGONFLY_PORT", "6379"))
 DRAGONFLY_DB = int(os.getenv("DRAGONFLY_DB", "0"))
+DRAGONFLY_USE_CLUSTER = os.getenv("DRAGONFLY_USE_CLUSTER", "false").lower() == "true"
 
 # DEV_MODE: Enable in-memory fallback when Redis/Dragonfly is unavailable
 DEV_MODE = os.getenv("DEV_MODE", "false").lower() == "true"
@@ -139,15 +141,24 @@ class CacheManager:
             return
             
         try:
-            if not self._sync_pool:
-                self._sync_pool = redis_sync.ConnectionPool(
-                    host=DRAGONFLY_HOST, port=DRAGONFLY_PORT, db=DRAGONFLY_DB,
-                    decode_responses=True, socket_timeout=0.5, max_connections=20
+            if DRAGONFLY_USE_CLUSTER:
+                # Clustered configuration (Phase 3)
+                startup_nodes = [{"host": DRAGONFLY_HOST, "port": DRAGONFLY_PORT}]
+                self._sync_client = redis_sync.cluster.RedisCluster(
+                    startup_nodes=startup_nodes,
+                    decode_responses=True,
+                    skip_full_coverage_check=True
                 )
-            self._sync_client = redis_sync.Redis(connection_pool=self._sync_pool)
+            else:
+                if not self._sync_pool:
+                    self._sync_pool = redis_sync.ConnectionPool(
+                        host=DRAGONFLY_HOST, port=DRAGONFLY_PORT, db=DRAGONFLY_DB,
+                        decode_responses=True, socket_timeout=0.5, max_connections=20
+                    )
+                self._sync_client = redis_sync.Redis(connection_pool=self._sync_pool)
             self._sync_client.ping()
             self._is_connected_sync = True
-            logger.info(f"Connected to Redis/Dragonfly (Sync) at {DRAGONFLY_HOST}:{DRAGONFLY_PORT}")
+            logger.info(f"Connected to Redis/Dragonfly (Sync-{'Cluster' if DRAGONFLY_USE_CLUSTER else 'Single'}) at {DRAGONFLY_HOST}:{DRAGONFLY_PORT}")
         except Exception as e:
             logger.error(f"Sync Cache connection failed: {e}")
             self._is_connected_sync = False
@@ -217,13 +228,21 @@ class CacheManager:
             return
             
         try:
-            self._async_client = redis_async.Redis(
-                host=DRAGONFLY_HOST, port=DRAGONFLY_PORT, db=DRAGONFLY_DB,
-                decode_responses=True, socket_timeout=1.0
-            )
+            if DRAGONFLY_USE_CLUSTER:
+                startup_nodes = [{"host": DRAGONFLY_HOST, "port": DRAGONFLY_PORT}]
+                self._async_client = redis_async.cluster.RedisCluster(
+                    startup_nodes=startup_nodes,
+                    decode_responses=True,
+                    skip_full_coverage_check=True
+                )
+            else:
+                self._async_client = redis_async.Redis(
+                    host=DRAGONFLY_HOST, port=DRAGONFLY_PORT, db=DRAGONFLY_DB,
+                    decode_responses=True, socket_timeout=1.0
+                )
             await self._async_client.ping()
             self._is_connected_async = True
-            logger.info(f"Connected to Redis/Dragonfly (Async) at {DRAGONFLY_HOST}:{DRAGONFLY_PORT}")
+            logger.info(f"Connected to Redis/Dragonfly (Async-{'Cluster' if DRAGONFLY_USE_CLUSTER else 'Single'}) at {DRAGONFLY_HOST}:{DRAGONFLY_PORT}")
         except Exception as e:
             logger.error(f"Async Cache connection failed: {e}")
             self._is_connected_async = False
@@ -290,6 +309,30 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Async mset error: {e}")
             return False
+
+    async def publish_async(self, channel: str, message: Any) -> int:
+        """Broadcast a message to a channel (Pub/Sub)."""
+        if not REDIS_ASYNC_AVAILABLE: return 0
+        await self._ensure_async_connected()
+        try:
+            return await self._async_client.publish(channel, self._serialize(message))
+        except Exception as e:
+            logger.error(f"PubSub publish error: {e}")
+            return 0
+
+    async def subscribe_async(self, channel: str, callback: Callable):
+        """Subscribe to a channel and execute callback on messages."""
+        if not REDIS_ASYNC_AVAILABLE: return
+        await self._ensure_async_connected()
+        try:
+            pubsub = self._async_client.pubsub()
+            await pubsub.subscribe(channel)
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    data = self._deserialize(message["data"])
+                    await callback(data)
+        except Exception as e:
+            logger.error(f"PubSub subscribe error: {e}")
 
     # --- SHARED UTILS ---
 

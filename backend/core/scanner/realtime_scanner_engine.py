@@ -300,7 +300,39 @@ class RealTimeScannerEngine:
     def get_indices(self) -> List[Dict]:
         """Return current market indices."""
         return list(self.index_state.values())
+
+    def bulk_update(self, stocks: List[Dict]):
+        """
+        Force update internal state with a batch of stocks (e.g. from manual scan).
+        This synchronizes the WebSocket feed with REST refreshes.
+        """
+        if not stocks:
+            logger.info("bulk_update: No stocks provided")
+            return
+            
+        logger.info(f"bulk_update: Starting update for {len(stocks)} stocks")
         
+        # Track distribution for logging
+        buckets_found = {}
+        
+        for stock in stocks:
+            symbol = stock.get("symbol")
+            if not symbol:
+                continue
+                
+            bucket = stock.get("bucket", "NEUTRAL")
+            buckets_found[bucket] = buckets_found.get(bucket, 0) + 1
+                
+            # Update internal state
+            self.stock_state[symbol] = {
+                **stock,
+                "source": stock.get("source", "SYNC"),
+                "confidence": stock.get("confidence", "MEDIUM"),
+                "last_update": stock.get("last_update", datetime.now().isoformat())
+            }
+            
+        logger.info(f"bulk_update complete. Distribution: {buckets_found}")
+
     def get_status(self) -> Dict:
         """Get current status including data source."""
         from services.market_data_orchestrator import get_market_data_orchestrator

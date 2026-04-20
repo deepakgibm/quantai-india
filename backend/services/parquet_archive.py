@@ -103,6 +103,11 @@ class ParquetArchiveService:
                       'open', 'high', 'low', 'close', 'volume']
             df = pd.DataFrame(rows, columns=columns)
             
+            # Enforce Float64 for OHLC columns to prevent Decimal mismatches
+            ohlc_cols = ['open', 'high', 'low', 'close']
+            for col in ohlc_cols:
+                df[col] = pd.to_numeric(df[col], errors='coerce').astype('float64')
+            
             # Generate output filename
             filename = f"stock_data_{year}_{month:02d}.parquet"
             filepath = os.path.join(self.archive_dir, filename)

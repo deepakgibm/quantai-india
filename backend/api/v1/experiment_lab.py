@@ -18,7 +18,6 @@ from experiment_lab.engine.comparison_engine import ComparisonEngine
 
 
 router = APIRouter(
-    prefix="/experiment-lab",
     tags=["Experiment Lab (Beta)"]
 )
 

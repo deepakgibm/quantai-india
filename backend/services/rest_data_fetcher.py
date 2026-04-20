@@ -116,12 +116,13 @@ class RESTDataFetcher:
 
             cursor = conn.cursor()
             
-            # Try to get latest close from stock_data table
+            # Try to get latest close from stock_candle table
             # PostgreSQL syntax: using a subquery for the max timestamp
             cursor.execute("""
                 SELECT symbol, close 
-                FROM stock_data 
-                WHERE timestamp = (SELECT MAX(timestamp) FROM stock_data)
+                FROM stock_candle 
+                JOIN instrument_master ON stock_candle.instrument_id = instrument_master.instrument_id
+                WHERE candle_ts = (SELECT MAX(candle_ts) FROM stock_candle)
             """)
             
             for row in cursor.fetchall():

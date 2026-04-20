@@ -1,4 +1,5 @@
 import os
+import time
 import pandas as pd
 import logging
 import duckdb
@@ -26,14 +27,22 @@ class FeatureStoreService:
         
     def _warm_cache(self):
         """Creates a view for faster access across partitions."""
-        parquet_path = os.path.join(self.base_path, "**", "*.parquet")
+        start_time = time.time()
+        # Specific pattern is 2x faster than ** recursive on slow container volumes
+        pattern = os.path.join(self.base_path, "feature_version=*", "timeframe=*", "symbol=*", "year=*", "*.parquet")
+        logger.info(f"🔥 Warming Feature Store Cache from {pattern}...")
         try:
-            # Check if any parquet files exist before creating view
-            if any(Path(self.base_path).rglob("*.parquet")):
-                self.db.execute(f"CREATE OR REPLACE VIEW features AS SELECT * FROM read_parquet('{parquet_path}', hive_partitioning=1)")
-                logger.info("🔥 Feature Store Cache Warmed.")
+            # Let DuckDB handle the globbing directly
+            self.db.execute(f"CREATE OR REPLACE VIEW features AS SELECT * FROM read_parquet('{pattern}', hive_partitioning=1)")
+            logger.info(f"🔥 Feature Store Cache Warmed in {time.time() - start_time:.2f}s.")
         except Exception as e:
-            logger.warning(f"Could not warm feature cache: {e}")
+            logger.warning(f"Could not warm feature cache (might be empty or pattern mismatch): {e}")
+            # Fallback to recursive if direct pattern fails (e.g. unexpected nesting)
+            try:
+                rec_pattern = os.path.join(self.base_path, "**", "*.parquet")
+                self.db.execute(f"CREATE OR REPLACE VIEW features AS SELECT * FROM read_parquet('{rec_pattern}', hive_partitioning=1)")
+            except Exception:
+                pass
 
     def save_features(self, df: pd.DataFrame, feature_version: str = "v1"):
         """
@@ -47,6 +56,12 @@ class FeatureStoreService:
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df['year'] = df['timestamp'].dt.year
         df['month'] = df['timestamp'].dt.month
+        
+        # Enforce Float64 for OHLC columns to prevent Decimal mismatches
+        ohlc_cols = ['open', 'high', 'low', 'close']
+        for col in ohlc_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').astype('float64')
         
         # We partition by version, timeframe, symbol, year, month
         # Path: base/version=v1/timeframe=1d/symbol=RELIANCE/year=2024/month=10.parquet
@@ -79,34 +94,51 @@ class FeatureStoreService:
                        end_date: str = None) -> pd.DataFrame:
         """
         Queries features across Parquet files using DuckDB.
+        Uses parameterized queries to prevent SQL injection.
         """
         # Try to use the view first
         try:
             self.db.execute("SELECT 1 FROM features LIMIT 1")
             query = "SELECT * FROM features"
         except:
-            parquet_path = os.path.join(self.base_path, f"feature_version={feature_version}", "**", "*.parquet")
+            parquet_path = os.path.join(self.base_path, f"feature_version={feature_version}", "timeframe=*", "symbol=*", "year=*", "*.parquet")
             query = f"SELECT * FROM read_parquet('{parquet_path}', hive_partitioning=1)"
         
-        conditions = [f"feature_version = '{feature_version}'"]
+        conditions = []
+        params = []
+        
+        # Use parameterized queries to prevent SQL injection
+        conditions.append("feature_version = $1")
+        params.append(feature_version)
+        
         if symbols:
-            sym_list = "', '".join(symbols)
-            conditions.append(f"symbol IN ('{sym_list}')")
+            # Use list parameter — DuckDB supports list_contains or IN with params
+            placeholders = ", ".join([f"${i}" for i in range(len(params) + 1, len(params) + 1 + len(symbols))])
+            conditions.append(f"symbol IN ({placeholders})")
+            params.extend(symbols)
         if timeframes:
-            tf_list = "', '".join(timeframes)
-            conditions.append(f"timeframe IN ('{tf_list}')")
+            placeholders = ", ".join([f"${i}" for i in range(len(params) + 1, len(params) + 1 + len(timeframes))])
+            conditions.append(f"timeframe IN ({placeholders})")
+            params.extend(timeframes)
         if start_date:
-            conditions.append(f"timestamp >= '{start_date}'")
+            conditions.append(f"timestamp >= ${len(params) + 1}")
+            params.append(start_date)
         if end_date:
-            conditions.append(f"timestamp <= '{end_date}'")
+            conditions.append(f"timestamp <= ${len(params) + 1}")
+            params.append(end_date)
             
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
             
-        query += " ORDER BY timestamp ASC"
+        # Sorting is typically handled by the caller if needed (e.g., in ML tasks)
+        # query += " ORDER BY timestamp ASC"
         
         try:
-            return self.db.execute(query).df()
+            start_time = time.time()
+            logger.info(f"📊 Executing Feature Store query: {query}")
+            res = self.db.execute(query, params).df()
+            logger.info(f"📊 Query returned {len(res)} rows in {time.time() - start_time:.2f}s")
+            return res
         except Exception as e:
             logger.error(f"Feature Store query failed: {e}")
             return pd.DataFrame()

@@ -42,6 +42,21 @@ def _validate_upstox_token(token: str) -> str:
 class Settings:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:admin@localhost:5432/quantai")
+    READ_DATABASE_URL = os.getenv("READ_DATABASE_URL", DATABASE_URL)
+    
+    # Environment flag
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+    PGBOUNCER_ENABLED = os.getenv("PGBOUNCER_ENABLED", "false").lower() == "true"
+    
+    # CORS: Comma-separated allowed origins (use "*" only in development)
+    CORS_ORIGINS = [
+        origin.strip() 
+        for origin in os.getenv(
+            "CORS_ORIGINS", 
+            "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+        ).split(",")
+        if origin.strip()
+    ]
     # DATABASE_URL = "postgresql+asyncpg://postgres:admin@192.168.65.254:5432/quantai"
     
     # Dragonfly/Redis Configuration
@@ -55,7 +70,8 @@ class Settings:
     SECRET_KEY = _validate_secret_key(os.getenv("SECRET_KEY", ""))
     
     ALGORITHM = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     UPSTOX_API_KEY = os.getenv("UPSTOX_API_KEY", "")
     UPSTOX_API_SECRET = os.getenv("UPSTOX_API_SECRET", "")
     UPSTOX_REDIRECT_URI = os.getenv("UPSTOX_REDIRECT_URI", "http://localhost:3000/callback")
@@ -63,6 +79,11 @@ class Settings:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     MAX_CAPITAL_PER_TRADE = 100000
     MAX_RISK_PERCENTAGE = 2.0
+    
+    # AI & Safe Mode Settings (Project Aegis)
+    ENABLE_AI_FEATURES = os.getenv("ENABLE_AI_FEATURES", "false").lower() == "true"
+    SAFE_MODE = os.getenv("SAFE_MODE", "false").lower() == "true"
+    MOCK_AI_RESPONSES = os.getenv("MOCK_AI_RESPONSES", "true").lower() == "true"
     
     # AlphaPrime Module Settings
     ALPHA_PRIME_ENABLED = os.getenv("ALPHA_PRIME_ENABLED", "true").lower() == "true"
@@ -128,5 +149,9 @@ class Settings:
     def SYNC_DATABASE_URL(self):
         # Convert async driver URLs to sync driver URLs
         return self.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").replace("sqlite+aiosqlite://", "sqlite://")
+
+    @property
+    def SYNC_READ_DATABASE_URL(self):
+        return self.READ_DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").replace("sqlite+aiosqlite://", "sqlite://")
 
 settings = Settings()

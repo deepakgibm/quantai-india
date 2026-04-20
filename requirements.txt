@@ -31,3 +31,5 @@ websockets
 certifi
 protobuf
 firebase-admin==6.5.0
+torch==2.2.0
+polars==1.38.0

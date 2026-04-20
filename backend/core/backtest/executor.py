@@ -11,6 +11,7 @@ import pandas as pd
 import logging
 
 from .costs import CostCalculator, OrderSide, TransactionCost
+from core.risk.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +65,17 @@ class Position:
     entry_time: datetime
     entry_bar_index: int
     unrealized_pnl: float = 0.0
+    stop_loss: Optional[float] = None
+    highest_price: float = 0.0  # Used for trailing stops
     
     def update_pnl(self, current_price: float) -> None:
         """Update unrealized P&L"""
         if self.side == OrderSide.BUY:
             self.unrealized_pnl = (current_price - self.avg_price) * self.quantity
+            self.highest_price = max(self.highest_price, current_price)
         else:
             self.unrealized_pnl = (self.avg_price - current_price) * self.quantity
+            self.highest_price = min(self.highest_price, current_price) if self.highest_price > 0 else current_price
 
 
 @dataclass
@@ -113,6 +118,7 @@ class Executor:
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.cost_calculator = cost_calculator or CostCalculator()
+        self.risk_manager = RiskManager() # Default, can be updated later
         self.is_intraday = is_intraday
         
         # State
@@ -186,10 +192,31 @@ class Executor:
         
         self.pending_orders = remaining
         
-        # Update unrealized P&L for all positions
+        # Update unrealized P&L and Check Stops for all positions
         current_price = bar['close']
-        for pos in self.positions.values():
+        for symbol, pos in list(self.positions.items()):
             pos.update_pnl(current_price)
+            
+            # Check for Stop Loss Trigger (simplified market execution at bar high/low)
+            if pos.stop_loss:
+                triggered = False
+                if pos.side == OrderSide.BUY and bar['low'] <= pos.stop_loss:
+                    triggered = True
+                elif pos.side == OrderSide.SELL and bar['high'] >= pos.stop_loss:
+                    triggered = True
+                
+                if triggered:
+                    logger.info(f"Stop Loss Triggered for {symbol} at {pos.stop_loss:.2f}")
+                    # Execute immediate exit
+                    exit_order = Order(
+                        id=f"SL-{self._order_counter:06d}",
+                        symbol=symbol,
+                        side=OrderSide.SELL if pos.side == OrderSide.BUY else OrderSide.BUY,
+                        quantity=pos.quantity,
+                        order_type=OrderType.MARKET,
+                        signal_bar_index=bar_index
+                    )
+                    self._execute_order(exit_order, pos.stop_loss, bar, bar_index)
         
         return filled
     

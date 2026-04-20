@@ -1,8 +1,0 @@
-Connecting to database: C:\Users\Deepak Kumar\Downloads\test\stock_data_v1.db
-Tables found: ['stock_candles', 'ingestion_checkpoint']
-
---- Analyzing Table: stock_candles ---
-Columns: ['symbol', 'instrument_key', 'timeframe', 'timestamp', 'open', 'high', 'low', 'close', 'volume']
-Checking indices...
-  Index: sqlite_autoindex_stock_candles_1 on ['instrument_key', 'timeframe', 'timestamp']
-Counting rows (this might take a moment)...

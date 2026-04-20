@@ -30,30 +30,44 @@ class EarningsReactionScanner:
         
     def _get_ohlcv_data(self, symbol: str, days: int = 30) -> Optional[pd.DataFrame]:
         try:
-            from models_ml import Nifty100Daily
             session = self._Session()
             try:
-                cutoff_date = datetime.now() - timedelta(days=days)
-                results = session.query(Nifty100Daily).filter(
-                    Nifty100Daily.symbol == symbol,
-                    Nifty100Daily.timestamp >= cutoff_date
-                ).order_by(Nifty100Daily.timestamp.asc()).all()
+                # Use raw SQL to join stock_candle with instrument_master for fresh data
+                query = f"""
+                    SELECT 
+                        sc.candle_ts as timestamp, 
+                        sc.open, 
+                        sc.high, 
+                        sc.low, 
+                        sc.close, 
+                        sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = '{symbol}'
+                    AND sc.timeframe = 1440
+                    AND sc.candle_ts >= NOW() - INTERVAL '{days} days'
+                    ORDER BY sc.candle_ts ASC
+                """
                 
-                if not results or len(results) < 10:
+                df = pd.read_sql(query, session.bind)
+                
+                if df.empty or len(df) < 10:
                     return None
                 
-                data = [{
-                    'timestamp': r.timestamp, 'open': float(r.open),
-                    'high': float(r.high), 'low': float(r.low),
-                    'close': float(r.close), 'volume': int(r.volume)
-                } for r in results]
+                # Ensure correct types
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df['open'] = pd.to_numeric(df['open'], errors='coerce')
+                df['high'] = pd.to_numeric(df['high'], errors='coerce')
+                df['low'] = pd.to_numeric(df['low'], errors='coerce')
+                df['close'] = pd.to_numeric(df['close'], errors='coerce')
+                df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
                 
-                df = pd.DataFrame(data)
                 df.set_index('timestamp', inplace=True)
                 return df
             finally:
                 session.close()
-        except:
+        except Exception as e:
+            print(f"EarningsScanner error for {symbol}: {e}")
             return None
     
     def analyze_stock(self, symbol: str) -> Optional[Dict]:

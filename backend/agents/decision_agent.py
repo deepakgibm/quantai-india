@@ -59,28 +59,23 @@ class DecisionAgent:
         # Sort by Buy Score
         merged.sort(key=lambda x: x["buy_score"], reverse=True)
         
-        # AI SYNTHESIS: Use Gemini to summarize the top 3 recommendations
+        # AI SYNTHESIS: Use AIProvider to summarize the top 3 recommendations (Project Aegis)
         top_3 = merged[:3]
         if top_3:
             try:
-                from config import settings
-                import google.generativeai as genai
+                from services.ai.provider import get_ai_provider
+                provider = get_ai_provider()
                 
-                if settings.GEMINI_API_KEY:
-                    genai.configure(api_key=settings.GEMINI_API_KEY)
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    
-                    summary_prompt = "You are a professional trader. Summarize these recommendations into a short actionable insight (2 sentences):\n"
-                    for t in top_3:
-                        summary_prompt += f"Stock: {t['symbol']}, Action: {t['final_decision']}, Reason: {t['reason_for_buy']}, ML Score: {t['ml_score']}\n"
-                    
-                    response = model.generate_content(summary_prompt)
-                    ai_reason = response.text.strip()
-                    
-                    # Update the top recommendation with AI insight
-                    top_3[0]["ai_synthesis"] = ai_reason
-                    print(f"🤖 AI Synthesis: {ai_reason[:50]}...")
+                summary_prompt = "You are a professional trader. Summarize these recommendations into a short actionable insight (2 sentences):\n"
+                for t in top_3:
+                    summary_prompt += f"Stock: {t['symbol']}, Action: {t['final_decision']}, Reason: {t['reason_for_buy']}, ML Score: {t['ml_score']}\n"
+                
+                ai_reason = await provider.generate_content(summary_prompt)
+                
+                # Update the top recommendation with AI insight
+                top_3[0]["ai_synthesis"] = ai_reason
+                print(f"🤖 AI Synthesis: {ai_reason[:50]}...")
             except Exception as e:
-                print(f"⚠️ AI Synthesis failed: {e}")
+                print(f"⚠️ AI Synthesis failed or disabled: {e}")
                 
         return merged

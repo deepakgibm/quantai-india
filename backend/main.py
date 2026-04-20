@@ -7,17 +7,14 @@ import asyncio
 from datetime import datetime
 
 # 1. Logging Configuration
-try:
-    from core.observability.logging import configure_logging, get_logger
-    from core.observability.middleware import setup_observability_middleware
-    from core.observability.metrics import get_metrics
-    configure_logging()
-    logger = get_logger(__name__)
-    _observability_available = True
-except ImportError:
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    logger = logging.getLogger(__name__)
-    _observability_available = False
+# 1. Observability Configuration
+from core.observability.logging import configure_logging, get_logger
+from core.observability.middleware import setup_observability_middleware
+from core.observability.metrics import get_metrics
+
+configure_logging()
+logger = get_logger(__name__)
+_observability_available = True
 
 # 2. Main Application Instance
 app = FastAPI(
@@ -26,17 +23,26 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# 3. CORS Configuration
+# 2.5 Ensure Models are Registered
+import models
+import models_ml
+import models_alpha
+import models_indicators
+import models_risk
+import screener.models
+
+# 3. CORS Configuration (env-driven, not hardcoded wildcard)
+from config import settings as app_settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Tighten in production
+    allow_origins=app_settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-if _observability_available:
-    setup_observability_middleware(app)
+# if _observability_available:
+#     setup_observability_middleware(app)
 
 # 4. Exception Handlers
 from utils.error_responses import generic_exception_handler, validation_exception_handler
@@ -67,44 +73,57 @@ from api.metrics import router as metrics_router
 from api.upstox import router as upstox_router
 from api.admin import router as admin_router
 from api.engines import router as engine_router
+from api.v1.experiment_lab import router as experiment_lab_router
+from api.v1.backtest_strategies import router as backtest_strategies_router
+from engine.scanner_api import router as scanner_v3_router
+from screener.api.screener_router import router as screener_router
+from api.websockets import market_ws_router
 
-# 6. Unified API Sub-App
-api = FastAPI(title="QuantAI API", version="2.0.0")
-
-# Register Routes
-api.include_router(health_router, prefix="/health")
-api.include_router(auth_router, prefix="/auth")
-api.include_router(market_router, prefix="/market")
-api.include_router(indicator_router, prefix="/indicators")
-api.include_router(scanner_router, prefix="/scanner")
-api.include_router(forecast_router, prefix="/forecast")
-api.include_router(trading_router, prefix="/trading")
-api.include_router(orders_router, prefix="/orders")
-api.include_router(analytics_router, prefix="/analytics")
-api.include_router(risk_router, prefix="/risk")
-api.include_router(etl_router, prefix="/etl")
-api.include_router(metrics_router, prefix="/metrics")
-api.include_router(ai_router, prefix="/ai")
-api.include_router(upstox_router, prefix="/upstox")
-api.include_router(admin_router, prefix="/admin")
-api.include_router(engine_router, prefix="/engines")
+# 6. Unified API Registration (Flattened for Reliability)
+app.include_router(health_router, prefix="/api/health", tags=["Health"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(market_router, prefix="/api/market", tags=["Market Data"])
+app.include_router(indicator_router, prefix="/api/indicators", tags=["Technical Indicators"])
+app.include_router(scanner_router, prefix="/api/scanner", tags=["Standard Scanners"])
+app.include_router(forecast_router, prefix="/api/forecast", tags=["ML Forecasts"])
+app.include_router(trading_router, prefix="/api/trading", tags=["Trading Operations"])
+app.include_router(orders_router, prefix="/api/orders", tags=["Order Management"])
+app.include_router(analytics_router, prefix="/api/analytics", tags=["Performance Analytics"])
+app.include_router(risk_router, prefix="/api/risk", tags=["Risk Management"])
+app.include_router(etl_router, prefix="/api/etl", tags=["Data Pipelines"])
+app.include_router(metrics_router, prefix="/api/metrics", tags=["System Metrics"])
+app.include_router(ai_router, prefix="/api/ai", tags=["AI Engine"])
+app.include_router(upstox_router, prefix="/api/upstox", tags=["Upstox Broker"])
+app.include_router(admin_router, prefix="/api/admin", tags=["Administration"])
+app.include_router(engine_router, prefix="/api/engines", tags=["Engine Management"])
+app.include_router(screener_router, prefix="/api/screener", tags=["Trade Screener"])
+app.include_router(experiment_lab_router, prefix="/api/experiment-lab", tags=["Experiment Lab"])
+app.include_router(backtest_strategies_router, prefix="/api/backtest", tags=["Backtesting"])
+app.include_router(scanner_v3_router, prefix="/api/scanners/v3", tags=["HP Scanner V3 (Phase 1)"])
+app.include_router(market_ws_router, prefix="/api/ws", tags=["Market WebSockets"])
 
 from api.v1 import router as v1_router
-api.include_router(v1_router, prefix="/v1")
+app.include_router(v1_router, prefix="/api/v1")
 
-# Mount API
-app.mount("/api", api)
+logger.info("?? QuantAI Production API v2.0 Registered at Root.")
 
 # 7. Lifecycle Events
 @app.on_event("startup")
 async def startup_event():
     logger.info("?? QuantAI Backend Starting Up...")
     try:
+        from database import init_db
+        await init_db()
+        logger.info("?? Database schema verified/created.")
+        
+        from config import settings
+        
         # Initialize Core Services
         from services.market_data_orchestrator import get_market_data_orchestrator
         orchestrator = get_market_data_orchestrator()
         asyncio.create_task(orchestrator.start())
         
+        # Non-critical engines in background tasks
         from services.nifty100_ranking_service import start_nifty100_ranking_service
         asyncio.create_task(start_nifty100_ranking_service())
 
@@ -115,8 +134,12 @@ async def startup_event():
         asyncio.create_task(start_realtime_breakout_service())
 
         # Initialize Real-Time Scanner Engine (Hydrate from DB/WS)
-        from core.scanner.realtime_scanner_engine import get_realtime_scanner_engine
-        await get_realtime_scanner_engine().initialize()
+        if not settings.SAFE_MODE:
+            from core.scanner.realtime_scanner_engine import get_realtime_scanner_engine
+            # Run initialization in a task to avoid blocking the main server boot
+            asyncio.create_task(get_realtime_scanner_engine().initialize())
+        else:
+            logger.info("Project Aegis: Skipping blocking Real-time Scanner initialization in Safe Mode.")
         
         logger.info("?? Real-time data engines initiated.")
     except Exception as e:

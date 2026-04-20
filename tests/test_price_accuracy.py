@@ -9,13 +9,13 @@ import os
 from typing import Dict, Any, List
 from datetime import datetime
 
-from tests.utils.test_data import (
+from tests.test_utils.test_data import (
     QUICK_TEST_SYMBOLS,
     SYMBOL_TO_INSTRUMENT_KEY,
     TOLERANCE_LTP,
     TOLERANCE_OHLC,
 )
-from tests.utils.validators import (
+from tests.test_utils.validators import (
     compare_prices,
     PriceValidationResult,
 )

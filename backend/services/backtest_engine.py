@@ -398,10 +398,19 @@ class StrategyBacktester:
             if idx + max_hold >= len(df):
                 continue
             
-            entry = signal['entry']
+            # Institutional execution: Enter at the OPEN of the NEXT candle
+            # after the signal occurs to avoid look-ahead bias.
+            if idx + 1 >= len(df):
+                continue
+                
+            entry = df['open'].iloc[idx + 1]
             target = signal['target']
             stop = signal['stop']
             signal_type = signal['type']
+            
+            # Re-calculate target/stop based on actual entry if they were relative
+            # (Note: Standardizing to fixed % for simplicity in this version)
+            # ... (Existing signals already have absolute target/stop values)
             
             # Simulate trade
             for j in range(1, max_hold + 1):

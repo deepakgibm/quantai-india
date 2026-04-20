@@ -17,13 +17,33 @@ except ImportError:
     NIFTY_500_MAPPING = {}
 
 from services.upstox_price_resolver import get_upstox_price_resolver
+from utils.trade_logic import calculate_atr_levels
 
-from utils.trade_logic import (
-    calculate_atr_levels
-)
+# Global cache for instrument mappings
+INSTRUMENT_MAPPING = NIFTY_500_MAPPING.copy()
+_mapping_loaded = False
 
-# Use the comprehensive mapping (300+ Nifty 500 stocks)
-INSTRUMENT_MAPPING = NIFTY_500_MAPPING
+def _hydrate_mapping_sync():
+    """Hydrate mapping from DB synchronously (for module-level init)"""
+    global _mapping_loaded
+    if _mapping_loaded: return
+    
+    from sqlalchemy import create_engine, text
+    from config import settings
+    try:
+        engine = create_engine(settings.SYNC_DATABASE_URL)
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT symbol, instrument_key FROM instrument_master WHERE is_active = TRUE"))
+            db_mapping = {row.symbol: row.instrument_key for row in result}
+            INSTRUMENT_MAPPING.update(db_mapping)
+            logger.info(f"Hydrated INSTRUMENT_MAPPING with {len(db_mapping)} keys from DB")
+    except Exception as e:
+        logger.error(f"Failed to hydrate INSTRUMENT_MAPPING from DB: {e}")
+    finally:
+        _mapping_loaded = True
+
+# Trigger hydration
+_hydrate_mapping_sync()
 
 async def get_database_prices(symbols: List[str]) -> Dict[str, float]:
     """Fallback to database for prices when live APIs fail."""
@@ -109,61 +129,119 @@ async def get_yfinance_price(symbol: str) -> Optional[float]:
     return None
 
 def get_instrument_key(symbol: str) -> Optional[str]:
-    return INSTRUMENT_MAPPING.get(symbol.upper())
+    """
+    Get the Upstox instrument key for a symbol.
+    Supports prefixes like NSE_INDEX|NIFTY 50 or raw symbols.
+    """
+    if "|" in symbol:
+        return symbol
+        
+    symbol_upper = symbol.upper()
+    
+    # 1. Check direct mapping first (most common)
+    if symbol_upper in INSTRUMENT_MAPPING:
+        return INSTRUMENT_MAPPING[symbol_upper]
+        
+    # 2. Heuristic for indices (e.g., "NIFTY 50", "NIFTY BANK")
+    index_map = {
+        "NIFTY 50": "NSE_INDEX|Nifty 50",
+        "NIFTY BANK": "NSE_INDEX|Nifty Bank",
+        "BANKNIFTY": "NSE_INDEX|Nifty Bank", # Added for common alias
+        "INDIA VIX": "NSE_INDEX|India VIX",
+        "FINNIFTY": "NSE_INDEX|Nifty Fin Service",
+        "MIDCPNIFTY": "NSE_INDEX|NIFTY MID SELECT", # Added for common alias
+        "NIFTY NEXT 50": "NSE_INDEX|Nifty Next 50",
+        "NIFTY 100": "NSE_INDEX|Nifty 100"
+    }
+    
+    if symbol_upper in index_map:
+        return index_map[symbol_upper]
+        
+    return None
 
 async def fetch_live_ltp(symbols: List[str], access_token: str = None) -> Dict[str, float]:
     if not symbols: return {}
-    if not access_token: access_token = settings.UPSTOX_ACCESS_TOKEN
-    if not access_token: return {}
+    
+    from services.upstox_client import get_upstox_client
+    client = get_upstox_client(access_token)
+    
     prices = {}
     batch_size = 50
+    
+    # Map symbols to keys
+    mapped_keys = []
+    key_to_symbol = {}
+    for s in symbols:
+        key = get_instrument_key(s)
+        if key:
+            mapped_keys.append(key)
+            key_to_symbol[key] = s
+        else:
+            logger.warning(f"No instrument key mapping found for symbol: {s}")
+            
+    if not mapped_keys:
+        return {}
+
     tasks = []
-    for i in range(0, len(symbols), batch_size):
-        batch = symbols[i:i + batch_size]
-        tasks.append(_fetch_batch_ltp(batch, access_token))
+    for i in range(0, len(mapped_keys), batch_size):
+        batch = mapped_keys[i:i + batch_size]
+        tasks.append(client.get_live_quotes(batch))
+        
     batch_results = await asyncio.gather(*tasks)
     for res in batch_results:
-        prices.update(res)
+        for key, quote in res.items():
+            symbol = key_to_symbol.get(key)
+            if symbol:
+                prices[symbol] = quote.get("last_price") or quote.get("close")
+            
     return prices
 
 async def fetch_live_full_quotes(symbols: List[str], access_token: str = None) -> Dict[str, Dict[str, Any]]:
     if not symbols: return {}
-    if not access_token: access_token = settings.UPSTOX_ACCESS_TOKEN
-    if not access_token: return {}
+    
+    from services.upstox_client import get_upstox_client
+    client = get_upstox_client(access_token)
+    
     results = {}
     batch_size = 50
-    for i in range(0, len(symbols), batch_size):
-        batch = symbols[i:i + batch_size]
+    
+    # Map symbols to keys
+    mapped_keys = []
+    key_to_symbol = {}
+    for s in symbols:
+        key = get_instrument_key(s)
+        if key:
+            mapped_keys.append(key)
+            key_to_symbol[key] = s
+            # Support EXCHANGE:SYMBOL format
+            if "|" in key:
+                exch = key.split("|")[0]
+                key_to_symbol[f"{exch}:{s}"] = s
+            key_to_symbol[f"NSE_EQ:{s}"] = s
+            key_to_symbol[f"BSE_EQ:{s}"] = s
+        else:
+            logger.warning(f"No instrument key mapping found for symbol: {s}")
+
+    if not mapped_keys:
+        logger.warning(f"No valid instrument keys found for symbols: {symbols[:10]}")
+        return {}
+
+    logger.info(f"Enricher: Batching {len(mapped_keys)} keys for Upstox API")
+    for i in range(0, len(mapped_keys), batch_size):
+        batch = mapped_keys[i:i + batch_size]
         try:
-            instrument_keys = []
-            key_to_symbol = {}
-            for s in batch:
-                ik = get_instrument_key(s)
-                if ik:
-                    instrument_keys.append(ik)
-                    key_to_symbol[ik] = s
-                    key_to_symbol[ik.replace('|', ':')] = s
-            if not instrument_keys: continue
-            keys_param = ",".join(instrument_keys)
-            encoded_keys = quote(keys_param, safe=',')
-            url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}"
-            headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("status") == "success" and data.get("data"):
-                        for key, q in data["data"].items():
-                            symbol = key_to_symbol.get(key)
-                            if not symbol and ":" in key:
-                                symbol = key_to_symbol.get(key.split(':')[-1])
-                            if symbol:
-                                results[symbol] = {
-                                    "ltp": q.get("last_price"),
-                                    "prev_close": q.get("ohlc", {}).get("close"),
-                                    "volume": q.get("volume"),
-                                    "timestamp": q.get("timestamp")
-                                }
+            res = await client.get_live_quotes(batch)
+            logger.info(f"Enricher: Received {len(res)} quotes from batch of {len(batch)}")
+            
+            for key, q in res.items():
+                symbol = key_to_symbol.get(key)
+                if symbol:
+                    results[symbol] = {
+                        "ltp": q.get("last_price"),
+                        "prev_close": q.get("previous_close"),
+                        "volume": q.get("volume"),
+                        "timestamp": q.get("timestamp")
+                    }
         except Exception as e:
             logger.error(f"Upstox full quote batch failed: {e}")
     return results

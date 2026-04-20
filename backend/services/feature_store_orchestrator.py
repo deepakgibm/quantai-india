@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy import text
 from database import get_db
-from backend.services.feature_store import get_feature_store
-from backend.services.feature_pipeline import get_feature_pipeline
+from services.feature_store import get_feature_store
+from services.feature_pipeline import get_feature_pipeline
 from models_alpha import TimeframeMapper
 import pandas as pd
 

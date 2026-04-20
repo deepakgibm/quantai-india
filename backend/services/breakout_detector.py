@@ -30,45 +30,49 @@ class BreakoutDetector:
         self.min_score = 60
         
     def _get_bulk_ohlcv_df(self, days: int = 365) -> pd.DataFrame:
-        """Fetch OHLCV data for ALL symbols in one query as a single DataFrame."""
+        """Fetch OHLCV data for ALL symbols using new schema (stock_candle)."""
         try:
-            from models_ml import Nifty100Daily
-            
             session = self._Session()
             try:
-                # Calculate cutoff
-                cutoff_date = datetime.now() - timedelta(days=days)
-                
-                # Bulk query using pd.read_sql
-                query = session.query(
-                    Nifty100Daily.symbol,
-                    Nifty100Daily.timestamp,
-                    Nifty100Daily.open,
-                    Nifty100Daily.high,
-                    Nifty100Daily.low,
-                    Nifty100Daily.close,
-                    Nifty100Daily.volume
-                ).filter(
-                    Nifty100Daily.timestamp >= cutoff_date
-                ).statement
+                # Use raw SQL for precision with the partitioned schema
+                query = f"""
+                    SELECT 
+                        im.symbol, 
+                        sc.candle_ts as timestamp, 
+                        sc.open, 
+                        sc.high, 
+                        sc.low, 
+                        sc.close, 
+                        sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE sc.timeframe = 1440
+                    AND im.is_active = TRUE
+                    AND sc.candle_ts >= NOW() - INTERVAL '{days} days'
+                """
                 
                 df = pd.read_sql(query, session.bind)
                 
                 if df.empty:
+                    logger.warning("No data found in stock_candle for breakout detection")
                     return pd.DataFrame()
                 
                 # Ensure correct types
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
-                df['close'] = df['close'].astype(float)
-                df['high'] = df['high'].astype(float)
-                df['low'] = df['low'].astype(float)
-                df['volume'] = df['volume'].astype(float)
+                df['close'] = pd.to_numeric(df['close'], errors='coerce')
+                df['high'] = pd.to_numeric(df['high'], errors='coerce')
+                df['low'] = pd.to_numeric(df['low'], errors='coerce')
+                df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
                 
+                # Drop NaNs
+                df = df.dropna(subset=['close', 'high', 'low', 'volume'])
+                
+                logger.info(f"Fetched {len(df)} rows for {df['symbol'].nunique()} symbols from stock_candle")
                 return df
             finally:
                 session.close()
         except Exception as e:
-            logger.error(f"Error fetching bulk data: {e}")
+            logger.error(f"Error fetching bulk data for breakout detector: {e}")
             return pd.DataFrame()
     
     def _calculate_indicators_vectorized(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -76,51 +80,43 @@ class BreakoutDetector:
         # Sort properly
         df = df.sort_values(['symbol', 'timestamp'])
         
-        # 1. Rolling Highs
-        # Group by symbol to keep boundaries clean
+        # Group by symbol
         g = df.groupby('symbol')
         
-        df['high_20d'] = g['high'].transform(lambda x: x.shift(1).rolling(20).max())
-        df['high_52w'] = g['high'].transform(lambda x: x.shift(1).rolling(250).max()) # Approx 52 weeks
+        # 1. Rolling Highs (Transform ensures index alignment)
+        df['high_20d'] = g['high'].transform(lambda x: x.shift(1).rolling(window=20, min_periods=1).max())
+        df['high_52w'] = g['high'].transform(lambda x: x.shift(1).rolling(window=250, min_periods=1).max())
         
         # 2. Volume Averages
-        df['vol_avg_20d'] = g['volume'].transform(lambda x: x.shift(1).rolling(20).mean())
+        df['vol_avg_20d'] = g['volume'].transform(lambda x: x.shift(1).rolling(window=20, min_periods=1).mean())
         
-        # 3. ATR (Approximate True Range for speed - High-Low)
-        # Standard TR is max(H-L, |H-Cp|, |L-Cp|). 
-        # For vectorization speed, we can use simple High-Low or optimized TR.
-        # Let's do a decent TR approximation: max(H-L, abs(H - prev_close), abs(L - prev_close))
+        # 3. ATR (Approximate True Range)
+        # Standard approach for vectorized TR
+        df['prev_close'] = g['close'].shift(1)
         
-        prev_close = g['close'].shift(1)
-        tr1 = df['high'] - df['low']
-        tr2 = (df['high'] - prev_close).abs()
-        tr3 = (df['low'] - prev_close).abs()
+        h_l = df['high'] - df['low']
+        h_pc = (df['high'] - df['prev_close']).abs()
+        l_pc = (df['low'] - df['prev_close']).abs()
         
-        # Element-wise max
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        df['tr'] = pd.concat([h_l, h_pc, l_pc], axis=1).max(axis=1)
         
-        # Assign to temp series to group-aggregate
-        # We need to re-align indices if we did concat
-        # Easier way:
-        df['tr'] = tr
+        # Re-group to calculate rolling ATR
+        df['atr_20d'] = df.groupby('symbol')['tr'].transform(lambda x: x.rolling(window=20, min_periods=1).mean())
+        df['atr_5d'] = df.groupby('symbol')['tr'].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
         
-        # Now groupby again for rolling means of TR
-        # Note: 'tr' column is now in df, so we can use it
-        g2 = df.groupby('symbol') # Re-group specifically on the new df
-        df['atr_20d'] = g2['tr'].transform(lambda x: x.rolling(20).mean())
-        df['atr_5d'] = g2['tr'].transform(lambda x: x.rolling(5).mean())
+        # Cleanup temp columns
+        df.drop(columns=['prev_close', 'tr'], inplace=True)
         
         # 4. RSI (Vectorized)
-        def calc_rsi(x, period=14):
-            delta = x.diff()
-            gain = delta.where(delta > 0, 0)
-            loss = -delta.where(delta < 0, 0)
-            avg_gain = gain.rolling(window=period).mean()
-            avg_loss = loss.rolling(window=period).mean()
-            rs = avg_gain / avg_loss
-            return 100 - (100 / (1 + rs))
-
-        df['rsi'] = g['close'].transform(lambda x: calc_rsi(x))
+        delta = df.groupby('symbol')['close'].diff()
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+        
+        avg_gain = df.groupby('symbol')['close'].transform(lambda x: x.diff().clip(lower=0).rolling(14).mean())
+        avg_loss = df.groupby('symbol')['close'].transform(lambda x: (-x.diff()).clip(lower=0).rolling(14).mean())
+        
+        rs = avg_gain / avg_loss
+        df['rsi'] = 100 - (100 / (1 + rs))
         
         return df
 

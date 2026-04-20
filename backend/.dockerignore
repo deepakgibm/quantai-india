@@ -43,6 +43,6 @@ docs/_build/
 
 # Data and large files
 *.parquet
-data/
+# Only ignore parquet data specifically, not the whole data module
 **/*.parquet
-**/data/
+

@@ -4,7 +4,7 @@ import torch.optim as optim
 import logging
 import os
 from typing import List
-from backend.ml.transformer_model import QuantAIInformer
+from ml.transformer_model import QuantAIInformer
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +42,16 @@ class QuantAITrainer:
             loss += torch.max((q - 1) * errors, q * errors).mean()
         return loss / len(quantiles)
 
-    def train_epoch(self, dataloader):
+    def train_epoch(self, dataloader, callback=None):
+        import time
+        torch.set_num_threads(1) # Prevent core contention on 2.0 limit
         self.model.train()
         total_loss = 0
+        total_batches = len(dataloader)
         
-        for batch in dataloader:
+        epoch_start = time.time()
+        for i, batch in enumerate(dataloader):
+            batch_start = time.time()
             x, s_idx, t_idx, y_ret, y_vol = [b.to(self.device) for b in batch]
             
             self.optimizer.zero_grad()
@@ -57,15 +62,12 @@ class QuantAITrainer:
             loss_ret = self.mse_loss(ret_pred, y_ret) # t+1, t+3, t+5
             
             # 2. Volatility Loss
-            # Target is the volatility_20 calculated in pipeline
             loss_vol = self.mse_loss(vol_pred, y_vol)
             
-            # 3. Quantile Loss (for t+1 return)
-            # quantiles are 5%, 25%, 50%, 75%, 95%
+            # 3. Quantile Loss
             quantiles = [0.05, 0.25, 0.5, 0.75, 0.95]
             loss_q = self.quantile_loss(q_pred, y_ret[:, 0:1], quantiles)
             
-            # Combined Loss
             loss = loss_ret + 0.1 * loss_vol + 0.5 * loss_q
             
             loss.backward()
@@ -73,7 +75,15 @@ class QuantAITrainer:
             
             total_loss += loss.item()
             
-        return total_loss / len(dataloader)
+            # Diagnostic logging every 10 batches
+            if (i + 1) % 10 == 0:
+                logger.info(f"   [Batch {i+1}/{total_batches}] Loss: {loss.item():.6f} | Batch Time: {time.time() - batch_start:.3f}s")
+            
+            if callback:
+                callback(i + 1, total_batches, loss.item())
+            
+        logger.info(f"✨ Epoch completed in {time.time() - epoch_start:.2f}s")
+        return total_loss / total_batches
 
     def save_model(self):
         torch.save(self.model.state_dict(), self.model_path)

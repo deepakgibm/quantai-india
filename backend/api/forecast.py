@@ -12,41 +12,48 @@ from datetime import datetime
 
 from models import User
 from utils.auth import get_current_user
-from ml.schemas import (
-    AlgorithmListResponse,
-    ForecastRunRequest,
-    ForecastRunResponse,
-    ForecastResponse
-)
-from ml.algorithm_registry import get_algorithm_registry
 from database import get_db
 from services.dragonfly_client import get_cache
+from utils.rate_limit import rate_limit
+from config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["AI Forecast"])
+router = APIRouter(tags=["AI Forecast"], dependencies=[Depends(rate_limit(30, 60, "forecast"))])
 
-@router.get("/algorithms", response_model=AlgorithmListResponse)
+def check_ai_enabled():
+    if not settings.ENABLE_AI_FEATURES:
+        raise HTTPException(status_code=503, detail="AI/ML features are currently disabled (Project Aegis Safe Mode)")
+
+@router.get("/algorithms")
 async def list_algorithms(
     symbol: Optional[str] = None,
     timeframe: Optional[str] = None,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _ai_gate = Depends(check_ai_enabled)
 ):
     """List available forecasting models and their status."""
-    registry = get_algorithm_registry()
+    from ml.algorithm_registry import get_algorithm_registry
+    from ml.schemas import AlgorithmListResponse
     algorithms = await registry.list_all(db=db, symbol=symbol, timeframe=timeframe)
     return AlgorithmListResponse(algorithms=algorithms, count=len(algorithms))
 
-@router.post("/run", response_model=ForecastRunResponse)
+@router.post("/run")
 async def run_forecast(
-    request: ForecastRunRequest,
-    current_user: User = Depends(get_current_user)
+    request_data: Dict[str, Any], # Use dict to avoid prompt-time validation issues if schemas fail to load
+    current_user: User = Depends(get_current_user),
+    _ai_gate = Depends(check_ai_enabled)
 ):
     """
     Run a price forecast using the selected algorithm.
     Target: <200ms using Result-Level Caching.
     """
+    from ml.schemas import ForecastRunRequest, ForecastRunResponse
+    from ml.algorithm_registry import get_algorithm_registry
+    
+    # Manually validate request if needed, or just let pydantic do it locally
+    request = ForecastRunRequest(**request_data)
     start_time = time.time()
     cache_key = f"qai:fc:{request.symbol}:{request.timeframe}:{request.algorithm_id}"
     cache = get_cache()
@@ -95,12 +102,13 @@ async def run_forecast(
         logger.error(f"Forecast failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/predict", response_model=ForecastResponse)
+@router.get("/predict")
 async def predict_apf(
     symbol: str = Query(..., description="Stock symbol"),
     timeframe: str = Query(default="15m"),
     horizon: int = Query(default=10, le=50),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _ai_gate = Depends(check_ai_enabled)
 ):
     """Legacy Adaptive Price Forecast (APF) compatibility endpoint."""
     try:

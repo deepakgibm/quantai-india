@@ -28,7 +28,7 @@ class ScannerRunner:
                 if cached_raw:
                     logger.info(f"ScannerRunner: {scanner_name} raw cache hit, enriching...")
                     if isinstance(cached_raw, dict) and "stocks" in cached_raw:
-                        cached_raw["stocks"] = await enrich_scanner_results(cached_raw["stocks"], settings.UPSTOX_ACCESS_TOKEN)
+                        cached_raw["stocks"] = await enrich_scanner_results(cached_raw["stocks"])
                         cache.set(enriched_cache_key, cached_raw, ttl=60)
                         return cached_raw
             except Exception as e:
@@ -109,9 +109,9 @@ class ScannerRunner:
             sell_signals = [s for s in stocks if s.get("signal") == "SELL" or s.get("action") == "SELL" or s.get("trend") == "BEARISH"]
 
             # 4. Enrich and Build Response
-            enriched_stocks = await enrich_scanner_results(stocks, settings.UPSTOX_ACCESS_TOKEN)
-            enriched_buy = await enrich_scanner_results(buy_signals, settings.UPSTOX_ACCESS_TOKEN)
-            enriched_sell = await enrich_scanner_results(sell_signals, settings.UPSTOX_ACCESS_TOKEN)
+            enriched_stocks = await enrich_scanner_results(stocks)
+            enriched_buy = await enrich_scanner_results(buy_signals)
+            enriched_sell = await enrich_scanner_results(sell_signals)
             
             # Map filter stats to a reason summary if no signals
             message = None

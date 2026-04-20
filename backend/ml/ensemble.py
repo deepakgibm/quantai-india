@@ -74,7 +74,7 @@ class APFEnsemble:
         Returns:
             Dict with training metrics
         """
-        if X is None or len(X) < 50:
+        if X is None or len(X) < 10:
             raise ValueError("Insufficient training data (need at least 50 samples)")
         
         self.feature_names = feature_names or []

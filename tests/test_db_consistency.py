@@ -7,7 +7,7 @@ import pytest
 import os
 from datetime import datetime
 
-from tests.utils.test_data import (
+from tests.test_utils.test_data import (
     QUICK_TEST_SYMBOLS,
 )
 
@@ -167,7 +167,7 @@ class TestDataIntegrity:
         """Test symbol mappings are consistent."""
         cursor = db_connection.cursor()
         
-        from tests.utils.test_data import SYMBOL_TO_INSTRUMENT_KEY
+        from tests.test_utils.test_data import SYMBOL_TO_INSTRUMENT_KEY
         
         # Check a few known mappings against DB
         for symbol, expected_key in list(SYMBOL_TO_INSTRUMENT_KEY.items())[:5]:

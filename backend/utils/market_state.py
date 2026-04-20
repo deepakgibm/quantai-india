@@ -9,9 +9,11 @@ from datetime import datetime, date, timedelta
 from typing import Optional, Any, Callable, TypeVar
 import logging
 
+import pytz
+
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+IST = pytz.timezone('Asia/Kolkata')
 
 
 def is_market_open() -> bool:
@@ -24,7 +26,7 @@ def is_market_open() -> bool:
     Returns:
         True if market is open, False otherwise
     """
-    now = datetime.now()
+    now = datetime.now(IST)
     
     # Weekend check
     if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
@@ -48,8 +50,8 @@ def get_trading_date() -> date:
     Returns:
         The trading date to use for data lookups
     """
-    today = date.today()
-    now = datetime.now()
+    now = datetime.now(IST)
+    today = now.date()
     
     # Weekend handling
     if today.weekday() == 5:  # Saturday
@@ -147,7 +149,7 @@ def get_market_status() -> dict:
     Returns:
         Dict with market state details
     """
-    now = datetime.now()
+    now = datetime.now(IST)
     is_open = is_market_open()
     
     current_minutes = now.hour * 60 + now.minute

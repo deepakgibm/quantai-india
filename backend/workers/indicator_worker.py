@@ -155,7 +155,9 @@ def compute_indicators_process(task: ComputeTask) -> ComputeResult:
         'change_pct': round(indicators['change_pct'], 2),
         'indicators': {k: round(v, 4) for k, v in indicators.items()},
         'signals': signals,
+        'bucket': _get_momentum_bucket(indicators['change_pct']),
         'momentum_bucket': _get_momentum_bucket(indicators['change_pct']),
+        'momentum_score': _calculate_momentum_score(indicators['change_pct']),
         'trend': 'BULLISH' if 'EMA_BULLISH_STACK' in signals else 'BEARISH' if 'EMA_BEARISH_STACK' in signals else 'NEUTRAL',
         'updated_at': datetime.now().isoformat()
     }
@@ -229,6 +231,17 @@ def _get_momentum_bucket(change_pct: float) -> str:
     elif abs_change >= 1.0:
         return "MODERATE_BULLISH" if is_bullish else "MODERATE_BEARISH"
     return "NEUTRAL"
+
+
+def _calculate_momentum_score(change_pct: float) -> int:
+    """Calculate 0-100 score (Consistency check with RealTimeScannerEngine)."""
+    abs_change = abs(change_pct)
+    if abs_change >= 5.0: return 95 if change_pct > 0 else 5
+    elif abs_change >= 4.0: return 85 if change_pct > 0 else 15
+    elif abs_change >= 3.0: return 75 if change_pct > 0 else 25
+    elif abs_change >= 2.0: return 65 if change_pct > 0 else 35
+    elif abs_change >= 1.0: return 55 if change_pct > 0 else 45
+    return 50
 
 
 class IndicatorWorker:

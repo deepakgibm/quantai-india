@@ -1,6 +1,7 @@
-from fastapi import Request, HTTPException, status
+from fastapi import Request, WebSocket, HTTPException, status
 from services.dragonfly_client import get_cache
 import logging
+from typing import Union
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,12 @@ def rate_limit(limit: int, window: int, name: str = "default"):
     limit: Number of requests allowed
     window: Time window in seconds
     """
-    async def dependency(request: Request):
+    async def dependency(request: Request = None, websocket: WebSocket = None):
+        # Handle both HTTP and WebSocket
+        conn = request or websocket
+        if not conn:
+            return
+            
         cache = get_cache()
         if not cache.is_available():
             # If cache is down, we don't block for now in this implementation
@@ -18,7 +24,11 @@ def rate_limit(limit: int, window: int, name: str = "default"):
             return
             
         # Use client IP as identifier
-        client_ip = request.client.host
+        try:
+            client_ip = conn.client.host
+        except AttributeError:
+            return
+        
         key = f"qai:ratelimit:{name}:{client_ip}"
         
         try:

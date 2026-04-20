@@ -20,7 +20,7 @@ from services.metadata_cache_service import get_metadata_cache_service
 from services.dragonfly_client import get_cache, CacheUnavailableError
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/metrics", tags=["Metrics & Metadata"])
+router = APIRouter(tags=["Metrics & Metadata"])
 
 
 # =============================================================================

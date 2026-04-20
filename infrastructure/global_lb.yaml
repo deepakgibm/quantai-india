@@ -1,0 +1,49 @@
+# Global Load Balancer Configuration for QuantAI India
+# Cloud Agnostic (GCP/AWS/Azure Pattern)
+
+global_load_balancer:
+  name: quantai-global-lb
+  type: https-proxy
+  ip_address_type: global-static
+  
+  # Geographic Steering Rules (Primary: Mumbai, Secondary: Chennai/Bangalore)
+  routing_policy:
+    mode: geoproximity
+    default_region: asia-south1  # Mumbai (Primary)
+    regions:
+      - name: asia-south1
+        target: quantai-mumbai-backend-service
+        health_check: quantai-health-check
+        capacity: 1000000  # Target capacity for Phase 5
+      - name: asia-south2
+        target: quantai-delhi-backend-service
+        health_check: quantai-health-check
+        failover_source: asia-south1
+
+  # Health Check Configuration
+  health_checks:
+    - name: quantai-health-check
+      type: http
+      port: 80
+      request_path: "/api/health/"
+      check_interval_sec: 5
+      timeout_sec: 3
+      unhealthy_threshold: 2
+      healthy_threshold: 2
+
+  # Cache Layer Steering (Dragonfly Cluster Localized)
+  cdn_policy:
+    enabled: true
+    cache_mode: USE_ORIGIN_HEADERS
+    client_ttl_sec: 3600
+    default_ttl_sec: 3600
+    max_ttl_sec: 86400
+    negative_caching: true
+
+  # TLS Configuration
+  ssl_certificates:
+    - name: quantai-ssl-cert
+      managed: true
+      domains:
+        - api.quantai.in
+        - app.quantai.in

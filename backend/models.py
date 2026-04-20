@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from database import Base
+from database import Base, EncryptedString
 
 class User(Base):
     __tablename__ = "users"
@@ -13,8 +13,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     # Deprecated fields, moving to BrokerCredentials but keeping for backward compat if needed
     is_upstox_connected = Column(Boolean, default=False)
-    upstox_access_token = Column(String, nullable=True)
-    upstox_refresh_token = Column(String, nullable=True)
+    upstox_access_token = Column(EncryptedString, nullable=True)
+    upstox_refresh_token = Column(EncryptedString, nullable=True)
     failed_login_attempts = Column(Integer, default=0)
     locked_until = Column(DateTime, nullable=True)
     subscription_level = Column(String, default="FREE") # FREE, PRO, ELITE
@@ -45,10 +45,10 @@ class BrokerCredentials(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     broker = Column(String) # upstox, zerodha
-    api_key = Column(String)
-    api_secret = Column(String)
-    access_token = Column(String)
-    refresh_token = Column(String)
+    api_key = Column(EncryptedString)
+    api_secret = Column(EncryptedString)
+    access_token = Column(EncryptedString)
+    refresh_token = Column(EncryptedString)
     is_active = Column(Boolean, default=True)
     user = relationship("User", back_populates="broker_credentials")
 
@@ -80,9 +80,9 @@ class BacktestResult(Base):
     __tablename__ = "backtest_results"
     id = Column(Integer, primary_key=True, index=True)
     run_id = Column(String, unique=True, index=True)
-    strategy_name = Column(String)
+    strategy_name = Column(String, index=True)
     symbol = Column(String, index=True)
-    timeframe = Column(String)
+    timeframe = Column(String, index=True)
     start_date = Column(DateTime)
     end_date = Column(DateTime)
     initial_capital = Column(Float)
@@ -140,6 +140,21 @@ class UserSettings(Base):
     user = relationship("User", back_populates="settings")
 
 
+class AuthToken(Base):
+    __tablename__ = "auth_tokens"
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    token_type = Column(String, index=True) # ANALYTICS, OAUTH
+    encrypted_token = Column(EncryptedString)
+    expires_at = Column(DateTime, nullable=True)
+    health_status = Column(String, default="HEALTHY")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User", backref="auth_tokens")
+
+
 
 
 class DailyTopGainersSnapshot(Base):
@@ -164,4 +179,59 @@ class DailyTopGainersSnapshot(Base):
     rank = Column(Integer, nullable=False)  # 1-10 for gainers, -1 to -10 for losers
     category = Column(String, default="GAINER")  # GAINER or LOSER
     data_source = Column(String, default="UPSTOX")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class MarketDataQuarantine(Base):
+    """
+    Stores invalid or anomalous ticks/candles preventing DB pollution.
+    """
+    __tablename__ = "market_data_quarantine"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    timestamp = Column(DateTime)
+    timeframe = Column(String) # e.g. "1m", "5m", "1d"
+    open = Column(Float)
+    high = Column(Float)
+    low = Column(Float)
+    close = Column(Float)
+    volume = Column(Integer)
+    rejection_reason = Column(String) # E.g., 'HIGH_LESS_THAN_LOW', 'VOLUME_SPIKE'
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class FundamentalMetrics(Base):
+    """
+    Stores fundamental data points for long-term algorithmic combinations.
+    """
+    __tablename__ = "fundamental_metrics"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True, unique=True)
+    market_cap = Column(Float)
+    pe_ratio = Column(Float)
+    pb_ratio = Column(Float)
+    dividend_yield = Column(Float)
+    debt_to_equity = Column(Float)
+    roce = Column(Float)
+    roe = Column(Float)
+    eps = Column(Float)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class InstitutionalFlows(Base):
+    """
+    Parses NSE Bulk/Block deal data to identify FII/DII footprint.
+    """
+    __tablename__ = "institutional_flows"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    deal_date = Column(DateTime, index=True)
+    client_name = Column(String)  # E.g. "MORGAN STANLEY ASIA SINGAPORE PTE"
+    deal_type = Column(String)    # E.g. "BUY", "SELL"
+    quantity = Column(Integer)
+    price = Column(Float)
+    flow_category = Column(String, index=True) # "FII", "DII", "HNI"
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "quantai.fullname" . }}-backend
+  labels:
+    {{- include "quantai.labels" . | nindent 4 }}
+    component: backend
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "quantai.selectorLabels" . | nindent 4 }}
+    component: backend

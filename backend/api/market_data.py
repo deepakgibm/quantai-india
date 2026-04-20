@@ -38,9 +38,19 @@ async def get_market_status():
 @router.get("/nifty100/top-movers")
 async def get_nifty100_top_movers():
     """(Frontend Compat) Alias for default Top Movers."""
-    # Redirect to standard logic
-    from services.market_service import get_market_service
-    return await get_market_service().get_nifty100_top_movers()
+    try:
+        from services.market_service import get_market_service
+        return await get_market_service().get_nifty100_top_movers()
+    except Exception as e:
+        logger.error(f"Top movers fetch failed: {e}")
+        return {
+            "status": "error",
+            "timestamp": None,
+            "gainers": [],
+            "losers": [],
+            "source": "unavailable",
+            "error": str(e)
+        }
 
 @router.get("/top-movers")
 async def get_top_movers(limit: int = 5):

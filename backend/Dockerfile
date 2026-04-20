@@ -1,27 +1,36 @@
-# Backend Dockerfile for FastAPI Application
-FROM python:3.11-slim
+# Phase 1: Build Dependencies
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+# Build-time dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Phase 2: Runtime Environment
+FROM python:3.11-slim as runtime
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
+ENV PATH="/root/.local/bin:${PATH}"
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# Install runtime-only library dependencies (libpq is needed for psycopg2)
 RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
+    libpq5 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Copy installed python packages from builder
+COPY --from=builder /root/.local /root/.local
 
 # Copy application code
 COPY . .
@@ -29,9 +38,5 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health/ || exit 1
-
 # Run application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips='*'"]

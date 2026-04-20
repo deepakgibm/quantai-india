@@ -6,11 +6,11 @@ Validates candle data for OHLC sanity, time ordering, and completeness.
 import pytest
 from datetime import datetime, timedelta
 
-from tests.utils.test_data import (
+from tests.test_utils.test_data import (
     QUICK_TEST_SYMBOLS,
     TIMEFRAME_TO_MINUTES,
 )
-from tests.utils.validators import (
+from tests.test_utils.validators import (
     validate_ohlc_sanity,
     validate_candle_ordering,
 )

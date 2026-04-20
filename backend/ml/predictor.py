@@ -10,7 +10,6 @@ from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 
 from .feature_builder import FeatureBuilder
-from .ensemble import APFEnsemble
 from .schemas import ForecastResponse
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,7 @@ class APFPredictor:
     
     def __init__(self):
         self.feature_builder = FeatureBuilder()
-        self._model_cache: Dict[str, APFEnsemble] = {}
+        self._model_cache: Dict[str, Any] = {}
         self._data_fetcher = None
         
     def _get_data_fetcher(self):
@@ -41,6 +40,7 @@ class APFPredictor:
     
     def _get_model(self, symbol: str, timeframe: str) -> APFEnsemble:
         """Get or load model for symbol/timeframe combination."""
+        from .ensemble import APFEnsemble
         cache_key = f"{symbol}_{timeframe}"
         
         if cache_key not in self._model_cache:

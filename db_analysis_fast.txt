@@ -1,5 +1,0 @@
-Connecting to database: C:\Users\Deepak Kumar\Downloads\test\stock_data_v1.db
-Tables: ['stock_candles', 'ingestion_checkpoint']
-
---- Analyzing stock_candles (Fast Mode) ---
-Counting distinct instrument_keys (using index)...
