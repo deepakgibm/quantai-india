@@ -6,6 +6,7 @@ Configuration is pulled from config.py which reads from environment/dotenv.
 """
 
 from celery import Celery
+from celery.schedules import crontab
 from config import settings
 
 # Create Celery application
@@ -17,6 +18,7 @@ celery_app = Celery(
         "tasks.ml_tasks",
         "tasks.backtest_tasks",
         "tasks.institutional_tasks",
+        "tasks.bot_tasks",
     ],
 )
 
@@ -67,5 +69,13 @@ celery_app.conf.beat_schedule = {
     "sync-institutional-flows-daily": {
         "task": "tasks.institutional_tasks.sync_institutional_flows",
         "schedule": 43200.0, # Wait until 18:00 IST logic handled in task if needed, but 12h interval for safety
+    },
+    "run-signal-bot-morning": {
+        "task": "tasks.bot_tasks.run_signal_bot",
+        "schedule": crontab(hour=9, minute=20),  # 9:20 AM IST — after market opens
+    },
+    "run-signal-bot-close": {
+        "task": "tasks.bot_tasks.run_signal_bot",
+        "schedule": crontab(hour=15, minute=40),  # 3:40 PM IST — after market closes
     },
 }

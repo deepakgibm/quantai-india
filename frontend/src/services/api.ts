@@ -787,6 +787,43 @@ export const api = {
     const res = await apiPost<any>(`/api/screener/run?${query.toString()}`, {});
     if (res.success) return res.data;
     throw res.error;
-  }
+  },
+
+  // --- SIGNAL BOT ---
+  startBot: async () => {
+    const res = await apiPost<any>('/api/bot/run', {});
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getBotStatus: async (runId: string) => {
+    const res = await apiGet<any>(`/api/bot/status/${runId}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getBotResults: async (runId: string) => {
+    const res = await apiGet<any>(`/api/bot/results/${runId}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getLastBotRun: async () => {
+    const res = await apiGet<any>('/api/bot/last-run');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getBotHistory: async (limit: number = 10) => {
+    const res = await apiGet<any>(`/api/bot/history?limit=${limit}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getBotSchedulerStatus: async () => {
+    const res = await apiGet<any>('/api/bot/scheduler-status');
+    if (res.success) return res.data;
+    throw res.error;
+  },
 };
 

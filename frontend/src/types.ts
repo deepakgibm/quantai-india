@@ -24,6 +24,7 @@ export enum Page {
   ADMIN_MONITORING = 'ADMIN_MONITORING',
   AI_TRAINING = 'AI_TRAINING',
   TRADE_SCREENER = 'TRADE_SCREENER',
+  SIGNAL_BOT = 'SIGNAL_BOT',
 }
 
 export interface Stock {

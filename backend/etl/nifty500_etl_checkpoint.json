@@ -1,0 +1,18 @@
+{
+  "job_id": "nifty500_etl_20260426_180529",
+  "start_date": "2022-01-03",
+  "end_date": "2026-04-26",
+  "last_completed_symbol": null,
+  "last_completed_index": -1,
+  "total_symbols": 439,
+  "completed_symbols": [],
+  "failed_symbols": [],
+  "stats": {
+    "total_records": 0,
+    "inserted": 0,
+    "skipped": 0,
+    "errors": 0
+  },
+  "started_at": "2026-04-26T18:05:29.748563",
+  "last_updated": "2026-04-26T18:05:29.748563"
+}

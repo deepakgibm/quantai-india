@@ -16,7 +16,6 @@ from typing import Optional as TypingOptional
 from core.backtest.strategies_impl import StrategyRegistry
 
 router = APIRouter(
-    prefix="/backtest",
     tags=["Backtest Strategies"]
 )
 

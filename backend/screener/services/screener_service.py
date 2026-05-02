@@ -24,7 +24,7 @@ from screener.data.technical_aggregator import TechnicalAggregator
 from screener.data.financial_data_fetcher import FinancialDataFetcher
 from screener.data.nse_data_fetcher import NSEDataFetcher
 from screener.engine.scoring_engine import ScoringEngine
-from screener.models import ScreenerStockScore, ScreenerConvictionList, ScreenerSectorAnalysis
+from screener.models import ScreenerStockScore, ScreenerConvictionList, ScreenerSectorAnalysis, ScreenerFinancials
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +97,20 @@ class ScreenerService:
                     logger.debug(f"[{i+1}/{total}] {symbol}: No price data, skipping")
                     continue
 
-                # 3b. Financial data (from yfinance — slower)
-                if skip_financials:
-                    fin_data = {"symbol": symbol, "data_available": False}
+                # 3b. Financial data: Try yfinance first, fallback to DB
+                fin_data = self.fin_fetcher.fetch_financials(symbol)
+                
+                if not fin_data.get("data_available"):
+                    logger.info(f"[{i+1}/{total}] {symbol}: yfinance failed ({fin_data.get('error')}), checking DB...")
+                    db_fin = self._get_financials_from_db(symbol)
+                    if db_fin:
+                        fin_data = db_fin
+                        logger.info(f"[{i+1}/{total}] {symbol}: Successfully recovered financial data from DB")
+                    else:
+                        logger.warning(f"[{i+1}/{total}] {symbol}: No data in DB either, using defaults")
                 else:
-                    fin_data = self.fin_fetcher.fetch_financials(symbol)
+                    # If fresh data fetched, persist it to DB for future fallbacks
+                    self._persist_financials(symbol, fin_data)
 
                 # 3c. Holdings history (from DB if available)
                 holdings_history = self._get_holdings_history(symbol)
@@ -257,6 +266,56 @@ class ScreenerService:
             LIMIT 30
         """))
         return [str(row[0]) for row in result]
+
+    def _get_financials_from_db(self, symbol: str) -> Optional[Dict]:
+        """Get latest cached financials from DB."""
+        result = self.db.execute(text("""
+            SELECT * FROM screener_financials
+            WHERE symbol = :symbol
+            ORDER BY updated_at DESC
+            LIMIT 1
+        """), {"symbol": symbol})
+        row = result.fetchone()
+        if row:
+            data = dict(row._mapping)
+            data["data_available"] = True
+            return data
+        return None
+
+    def _persist_financials(self, symbol: str, data: Dict):
+        """Cache fetched financials to DB."""
+        try:
+            # Delete existing to keep only latest (or we could keep history)
+            self.db.execute(text(
+                "DELETE FROM screener_financials WHERE symbol = :s"
+            ), {"s": symbol})
+            
+            entry = ScreenerFinancials(
+                symbol=symbol,
+                period_type="quarterly",
+                period_end=date.today(),
+                updated_at=datetime.now(),
+                market_cap=data.get("market_cap_cr") or data.get("market_cap"),
+                pe_ratio=data.get("pe_ratio"),
+                pb_ratio=data.get("pb_ratio"),
+                dividend_yield=data.get("dividend_yield"),
+                revenue_growth_yoy=data.get("revenue_growth_yoy"),
+                profit_growth_yoy=data.get("profit_growth_yoy"),
+                ebitda_margin=data.get("ebitda_margin"),
+                roe=data.get("roe"),
+                roce=data.get("roce"),
+                debt_to_equity=data.get("debt_to_equity"),
+                interest_coverage=data.get("interest_coverage"),
+                operating_cash_flow=data.get("operating_cash_flow_cr") or data.get("operating_cash_flow"),
+                free_cash_flow=data.get("free_cash_flow_cr") or data.get("free_cash_flow"),
+                sales_cagr_3y=data.get("sales_cagr_3y"),
+                profit_cagr_3y=data.get("profit_cagr_3y"),
+                data_source="yfinance"
+            )
+            self.db.add(entry)
+            self.db.flush() # Flush instead of commit here as it's part of a loop
+        except Exception as e:
+            logger.warning(f"Failed to persist financials for {symbol}: {e}")
 
     # === Private Methods ===
 

@@ -29,6 +29,7 @@ import models_ml
 import models_alpha
 import models_indicators
 import models_risk
+import models_bot
 import screener.models
 
 # 3. CORS Configuration (env-driven, not hardcoded wildcard)
@@ -73,6 +74,7 @@ from api.metrics import router as metrics_router
 from api.upstox import router as upstox_router
 from api.admin import router as admin_router
 from api.engines import router as engine_router
+from api.bot import router as bot_router
 from api.v1.experiment_lab import router as experiment_lab_router
 from api.v1.backtest_strategies import router as backtest_strategies_router
 from engine.scanner_api import router as scanner_v3_router
@@ -96,9 +98,8 @@ app.include_router(ai_router, prefix="/api/ai", tags=["AI Engine"])
 app.include_router(upstox_router, prefix="/api/upstox", tags=["Upstox Broker"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Administration"])
 app.include_router(engine_router, prefix="/api/engines", tags=["Engine Management"])
+app.include_router(bot_router, prefix="/api/bot", tags=["Signal Bot"])
 app.include_router(screener_router, prefix="/api/screener", tags=["Trade Screener"])
-app.include_router(experiment_lab_router, prefix="/api/experiment-lab", tags=["Experiment Lab"])
-app.include_router(backtest_strategies_router, prefix="/api/backtest", tags=["Backtesting"])
 app.include_router(scanner_v3_router, prefix="/api/scanners/v3", tags=["HP Scanner V3 (Phase 1)"])
 app.include_router(market_ws_router, prefix="/api/ws", tags=["Market WebSockets"])
 

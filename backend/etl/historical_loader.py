@@ -57,7 +57,7 @@ class HistoricalLoader:
             # Resolve symbol to instrument_id
             instrument_id = resolve_instrument_id(symbol)
             if not instrument_id:
-                print(f"  ✗ {symbol}: Failed to resolve instrument_id")
+                print(f"  [X] {symbol}: Failed to resolve instrument_id")
                 self.stats["errors"] += 1
                 return 0
                 
@@ -72,7 +72,7 @@ class HistoricalLoader:
             for _, row in df.iterrows():
                 stock_candle = StockCandle(
                     instrument_id=instrument_id,
-                    candle_ts=row["timestamp"],
+                    candle_ts=row["timestamp"].replace(tzinfo=None) if hasattr(row["timestamp"], "replace") else row["timestamp"],
                     open=float(row["open"]),
                     high=float(row["high"]),
                     low=float(row["low"]),
@@ -91,10 +91,10 @@ class HistoricalLoader:
 
             self.stats["inserted"] += inserted_count
             self.stats["total_records"] += len(df)
-            print(f"  ✓ {symbol}: Inserted {inserted_count}/{len(df)} records")
+            print(f"  [OK] {symbol}: Inserted {inserted_count}/{len(df)} records")
             return inserted_count
         except Exception as e:
-            print(f"  ✗ {symbol}: Error - {e}")
+            print(f"  [X] {symbol}: Error - {e}")
             self.stats["errors"] += 1
             return 0
 

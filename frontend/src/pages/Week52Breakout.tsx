@@ -57,58 +57,100 @@ const Week52Breakout: React.FC = () => {
     const [lowSortField, setLowSortField] = useState<SortField>('breakout_pct');
     const [lowSortOrder, setLowSortOrder] = useState<SortOrder>('desc');
 
-    useEffect(() => {
-        const marketOpen = isMarketOpen();
+    const wsReconnectTimeout = useRef<NodeJS.Timeout | null>(null);
 
-        if (marketOpen) {
-            connectWS();
-        } else {
-            console.log("Market closed. Fetching via REST.");
-            fetchBreakouts();
-        }
+    useEffect(() => {
+        const initializeConnection = () => {
+            const marketOpen = isMarketOpen();
+            if (marketOpen) {
+                connectWS();
+            } else {
+                console.log("Market closed. Fetching via REST.");
+                fetchBreakouts();
+            }
+        };
+
+        initializeConnection();
 
         return () => {
-            if (ws.current) ws.current.close();
+            cleanupConnections();
         };
     }, []);
 
+    const cleanupConnections = () => {
+        if (ws.current) {
+            ws.current.onclose = null;
+            ws.current.close();
+            ws.current = null;
+        }
+        if (wsReconnectTimeout.current) {
+            clearTimeout(wsReconnectTimeout.current);
+            wsReconnectTimeout.current = null;
+        }
+        setIsConnected(false);
+    };
+
     const connectWS = () => {
+        cleanupConnections();
+
         if (!isMarketOpen()) {
             fetchBreakouts();
             return;
         }
 
         const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws`;
-        ws.current = new WebSocket(wsUrl);
+        console.log(`Connecting to Breakouts WS: ${wsUrl}`);
 
-        ws.current.onopen = () => {
-            setIsConnected(true);
-            setLoading(false);
-            wsRetryCount.current = 0;
-            console.log('Connected to Scanner WS for Breakouts');
-        };
+        try {
+            const socket = new WebSocket(wsUrl);
+            ws.current = socket;
 
-        ws.current.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                if (message.type === 'bucket_update' && message.breakouts) {
-                    handleBreakoutUpdate(message.breakouts);
-                    setLastRefresh(new Date().toLocaleTimeString());
+            socket.onopen = () => {
+                setIsConnected(true);
+                setLoading(false);
+                wsRetryCount.current = 0;
+                console.log('Breakouts WS Connected');
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    if (message.type === 'bucket_update' && message.breakouts) {
+                        handleBreakoutUpdate(message.breakouts);
+                        setLastRefresh(new Date().toLocaleTimeString());
+                    }
+                } catch (e) {
+                    console.error("WS Message Error", e);
                 }
-            } catch (e) {
-                console.error("WS Message Error", e);
-            }
-        };
+            };
 
-        ws.current.onclose = () => {
-            setIsConnected(false);
-            wsRetryCount.current += 1;
-            if (wsRetryCount.current < maxWsRetries) {
-                setTimeout(connectWS, 3000);
-            } else {
-                fetchBreakouts();
-            }
-        };
+            socket.onerror = (error) => {
+                console.warn('Breakouts WS Error:', error);
+            };
+
+            socket.onclose = (event) => {
+                ws.current = null;
+                setIsConnected(false);
+
+                if (event.wasClean) {
+                    console.log('Breakouts WS Closed Cleanly');
+                    return;
+                }
+
+                wsRetryCount.current += 1;
+                if (wsRetryCount.current <= maxWsRetries) {
+                    const delay = Math.min(1000 * Math.pow(2, wsRetryCount.current), 10000);
+                    console.log(`Breakouts WS Closed. Scheduling reconnect in ${delay}ms (Attempt ${wsRetryCount.current}/${maxWsRetries})`);
+                    wsReconnectTimeout.current = setTimeout(connectWS, delay);
+                } else {
+                    console.log('Max WebSocket retries reached for Breakouts, switching to REST');
+                    fetchBreakouts();
+                }
+            };
+        } catch (e) {
+            console.error('Failed to create WebSocket for Breakouts:', e);
+            fetchBreakouts();
+        }
     };
 
     const handleBreakoutUpdate = (breakouts: Week52BreakoutStock[]) => {

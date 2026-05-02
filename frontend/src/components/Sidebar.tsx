@@ -18,7 +18,8 @@ import {
   Target,
   TrendingUp,
   FlaskConical,
-  Shield
+  Shield,
+  Bot
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, onLogout, dar
     { page: Page.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard' },
     { page: Page.SECTOR_HEATMAP, icon: Zap, label: 'Sector Heatmap' },
     { page: Page.TRADE_SCREENER, icon: Shield, label: 'Trade Screener' },
+    { page: Page.SIGNAL_BOT, icon: Bot, label: 'Signal Bot' },
     { page: Page.AI_PROMPT, icon: BrainCircuit, label: 'AI Prompt' },
     { page: Page.SCANNER, icon: Search, label: 'Scanner' },
     { page: Page.MOMENT_ALERT, icon: Bell, label: 'Moment Alert' },

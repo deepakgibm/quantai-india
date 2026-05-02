@@ -1,1 +1,1 @@
-{"stage": "training 19%", "epoch": 1, "total_epochs": 50, "train_loss": 0.02735203690826893, "val_loss": 0.0, "best_loss": 0.0, "last_update": "2026-04-19T09:02:13.859588"}
+{"stage": "starting", "epoch": 0, "total_epochs": 50, "train_loss": 0.0, "val_loss": 0.0, "best_loss": 0.0, "last_update": "2026-04-21T15:54:49.977847"}

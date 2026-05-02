@@ -89,27 +89,47 @@ const MomentAlert: React.FC = () => {
         return isMarketOpen();
     };
 
+    const wsReconnectTimeout = useRef<NodeJS.Timeout | null>(null);
+
     useEffect(() => {
-        const marketOpen = checkMarketStatus();
+        const initializeConnection = () => {
+            const marketOpen = checkMarketStatus();
+            if (marketOpen) {
+                connectWS();
+            } else {
+                console.log("Market closed. Using REST polling.");
+                startRestPolling();
+            }
+        };
 
-        if (marketOpen) {
-            connectWS();
-        } else {
-            console.log("Market closed. Using REST polling.");
-            startRestPolling();
-        }
-
+        initializeConnection();
         fetchWeek52Breakouts();
 
         // Refresh 52-week data every 5 minutes
         const week52Interval = setInterval(fetchWeek52Breakouts, 300000);
 
         return () => {
-            if (ws.current) ws.current.close();
-            if (pollInterval.current) clearInterval(pollInterval.current);
+            cleanupConnections();
             clearInterval(week52Interval);
         };
     }, []);
+
+    const cleanupConnections = () => {
+        if (ws.current) {
+            ws.current.onclose = null; // Prevent reconnect loop during intentional close
+            ws.current.close();
+            ws.current = null;
+        }
+        if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+        }
+        if (wsReconnectTimeout.current) {
+            clearTimeout(wsReconnectTimeout.current);
+            wsReconnectTimeout.current = null;
+        }
+        setIsConnected(false);
+    };
 
     const fetchWeek52Breakouts = async (forceRefresh: boolean = false) => {
         try {
@@ -145,61 +165,86 @@ const MomentAlert: React.FC = () => {
     };
 
     const connectWS = () => {
-        // Double check market hours before connecting
+        // Clear any existing connections or timeouts first
+        cleanupConnections();
+
         if (!checkMarketStatus()) {
             console.log("Market closed during connect attempt. Switching to REST.");
             startRestPolling();
             return;
         }
 
+        setConnectionMode('WS');
         const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws`;
-        ws.current = new WebSocket(wsUrl);
+        console.log(`Connecting to Market WS: ${wsUrl}`);
+        
+        try {
+            const socket = new WebSocket(wsUrl);
+            ws.current = socket;
 
-        ws.current.onopen = () => {
-            setIsConnected(true);
-            setConnectionMode('WS');
-            wsRetryCount.current = 0;
-            console.log('Connected to Scanner WS');
+            socket.onopen = () => {
+                setIsConnected(true);
+                wsRetryCount.current = 0;
+                console.log('Market WS Connected');
+            };
 
-            // Stop REST polling if active
-            if (pollInterval.current) {
-                clearInterval(pollInterval.current);
-                pollInterval.current = null;
-            }
-        };
+            socket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleDataUpdate(message);
+                } catch (e) {
+                    console.error('Error parsing WS message:', e);
+                }
+            };
 
-        ws.current.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            handleDataUpdate(message);
-        };
+            socket.onerror = (error) => {
+                console.warn('Market WS Error:', error);
+            };
 
-        ws.current.onerror = () => {
-            console.warn('WebSocket error');
-        };
+            socket.onclose = (event) => {
+                ws.current = null;
+                setIsConnected(false);
+                
+                if (event.wasClean) {
+                    console.log('Market WS Closed Cleanly');
+                    return;
+                }
 
-        ws.current.onclose = () => {
-            setIsConnected(false);
-            wsRetryCount.current += 1;
-
-            if (wsRetryCount.current < maxWsRetries) {
-                console.log(`WebSocket closed, retrying (${wsRetryCount.current}/${maxWsRetries})...`);
-                setTimeout(connectWS, 3000);
-            } else {
-                console.log('WebSocket failed, switching to REST polling');
-                startRestPolling();
-            }
-        };
+                wsRetryCount.current += 1;
+                if (wsRetryCount.current <= maxWsRetries) {
+                    const delay = Math.min(1000 * Math.pow(2, wsRetryCount.current), 10000);
+                    console.log(`Market WS Closed. Scheduling reconnect in ${delay}ms (Attempt ${wsRetryCount.current}/${maxWsRetries})`);
+                    wsReconnectTimeout.current = setTimeout(connectWS, delay);
+                } else {
+                    console.log('Max WebSocket retries reached, switching to REST polling');
+                    startRestPolling();
+                }
+            };
+        } catch (e) {
+            console.error('Failed to create WebSocket:', e);
+            startRestPolling();
+        }
     };
 
     const startRestPolling = () => {
+        // Ensure no WS is running
+        if (ws.current) {
+            ws.current.onclose = null;
+            ws.current.close();
+            ws.current = null;
+        }
+        if (wsReconnectTimeout.current) {
+            clearTimeout(wsReconnectTimeout.current);
+            wsReconnectTimeout.current = null;
+        }
+
+        if (pollInterval.current) return; // Already polling
+
         setConnectionMode('REST');
         setIsConnected(true);
         console.log('Starting REST polling mode');
 
-        // Initial fetch
         fetchMomentumData();
-
-        // Poll every 5 seconds
         pollInterval.current = setInterval(fetchMomentumData, 5000);
     };
 

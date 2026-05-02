@@ -25,7 +25,6 @@ from sqlalchemy import select
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/walk-forward",
     tags=["Walk-Forward Backtest"]
 )
 

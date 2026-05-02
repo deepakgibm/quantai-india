@@ -130,6 +130,15 @@ class Settings:
     VWAP_PERIOD = int(os.getenv("VWAP_PERIOD", "20"))
     VOLUME_SMA_PERIOD = int(os.getenv("VOLUME_SMA_PERIOD", "20"))
 
+    # Signal Bot Scheduler
+    BOT_SCHEDULER_ENABLED = os.getenv("BOT_SCHEDULER_ENABLED", "true").lower() == "true"
+    BOT_SCHEDULE_MORNING = os.getenv("BOT_SCHEDULE_MORNING", "09:20")  # HH:MM IST
+    BOT_SCHEDULE_CLOSE = os.getenv("BOT_SCHEDULE_CLOSE", "15:40")      # HH:MM IST
+
+    # Telegram Alerts
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
     # Nifty 100 Symbols (Top 100 by market cap)
     NIFTY_100_SYMBOLS = [
         "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK",

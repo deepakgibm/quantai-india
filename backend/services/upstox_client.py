@@ -409,6 +409,72 @@ class UpstoxClient:
         except Exception as e:
             logger.error(f"Error fetching live quote for {symbol}: {e}")
             return None
+
+    async def get_option_chain(self, instrument_key: str, expiry_date: str = "") -> Optional[Dict]:
+        """
+        Fetch option chain data for F&O stocks from Upstox.
+        
+        Args:
+            instrument_key: Upstox instrument key (e.g., "NSE_EQ|INE002A01018")
+            expiry_date: Optional expiry date (YYYY-MM-DD). If empty, uses nearest expiry.
+            
+        Returns:
+            Dict with {total_call_oi, total_put_oi, pcr, num_strikes, expiry} or None on failure.
+        """
+        import urllib.parse
+        await self.rate_limiter.acquire()
+
+        params = {"instrument_key": instrument_key}
+        if expiry_date:
+            params["expiry_date"] = expiry_date
+
+        endpoint = "/option/chain"
+
+        try:
+            data = await self._make_request("GET", endpoint, params=params)
+
+            if data.get("status") != "success" or not data.get("data"):
+                return None
+
+            chain_data = data["data"]
+            total_call_oi = 0
+            total_put_oi = 0
+            num_strikes = 0
+            expiry = ""
+
+            for strike in chain_data:
+                call = strike.get("call_options", {})
+                put = strike.get("put_options", {})
+
+                call_oi = call.get("market_data", {}).get("oi", 0) or 0
+                put_oi = put.get("market_data", {}).get("oi", 0) or 0
+
+                total_call_oi += call_oi
+                total_put_oi += put_oi
+                num_strikes += 1
+
+                if not expiry and call.get("expiry"):
+                    expiry = call["expiry"]
+
+            pcr = round(total_put_oi / total_call_oi, 4) if total_call_oi > 0 else None
+
+            return {
+                "total_call_oi": total_call_oi,
+                "total_put_oi": total_put_oi,
+                "pcr": pcr,
+                "num_strikes": num_strikes,
+                "expiry": expiry,
+            }
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 403:
+                logger.debug(f"Option chain not available for {instrument_key} (403 — no F&O access)")
+            else:
+                logger.warning(f"Option chain error for {instrument_key}: {e.response.status_code}")
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching option chain for {instrument_key}: {e}")
+            return None
     
     async def get_nifty_200_symbols(self) -> List[Tuple[str, str]]:
         """

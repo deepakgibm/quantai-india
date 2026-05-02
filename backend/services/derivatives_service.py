@@ -2,20 +2,18 @@
 Derivatives Data Service
 
 Provides derivatives-related data (PCR, Open Interest, Sentiment) for stocks.
-Currently uses simulated data with hooks for real API integration.
-
-In production, integrate with:
-- NSE India API (live OI data)
-- Upstox F&O data feed
-- Any third-party derivatives data provider
+Uses real Upstox option chain API with simulated fallback.
 """
 
+import logging
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
 
 from data.fno_stocks import has_derivatives
+
+logger = logging.getLogger(__name__)
 
 
 class OIChangeType(str, Enum):
@@ -43,6 +41,7 @@ class DerivativesData:
     sentiment: Sentiment              # Derived sentiment from PCR
     market_interpretation: str        # Human-readable explanation
     has_derivatives: bool             # Whether stock has F&O available
+    data_source: str = "simulated"    # "upstox" or "simulated"
     
     def to_dict(self) -> dict:
         """Convert to API response format."""
@@ -91,7 +90,7 @@ class DerivativesService:
                 has_derivatives=False
             )
         
-        # Fetch raw derivatives data (simulated or from API)
+        # Fetch raw derivatives data (real API first, simulated fallback)
         raw_data = await self._fetch_raw_data(symbol)
         
         # Calculate PCR
@@ -113,32 +112,45 @@ class DerivativesService:
             oi_change=oi_change,
             sentiment=sentiment,
             market_interpretation=interpretation,
-            has_derivatives=True
+            has_derivatives=True,
+            data_source=raw_data.get("source", "simulated"),
         )
     
     async def _fetch_raw_data(self, symbol: str) -> dict:
         """
         Fetch raw derivatives data for a symbol.
         
-        TODO: Replace with real API integration:
-        - NSE India OI snapshots
-        - Upstox F&O data
-        - Third-party derivatives data provider
-        
-        Returns simulated data for now.
+        Strategy:
+        1. Try real Upstox option chain API (if F&O stock)
+        2. Fallback to simulated data if API fails or no F&O access
         """
-        # Simulate realistic derivatives data
-        # In production, this would call NSE/Upstox API
-        
-        # Random but consistent for same symbol (use hash)
+        # ── Try real Upstox option chain first ─────────────────
+        if has_derivatives(symbol):
+            try:
+                from services.upstox_client import get_upstox_client
+                client = get_upstox_client()
+                instrument_key = f"NSE_EQ|{symbol}"
+                chain = await client.get_option_chain(instrument_key)
+
+                if chain and chain.get("pcr") is not None:
+                    logger.info(f"PCR for {symbol}: {chain['pcr']:.4f} (Upstox live, {chain['num_strikes']} strikes)")
+                    return {
+                        "put_oi": chain["total_put_oi"],
+                        "call_oi": chain["total_call_oi"],
+                        "oi_change_pct": 0.0,  # Not available from chain snapshot
+                        "futures_oi": 0,
+                        "futures_oi_change_pct": 0.0,
+                        "source": "upstox",
+                    }
+            except Exception as e:
+                logger.debug(f"Upstox option chain failed for {symbol}, using fallback: {e}")
+
+        # ── Simulated fallback ─────────────────────────────────
         seed = hash(symbol) % 1000
         random.seed(seed)
         
-        # Simulate PCR between 0.4 and 1.8 (realistic range)
         put_oi = random.randint(500000, 5000000)
         call_oi = random.randint(500000, 5000000)
-        
-        # Simulate OI change (-15% to +15%)
         oi_change_pct = random.uniform(-15, 15)
         
         return {
@@ -146,7 +158,8 @@ class DerivativesService:
             "call_oi": call_oi,
             "oi_change_pct": oi_change_pct,
             "futures_oi": random.randint(1000000, 10000000),
-            "futures_oi_change_pct": random.uniform(-10, 10)
+            "futures_oi_change_pct": random.uniform(-10, 10),
+            "source": "simulated",
         }
     
     @staticmethod

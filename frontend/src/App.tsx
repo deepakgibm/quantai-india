@@ -25,6 +25,7 @@ import AdminIndices from './pages/AdminIndices';
 import AdminMonitoring from './pages/AdminMonitoring';
 import MLTrainingControl from './pages/MLTrainingControl';
 import TradeScreener from './pages/TradeScreener';
+import BotTab from './pages/BotTab';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -137,6 +138,8 @@ const App: React.FC = () => {
         return <MLTrainingControl />;
       case Page.TRADE_SCREENER:
         return <TradeScreener />;
+      case Page.SIGNAL_BOT:
+        return <BotTab />;
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }
