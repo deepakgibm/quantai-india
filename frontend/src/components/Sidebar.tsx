@@ -33,6 +33,8 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, onLogout, darkMode, toggleDarkMode }) => {
   const navItems = [
     { page: Page.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard' },
+    { page: Page.VOLATILITY_DASHBOARD, icon: Activity, label: 'Volatility Index' },
+    { page: Page.OPTION_FLOW, icon: TrendingUp, label: 'Option Flow' },
     { page: Page.SECTOR_HEATMAP, icon: Zap, label: 'Sector Heatmap' },
     { page: Page.TRADE_SCREENER, icon: Shield, label: 'Trade Screener' },
     { page: Page.SIGNAL_BOT, icon: Bot, label: 'Signal Bot' },

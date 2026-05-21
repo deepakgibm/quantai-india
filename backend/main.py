@@ -80,6 +80,11 @@ from api.v1.backtest_strategies import router as backtest_strategies_router
 from engine.scanner_api import router as scanner_v3_router
 from screener.api.screener_router import router as screener_router
 from api.websockets import market_ws_router
+from api.search import router as search_router
+from api.volatility import router as volatility_router
+from api.option_flow import router as option_flow_router
+from api.heatmap import router as heatmap_router
+
 
 # 6. Unified API Registration (Flattened for Reliability)
 app.include_router(health_router, prefix="/api/health", tags=["Health"])
@@ -102,6 +107,11 @@ app.include_router(bot_router, prefix="/api/bot", tags=["Signal Bot"])
 app.include_router(screener_router, prefix="/api/screener", tags=["Trade Screener"])
 app.include_router(scanner_v3_router, prefix="/api/scanners/v3", tags=["HP Scanner V3 (Phase 1)"])
 app.include_router(market_ws_router, prefix="/api/ws", tags=["Market WebSockets"])
+app.include_router(search_router, prefix="/api/search", tags=["Search"])
+app.include_router(volatility_router, prefix="/api/volatility", tags=["Volatility"])
+app.include_router(option_flow_router, prefix="/api/option-flow", tags=["Option Flow"])
+app.include_router(heatmap_router, prefix="/api/heatmap", tags=["Heatmap"])
+
 
 from api.v1 import router as v1_router
 app.include_router(v1_router, prefix="/api/v1")

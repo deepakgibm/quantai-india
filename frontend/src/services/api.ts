@@ -825,5 +825,43 @@ export const api = {
     if (res.success) return res.data;
     throw res.error;
   },
+
+  // --- NEW MODULES ---
+  searchStocks: async (query: string) => {
+    const res = await apiGet<any>(`/api/search/stocks?q=${encodeURIComponent(query)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getVolatility: async (symbol: string, days: number) => {
+    const res = await apiGet<any>(`/api/volatility/${symbol}?lookback_days=${days}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getOptionFlow: async (symbol: string, expiry: string = '', strike_range: string = '') => {
+    let url = `/api/option-flow/${symbol}`;
+    const params = [];
+    if (expiry) params.push(`expiry=${encodeURIComponent(expiry)}`);
+    if (strike_range) params.push(`strike_range=${encodeURIComponent(strike_range)}`);
+    if (params.length > 0) {
+      url += `?${params.join('&')}`;
+    }
+    const res = await apiGet<any>(url);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getOptionFlowExpiries: async (symbol: string) => {
+    const res = await apiGet<any>(`/api/option-flow/${symbol}/expiries`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getHeatmapData: async (mode: string) => {
+    const res = await apiGet<any>(`/api/heatmap?mode=${mode}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
 };
 

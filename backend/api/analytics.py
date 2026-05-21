@@ -78,7 +78,7 @@ async def get_top_momentum(
 @router.get("/volatility/{symbol}")
 async def get_volatility_analysis(
     symbol: str,
-    lookback_days: int = Query(30, ge=5, le=90),
+    lookback_days: int = Query(30, ge=5, le=60),
     current_user: User = Depends(get_current_user)
 ):
     """Get volatility analysis for a specific symbol."""
@@ -118,7 +118,7 @@ async def get_volatility_analysis(
 @router.post("/correlation")
 async def get_correlation_matrix(
     symbols: List[str],
-    lookback_days: int = Query(60, ge=20, le=120),
+    lookback_days: int = Query(60, ge=20, le=60),
     current_user: User = Depends(get_current_user)
 ):
     """Calculate correlation matrix between multiple symbols."""
@@ -147,7 +147,7 @@ async def get_correlation_matrix(
 @router.get("/support-resistance/{symbol}")
 async def get_support_resistance(
     symbol: str,
-    lookback_days: int = Query(90, ge=30, le=180),
+    lookback_days: int = Query(60, ge=5, le=60),
     current_user: User = Depends(get_current_user)
 ):
     """Calculate support and resistance levels for a symbol."""
