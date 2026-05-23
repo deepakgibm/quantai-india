@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Bot, Play, AlertTriangle, TrendingUp, Activity, CheckCircle } from 'lucide-react';
+import { API_URL, getAuthHeaders } from '../services/api';
 
 interface StockResult {
   symbol: string;
@@ -28,13 +29,9 @@ const AgenticBotCard: React.FC = () => {
     setResults([]);
 
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/api/agentic-bot/analyze', {
+      const response = await fetch(`${API_URL}/api/agentic-bot/analyze`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ prompt })
       });
 
@@ -50,15 +47,15 @@ const AgenticBotCard: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+      <div className="p-6 border-b border-gray-100 dark:border-slate-800 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-indigo-600 rounded-lg">
             <Bot className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-gray-900">3-Agentic Stock Bot</h2>
-            <p className="text-sm text-gray-600">Research • Risk • Decision</p>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">3-Agentic Stock Bot</h2>
+            <p className="text-sm text-gray-600 dark:text-slate-400">Research • Risk • Decision</p>
           </div>
         </div>
 
@@ -67,7 +64,7 @@ const AgenticBotCard: React.FC = () => {
             type="text"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 px-4 py-2 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="Ask the agents..."
           />
           <button
@@ -79,18 +76,18 @@ const AgenticBotCard: React.FC = () => {
             Run
           </button>
         </div>
-        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+        {error && <p className="text-red-500 dark:text-red-400 text-sm mt-2">{error}</p>}
       </div>
 
       <div className="p-0">
         {results.length > 0 ? (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-slate-800">
             {results.map((stock, idx) => (
-              <div key={idx} className="p-4 hover:bg-gray-50 transition-colors">
+              <div key={idx} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-lg text-gray-900">{stock.symbol}</h3>
+                      <h3 className="font-bold text-lg text-gray-900 dark:text-white">{stock.symbol}</h3>
                       <span className={`px-2 py-0.5 rounded text-xs font-bold ${stock.final_decision === 'BUY' ? 'bg-green-100 text-green-700' :
                           stock.final_decision === 'WATCH' ? 'bg-yellow-100 text-yellow-700' :
                             'bg-red-100 text-red-700'
@@ -98,29 +95,29 @@ const AgenticBotCard: React.FC = () => {
                         {stock.final_decision}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500">Score: {stock.buy_score}/100</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Score: {stock.buy_score}/100</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-mono font-medium">₹{stock.ltp}</p>
+                    <p className="font-mono font-medium text-gray-900 dark:text-slate-100">₹{stock.ltp}</p>
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-700 mb-3">{stock.reason_for_buy}</p>
+                <p className="text-sm text-gray-700 dark:text-slate-300 mb-3">{stock.reason_for_buy}</p>
 
                 <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="bg-blue-50 p-2 rounded">
+                  <div className="bg-blue-50 dark:bg-blue-950/30 p-2 rounded">
                     <div className="flex items-center gap-1 text-blue-700 font-semibold mb-1">
                       <TrendingUp className="w-3 h-3" /> Trend
                     </div>
                     <p>Score: {stock.trend_score}</p>
                   </div>
-                  <div className="bg-purple-50 p-2 rounded">
+                  <div className="bg-purple-50 dark:bg-purple-950/30 p-2 rounded">
                     <div className="flex items-center gap-1 text-purple-700 font-semibold mb-1">
                       <Bot className="w-3 h-3" /> ML Model
                     </div>
                     <p>{stock.ml_score}% Conf.</p>
                   </div>
-                  <div className="bg-orange-50 p-2 rounded">
+                  <div className="bg-orange-50 dark:bg-orange-950/30 p-2 rounded">
                     <div className="flex items-center gap-1 text-orange-700 font-semibold mb-1">
                       <AlertTriangle className="w-3 h-3" /> Risk
                     </div>
@@ -129,7 +126,7 @@ const AgenticBotCard: React.FC = () => {
                 </div>
 
                 {stock.negative_news.length > 0 && (
-                  <div className="mt-3 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                  <div className="mt-3 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded border border-red-100 dark:border-red-900/30">
                     <strong>Risk Alert:</strong> {stock.negative_news[0]}
                   </div>
                 )}
@@ -138,7 +135,7 @@ const AgenticBotCard: React.FC = () => {
           </div>
         ) : (
           !loading && (
-            <div className="p-8 text-center text-gray-400">
+            <div className="p-8 text-center text-gray-400 dark:text-slate-500">
               <Bot className="w-12 h-12 mx-auto mb-3 opacity-20" />
               <p>Enter a command to start the agent workflow</p>
             </div>
@@ -148,15 +145,15 @@ const AgenticBotCard: React.FC = () => {
         {loading && (
           <div className="p-8 text-center">
             <div className="space-y-4">
-              <div className="flex items-center justify-center gap-3 text-sm text-gray-600 animate-pulse">
+              <div className="flex items-center justify-center gap-3 text-sm text-gray-600 dark:text-slate-400 animate-pulse">
                 <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
                 Research Agent fetching data...
               </div>
-              <div className="flex items-center justify-center gap-3 text-sm text-gray-600 animate-pulse delay-75">
+              <div className="flex items-center justify-center gap-3 text-sm text-gray-600 dark:text-slate-400 animate-pulse delay-75">
                 <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
                 Risk Agent scanning news...
               </div>
-              <div className="flex items-center justify-center gap-3 text-sm text-gray-600 animate-pulse delay-150">
+              <div className="flex items-center justify-center gap-3 text-sm text-gray-600 dark:text-slate-400 animate-pulse delay-150">
                 <div className="w-2 h-2 bg-green-600 rounded-full"></div>
                 Decision Agent ranking stocks...
               </div>

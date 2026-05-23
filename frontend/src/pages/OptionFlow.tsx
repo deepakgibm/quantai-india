@@ -58,7 +58,11 @@ interface OptionFlowData {
   block_deals: BlockDeal[];
 }
 
-export const OptionFlow: React.FC = () => {
+interface OptionFlowProps {
+  isWidget?: boolean;
+}
+
+export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   const { selectedSymbol } = useGlobalSymbol();
   const [data, setData] = useState<OptionFlowData | null>(null);
   const [expiries, setExpiries] = useState<string[]>([]);
@@ -73,6 +77,7 @@ export const OptionFlow: React.FC = () => {
   // Fetch Expiries first
   const fetchExpiries = async (symbol: string) => {
     setIsNonFno(false);
+    setError(null);
     try {
       const response = await api.getOptionFlowExpiries(symbol);
       if (response && response.status === 'success' && Array.isArray(response.expiries)) {
@@ -84,12 +89,19 @@ export const OptionFlow: React.FC = () => {
           }
         } else {
           setSelectedExpiry('');
+          setLoading(false);
         }
+      } else {
+        setError(response?.message || 'Failed to retrieve option chain expiries.');
+        setLoading(false);
       }
     } catch (err: any) {
       console.warn('[OptionFlow] Fetch expiries error:', err);
       if (err.status === 400 || err.message?.includes('F&O')) {
         setIsNonFno(true);
+      } else {
+        setError(err.message || 'Failed to connect to Option Flow Expiries API.');
+        setLoading(false);
       }
     }
   };
@@ -211,25 +223,27 @@ export const OptionFlow: React.FC = () => {
   if (isNonFno) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
-            <p className="text-sm text-slate-500 font-medium">Derivative turnover & institutional block tracker</p>
+        {!isWidget && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
+              <p className="text-sm text-slate-500 font-medium">Derivative turnover & institutional block tracker</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <GlobalSymbolSearch />
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <GlobalSymbolSearch />
-          </div>
-        </div>
+        )}
 
-        <div className="flex flex-col items-center justify-center p-8 min-h-[300px] rounded-xl border border-purple-500/20 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-xl">
-          <div className="w-12 h-12 rounded-full bg-purple-950/30 border border-purple-500/30 flex items-center justify-center mb-4 text-purple-400">
-            <ShieldAlert size={24} />
+        <div className="flex flex-col items-center justify-center p-8 min-h-[250px] rounded-xl border border-purple-500/20 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-xl">
+          <div className="w-10 h-10 rounded-full bg-purple-950/30 border border-purple-500/30 flex items-center justify-center mb-3.5 text-purple-400">
+            <ShieldAlert size={20} />
           </div>
-          <h3 className="font-display font-semibold text-base text-purple-400 mb-1.5">F&O Segment Required</h3>
-          <p className="text-sm text-slate-400 max-w-md text-center mb-5 font-medium leading-relaxed">
+          <h3 className="font-display font-semibold text-sm text-purple-400 mb-1.5">F&O Segment Required</h3>
+          <p className="text-xs text-slate-400 max-w-md text-center mb-4 font-medium leading-relaxed">
             The symbol <span className="text-white font-bold">{selectedSymbol}</span> does not trade in the Futures & Options segment on the NSE. Option chain and flow metrics are only available for F&O-active stocks.
           </p>
-          <div className="text-xs text-slate-500">
+          <div className="text-[10px] text-slate-500">
             Please search for an F&O stock (e.g., RELIANCE, NIFTY, TCS, SBIN).
           </div>
         </div>
@@ -262,12 +276,14 @@ export const OptionFlow: React.FC = () => {
   if (loading && !data) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
-            <p className="text-sm text-slate-500 font-medium font-mono">Connecting to broker option chain...</p>
+        {!isWidget && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
+              <p className="text-sm text-slate-500 font-medium font-mono">Connecting to broker option chain...</p>
+            </div>
           </div>
-        </div>
+        )}
         {renderSkeletons()}
       </div>
     );
@@ -276,15 +292,17 @@ export const OptionFlow: React.FC = () => {
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
-            <p className="text-sm text-slate-500 font-medium">Error loading data</p>
+        {!isWidget && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
+              <p className="text-sm text-slate-500 font-medium">Error loading data</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <GlobalSymbolSearch />
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <GlobalSymbolSearch />
-          </div>
-        </div>
+        )}
         <ErrorCard message={error} onRetry={handleRetry} title="Option Flow Analytics Error" />
       </div>
     );
@@ -312,44 +330,75 @@ export const OptionFlow: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold tracking-tight text-white font-display">
-              {data.symbol} Option Flow
-            </h2>
-            <span className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+      {!isWidget ? (
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold tracking-tight text-white font-display">
+                {data.symbol} Option Flow
+              </h2>
+              <span className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                {data.expiry}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-semibold mt-1">
+              Real-time derivative sentiment and order tracking.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <GlobalSymbolSearch />
+            
+            {/* Expiry Selector */}
+            {expiries.length > 0 && (
+              <select
+                value={selectedExpiry}
+                onChange={e => setSelectedExpiry(e.target.value)}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 dark:focus:ring-emerald-500/50 dark:focus:border-emerald-500 transition-all outline-none cursor-pointer"
+              >
+                {expiries.map(exp => (
+                  <option key={exp} value={exp}>
+                    Expiry: {exp}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div className="text-[10px] text-slate-500 font-mono mt-1 w-full lg:w-auto text-left lg:text-right">
+              Refreshed: {lastUpdated || 'Never'}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
+              <TrendingUp size={15} className="text-emerald-500" /> Option Flow Analytics
+            </h3>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
               {data.expiry}
             </span>
           </div>
-          <p className="text-xs text-slate-500 font-semibold mt-1">
-            Real-time derivative sentiment and order tracking.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <GlobalSymbolSearch />
-          
-          {/* Expiry Selector */}
-          {expiries.length > 0 && (
-            <select
-              value={selectedExpiry}
-              onChange={e => setSelectedExpiry(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 dark:focus:ring-emerald-500/50 dark:focus:border-emerald-500 transition-all outline-none cursor-pointer"
-            >
-              {expiries.map(exp => (
-                <option key={exp} value={exp}>
-                  Expiry: {exp}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <div className="text-[10px] text-slate-500 font-mono mt-1 w-full lg:w-auto text-left lg:text-right">
-            Refreshed: {lastUpdated || 'Never'}
+          <div className="flex items-center gap-3">
+            {expiries.length > 0 && (
+              <select
+                value={selectedExpiry}
+                onChange={e => setSelectedExpiry(e.target.value)}
+                className="px-2 py-1 rounded border border-slate-800 bg-slate-950 text-slate-200 text-[10px] font-medium focus:ring-1 focus:ring-emerald-500 transition-all outline-none cursor-pointer"
+              >
+                {expiries.map(exp => (
+                  <option key={exp} value={exp}>
+                    Expiry: {exp}
+                  </option>
+                ))}
+              </select>
+            )}
+            <span className="text-[10px] text-slate-500 font-mono">
+              Refreshed: {lastUpdated || 'Never'}
+            </span>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Metric Cards Row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">

@@ -23,6 +23,7 @@ interface TreemapNode {
 
 interface SectorHeatmapPageProps {
   onNavigate?: (page: Page) => void;
+  isWidget?: boolean;
 }
 
 // Slice-and-dice treemap partitioner
@@ -97,7 +98,7 @@ const getColorForValue = (value: number, mode: string) => {
   }
 };
 
-export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate }) => {
+export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate, isWidget = false }) => {
   const { setSelectedSymbol } = useGlobalSymbol();
   const [heatmapData, setHeatmapData] = useState<any>(null);
   const [mode, setMode] = useState<string>('performance');
@@ -242,10 +243,10 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
   // Click on a stock tile
   const handleStockClick = useCallback((symbol: string) => {
     setSelectedSymbol(symbol);
-    if (onNavigate) {
+    if (!isWidget && onNavigate) {
       onNavigate(Page.VOLATILITY_DASHBOARD);
     }
-  }, [setSelectedSymbol, onNavigate]);
+  }, [setSelectedSymbol, onNavigate, isWidget]);
 
   const handleSectorClick = (sectorName: string) => {
     setSelectedSector(sectorName);
@@ -281,10 +282,12 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
   if (loading && !heatmapData) {
     return (
       <div className="space-y-6">
-        <div className="pb-4 border-b border-slate-800">
-          <h1 className="text-3xl font-display font-bold text-slate-100">Market Heatmap</h1>
-          <p className="text-slate-500 font-medium">Loading sector maps and components...</p>
-        </div>
+        {!isWidget && (
+          <div className="pb-4 border-b border-slate-800">
+            <h1 className="text-3xl font-display font-bold text-slate-100">Market Heatmap</h1>
+            <p className="text-slate-500 font-medium">Loading sector maps and components...</p>
+          </div>
+        )}
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
         </div>
@@ -295,10 +298,12 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="pb-4 border-b border-slate-800">
-          <h1 className="text-3xl font-display font-bold text-slate-100">Market Heatmap</h1>
-          <p className="text-slate-500">Error loading map</p>
-        </div>
+        {!isWidget && (
+          <div className="pb-4 border-b border-slate-800">
+            <h1 className="text-3xl font-display font-bold text-slate-100">Market Heatmap</h1>
+            <p className="text-slate-500">Error loading map</p>
+          </div>
+        )}
         <ErrorCard message={error} onRetry={() => fetchHeatmap(mode)} title="Heatmap Compute Error" />
       </div>
     );
@@ -310,65 +315,124 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
   return (
     <div className="space-y-6">
       {/* Title Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-        <div>
-          <div className="flex items-center gap-3">
+      {!isWidget ? (
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-3">
+              {selectedSector ? (
+                <button
+                  onClick={() => setSelectedSector(null)}
+                  className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors text-sm font-semibold"
+                >
+                  <ArrowLeft size={16} /> All Sectors
+                </button>
+              ) : (
+                <h1 className="text-2xl font-bold tracking-tight text-white font-display">NIFTY 500 Heatmap</h1>
+              )}
+              {selectedSector && (
+                <span className="text-lg font-bold text-white font-display">
+                  &bull; {selectedSector}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 font-semibold mt-1">
+              Grouped by sector, sized by market cap, colored by chosen metric.
+            </p>
+          </div>
+
+          {/* Toolbar controls */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Mode Selector */}
+            <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+              {['performance', 'volatility', 'momentum', 'delivery', 'relative_strength'].map(m => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setMode(m);
+                    setTooltip(null);
+                  }}
+                  className={`px-2.5 py-1 rounded text-[10px] uppercase font-bold tracking-wider transition-all ${
+                    mode === m
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {m.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+
+            {/* Search box to highlight stocks */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={13} />
+              <input
+                type="text"
+                placeholder="Highlight stock..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-7 pr-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-[11px] text-slate-200 focus:outline-none focus:border-emerald-500 w-36 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+          <div className="flex items-center gap-2">
             {selectedSector ? (
               <button
                 onClick={() => setSelectedSector(null)}
-                className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors text-sm font-semibold"
+                className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors text-xs font-semibold"
               >
-                <ArrowLeft size={16} /> All Sectors
+                <ArrowLeft size={14} /> All Sectors
               </button>
             ) : (
-              <h1 className="text-2xl font-bold tracking-tight text-white font-display">NIFTY 500 Heatmap</h1>
+              <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
+                <LayoutGrid size={15} className="text-emerald-500" /> Market Heatmap (NIFTY 505)
+              </h3>
             )}
             {selectedSector && (
-              <span className="text-lg font-bold text-white font-display">
+              <span className="text-xs font-bold text-white font-display">
                 &bull; {selectedSector}
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 font-semibold mt-1">
-            Grouped by sector, sized by market cap, colored by chosen metric.
-          </p>
-        </div>
 
-        {/* Toolbar controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Mode Selector */}
-          <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5">
-            {['performance', 'volatility', 'momentum', 'delivery', 'relative_strength'].map(m => (
-              <button
-                key={m}
-                onClick={() => {
-                  setMode(m);
-                  setTooltip(null);
-                }}
-                className={`px-2.5 py-1 rounded text-[10px] uppercase font-bold tracking-wider transition-all ${
-                  mode === m
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {m.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
+          {/* Toolbar controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Mode Selector */}
+            <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+              {['performance', 'volatility', 'momentum', 'delivery', 'relative_strength'].map(m => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setMode(m);
+                    setTooltip(null);
+                  }}
+                  className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider transition-all ${
+                    mode === m
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {m.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
 
-          {/* Search box to highlight stocks */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={13} />
-            <input
-              type="text"
-              placeholder="Highlight stock..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="pl-7 pr-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-[11px] text-slate-200 focus:outline-none focus:border-emerald-500 w-36 outline-none"
-            />
+            {/* Search box to highlight stocks */}
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={11} />
+              <input
+                type="text"
+                placeholder="Highlight stock..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-6 pr-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-[9px] text-slate-200 focus:outline-none focus:border-emerald-500 w-28 outline-none"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* SVG Canvas Map */}
       <div className="relative bg-slate-950/80 rounded-2xl border border-slate-900 p-2 shadow-2xl overflow-hidden min-h-[500px]">

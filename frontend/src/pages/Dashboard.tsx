@@ -1,12 +1,21 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import AgenticBotCard from '../components/AgenticBotCard';
 import { useMarketDataStream } from '../hooks/useMarketDataStream';
 import { Page, Stock, AlgoConfig } from '../types';
-import { Zap, X, Loader2, Play } from 'lucide-react';
+import { Zap, X, Loader2, Play, Activity, Shield, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, AlertTriangle, Calendar } from 'lucide-react';
 
 import { api } from '../services/api';
 import { PriceWithSource } from '../components/PriceSourceBadge';
 import TopMoversCard from '../components/TopMoversCard';
+
+// New Dashboard Restoration Imports
+import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
+import GlobalSymbolSearch from '../components/GlobalSymbolSearch';
+import DayFilter from '../components/DayFilter';
+import ErrorCard from '../components/ErrorCard';
+import OptionFlow from './OptionFlow';
+import SectorHeatmapPage from './SectorHeatmapPage';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
    onNavigate: (page: Page) => void;
@@ -14,6 +23,124 @@ interface DashboardProps {
 
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+   const { selectedSymbol, selectedDays } = useGlobalSymbol();
+   const [volData, setVolData] = useState<any>(null);
+   const [volLoading, setVolLoading] = useState(true);
+   const [volError, setVolError] = useState<string | null>(null);
+   const [volLastUpdated, setVolLastUpdated] = useState<string>('');
+   const abortControllerRef = useRef<AbortController | null>(null);
+
+   const fetchVolatility = async (symbol: string, days: number, forceSilent = false) => {
+      if (!forceSilent) {
+         setVolLoading(true);
+      }
+      setVolError(null);
+
+      if (abortControllerRef.current) {
+         abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      try {
+         const response = await api.getVolatility(symbol, days);
+         if (response && response.status === 'success') {
+            setVolData(response);
+            setVolLastUpdated(new Date().toLocaleTimeString());
+         } else if (response && response.status === 'error') {
+            setVolError(response.message || 'Error loading volatility analysis.');
+         } else {
+            setVolError('Unexpected API response.');
+         }
+      } catch (err: any) {
+         if (err.name !== 'AbortError') {
+            console.error('[Dashboard Volatility] Fetch error:', err);
+            setVolError(err.message || 'Failed to fetch volatility analytics.');
+         }
+      } finally {
+         if (!forceSilent) {
+            setVolLoading(false);
+         }
+      }
+   };
+
+   useEffect(() => {
+      fetchVolatility(selectedSymbol, selectedDays);
+
+      const interval = setInterval(() => {
+         fetchVolatility(selectedSymbol, selectedDays, true);
+      }, 30000);
+
+      return () => {
+         clearInterval(interval);
+         if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+         }
+      };
+   }, [selectedSymbol, selectedDays]);
+
+   const atrMetrics = useMemo(() => {
+      if (!volData) return { atr: 0, atrPct: 0, trend: 'stable', sparkline: [], avgAtr: 0 };
+      
+      const currentAtr = volData.atr || 0;
+      const price = volData.latest_price || 1;
+      const currentAtrPct = (currentAtr / price) * 100;
+      
+      const timeSeries = volData.time_series || [];
+      let trend: 'up' | 'down' | 'stable' = 'stable';
+      let avgAtr = 0;
+      const sparkline = timeSeries.map((t: any) => t.atr || 0);
+
+      if (timeSeries.length >= 2) {
+         const prevAtr = timeSeries[timeSeries.length - 2].atr || 0;
+         if (currentAtr > prevAtr) {
+            trend = 'up';
+         } else if (currentAtr < prevAtr) {
+            trend = 'down';
+         }
+      }
+
+      if (timeSeries.length > 0) {
+         const sum = timeSeries.reduce((acc: number, t: any) => acc + (t.atr || 0), 0);
+         avgAtr = sum / timeSeries.length;
+      }
+
+      return {
+         atr: currentAtr,
+         atrPct: currentAtrPct,
+         trend,
+         sparkline,
+         avgAtr
+      };
+   }, [volData]);
+
+   const renderSparkline = (points: number[]) => {
+      if (points.length < 2) return null;
+      const max = Math.max(...points);
+      const min = Math.min(...points);
+      const range = max - min === 0 ? 1 : max - min;
+      const height = 18;
+      const width = 60;
+      
+      const coords = points.map((p, idx) => {
+         const x = (idx / (points.length - 1)) * width;
+         const y = height - ((p - min) / range) * height;
+         return `${x},${y}`;
+      });
+      
+      return (
+         <svg className="w-16 h-5 overflow-visible" viewBox={`0 0 ${width} ${height}`}>
+            <path
+               d={`M ${coords.join(' L ')}`}
+               fill="none"
+               stroke="#10b981"
+               strokeWidth="1.5"
+               strokeLinecap="round"
+               strokeLinejoin="round"
+            />
+         </svg>
+      );
+   };
+
    const [prompt, setPrompt] = useState('');
    const [algorithms, setAlgorithms] = useState<AlgoConfig[]>([
       { id: '1', name: 'Trend Finder AI', description: 'Identifies strong trend continuation setups', active: false, performance: null },
@@ -235,6 +362,241 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
    return (
       <div className="space-y-6">
+         {/* Dashboard Top Header Controls */}
+         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div>
+               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-display">
+                  Institutional Trading Dashboard
+               </h1>
+               <p className="text-xs text-slate-500 font-semibold mt-1">
+                  Real-time market volatility analytics, option flow, and AI signals.
+               </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+               <GlobalSymbolSearch />
+               <DayFilter />
+            </div>
+         </div>
+
+         {/* Volatility & ATR Metrics Row */}
+         {volLoading && !volData ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-4">
+               {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={i} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3 animate-pulse">
+                     <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                     <div className="h-8 w-24 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                     <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                  </div>
+               ))}
+            </div>
+         ) : volError ? (
+            <ErrorCard message={volError} onRetry={() => fetchVolatility(selectedSymbol, selectedDays)} title="Volatility Data Error" />
+         ) : volData ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-4">
+               {/* Spot Price */}
+               <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm">
+                  <span className="text-xs text-slate-500 font-semibold">LTP (Spot)</span>
+                  <div className="mt-2">
+                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
+                        ₹{volData.latest_price?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                     </span>
+                  </div>
+                  <div className={`mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold w-fit ${
+                     (volData.price_change_pct || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  }`}>
+                     {(volData.price_change_pct || 0) >= 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                     {volData.price_change_pct >= 0 ? '+' : ''}{(volData.price_change_pct || 0).toFixed(2)}%
+                  </div>
+               </div>
+
+               {/* ATR Analytics Card */}
+               <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm">
+                  <span className="text-xs text-slate-500 font-semibold flex items-center justify-between">
+                     <span>14-Period ATR</span>
+                     {atrMetrics.trend !== 'stable' && (
+                        <span className={`inline-flex items-center text-[10px] font-bold ${
+                           atrMetrics.trend === 'up' ? 'text-emerald-500' : 'text-rose-500'
+                        }`}>
+                           {atrMetrics.trend === 'up' ? '▲' : '▼'}
+                        </span>
+                     )}
+                  </span>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
+                        ₹{atrMetrics.atr?.toFixed(2)}
+                     </span>
+                     <span className="text-[10px] text-slate-500 font-mono">
+                        ({atrMetrics.atrPct?.toFixed(2)}%)
+                     </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-1">
+                     <div className="flex-grow">
+                        {renderSparkline(atrMetrics.sparkline)}
+                     </div>
+                     <div className="text-right">
+                        <span className="block text-[8px] text-slate-400 uppercase tracking-wide">Avg ATR</span>
+                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 font-mono">₹{atrMetrics.avgAtr?.toFixed(1)}</span>
+                     </div>
+                  </div>
+               </div>
+
+               {/* India VIX */}
+               <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm">
+                  <span className="text-xs text-slate-500 font-semibold">India VIX</span>
+                  <div className="mt-2">
+                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
+                        {volData.india_vix?.toFixed(2)}%
+                     </span>
+                  </div>
+                  <span className="text-[9px] text-slate-400 mt-2 font-medium">Market volatility index</span>
+               </div>
+
+               {/* Implied Vol (IV) */}
+               <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm">
+                  <span className="text-xs text-slate-500 font-semibold">Implied Vol (IV)</span>
+                  <div className="mt-2">
+                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
+                        {volData.implied_volatility?.toFixed(2)}%
+                     </span>
+                  </div>
+                  <span className="text-[9px] text-slate-400 mt-2 font-medium">
+                     {volData.is_fno ? 'ATM option chain IV' : 'HV proxy (Non-F&O)'}
+                  </span>
+               </div>
+
+               {/* Historical Vol (HV) */}
+               <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm">
+                  <span className="text-xs text-slate-500 font-semibold">Hist Vol (HV)</span>
+                  <div className="mt-2">
+                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
+                        {volData.historical_volatility?.toFixed(2)}%
+                     </span>
+                  </div>
+                  <span className="text-[9px] text-slate-400 mt-2 font-medium">{selectedDays}-day standard lookback</span>
+               </div>
+
+               {/* IV Rank */}
+               <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm">
+                  <span className="text-xs text-slate-500 font-semibold">IV Rank</span>
+                  <div className="mt-2">
+                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
+                        {volData.iv_rank?.toFixed(1)}
+                     </span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full mt-3 overflow-hidden">
+                     <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(volData.iv_rank || 0, 100)}%` }}></div>
+                  </div>
+               </div>
+
+               {/* IV Percentile */}
+               <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm">
+                  <span className="text-xs text-slate-500 font-semibold">IV Percentile</span>
+                  <div className="mt-2">
+                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
+                        {volData.iv_percentile?.toFixed(1)}%
+                     </span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full mt-3 overflow-hidden">
+                     <div className="bg-purple-500 h-full rounded-full" style={{ width: `${Math.min(volData.iv_percentile || 0, 100)}%` }}></div>
+                  </div>
+               </div>
+            </div>
+         ) : null}
+
+         {/* Volatility Regime and Historical Chart Panel */}
+         {volData && !volLoading && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+               {/* Left Column: Volatility Regime Info */}
+               <div className={`p-6 rounded-2xl border flex flex-col justify-between bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm ${
+                  volData.regime?.toLowerCase().includes('high') ? 'border-amber-500/20 bg-amber-50/10 dark:bg-amber-950/5' :
+                  volData.regime?.toLowerCase().includes('low') ? 'border-cyan-500/20 bg-cyan-50/10 dark:bg-cyan-950/5' :
+                  'border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-950/5'
+               }`}>
+                  <div>
+                     <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <Activity size={14} className={
+                           volData.regime?.toLowerCase().includes('high') ? 'text-amber-500' :
+                           volData.regime?.toLowerCase().includes('low') ? 'text-cyan-500' :
+                           'text-emerald-500'
+                        } /> Volatility Regime
+                     </h3>
+                     <div className="flex flex-col gap-2">
+                        <span className={`text-2xl font-bold font-display ${
+                           volData.regime?.toLowerCase().includes('high') ? 'text-amber-500' :
+                           volData.regime?.toLowerCase().includes('low') ? 'text-cyan-500' :
+                           'text-emerald-500'
+                        }`}>
+                           {volData.regime}
+                        </span>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-2 font-medium">
+                           {volData.regime?.toLowerCase().includes('high')
+                              ? 'Current option implied volatility is significantly elevated compared to its historical mean, indicating wide price swings. Favorable for Option Sellers (Premium Decay).'
+                              : volData.regime?.toLowerCase().includes('low')
+                              ? 'Volatility is trading at depressed levels, suggesting a consolidation period. Options are cheap, pointing to potential expansion setups. Favorable for Option Buyers.'
+                              : 'Volatility levels are trading inside their historical standard deviations. Trend is likely to continue at its current moderate momentum.'
+                           }
+                        </p>
+                     </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs">
+                     <span className="text-slate-500 font-semibold">Mean Reversion Prob:</span>
+                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {volData.mean_reversion_probability ? `${(volData.mean_reversion_probability * 100).toFixed(1)}%` : 'N/A'}
+                     </span>
+                  </div>
+               </div>
+
+               {/* Right Column: Historical Volatility Chart */}
+               <div className="lg:col-span-2 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col justify-between min-h-[300px]">
+                  <div className="flex justify-between items-center mb-4">
+                     <h3 className="text-slate-800 dark:text-white font-bold text-sm tracking-wide">
+                        {volData.symbol} Volatility & Price Trend
+                     </h3>
+                     <span className="text-[10px] text-slate-500 uppercase font-mono">
+                        Lookback: {selectedDays} Days
+                     </span>
+                  </div>
+
+                  <div className="h-[200px] w-full">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={volData.time_series || []} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                           <defs>
+                              <linearGradient id="volChartGrad" x1="0" y1="0" x2="0" y2="1">
+                                 <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                                 <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                              </linearGradient>
+                           </defs>
+                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:hidden" />
+                           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" className="hidden dark:block" />
+                           <XAxis dataKey="date" stroke="#64748b" fontSize={9} tickLine={false} />
+                           <YAxis stroke="#64748b" fontSize={9} tickLine={false} />
+                           <Tooltip
+                              contentStyle={{
+                                 backgroundColor: '#0f172a',
+                                 borderColor: '#1e293b',
+                                 color: '#f8fafc',
+                                 borderRadius: '8px',
+                                 fontSize: '11px'
+                              }}
+                           />
+                           <Area
+                              type="monotone"
+                              dataKey="volatility"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              fillOpacity={1}
+                              fill="url(#volChartGrad)"
+                              name="Volatility %"
+                           />
+                        </AreaChart>
+                     </ResponsiveContainer>
+                  </div>
+               </div>
+            </div>
+         )}
+
          {/* Welcome & Stats Section */}
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* NIFTY 100 Top Movers */}
@@ -479,7 +841,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
          </div>
 
+         {/* Option Flow Widget Module */}
+         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <OptionFlow isWidget={true} />
+         </div>
 
+         {/* Market Heatmap Widget Module */}
+         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <SectorHeatmapPage isWidget={true} />
+         </div>
 
          {/* AI Scanner Modal */}
          {

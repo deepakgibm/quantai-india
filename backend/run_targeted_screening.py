@@ -6,21 +6,22 @@ import logging
 # Add backend to path
 sys.path.append("/app")
 
-from database import SessionLocal
+import asyncio
+from database import AsyncSessionLocal
 from screener.services.screener_service import ScreenerService
 
 logging.basicConfig(level=logging.INFO)
 
-def run_test():
-    session = SessionLocal()
-    try:
+async def run_test_async():
+    async with AsyncSessionLocal() as session:
         service = ScreenerService(session)
         symbols = ["BHEL", "RELIANCE", "TCS"]
         print(f"Running screening for {symbols}...")
-        summary = service.run_full_screening(symbols=symbols)
+        summary = await service.run_full_screening(symbols=symbols)
         print("Summary:", summary)
-    finally:
-        session.close()
+
+def run_test():
+    asyncio.run(run_test_async())
 
 if __name__ == "__main__":
     run_test()

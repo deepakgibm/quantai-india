@@ -22,14 +22,25 @@ def run_screener_scoring(skip_financials: bool = False, top_n: int = None):
     """
     logger.info(f"Starting Background Screener Scoring (top_n={top_n}, skip_fin={skip_financials})")
     try:
-        with SyncSession(sync_engine) as session:
-            service = ScreenerService(session)
-            summary = service.run_full_screening(
-                skip_financials=skip_financials,
-                top_n=top_n
-            )
-            logger.info("Background Screener Scoring completed successfully")
-            return summary
+        from database import AsyncSessionLocal
+        
+        async def main():
+            async with AsyncSessionLocal() as session:
+                service = ScreenerService(session)
+                return await service.run_full_screening(
+                    skip_financials=skip_financials,
+                    top_n=top_n
+                )
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        summary = loop.run_until_complete(main())
+        logger.info("Background Screener Scoring completed successfully")
+        return summary
     except Exception as e:
         logger.error(f"Background Screener Scoring failed: {e}", exc_info=True)
         raise

@@ -18,7 +18,7 @@ from datetime import date, datetime
 from typing import Dict, List, Optional, Any
 
 from sqlalchemy import text, delete
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from screener.data.technical_aggregator import TechnicalAggregator
 from screener.data.financial_data_fetcher import FinancialDataFetcher
@@ -34,14 +34,14 @@ class ScreenerService:
     Main screener service that orchestrates the full scoring pipeline.
     """
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: AsyncSession):
         self.db = db_session
         self.tech_aggregator = TechnicalAggregator(db_session)
         self.fin_fetcher = FinancialDataFetcher()
         self.nse_fetcher = NSEDataFetcher()
         self.scoring_engine = ScoringEngine()
 
-    def run_full_screening(
+    async def run_full_screening(
         self,
         symbols: Optional[List[str]] = None,
         skip_financials: bool = False,
@@ -64,7 +64,7 @@ class ScreenerService:
         logger.info("=" * 60)
 
         # 1. Load symbols
-        all_stocks = self.tech_aggregator.get_all_symbols()
+        all_stocks = await self.tech_aggregator.get_all_symbols()
         if symbols:
             all_stocks = [s for s in all_stocks if s["symbol"] in symbols]
         if top_n:
@@ -74,10 +74,10 @@ class ScreenerService:
         logger.info(f"Screening {total} stocks")
 
         # 2. Get market-level data (once for all stocks)
-        nifty_data = self.tech_aggregator.get_nifty_trend()
+        nifty_data = await self.tech_aggregator.get_nifty_trend()
         logger.info(f"Market direction: {nifty_data.get('nifty_trend', 'unknown')}")
 
-        sector_performance = self.tech_aggregator.get_sector_performance()
+        sector_performance = await self.tech_aggregator.get_sector_performance()
         logger.info(f"Loaded performance for {len(sector_performance)} sectors")
 
         # 3. Score each stock
@@ -91,7 +91,7 @@ class ScreenerService:
 
             try:
                 # 3a. Technical data (from DB — fast)
-                tech_data = self.tech_aggregator.get_technical_data(symbol, instrument_id)
+                tech_data = await self.tech_aggregator.get_technical_data(symbol, instrument_id)
                 
                 if not tech_data.get("cmp"):
                     logger.debug(f"[{i+1}/{total}] {symbol}: No price data, skipping")
@@ -102,7 +102,7 @@ class ScreenerService:
                 
                 if not fin_data.get("data_available"):
                     logger.info(f"[{i+1}/{total}] {symbol}: yfinance failed ({fin_data.get('error')}), checking DB...")
-                    db_fin = self._get_financials_from_db(symbol)
+                    db_fin = await self._get_financials_from_db(symbol)
                     if db_fin:
                         fin_data = db_fin
                         logger.info(f"[{i+1}/{total}] {symbol}: Successfully recovered financial data from DB")
@@ -110,13 +110,13 @@ class ScreenerService:
                         logger.warning(f"[{i+1}/{total}] {symbol}: No data in DB either, using defaults")
                 else:
                     # If fresh data fetched, persist it to DB for future fallbacks
-                    self._persist_financials(symbol, fin_data)
+                    await self._persist_financials(symbol, fin_data)
 
                 # 3c. Holdings history (from DB if available)
-                holdings_history = self._get_holdings_history(symbol)
+                holdings_history = await self._get_holdings_history(symbol)
 
                 # 3d. Bulk deals (from DB if available)
-                bulk_deals = self._get_bulk_deals(symbol)
+                bulk_deals = await self._get_bulk_deals(symbol)
 
                 # 3e. Score the stock
                 result = self.scoring_engine.score_stock(
@@ -158,10 +158,10 @@ class ScreenerService:
             stock.update(trade_params)
 
         # 7. Persist to database
-        self._persist_scores(ranked_stocks)
-        self._persist_conviction_list(buy_list, "BUY")
-        self._persist_conviction_list(avoid_list, "AVOID")
-        self._persist_sector_analysis(ranked_stocks, sector_performance)
+        await self._persist_scores(ranked_stocks)
+        await self._persist_conviction_list(buy_list, "BUY")
+        await self._persist_conviction_list(avoid_list, "AVOID")
+        await self._persist_sector_analysis(ranked_stocks, sector_performance)
 
         elapsed = round(time.time() - start_time, 2)
         
@@ -187,7 +187,7 @@ class ScreenerService:
 
         return summary
 
-    def get_ranked_stocks(
+    async def get_ranked_stocks(
         self,
         score_date: Optional[str] = None,
         sector: Optional[str] = None,
@@ -217,10 +217,10 @@ class ScreenerService:
         params["limit"] = limit
         params["offset"] = offset
 
-        result = self.db.execute(text(query), params)
+        result = await self.db.execute(text(query), params)
         return [dict(row._mapping) for row in result]
 
-    def get_conviction_list(self, list_type: str = "BUY", score_date: Optional[str] = None) -> List[Dict]:
+    async def get_conviction_list(self, list_type: str = "BUY", score_date: Optional[str] = None) -> List[Dict]:
         """Get the conviction BUY or AVOID list."""
         query = """
             SELECT * FROM screener_conviction_list
@@ -231,23 +231,23 @@ class ScreenerService:
             "score_date": score_date or date.today().isoformat(),
             "list_type": list_type,
         }
-        result = self.db.execute(text(query), params)
+        result = await self.db.execute(text(query), params)
         return [dict(row._mapping) for row in result]
 
-    def get_stock_detail(self, symbol: str, score_date: Optional[str] = None) -> Optional[Dict]:
+    async def get_stock_detail(self, symbol: str, score_date: Optional[str] = None) -> Optional[Dict]:
         """Get detailed scoring for a single stock."""
         query = """
             SELECT * FROM screener_stock_score
             WHERE symbol = :symbol AND score_date = :score_date
         """
         params = {"symbol": symbol, "score_date": score_date or date.today().isoformat()}
-        result = self.db.execute(text(query), params)
+        result = await self.db.execute(text(query), params)
         row = result.fetchone()
         if row:
             return dict(row._mapping)
         return None
 
-    def get_sector_rotation(self, score_date: Optional[str] = None) -> List[Dict]:
+    async def get_sector_rotation(self, score_date: Optional[str] = None) -> List[Dict]:
         """Get sector rotation analysis."""
         query = """
             SELECT * FROM screener_sector_analysis
@@ -255,21 +255,21 @@ class ScreenerService:
             ORDER BY sector_score DESC
         """
         params = {"score_date": score_date or date.today().isoformat()}
-        result = self.db.execute(text(query), params)
+        result = await self.db.execute(text(query), params)
         return [dict(row._mapping) for row in result]
 
-    def get_available_dates(self) -> List[str]:
+    async def get_available_dates(self) -> List[str]:
         """Get list of dates that have scoring data."""
-        result = self.db.execute(text("""
+        result = await self.db.execute(text("""
             SELECT DISTINCT score_date FROM screener_stock_score
             ORDER BY score_date DESC
             LIMIT 30
         """))
         return [str(row[0]) for row in result]
 
-    def _get_financials_from_db(self, symbol: str) -> Optional[Dict]:
+    async def _get_financials_from_db(self, symbol: str) -> Optional[Dict]:
         """Get latest cached financials from DB."""
-        result = self.db.execute(text("""
+        result = await self.db.execute(text("""
             SELECT * FROM screener_financials
             WHERE symbol = :symbol
             ORDER BY updated_at DESC
@@ -282,11 +282,11 @@ class ScreenerService:
             return data
         return None
 
-    def _persist_financials(self, symbol: str, data: Dict):
+    async def _persist_financials(self, symbol: str, data: Dict):
         """Cache fetched financials to DB."""
         try:
             # Delete existing to keep only latest (or we could keep history)
-            self.db.execute(text(
+            await self.db.execute(text(
                 "DELETE FROM screener_financials WHERE symbol = :s"
             ), {"s": symbol})
             
@@ -313,15 +313,15 @@ class ScreenerService:
                 data_source="yfinance"
             )
             self.db.add(entry)
-            self.db.flush() # Flush instead of commit here as it's part of a loop
+            await self.db.flush() # Flush instead of commit here as it's part of a loop
         except Exception as e:
             logger.warning(f"Failed to persist financials for {symbol}: {e}")
 
     # === Private Methods ===
 
-    def _get_holdings_history(self, symbol: str) -> List[Dict]:
+    async def _get_holdings_history(self, symbol: str) -> List[Dict]:
         """Get holdings history from DB."""
-        result = self.db.execute(text("""
+        result = await self.db.execute(text("""
             SELECT * FROM screener_holdings_history
             WHERE symbol = :symbol
             ORDER BY quarter_end DESC
@@ -329,9 +329,9 @@ class ScreenerService:
         """), {"symbol": symbol})
         return [dict(row._mapping) for row in result]
 
-    def _get_bulk_deals(self, symbol: str) -> List[Dict]:
+    async def _get_bulk_deals(self, symbol: str) -> List[Dict]:
         """Get recent bulk deals from DB."""
-        result = self.db.execute(text("""
+        result = await self.db.execute(text("""
             SELECT * FROM screener_bulk_deals
             WHERE symbol = :symbol
             ORDER BY trade_date DESC
@@ -339,12 +339,12 @@ class ScreenerService:
         """), {"symbol": symbol})
         return [dict(row._mapping) for row in result]
 
-    def _persist_scores(self, ranked_stocks: List[Dict]):
+    async def _persist_scores(self, ranked_stocks: List[Dict]):
         """Persist scoring results to screener_stock_score table."""
         today = date.today()
         
         # Delete today's existing scores
-        self.db.execute(text(
+        await self.db.execute(text(
             "DELETE FROM screener_stock_score WHERE score_date = :d"
         ), {"d": today})
         
@@ -385,14 +385,14 @@ class ScreenerService:
             )
             self.db.add(score)
 
-        self.db.commit()
+        await self.db.commit()
         logger.info(f"Persisted {len(ranked_stocks)} stock scores")
 
-    def _persist_conviction_list(self, stocks: List[Dict], list_type: str):
+    async def _persist_conviction_list(self, stocks: List[Dict], list_type: str):
         """Persist conviction list to DB."""
         today = date.today()
         
-        self.db.execute(text(
+        await self.db.execute(text(
             "DELETE FROM screener_conviction_list WHERE score_date = :d AND list_type = :lt"
         ), {"d": today, "lt": list_type})
 
@@ -426,14 +426,14 @@ class ScreenerService:
             )
             self.db.add(entry)
 
-        self.db.commit()
+        await self.db.commit()
         logger.info(f"Persisted {len(stocks)} conviction list entries ({list_type})")
 
-    def _persist_sector_analysis(self, ranked_stocks: List[Dict], sector_performance: Dict):
+    async def _persist_sector_analysis(self, ranked_stocks: List[Dict], sector_performance: Dict):
         """Aggregate and persist sector-level analysis."""
         today = date.today()
 
-        self.db.execute(text(
+        await self.db.execute(text(
             "DELETE FROM screener_sector_analysis WHERE score_date = :d"
         ), {"d": today})
 
@@ -494,5 +494,5 @@ class ScreenerService:
             )
             self.db.add(entry)
 
-        self.db.commit()
+        await self.db.commit()
         logger.info(f"Persisted sector analysis for {len(sector_groups)} sectors")

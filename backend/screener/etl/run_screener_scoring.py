@@ -55,10 +55,9 @@ def create_tables():
     logger.info("Tables created successfully")
 
 
-def run_scoring(skip_financials: bool = False, top_n: int = None, dry_run: bool = False):
-    """Execute the full scoring pipeline."""
-    from sqlalchemy.orm import Session
-    from database import sync_engine
+async def async_run_scoring(skip_financials: bool = False, top_n: int = None, dry_run: bool = False):
+    """Execute the full scoring pipeline asynchronously."""
+    from database import AsyncSessionLocal
     from screener.services.screener_service import ScreenerService
 
     start = time.time()
@@ -69,22 +68,22 @@ def run_scoring(skip_financials: bool = False, top_n: int = None, dry_run: bool 
     if dry_run:
         logger.info("DRY RUN — validating configuration only")
         
-        with Session(sync_engine) as session:
+        async with AsyncSessionLocal() as session:
             from screener.data.technical_aggregator import TechnicalAggregator
             agg = TechnicalAggregator(session)
             
-            symbols = agg.get_all_symbols()
+            symbols = await agg.get_all_symbols()
             logger.info(f"Found {len(symbols)} active symbols")
             
-            nifty = agg.get_nifty_trend()
+            nifty = await agg.get_nifty_trend()
             logger.info(f"NIFTY trend: {nifty.get('nifty_trend')}")
             
-            sectors = agg.get_sector_performance()
+            sectors = await agg.get_sector_performance()
             logger.info(f"Sector data for {len(sectors)} sectors")
             
             if symbols:
                 test_symbol = symbols[0]
-                tech_data = agg.get_technical_data(test_symbol["symbol"], test_symbol["instrument_id"])
+                tech_data = await agg.get_technical_data(test_symbol["symbol"], test_symbol["instrument_id"])
                 logger.info(f"Test technical data for {test_symbol['symbol']}: CMP={tech_data.get('cmp')}")
 
             logger.info(f"DRY RUN complete in {time.time() - start:.1f}s")
@@ -96,9 +95,9 @@ def run_scoring(skip_financials: bool = False, top_n: int = None, dry_run: bool 
     logger.info("INSTITUTIONAL TRADE SCREENER — SCORING PIPELINE")
     logger.info("=" * 70)
 
-    with Session(sync_engine) as session:
+    async with AsyncSessionLocal() as session:
         service = ScreenerService(session)
-        summary = service.run_full_screening(
+        summary = await service.run_full_screening(
             skip_financials=skip_financials,
             top_n=top_n,
         )
@@ -120,6 +119,8 @@ def run_scoring(skip_financials: bool = False, top_n: int = None, dry_run: bool 
     logger.info("=" * 70)
 
     # Print top 10
+    from database import sync_engine
+    from sqlalchemy.orm import Session
     with Session(sync_engine) as session:
         from sqlalchemy import text
         result = session.execute(text("""
@@ -147,6 +148,11 @@ def run_scoring(skip_financials: bool = False, top_n: int = None, dry_run: bool 
                     f"{row[9] or 0:<6.0f} {row[10] or 0:<6.0f}"
                 )
             logger.info("-" * 120)
+
+
+def run_scoring(skip_financials: bool = False, top_n: int = None, dry_run: bool = False):
+    import asyncio
+    asyncio.run(async_run_scoring(skip_financials, top_n, dry_run))
 
 
 if __name__ == "__main__":
