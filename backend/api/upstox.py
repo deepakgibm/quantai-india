@@ -20,7 +20,7 @@ async def get_upstox_status():
         client = get_upstox_client()
         
         # Check if client has access token
-        has_token = hasattr(client, '_access_token') and client._access_token is not None
+        has_token = hasattr(client, 'access_token') and client.access_token is not None
         
         return {
             "status": "success",

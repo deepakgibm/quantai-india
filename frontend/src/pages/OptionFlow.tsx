@@ -72,25 +72,45 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   const [isNonFno, setIsNonFno] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'chain' | 'charts' | 'blocks'>('chain');
+  const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Fetch Broker Connection Status
+  const checkBrokerStatus = async () => {
+    try {
+      const response = await api.getUpstoxStatus();
+      if (response && response.status === 'success' && response.upstox) {
+        setBrokerConnected(response.upstox.connected);
+      } else {
+        setBrokerConnected(false);
+      }
+    } catch (err) {
+      console.warn('[OptionFlow] Failed to fetch broker status:', err);
+      setBrokerConnected(false);
+    }
+  };
+
   // Fetch Expiries first
-  const fetchExpiries = async (symbol: string) => {
+  const fetchExpiries = async (symbol: string, bypassCache = false) => {
     setIsNonFno(false);
     setError(null);
     try {
-      const response = await api.getOptionFlowExpiries(symbol);
-      if (response && response.status === 'success' && Array.isArray(response.expiries)) {
-        setExpiries(response.expiries);
-        if (response.expiries.length > 0) {
+      const response = await api.getOptionFlowExpiries(symbol, bypassCache);
+      if (response && response.success && response.data && Array.isArray(response.data.expiries)) {
+        setExpiries(response.data.expiries);
+        setError(null); // Clear error on success
+        if (response.data.expiries.length > 0) {
           // If previous expiry is not in new list, pick first one
-          if (!response.expiries.includes(selectedExpiry)) {
-            setSelectedExpiry(response.expiries[0]);
+          if (!response.data.expiries.includes(selectedExpiry)) {
+            setSelectedExpiry(response.data.expiries[0]);
           }
         } else {
           setSelectedExpiry('');
           setLoading(false);
         }
+      } else if (response && response.error) {
+        setError(response.error.message || 'Failed to retrieve option chain expiries.');
+        setLoading(false);
       } else {
         setError(response?.message || 'Failed to retrieve option chain expiries.');
         setLoading(false);
@@ -107,7 +127,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   };
 
   // Fetch Option Flow Details
-  const fetchOptionFlow = async (symbol: string, expiry: string, forceSilent = false) => {
+  const fetchOptionFlow = async (symbol: string, expiry: string, forceSilent = false, bypassCache = false) => {
     if (isNonFno) {
       setLoading(false);
       return;
@@ -124,12 +144,15 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await api.getOptionFlow(symbol, expiry);
-      if (response && response.status === 'success') {
-        setData(response);
+      const response = await api.getOptionFlow(symbol, expiry, '', bypassCache);
+      if (response && response.success && response.data) {
+        setData(response.data);
+        setError(null); // Clear error on success
         setLastUpdated(new Date().toLocaleTimeString());
-      } else if (response && response.status === 'error') {
-        setError(response.message || 'Option flow data currently unavailable.');
+      } else if (response && response.error) {
+        if (!forceSilent || !data) {
+          setError(response.error.message || 'Option flow data currently unavailable.');
+        }
       } else {
         setError('Unexpected API response format.');
       }
@@ -138,7 +161,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
         console.error('[OptionFlow] Fetch details error:', err);
         if (err.status === 400 || err.message?.includes('F&O')) {
           setIsNonFno(true);
-        } else {
+        } else if (!forceSilent || !data) {
           setError(err.message || 'Failed to connect to Option Flow API.');
         }
       }
@@ -152,8 +175,18 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   // Run on Symbol change
   useEffect(() => {
     const init = async () => {
+      // Clear old state immediately on symbol changes to prevent stale data display
+      setData(null);
+      setExpiries([]);
+      setSelectedExpiry('');
+      setIsNonFno(false);
+      setError(null);
       setLoading(true);
-      await fetchExpiries(selectedSymbol);
+      
+      await Promise.all([
+        fetchExpiries(selectedSymbol),
+        checkBrokerStatus()
+      ]);
     };
     init();
   }, [selectedSymbol]);
@@ -168,6 +201,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     const interval = setInterval(() => {
       if (selectedExpiry && !isNonFno) {
         fetchOptionFlow(selectedSymbol, selectedExpiry, true);
+        checkBrokerStatus();
       }
     }, 15000);
 
@@ -180,7 +214,9 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   }, [selectedSymbol, selectedExpiry, isNonFno]);
 
   const handleRetry = () => {
-    fetchExpiries(selectedSymbol);
+    setLoading(true);
+    fetchExpiries(selectedSymbol, true); // Force bypass cache on manual retry
+    checkBrokerStatus();
   };
 
   // Find ATM strike for highlighting
@@ -341,9 +377,17 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
                 {data.expiry}
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-semibold mt-1">
-              Real-time derivative sentiment and order tracking.
-            </p>
+            <div className="flex items-center gap-4 mt-1">
+              <p className="text-xs text-slate-500 font-semibold">
+                Real-time derivative sentiment and order tracking.
+              </p>
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold font-mono">
+                <span className={`w-2 h-2 rounded-full ${brokerConnected === true ? 'bg-emerald-500 animate-pulse' : brokerConnected === false ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'}`}></span>
+                <span className={brokerConnected === true ? 'text-emerald-400' : brokerConnected === false ? 'text-red-400' : 'text-yellow-400'}>
+                  {brokerConnected === true ? 'Broker Connected' : brokerConnected === false ? 'Broker Disconnected' : 'Checking Broker...'}
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -364,8 +408,12 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
               </select>
             )}
 
-            <div className="text-[10px] text-slate-500 font-mono mt-1 w-full lg:w-auto text-left lg:text-right">
-              Refreshed: {lastUpdated || 'Never'}
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-1 w-full lg:w-auto text-left lg:text-right">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+              <span>Auto-Refreshed: {lastUpdated || 'Never'}</span>
             </div>
           </div>
         </div>
@@ -378,6 +426,12 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
               {data.expiry}
             </span>
+            <div className="flex items-center gap-1.5 text-[9px] font-semibold font-mono">
+              <span className={`w-1.5 h-1.5 rounded-full ${brokerConnected === true ? 'bg-emerald-500 animate-pulse' : brokerConnected === false ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'}`}></span>
+              <span className={brokerConnected === true ? 'text-emerald-400' : brokerConnected === false ? 'text-red-400' : 'text-yellow-400'}>
+                {brokerConnected === true ? 'Live' : brokerConnected === false ? 'Offline' : 'Checking'}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {expiries.length > 0 && (
@@ -393,9 +447,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
                 ))}
               </select>
             )}
-            <span className="text-[10px] text-slate-500 font-mono">
-              Refreshed: {lastUpdated || 'Never'}
-            </span>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+              <span>Updated: {lastUpdated || 'Never'}</span>
+            </div>
           </div>
         </div>
       )}

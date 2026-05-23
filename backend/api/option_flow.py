@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+import pytz
 
 from database import get_read_db
 from models import User
@@ -16,6 +17,20 @@ from services.upstox_client import get_upstox_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Option Flow"])
+
+def is_market_open() -> bool:
+    """Check if the Indian stock market (NSE) is currently open (9:15 AM to 3:30 PM IST Mon-Fri)."""
+    try:
+        tz = pytz.timezone("Asia/Kolkata")
+        now = datetime.now(tz)
+        if now.weekday() >= 5:  # Saturday or Sunday
+            return False
+        market_start = time(9, 15)
+        market_end = time(15, 30)
+        return market_start <= now.time() <= market_end
+    except Exception as e:
+        logger.warning(f"Error checking market hours: {e}")
+        return True # Default to True to prevent blocking on timezone errors
 
 def get_upcoming_thursdays(count: int = 5) -> List[str]:
     """Calculate the next few Thursdays (weekly expiries)."""
@@ -61,6 +76,7 @@ async def get_option_flow(
     symbol: str,
     expiry: Optional[str] = Query(None),
     strike_range: Optional[str] = Query(None),
+    bypass_cache: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_read_db)
 ):
@@ -75,11 +91,17 @@ async def get_option_flow(
     try:
         cache_key = f"option_flow:{symbol}:{expiry or 'nearest'}:{strike_range or 'all'}"
         cache = get_cache_manager()
-        if cache.is_available():
+        if not bypass_cache and cache.is_available():
             try:
                 cached = cache.get(cache_key)
                 if cached:
-                    return cached
+                    logger.info(f"Serving option flow for {symbol} from cache")
+                    return {
+                        "success": True,
+                        "data": cached,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "source": "cache"
+                    }
             except Exception as ce:
                 logger.warning(f"Cache read error in option flow: {ce}")
                 
@@ -111,11 +133,18 @@ async def get_option_flow(
         response = await client._make_request("GET", "/option/chain", params=params)
         
         if response.get("status") != "success" or not response.get("data"):
+            msg = "Option chain data temporarily unavailable from broker."
+            if not is_market_open():
+                msg = "Option chain data is temporarily unavailable. The NSE market is currently closed. (Market hours: Mon-Fri 9:15 AM - 3:30 PM IST)"
             return {
-                "status": "error",
-                "symbol": symbol,
-                "message": "Option chain data temporarily unavailable from broker.",
-                "data": None
+                "success": False,
+                "data": None,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "source": "upstox",
+                "error": {
+                    "code": "BROKER_UNAVAILABLE",
+                    "message": msg
+                }
             }
             
         raw_strikes = response["data"]
@@ -129,24 +158,29 @@ async def get_option_flow(
         total_call_premium = 0.0
         total_put_premium = 0.0
         
-        # Calculate lot size fallback or lookup
-        # In Indian markets, lot sizes are typically between 100 and 10000.
-        # If lot size is not specified, we can use 1 for Premium calculation as a index/multiplier
-        # but let's show notional premium = LTP * Volume.
-        
         active_expiry = expiry
         
         for item in raw_strikes:
-            strike_price = float(item.get("strike_price", 0))
+            if not item:
+                continue
+            strike_price = float(item.get("strike_price", 0) or 0)
+            if strike_price <= 0:
+                continue
             
-            call = item.get("call_options", {})
-            put = item.get("put_options", {})
+            call = item.get("call_options") or {}
+            put = item.get("put_options") or {}
+            
+            # Log missing CE/PE options separately
+            if not item.get("call_options"):
+                logger.warning(f"[Option Flow] Symbol {symbol}: Strike {strike_price} is missing Call (CE) options")
+            if not item.get("put_options"):
+                logger.warning(f"[Option Flow] Symbol {symbol}: Strike {strike_price} is missing Put (PE) options")
             
             if not active_expiry:
                 active_expiry = call.get("expiry") or put.get("expiry")
                 
-            call_market = call.get("market_data", {}) if call else {}
-            put_market = put.get("market_data", {}) if put else {}
+            call_market = call.get("market_data") or {}
+            put_market = put.get("market_data") or {}
             
             c_oi = int(call_market.get("oi", 0) or 0)
             p_oi = int(put_market.get("oi", 0) or 0)
@@ -215,8 +249,6 @@ async def get_option_flow(
             sentiment = "Neutral"
             
         # Detect Institutional Block Deals (> ₹10L Premium Turnover in a single option contract)
-        # Indian options typically have lot sizes. Since notional premium turnover = LTP * Volume,
-        # we can flag strikes where call or put premium exceeds 1,000,000.
         block_deals = []
         for s in strikes_list:
             if s["call"]["premium"] > 1000000:
@@ -267,22 +299,35 @@ async def get_option_flow(
             except Exception as ce:
                 logger.warning(f"Cache write error in option flow: {ce}")
                 
-        return response_data
+        return {
+            "success": True,
+            "data": response_data,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "source": "upstox"
+        }
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error in Option Flow API: {e}", exc_info=True)
+        msg = f"Option chain data temporarily unavailable from broker: {str(e)}"
+        if not is_market_open():
+            msg = "Option chain data is temporarily unavailable. The NSE market is currently closed. (Market hours: Mon-Fri 9:15 AM - 3:30 PM IST)"
         return {
-            "status": "error",
-            "symbol": symbol,
-            "message": f"Option chain data temporarily unavailable from broker: {str(e)}",
-            "data": None
+            "success": False,
+            "data": None,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "source": "upstox",
+            "error": {
+                "code": "BROKER_ERROR",
+                "message": msg
+            }
         }
 
 @router.get("/{symbol}/expiries")
 async def get_option_expiries(
     symbol: str,
+    bypass_cache: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_read_db)
 ):
@@ -298,16 +343,20 @@ async def get_option_expiries(
         # Check cache
         cache_key = f"option_expiries:{symbol}"
         cache = get_cache_manager()
-        if cache.is_available():
+        if not bypass_cache and cache.is_available():
             try:
                 cached = cache.get(cache_key)
                 if cached:
-                    return cached
+                    return {
+                        "success": True,
+                        "data": cached,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "source": "cache"
+                    }
             except Exception as ce:
                 logger.warning(f"Cache read error: {ce}")
                 
         # Try fetching live option chain first to extract available expiries
-        # Some brokers return expiries in metadata. If not, we can fall back to calculations
         expiries = []
         try:
             symbol_query = text("""
@@ -321,15 +370,15 @@ async def get_option_expiries(
             instrument_key = symbol_row.instrument_key if symbol_row else f"NSE_INDEX|{symbol}"
             
             client = get_upstox_client()
-            # Upstox returns expiry dates when we query without expiry
-            # We can extract them from the options list
             response = await client._make_request("GET", "/option/chain", params={"instrument_key": instrument_key})
             if response.get("status") == "success" and response.get("data"):
                 strikes = response["data"]
                 unique_expiries = set()
                 for item in strikes:
-                    c_exp = item.get("call_options", {}).get("expiry")
-                    p_exp = item.get("put_options", {}).get("expiry")
+                    if not item:
+                        continue
+                    c_exp = (item.get("call_options") or {}).get("expiry")
+                    p_exp = (item.get("put_options") or {}).get("expiry")
                     if c_exp: unique_expiries.add(c_exp)
                     if p_exp: unique_expiries.add(p_exp)
                 expiries = sorted(list(unique_expiries))
@@ -356,13 +405,29 @@ async def get_option_expiries(
             except Exception as ce:
                 logger.warning(f"Cache write error: {ce}")
                 
-        return response_data
+        return {
+            "success": True,
+            "data": response_data,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "source": "upstox"
+        }
         
     except Exception as e:
         logger.error(f"Error in Option Expiries API: {e}", exc_info=True)
+        msg = f"Option expiries temporarily unavailable: {str(e)}"
+        if not is_market_open():
+            msg = "Option expiries unavailable. The NSE market is currently closed. (Market hours: Mon-Fri 9:15 AM - 3:30 PM IST)"
         return {
-            "status": "error",
-            "symbol": symbol,
-            "message": f"Option expiries temporarily unavailable: {str(e)}",
-            "expiries": []
+            "success": False,
+            "data": {
+                "status": "error",
+                "symbol": symbol,
+                "expiries": []
+            },
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "source": "upstox",
+            "error": {
+                "code": "EXPIRED_CHECK_ERROR",
+                "message": msg
+            }
         }

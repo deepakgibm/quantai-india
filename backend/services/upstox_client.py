@@ -133,8 +133,12 @@ class UpstoxClient:
         url = f"{self.BASE_URL}{endpoint}"
         
         async def _execute():
+            logger.info(f"[Upstox Request] {method} {url} | Params: {params} | Token Present: {bool(self.access_token)}")
+            start_time = time.time()
             try:
                 response = await self.client.request(method, url, params=params, **kwargs)
+                latency = round(time.time() - start_time, 3)
+                logger.info(f"[Upstox Response] {response.status_code} for {method} {endpoint} | Latency: {latency}s | Size: {len(response.content)} bytes")
                 
                 # Treat 5xx as system failure
                 if response.status_code >= 500:
@@ -173,8 +177,15 @@ class UpstoxClient:
                 # Attempt to refresh token if logic is available
                 if await self.refresh_access_token():
                     logger.info("Token refreshed successfully, retrying request...")
-                    # Update headers and retry once
+                    # Update headers
                     self.headers["Authorization"] = f"Bearer {self.access_token}"
+                    # Recreate the httpx client so it picks up the new headers
+                    if self._client:
+                        try:
+                            await self._client.aclose()
+                        except Exception:
+                            pass
+                        self._client = None
                     return await _execute()
                 else:
                     logger.error("Token refresh failed or not available. Manual re-login required.")

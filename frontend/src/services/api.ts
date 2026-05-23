@@ -839,11 +839,12 @@ export const api = {
     throw res.error;
   },
 
-  getOptionFlow: async (symbol: string, expiry: string = '', strike_range: string = '') => {
+  getOptionFlow: async (symbol: string, expiry: string = '', strike_range: string = '', bypassCache: boolean = false) => {
     let url = `/api/option-flow/${symbol}`;
     const params = [];
     if (expiry) params.push(`expiry=${encodeURIComponent(expiry)}`);
     if (strike_range) params.push(`strike_range=${encodeURIComponent(strike_range)}`);
+    if (bypassCache) params.push(`bypass_cache=true`);
     if (params.length > 0) {
       url += `?${params.join('&')}`;
     }
@@ -852,8 +853,18 @@ export const api = {
     throw res.error;
   },
 
-  getOptionFlowExpiries: async (symbol: string) => {
-    const res = await apiGet<any>(`/api/option-flow/${symbol}/expiries`);
+  getOptionFlowExpiries: async (symbol: string, bypassCache: boolean = false) => {
+    let url = `/api/option-flow/${symbol}/expiries`;
+    if (bypassCache) {
+      url += `?bypass_cache=true`;
+    }
+    const res = await apiGet<any>(url);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getUpstoxStatus: async () => {
+    const res = await apiGet<any>('/api/upstox/status');
     if (res.success) return res.data;
     throw res.error;
   },

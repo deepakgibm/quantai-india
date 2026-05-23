@@ -83,7 +83,9 @@ class TestDashboardFeatures:
         url = f"{BASE_URL}/api/option-flow/RELIANCE/expiries"
         response = requests.get(url, headers=headers, timeout=10)
         assert response.status_code == 200
-        data = response.json()
+        envelope = response.json()
+        assert envelope.get("success") is True
+        data = envelope.get("data") or {}
         assert data.get("status") == "success"
         assert "expiries" in data
         assert isinstance(data["expiries"], list)
@@ -94,18 +96,18 @@ class TestDashboardFeatures:
         url = f"{BASE_URL}/api/option-flow/RELIANCE"
         response = requests.get(url, headers=headers, timeout=10)
         assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data.get("symbol") == "RELIANCE"
+        envelope = response.json()
+        assert "success" in envelope
         
-        if data.get("status") == "success":
+        if envelope.get("success") is True:
+            data = envelope.get("data") or {}
             assert "strikes" in data
             assert "block_deals" in data
             assert "sentiment" in data
             assert "pcr_oi" in data
-        elif data.get("status") == "error":
-            assert "message" in data
-            assert data.get("data") is None
+        else:
+            assert "error" in envelope
+            assert envelope.get("data") is None
 
     def test_heatmap_endpoint(self, headers):
         """Test heatmap endpoint sector groupings and constituents."""
