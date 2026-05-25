@@ -309,6 +309,51 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     </div>
   );
 
+  if (!marketOpen) {
+    return (
+      <div className="space-y-6">
+        {!isWidget && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
+              <p className="text-sm text-slate-500 font-medium">NSE Market Closed</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <GlobalSymbolSearch />
+              {expiries.length > 0 && (
+                <select
+                  value={selectedExpiry}
+                  onChange={e => setSelectedExpiry(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 dark:focus:ring-emerald-500/50 dark:focus:border-emerald-500 transition-all outline-none cursor-pointer"
+                >
+                  {expiries.map(exp => (
+                    <option key={exp} value={exp}>
+                      Expiry: {exp}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="flex flex-col items-center justify-center p-8 min-h-[300px] rounded-2xl border border-slate-850 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-2xl">
+          <div className="w-12 h-12 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-4 text-slate-400">
+            <Layers size={24} />
+          </div>
+          <h3 className="font-display font-bold text-base text-slate-200 mb-2">
+            Option Chain Unavailable
+          </h3>
+          <p className="text-xs text-slate-400 max-w-md text-center mb-4 font-medium leading-relaxed font-sans">
+            Option chain data is temporarily unavailable. NSE market may be closed or Upstox API is not returning data.
+          </p>
+          <div className="text-xs text-slate-500 font-mono font-medium">
+            Market Hours: Mon–Fri | 9:15 AM – 3:30 PM IST
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading && !data) {
     return (
       <div className="space-y-6">
@@ -344,7 +389,46 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     );
   }
 
-  if (!data) return null;
+  const isDataEmpty = !data || !data.strikes || data.strikes.length === 0;
+
+  if (isDataEmpty) {
+    return (
+      <div className="space-y-6">
+        {!isWidget && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
+              <p className="text-sm text-slate-500 font-medium">Option Chain Unavailable</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <GlobalSymbolSearch />
+            </div>
+          </div>
+        )}
+        <div className="flex flex-col items-center justify-center p-8 min-h-[300px] rounded-2xl border border-slate-850 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-2xl">
+          <div className="w-12 h-12 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-4 text-slate-400">
+            <Layers size={24} />
+          </div>
+          <h3 className="font-display font-bold text-base text-slate-200 mb-2">
+            Option Chain Unavailable
+          </h3>
+          <p className="text-xs text-slate-400 max-w-md text-center mb-4 font-medium leading-relaxed font-sans">
+            Option chain data is temporarily unavailable. NSE market may be closed or Upstox API is not returning data.
+          </p>
+          <div className="text-xs text-slate-500 font-mono font-medium mb-6">
+            Market Hours: Mon–Fri | 9:15 AM – 3:30 PM IST
+          </div>
+          <button
+            onClick={handleRetry}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer border-0"
+          >
+            {loading && <RefreshCw size={12} className="animate-spin" />}
+            Retry Request
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Sentiment classes
   const isBullish = data.sentiment.toLowerCase() === 'bullish';
