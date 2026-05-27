@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, BarChart2, List, ShieldAlert, Award, Layers } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, BarChart2, List, ShieldAlert, Award, Layers, AlertTriangle } from 'lucide-react';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
 import { api } from '../services/api';
 import GlobalSymbolSearch from '../components/GlobalSymbolSearch';
@@ -73,7 +73,10 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'chain' | 'charts' | 'blocks'>('chain');
   const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
+  const [dataSource, setDataSource] = useState<string>('upstox');
+  const [retryCount, setRetryCount] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const maxRetries = 2;
 
   // Fetch Broker Connection Status
   const checkBrokerStatus = async () => {
@@ -126,17 +129,19 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     }
   };
 
-  // Fetch Option Flow Details
-  const fetchOptionFlow = async (symbol: string, expiry: string, forceSilent = false, bypassCache = false) => {
+  // Fetch Option Flow Details with retry logic
+  const fetchOptionFlow = async (symbol: string, expiry: string, forceSilent = false, bypassCache = false, attempt = 0) => {
     if (isNonFno) {
       setLoading(false);
       return;
     }
 
-    if (!forceSilent) {
+    if (!forceSilent && attempt === 0) {
       setLoading(true);
     }
-    setError(null);
+    if (attempt === 0) {
+      setError(null);
+    }
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -144,16 +149,39 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     abortControllerRef.current = new AbortController();
 
     try {
+      console.info(`[OptionFlow] Fetching option flow for ${symbol}, expiry=${expiry}, attempt=${attempt + 1}/${maxRetries + 1}`);
       const response = await api.getOptionFlow(symbol, expiry, '', bypassCache);
+      
       if (response && response.success && response.data) {
         setData(response.data);
-        setError(null); // Clear error on success
+        setError(null);
+        setDataSource(response.source || 'upstox');
+        setRetryCount(0);
         setLastUpdated(new Date().toLocaleTimeString());
+        console.info(`[OptionFlow] Data loaded successfully. Source: ${response.source || 'upstox'}, Strikes: ${response.data?.strikes?.length || 0}`);
+        
+        // Log diagnostics if stale cache was used
+        if (response.source === 'stale_cache' && response._diagnostics) {
+          console.warn('[OptionFlow] Serving STALE CACHE data:', response._diagnostics);
+        }
       } else if (response && response.error) {
+        console.warn('[OptionFlow] API returned error:', response.error, response._diagnostics || {});
+        
+        // Retry with exponential backoff on transient failures
+        if (attempt < maxRetries && !forceSilent) {
+          const backoffMs = Math.min(500 * Math.pow(2, attempt), 4000);
+          console.info(`[OptionFlow] Retrying in ${backoffMs}ms (attempt ${attempt + 2}/${maxRetries + 1})`);
+          setTimeout(() => {
+            fetchOptionFlow(symbol, expiry, forceSilent, true, attempt + 1);
+          }, backoffMs);
+          return; // Don't set error yet, wait for retry
+        }
+        
         if (!forceSilent || !data) {
           setError(response.error.message || 'Option flow data currently unavailable.');
         }
       } else {
+        console.warn('[OptionFlow] Unexpected response format:', response);
         setError('Unexpected API response format.');
       }
     } catch (err: any) {
@@ -161,6 +189,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
         console.error('[OptionFlow] Fetch details error:', err);
         if (err.status === 400 || err.message?.includes('F&O')) {
           setIsNonFno(true);
+        } else if (attempt < maxRetries && !forceSilent) {
+          const backoffMs = Math.min(500 * Math.pow(2, attempt), 4000);
+          console.info(`[OptionFlow] Retrying after error in ${backoffMs}ms`);
+          setTimeout(() => {
+            fetchOptionFlow(symbol, expiry, forceSilent, true, attempt + 1);
+          }, backoffMs);
+          return;
         } else if (!forceSilent || !data) {
           setError(err.message || 'Failed to connect to Option Flow API.');
         }
@@ -168,6 +203,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     } finally {
       if (!forceSilent) {
         setLoading(false);
+        setRetryCount(attempt);
       }
     }
   };
@@ -309,50 +345,6 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     </div>
   );
 
-  if (!marketOpen) {
-    return (
-      <div className="space-y-6">
-        {!isWidget && (
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
-              <p className="text-sm text-slate-500 font-medium">NSE Market Closed</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <GlobalSymbolSearch />
-              {expiries.length > 0 && (
-                <select
-                  value={selectedExpiry}
-                  onChange={e => setSelectedExpiry(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 dark:focus:ring-emerald-500/50 dark:focus:border-emerald-500 transition-all outline-none cursor-pointer"
-                >
-                  {expiries.map(exp => (
-                    <option key={exp} value={exp}>
-                      Expiry: {exp}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        )}
-        <div className="flex flex-col items-center justify-center p-8 min-h-[300px] rounded-2xl border border-slate-850 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-2xl">
-          <div className="w-12 h-12 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-4 text-slate-400">
-            <Layers size={24} />
-          </div>
-          <h3 className="font-display font-bold text-base text-slate-200 mb-2">
-            Option Chain Unavailable
-          </h3>
-          <p className="text-xs text-slate-400 max-w-md text-center mb-4 font-medium leading-relaxed font-sans">
-            Option chain data is temporarily unavailable. NSE market may be closed or Upstox API is not returning data.
-          </p>
-          <div className="text-xs text-slate-500 font-mono font-medium">
-            Market Hours: Mon–Fri | 9:15 AM – 3:30 PM IST
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (loading && !data) {
     return (
@@ -384,7 +376,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
             </div>
           </div>
         )}
-        <ErrorCard message={error} onRetry={handleRetry} title="Option Flow Analytics Error" />
+        <ErrorCard message={error || ''} onRetry={handleRetry} title="Option Flow Analytics Error" />
       </div>
     );
   }
@@ -398,26 +390,41 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
               <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
-              <p className="text-sm text-slate-500 font-medium">Option Chain Unavailable</p>
+              <p className="text-sm text-slate-500 font-medium">No Option Chain Data</p>
             </div>
             <div className="flex items-center gap-3">
               <GlobalSymbolSearch />
+              {expiries.length > 0 && (
+                <select
+                  value={selectedExpiry}
+                  onChange={e => setSelectedExpiry(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 dark:focus:ring-emerald-500/50 dark:focus:border-emerald-500 transition-all outline-none cursor-pointer"
+                >
+                  {expiries.map(exp => (
+                    <option key={exp} value={exp}>
+                      Expiry: {exp}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         )}
-        <div className="flex flex-col items-center justify-center p-8 min-h-[300px] rounded-2xl border border-slate-850 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-2xl">
-          <div className="w-12 h-12 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-4 text-slate-400">
+        <div className="flex flex-col items-center justify-center p-8 min-h-[300px] rounded-2xl border border-amber-500/20 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-2xl">
+          <div className="w-12 h-12 rounded-full bg-amber-950/30 border border-amber-500/30 flex items-center justify-center mb-4 text-amber-400">
             <Layers size={24} />
           </div>
           <h3 className="font-display font-bold text-base text-slate-200 mb-2">
-            Option Chain Unavailable
+            No Option Chain Data Available
           </h3>
-          <p className="text-xs text-slate-400 max-w-md text-center mb-4 font-medium leading-relaxed font-sans">
-            Option chain data is temporarily unavailable. NSE market may be closed or Upstox API is not returning data.
+          <p className="text-xs text-slate-400 max-w-md text-center mb-2 font-medium leading-relaxed font-sans">
+            The Upstox API returned no option chain strikes for <span className="text-white font-bold">{selectedSymbol}</span>.
+            {error && <span className="block mt-1 text-amber-400/80">{error}</span>}
           </p>
-          <div className="text-xs text-slate-500 font-mono font-medium mb-6">
-            Market Hours: Mon–Fri | 9:15 AM – 3:30 PM IST
-          </div>
+          <p className="text-[10px] text-slate-500 max-w-sm text-center mb-6 font-mono">
+            This may happen if the broker session has expired or the instrument is not available.
+            Check broker connection status and try again.
+          </p>
           <button
             onClick={handleRetry}
             className="flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer border-0"
@@ -430,11 +437,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     );
   }
 
-  // Sentiment classes
-  const isBullish = data.sentiment.toLowerCase() === 'bullish';
-  const isBearish = data.sentiment.toLowerCase() === 'bearish';
+  // Sentiment classes (with defensive null check)
+  const sentimentValue = data.sentiment || 'Neutral';
+  const isBullish = sentimentValue.toLowerCase() === 'bullish';
+  const isBearish = sentimentValue.toLowerCase() === 'bearish';
   const sentimentColor = isBullish ? 'text-emerald-500' : isBearish ? 'text-red-500' : 'text-slate-400';
   const sentimentBg = isBullish ? 'bg-emerald-500/10' : isBearish ? 'bg-red-500/10' : 'bg-slate-800';
+  const isStaleData = dataSource === 'stale_cache';
 
   // Format premium figures
   const formatPremium = (val: number) => {
@@ -449,6 +458,15 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
 
   return (
     <div className="space-y-6">
+      {/* Stale Data Warning Banner */}
+      {isStaleData && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-950/20 text-amber-300">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="text-xs font-medium">
+            Showing cached data from a previous session. Live data from Upstox is temporarily unavailable.
+          </span>
+        </div>
+      )}
       {/* Top Header */}
       {!isWidget ? (
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -612,7 +630,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
           </span>
           <div className="mt-2">
             <span className={`text-lg font-bold font-display px-2 py-0.5 rounded ${sentimentBg} ${sentimentColor}`}>
-              {data.sentiment}
+              {sentimentValue}
             </span>
           </div>
           <span className="text-[10px] text-slate-500 mt-2 font-medium">Derived from PCR & OI shifts</span>
@@ -649,7 +667,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Award size={14} /> Block Trades ({data.block_deals.length})
+          <Award size={14} /> Block Trades ({data.block_deals?.length || 0})
         </button>
       </div>
 
@@ -804,7 +822,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
               </span>
             </div>
 
-            {data.block_deals.length > 0 ? (
+            {(data.block_deals?.length || 0) > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-[11px] border-collapse font-mono">
                   <thead>
@@ -818,7 +836,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/40">
-                    {data.block_deals.map((block, idx) => {
+                    {(data.block_deals || []).map((block, idx) => {
                       const isCe = block.type === 'CE';
                       return (
                         <tr key={idx} className="hover:bg-slate-800/20">

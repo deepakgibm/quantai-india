@@ -88,6 +88,17 @@ async def get_option_flow(
     if not has_derivatives(symbol):
         raise HTTPException(status_code=400, detail=f"Symbol '{symbol}' is not available in the F&O segment.")
         
+    if not expiry:
+        try:
+            if is_index(symbol):
+                calculated_exp = get_upcoming_thursdays()
+            else:
+                calculated_exp = get_monthly_expiries()
+            if calculated_exp:
+                expiry = calculated_exp[0]
+        except Exception as ee:
+            logger.warning(f"Failed to resolve default expiry for {symbol}: {ee}")
+
     try:
         cache_key = f"option_flow:{symbol}:{expiry or 'nearest'}:{strike_range or 'all'}"
         cache = get_cache_manager()
@@ -102,6 +113,21 @@ async def get_option_flow(
                         "timestamp": datetime.utcnow().isoformat() + "Z",
                         "source": "cache"
                     }
+                # Outside market hours, if we have fallback cache, serve it immediately
+                if not is_market_open():
+                    fallback = cache.get(f"{cache_key}:fallback")
+                    if fallback:
+                        logger.info(f"Serving stale option flow for {symbol} outside market hours")
+                        return {
+                            "success": True,
+                            "data": fallback,
+                            "timestamp": datetime.utcnow().isoformat() + "Z",
+                            "source": "stale_cache",
+                            "_diagnostics": {
+                                "reason": "market_closed_direct_fallback",
+                                "market_open": False
+                            }
+                        }
             except Exception as ce:
                 logger.warning(f"Cache read error in option flow: {ce}")
                 
@@ -133,9 +159,39 @@ async def get_option_flow(
         response = await client._make_request("GET", "/option/chain", params=params)
         
         if response.get("status") != "success" or not response.get("data"):
-            msg = "Option chain data temporarily unavailable from broker."
+            logger.warning(
+                f"[Option Flow] Upstox API non-success for {symbol}: "
+                f"status={response.get('status')}, data_present={bool(response.get('data'))}, "
+                f"response_keys={list(response.keys())}"
+            )
+            # Attempt stale-cache fallback
+            if cache.is_available():
+                try:
+                    stale = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
+                    if stale:
+                        logger.info(f"[Option Flow] Serving stale cache for {symbol}")
+                        return {
+                            "success": True,
+                            "data": stale,
+                            "timestamp": datetime.utcnow().isoformat() + "Z",
+                            "source": "stale_cache",
+                            "_diagnostics": {
+                                "reason": "live_api_failed",
+                                "market_open": is_market_open(),
+                                "api_status": response.get("status"),
+                                "api_message": response.get("message", ""),
+                            }
+                        }
+                except Exception as sce:
+                    logger.debug(f"[Option Flow] Stale cache read failed: {sce}")
+
+            api_status = response.get("status", "unknown")
+            api_message = response.get("message", "")
+            msg = f"No option chain data available from Upstox currently for {symbol}. API status: {api_status}."
+            if api_message:
+                msg += f" Message: {api_message}"
             if not is_market_open():
-                msg = "Option chain data is temporarily unavailable. The NSE market is currently closed. (Market hours: Mon-Fri 9:15 AM - 3:30 PM IST)"
+                msg += " Note: NSE market is currently closed \u2013 data may reflect last closing session."
             return {
                 "success": False,
                 "data": None,
@@ -144,6 +200,13 @@ async def get_option_flow(
                 "error": {
                     "code": "BROKER_UNAVAILABLE",
                     "message": msg
+                },
+                "_diagnostics": {
+                    "market_open": is_market_open(),
+                    "api_status": api_status,
+                    "api_message": api_message,
+                    "token_present": bool(client.access_token),
+                    "instrument_key": instrument_key,
                 }
             }
             
@@ -292,10 +355,11 @@ async def get_option_flow(
             "block_deals": block_deals
         }
         
-        # Cache for 15s (very dynamic)
+        # Cache for 15s (very dynamic) and fallback cache for 7 days
         if cache.is_available():
             try:
                 cache.set(cache_key, response_data, ttl=15)
+                cache.set(f"{cache_key}:fallback", response_data, ttl=604800) # 7 days
             except Exception as ce:
                 logger.warning(f"Cache write error in option flow: {ce}")
                 
@@ -309,10 +373,42 @@ async def get_option_flow(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in Option Flow API: {e}", exc_info=True)
-        msg = f"Option chain data temporarily unavailable from broker: {str(e)}"
-        if not is_market_open():
-            msg = "Option chain data is temporarily unavailable. The NSE market is currently closed. (Market hours: Mon-Fri 9:15 AM - 3:30 PM IST)"
+        logger.error(f"[Option Flow] Exception for {symbol}: {type(e).__name__}: {e}", exc_info=True)
+        # Attempt stale-cache fallback
+        try:
+            if cache.is_available():
+                stale = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
+                if stale:
+                    logger.info(f"[Option Flow] Serving stale cache for {symbol} after exception")
+                    return {
+                        "success": True,
+                        "data": stale,
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "source": "stale_cache",
+                        "_diagnostics": {
+                            "reason": "exception_fallback",
+                            "error": str(e),
+                            "market_open": is_market_open(),
+                        }
+                    }
+        except Exception:
+            pass
+
+        msg = f"No option chain data available from Upstox currently: {type(e).__name__}: {str(e)}"
+        
+        try:
+            import httpx
+            if isinstance(e, httpx.HTTPStatusError):
+                err_data = e.response.json()
+                if "errors" in err_data and err_data["errors"]:
+                    broker_msg = err_data["errors"][0].get("message", "")
+                    if broker_msg:
+                        msg = f"No option chain data available from Upstox currently: broker message: {broker_msg}"
+        except Exception:
+            pass
+
+        if not is_market_open() and "market is currently closed" not in msg.lower():
+            msg += " Note: NSE market is currently closed \u2013 data may reflect last closing session."
         return {
             "success": False,
             "data": None,
@@ -321,6 +417,11 @@ async def get_option_flow(
             "error": {
                 "code": "BROKER_ERROR",
                 "message": msg
+            },
+            "_diagnostics": {
+                "market_open": is_market_open(),
+                "exception_type": type(e).__name__,
+                "exception_message": str(e),
             }
         }
 
@@ -382,8 +483,9 @@ async def get_option_expiries(
                     if c_exp: unique_expiries.add(c_exp)
                     if p_exp: unique_expiries.add(p_exp)
                 expiries = sorted(list(unique_expiries))
+                logger.info(f"[Option Expiries] Found {len(expiries)} expiry dates for {symbol} from live API")
         except Exception as e:
-            logger.debug(f"Failed to fetch live expiries from option chain for {symbol}: {e}")
+            logger.warning(f"[Option Expiries] Failed to fetch live expiries for {symbol}: {type(e).__name__}: {e}")
             
         # Fallback to calculated dates if live retrieval failed
         if not expiries:
@@ -413,10 +515,10 @@ async def get_option_expiries(
         }
         
     except Exception as e:
-        logger.error(f"Error in Option Expiries API: {e}", exc_info=True)
-        msg = f"Option expiries temporarily unavailable: {str(e)}"
+        logger.error(f"[Option Expiries] Exception for {symbol}: {type(e).__name__}: {e}", exc_info=True)
+        msg = f"Option expiries unavailable: {type(e).__name__}: {str(e)}"
         if not is_market_open():
-            msg = "Option expiries unavailable. The NSE market is currently closed. (Market hours: Mon-Fri 9:15 AM - 3:30 PM IST)"
+            msg += " Note: NSE market is currently closed."
         return {
             "success": False,
             "data": {
@@ -427,7 +529,12 @@ async def get_option_expiries(
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "source": "upstox",
             "error": {
-                "code": "EXPIRED_CHECK_ERROR",
+                "code": "EXPIRY_CHECK_ERROR",
                 "message": msg
+            },
+            "_diagnostics": {
+                "market_open": is_market_open(),
+                "exception_type": type(e).__name__,
+                "exception_message": str(e),
             }
         }

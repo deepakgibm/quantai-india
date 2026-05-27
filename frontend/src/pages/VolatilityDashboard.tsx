@@ -156,7 +156,7 @@ export const VolatilityDashboard: React.FC = () => {
             <DayFilter />
           </div>
         </div>
-        <ErrorCard message={error} onRetry={handleRetry} title="Volatility Analytics Error" />
+        <ErrorCard message={error || ''} onRetry={handleRetry} title="Volatility Analytics Error" />
       </div>
     );
   }
