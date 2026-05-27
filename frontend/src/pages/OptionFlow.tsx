@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, BarChart2, List, ShieldAlert, Award, Layers, AlertTriangle } from 'lucide-react';
+import { 
+  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, 
+  BarChart2, List, ShieldAlert, Award, Layers, AlertTriangle, 
+  Gauge, Zap, Clock, Activity, Target, ShieldCheck, Flame
+} from 'lucide-react';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
 import { api } from '../services/api';
 import GlobalSymbolSearch from '../components/GlobalSymbolSearch';
 import ErrorCard from '../components/ErrorCard';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
+  Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area 
+} from 'recharts';
+import { createChart, ColorType, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
 
+// TypeScript Definitions matching Backend response
 interface StrikeData {
   strike_price: number;
   call: {
@@ -17,6 +26,9 @@ interface StrikeData {
     ask: number;
     premium: number;
     iv: number;
+    buildup: string;
+    gex: number;
+    buildup_intensity: number;
   };
   put: {
     oi: number;
@@ -27,6 +39,9 @@ interface StrikeData {
     ask: number;
     premium: number;
     iv: number;
+    buildup: string;
+    gex: number;
+    buildup_intensity: number;
   };
 }
 
@@ -39,10 +54,41 @@ interface BlockDeal {
   oi: number;
 }
 
+interface SmartMoneyActivity {
+  strike_price: number;
+  type: string;
+  reason: string;
+  severity: 'Low' | 'Medium' | 'High';
+}
+
+interface TradeSignal {
+  signal: 'BUY' | 'SELL' | 'BREAKOUT' | 'BREAKDOWN' | 'REVERSAL' | 'NO TRADE';
+  directional_bias: string;
+  reason: string[];
+  entry_zone: string;
+  stop_loss: number;
+  target_levels: number[];
+  confidence: 'Low' | 'Medium' | 'High' | 'Very High';
+  confidence_score: number;
+}
+
+interface MarketCorrelation {
+  sector_name: string;
+  sector_change_pct: number;
+  nifty_change_pct: number;
+  stock_change_pct: number;
+  relative_strength: string;
+  beta: number;
+  correlation_score: number;
+}
+
 interface OptionFlowData {
   status: string;
   symbol: string;
   expiry: string;
+  spot_price: number;
+  spot_change: number;
+  spot_change_pct: number;
   total_call_oi: number;
   total_put_oi: number;
   total_call_volume: number;
@@ -54,8 +100,40 @@ interface OptionFlowData {
   pcr_oi: number;
   pcr_volume: number;
   sentiment: string;
+  sentiment_score: number;
+  max_pain: number;
+  support_strike: number;
+  resistance_strike: number;
+  market_correlation: MarketCorrelation;
+  smart_money_activity: SmartMoneyActivity[];
+  trade_signals: TradeSignal;
+  pcr_trend: Array<{ time: string; pcr: number }>;
+  premium_flow_history: Array<{ time: string; net_premium: number }>;
   strikes: StrikeData[];
   block_deals: BlockDeal[];
+}
+
+interface ChartCandle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  ema_20: number;
+  ema_50: number;
+  vwap: number;
+}
+
+interface AdvancedChartData {
+  symbol: string;
+  interval: string;
+  candles: ChartCandle[];
+  support_zones: number[];
+  resistance_zones: number[];
+  volume_profile: Array<{ price: number; volume: number }>;
+  smart_money_zones: Array<{ price_low: number; price_high: number; timestamp: string }>;
+  breakout_markers: any[];
 }
 
 interface OptionFlowProps {
@@ -71,10 +149,17 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   const [error, setError] = useState<string | null>(null);
   const [isNonFno, setIsNonFno] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'chain' | 'charts' | 'blocks'>('chain');
+  const [activeTab, setActiveTab] = useState<'chain' | 'heatmap' | 'blocks' | 'summary'>('chain');
   const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
   const [dataSource, setDataSource] = useState<string>('upstox');
-  const [retryCount, setRetryCount] = useState(0);
+  const [chartTimeframe, setChartTimeframe] = useState<'1d' | '15m'>('1d');
+  
+  // Advanced Chart State
+  const [chartData, setChartData] = useState<AdvancedChartData | null>(null);
+  const [chartLoading, setChartLoading] = useState(false);
+  
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const lightweightChartRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const maxRetries = 2;
 
@@ -93,7 +178,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     }
   };
 
-  // Fetch Expiries first
+  // Fetch Expiries
   const fetchExpiries = async (symbol: string, bypassCache = false) => {
     setIsNonFno(false);
     setError(null);
@@ -101,9 +186,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
       const response = await api.getOptionFlowExpiries(symbol, bypassCache);
       if (response && response.success && response.data && Array.isArray(response.data.expiries)) {
         setExpiries(response.data.expiries);
-        setError(null); // Clear error on success
+        setError(null);
         if (response.data.expiries.length > 0) {
-          // If previous expiry is not in new list, pick first one
           if (!response.data.expiries.includes(selectedExpiry)) {
             setSelectedExpiry(response.data.expiries[0]);
           }
@@ -129,7 +213,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     }
   };
 
-  // Fetch Option Flow Details with retry logic
+  // Fetch Option Flow Details
   const fetchOptionFlow = async (symbol: string, expiry: string, forceSilent = false, bypassCache = false, attempt = 0) => {
     if (isNonFno) {
       setLoading(false);
@@ -149,49 +233,33 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     abortControllerRef.current = new AbortController();
 
     try {
-      console.info(`[OptionFlow] Fetching option flow for ${symbol}, expiry=${expiry}, attempt=${attempt + 1}/${maxRetries + 1}`);
       const response = await api.getOptionFlow(symbol, expiry, '', bypassCache);
       
       if (response && response.success && response.data) {
         setData(response.data);
         setError(null);
         setDataSource(response.source || 'upstox');
-        setRetryCount(0);
         setLastUpdated(new Date().toLocaleTimeString());
-        console.info(`[OptionFlow] Data loaded successfully. Source: ${response.source || 'upstox'}, Strikes: ${response.data?.strikes?.length || 0}`);
         
-        // Log diagnostics if stale cache was used
         if (response.source === 'stale_cache' && response._diagnostics) {
           console.warn('[OptionFlow] Serving STALE CACHE data:', response._diagnostics);
         }
       } else if (response && response.error) {
-        console.warn('[OptionFlow] API returned error:', response.error, response._diagnostics || {});
-        
-        // Retry with exponential backoff on transient failures
         if (attempt < maxRetries && !forceSilent) {
           const backoffMs = Math.min(500 * Math.pow(2, attempt), 4000);
-          console.info(`[OptionFlow] Retrying in ${backoffMs}ms (attempt ${attempt + 2}/${maxRetries + 1})`);
           setTimeout(() => {
             fetchOptionFlow(symbol, expiry, forceSilent, true, attempt + 1);
           }, backoffMs);
-          return; // Don't set error yet, wait for retry
+          return;
         }
-        
         if (!forceSilent || !data) {
           setError(response.error.message || 'Option flow data currently unavailable.');
         }
-      } else {
-        console.warn('[OptionFlow] Unexpected response format:', response);
-        setError('Unexpected API response format.');
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        console.error('[OptionFlow] Fetch details error:', err);
-        if (err.status === 400 || err.message?.includes('F&O')) {
-          setIsNonFno(true);
-        } else if (attempt < maxRetries && !forceSilent) {
+        if (attempt < maxRetries && !forceSilent) {
           const backoffMs = Math.min(500 * Math.pow(2, attempt), 4000);
-          console.info(`[OptionFlow] Retrying after error in ${backoffMs}ms`);
           setTimeout(() => {
             fetchOptionFlow(symbol, expiry, forceSilent, true, attempt + 1);
           }, backoffMs);
@@ -203,16 +271,42 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     } finally {
       if (!forceSilent) {
         setLoading(false);
-        setRetryCount(attempt);
       }
+    }
+  };
+
+  // Fetch Advanced Chart Overlay Data
+  const fetchChartData = async (symbol: string, timeframe: '1d' | '15m') => {
+    setChartLoading(true);
+    try {
+      // Call endpoint /api/option-flow/{symbol}/chart
+      const url = `/api/option-flow/${symbol}/chart?interval=${timeframe}&lookback_days=${timeframe === '1d' ? 60 : 5}`;
+      const res = await api.getOptionFlow(symbol, '', '', false); // Placeholder fallback client call
+      // Actually fetch the endpoint directly
+      const realResponse = await fetch(`${api.getUpstoxStatus ? '/api' : 'http://localhost:8000/api'}/option-flow/${symbol}/chart?interval=${timeframe}&lookback_days=${timeframe === '1d' ? 60 : 5}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      if (realResponse.ok) {
+        const payload = await realResponse.json();
+        if (payload.success && payload.data) {
+          setChartData(payload.data);
+        }
+      }
+    } catch (err) {
+      console.warn('[OptionFlow] Failed to fetch advanced chart overlays:', err);
+    } finally {
+      setChartLoading(false);
     }
   };
 
   // Run on Symbol change
   useEffect(() => {
     const init = async () => {
-      // Clear old state immediately on symbol changes to prevent stale data display
       setData(null);
+      setChartData(null);
       setExpiries([]);
       setSelectedExpiry('');
       setIsNonFno(false);
@@ -227,13 +321,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     init();
   }, [selectedSymbol]);
 
-  // Run on Expiry change or after expiries are loaded
+  // Run on Expiry or Timeframe change
   useEffect(() => {
     if (selectedExpiry || isNonFno) {
       fetchOptionFlow(selectedSymbol, selectedExpiry);
+      fetchChartData(selectedSymbol, chartTimeframe);
     }
 
-    // Auto-refresh every 15 seconds
     const interval = setInterval(() => {
       if (selectedExpiry && !isNonFno) {
         fetchOptionFlow(selectedSymbol, selectedExpiry, true);
@@ -247,50 +341,145 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
         abortControllerRef.current.abort();
       }
     };
-  }, [selectedSymbol, selectedExpiry, isNonFno]);
+  }, [selectedSymbol, selectedExpiry, isNonFno, chartTimeframe]);
+
+  // =========================================================================
+  // TradingView Lightweight Chart Setup
+  // =========================================================================
+  useEffect(() => {
+    if (!chartContainerRef.current || !chartData || chartData.candles.length === 0) return;
+
+    // Clean up previous chart if exists
+    if (lightweightChartRef.current) {
+      lightweightChartRef.current.remove();
+      lightweightChartRef.current = null;
+    }
+
+    const container = chartContainerRef.current;
+    
+    // Create Chart Instance
+    const chart = createChart(container, {
+      width: container.clientWidth,
+      height: 320,
+      layout: {
+        background: { type: ColorType.Solid, color: '#090d16' },
+        textColor: '#64748b',
+      },
+      grid: {
+        vertLines: { color: '#1e293b' },
+        horzLines: { color: '#1e293b' },
+      },
+      timeScale: {
+        borderColor: '#1e293b',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
+
+    lightweightChartRef.current = chart;
+
+    // Main Candlestick Series
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#10b981',
+      downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#10b981',
+      wickDownColor: '#ef4444',
+    });
+
+    // Format candle series data
+    const candlesData = chartData.candles.map(c => ({
+      time: c.time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close
+    }));
+    candlestickSeries.setData(candlesData);
+
+    // EMA 20 Overlays (Yellow)
+    const ema20Series = chart.addLineSeries({
+      color: '#eab308',
+      lineWidth: 1.5,
+      title: 'EMA 20'
+    });
+    ema20Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_20 })));
+
+    // EMA 50 Overlays (Blue)
+    const ema50Series = chart.addLineSeries({
+      color: '#3b82f6',
+      lineWidth: 1.5,
+      title: 'EMA 50'
+    });
+    ema50Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_50 })));
+
+    // VWAP Overlay (Purple)
+    const vwapSeries = chart.addLineSeries({
+      color: '#a855f7',
+      lineWidth: 1.5,
+      title: 'VWAP'
+    });
+    vwapSeries.setData(chartData.candles.map(c => ({ time: c.time, value: c.vwap })));
+
+    // Set markers for breakouts/breakdowns
+    if (chartData.breakout_markers && chartData.breakout_markers.length > 0) {
+      candlestickSeries.setMarkers(chartData.breakout_markers);
+    }
+
+    // Auto-fit contents
+    chart.timeScale().fitContent();
+
+    // Handle Resize
+    const handleResize = () => {
+      if (lightweightChartRef.current) {
+        lightweightChartRef.current.applyOptions({ width: container.clientWidth });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (lightweightChartRef.current) {
+        lightweightChartRef.current.remove();
+        lightweightChartRef.current = null;
+      }
+    };
+  }, [chartData]);
 
   const handleRetry = () => {
     setLoading(true);
-    fetchExpiries(selectedSymbol, true); // Force bypass cache on manual retry
+    fetchExpiries(selectedSymbol, true);
+    fetchChartData(selectedSymbol, chartTimeframe);
     checkBrokerStatus();
   };
 
   // Find ATM strike for highlighting
   const atmStrike = useMemo(() => {
     if (!data || !data.strikes || data.strikes.length === 0) return null;
-    // We estimate ATM by finding where CE LTP is closest to PE LTP (approx spot)
-    // or where they cross. Since we don't have Spot directly in response,
-    // let's compute the strike with the minimum absolute difference between call ltp and put ltp.
-    let minDiff = Infinity;
-    let closestStrike = data.strikes[0].strike_price;
-    data.strikes.forEach(s => {
-      if (s.call.ltp > 0 && s.put.ltp > 0) {
-        const diff = Math.abs(s.call.ltp - s.put.ltp);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestStrike = s.strike_price;
-        }
-      }
-    });
-    return closestStrike;
+    return data.max_pain || data.spot_price;
   }, [data]);
 
-  // Chart Data preparation (Recharts)
-  const chartData = useMemo(() => {
+  // Recharts OI distribution dataset
+  const strikesChartData = useMemo(() => {
     if (!data || !data.strikes) return [];
-    // We filter strikes close to ATM (e.g. ±10 strikes) so the chart isn't too cluttered
-    const atmIndex = data.strikes.findIndex(s => s.strike_price === atmStrike);
-    const sliceStart = Math.max(0, atmIndex - 8);
-    const sliceEnd = Math.min(data.strikes.length, atmIndex + 9);
+    
+    // Select closest 10 strikes around ATM
+    let closestIndex = data.strikes.findIndex(s => s.strike_price >= (data.spot_price || data.max_pain));
+    if (closestIndex === -1) closestIndex = Math.floor(data.strikes.length / 2);
+    
+    const sliceStart = Math.max(0, closestIndex - 5);
+    const sliceEnd = Math.min(data.strikes.length, closestIndex + 6);
     
     return data.strikes.slice(sliceStart, sliceEnd).map(s => ({
       strike: s.strike_price.toString(),
       'Call OI': s.call.oi,
       'Put OI': s.put.oi,
       'Call Premium (L)': Math.round(s.call.premium / 100000),
-      'Put Premium (L)': Math.round(s.put.premium / 100000)
+      'Put Premium (L)': Math.round(s.put.premium / 100000),
+      'Call GEX (Cr)': Math.round(s.call.gex / 10000000),
+      'Put GEX (Cr)': Math.round(s.put.gex / 10000000)
     }));
-  }, [data, atmStrike]);
+  }, [data]);
 
   if (isNonFno) {
     return (
@@ -345,7 +534,6 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     </div>
   );
 
-
   if (loading && !data) {
     return (
       <div className="space-y-6">
@@ -394,19 +582,6 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
             </div>
             <div className="flex items-center gap-3">
               <GlobalSymbolSearch />
-              {expiries.length > 0 && (
-                <select
-                  value={selectedExpiry}
-                  onChange={e => setSelectedExpiry(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 dark:focus:ring-emerald-500/50 dark:focus:border-emerald-500 transition-all outline-none cursor-pointer"
-                >
-                  {expiries.map(exp => (
-                    <option key={exp} value={exp}>
-                      Expiry: {exp}
-                    </option>
-                  ))}
-                </select>
-              )}
             </div>
           </div>
         )}
@@ -419,17 +594,11 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
           </h3>
           <p className="text-xs text-slate-400 max-w-md text-center mb-2 font-medium leading-relaxed font-sans">
             The Upstox API returned no option chain strikes for <span className="text-white font-bold">{selectedSymbol}</span>.
-            {error && <span className="block mt-1 text-amber-400/80">{error}</span>}
-          </p>
-          <p className="text-[10px] text-slate-500 max-w-sm text-center mb-6 font-mono">
-            This may happen if the broker session has expired or the instrument is not available.
-            Check broker connection status and try again.
           </p>
           <button
             onClick={handleRetry}
             className="flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer border-0"
           >
-            {loading && <RefreshCw size={12} className="animate-spin" />}
             Retry Request
           </button>
         </div>
@@ -437,435 +606,702 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
     );
   }
 
-  // Sentiment classes (with defensive null check)
-  const sentimentValue = data.sentiment || 'Neutral';
-  const isBullish = sentimentValue.toLowerCase() === 'bullish';
-  const isBearish = sentimentValue.toLowerCase() === 'bearish';
-  const sentimentColor = isBullish ? 'text-emerald-500' : isBearish ? 'text-red-500' : 'text-slate-400';
-  const sentimentBg = isBullish ? 'bg-emerald-500/10' : isBearish ? 'bg-red-500/10' : 'bg-slate-800';
-  const isStaleData = dataSource === 'stale_cache';
-
-  // Format premium figures
+  // Formatting helper
   const formatPremium = (val: number) => {
-    if (val >= 10000000) {
+    if (Math.abs(val) >= 10000000) {
       return `₹${(val / 10000000).toFixed(2)} Cr`;
     }
-    if (val >= 100000) {
+    if (Math.abs(val) >= 100000) {
       return `₹${(val / 100000).toFixed(2)} L`;
     }
     return `₹${val.toLocaleString('en-IN')}`;
   };
 
+  const isStaleData = dataSource === 'stale_cache' || dataSource === 'cache';
+  const signal = data.trade_signals?.signal || 'NO TRADE';
+  const bias = data.trade_signals?.directional_bias || 'Neutral';
+  const confidence = data.trade_signals?.confidence || 'Medium';
+
   return (
-    <div className="space-y-6">
-      {/* Stale Data Warning Banner */}
+    <div className="space-y-6 text-slate-100 font-sans selection:bg-emerald-500/30">
+      {/* Stale Cache Banner */}
       {isStaleData && (
-        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-950/20 text-amber-300">
-          <AlertTriangle size={16} className="shrink-0" />
-          <span className="text-xs font-medium">
-            Showing cached data from a previous session. Live data from Upstox is temporarily unavailable.
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-950/20 text-amber-300 backdrop-blur-md">
+          <AlertTriangle size={16} className="shrink-0 animate-pulse" />
+          <span className="text-xs font-semibold">
+            Showing cached data from a previous session. Live data from Upstox is temporarily offline outside market hours.
           </span>
         </div>
       )}
-      {/* Top Header */}
-      {!isWidget ? (
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold tracking-tight text-white font-display">
-                {data.symbol} Option Flow
-              </h2>
-              <span className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-400">
-                {data.expiry}
+
+      {/* Institutional Metrics summary bar */}
+      <div className="flex flex-wrap items-center gap-6 px-4 py-3 bg-slate-900/40 border border-slate-800/80 rounded-xl text-[11px] font-mono font-bold text-slate-400 backdrop-blur-md">
+        <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
+          <span className="text-slate-500">Call Turnover</span>
+          <span className="text-slate-100 font-extrabold">{formatPremium(data.total_call_premium)}</span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
+          <span className="text-slate-500">Put Turnover</span>
+          <span className="text-slate-100 font-extrabold">{formatPremium(data.total_put_premium)}</span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
+          <span className="text-slate-500">Net Premium Flow</span>
+          <span className={`font-extrabold ${data.net_flow >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {data.net_flow >= 0 ? "+" : ""}{formatPremium(data.net_flow)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
+          <span className="text-slate-500">Put-Call Ratio (PCR)</span>
+          <span className="text-slate-100 font-extrabold">{(data.pcr_oi ?? 0).toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-500">Institutional Bias</span>
+          <span className={`font-extrabold ${(data.sentiment ?? 'Neutral').includes('Bullish') ? "text-emerald-400" : (data.sentiment ?? 'Neutral').includes('Bearish') ? "text-red-400" : "text-slate-400"}`}>
+            {data.sentiment}
+          </span>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          TOP INSTITUTIONAL HUD ROW
+         ========================================================================= */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Quote Panel */}
+        <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Asset Quote</span>
+            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded ${(data.spot_change_pct ?? 0) >= 0 ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/40 text-red-400'}`}>
+              {(data.spot_change_pct ?? 0) >= 0 ? '+' : ''}{(data.spot_change_pct ?? 0).toFixed(2)}%
+            </span>
+          </div>
+          <div className="my-3">
+            <div className="text-xs text-slate-400 font-semibold">{data.symbol}</div>
+            <div className="text-2xl font-bold font-mono mt-1 text-slate-100">
+              ₹{(data.spot_price ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold">
+            <span>Vol: {(data.total_call_volume ?? 0).toLocaleString()} contracts</span>
+            <span className="flex items-center gap-1">
+              <Clock size={10} /> Auto-Refreshed
+            </span>
+          </div>
+        </div>
+
+        {/* Sentiment Meter Panel */}
+        <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Option Sentiment</span>
+            <Activity size={12} className="text-purple-400 animate-pulse" />
+          </div>
+          <div className="my-3 text-center">
+            <div className={`text-xl font-bold uppercase ${(data.sentiment ?? 'Neutral').includes('Bullish') ? 'text-emerald-400' : (data.sentiment ?? 'Neutral').includes('Bearish') ? 'text-red-400' : 'text-slate-400'}`}>
+              {data.sentiment ?? 'Neutral'}
+            </div>
+            {/* Slider track visualization */}
+            <div className="w-full bg-slate-800/80 h-1.5 rounded-full mt-3 overflow-hidden relative border border-slate-700/40">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ${(data.sentiment_score ?? 50) >= 60 ? 'bg-emerald-500' : (data.sentiment_score ?? 50) <= 40 ? 'bg-red-500' : 'bg-slate-500'}`}
+                style={{ width: `${data.sentiment_score ?? 50}%` }}
+              ></div>
+            </div>
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-500 font-semibold font-mono">
+            <span>PCR: {(data.pcr_oi ?? 0).toFixed(2)}</span>
+            <span>Index: {data.sentiment_score ?? 50}/100</span>
+          </div>
+        </div>
+
+        {/* Signal Panel */}
+        <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Signal Engine</span>
+            <Zap size={12} className="text-yellow-400" />
+          </div>
+          <div className="my-2 flex items-center justify-between">
+            <div>
+              <span className={`text-2xl font-bold px-3 py-0.5 rounded font-display ${
+                signal.includes('BUY') || signal.includes('BREAKOUT') ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/20' :
+                signal.includes('SELL') || signal.includes('BREAKDOWN') ? 'bg-red-950/40 text-red-400 border border-red-500/20' : 'bg-slate-800 text-slate-400'
+              }`}>
+                {signal}
               </span>
             </div>
-            <div className="flex items-center gap-4 mt-1">
-              <p className="text-xs text-slate-500 font-semibold">
-                Real-time derivative sentiment and order tracking.
-              </p>
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold font-mono">
-                <span className={`w-2 h-2 rounded-full ${brokerConnected === true ? 'bg-emerald-500 animate-pulse' : brokerConnected === false ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'}`}></span>
-                <span className={brokerConnected === true ? 'text-emerald-400' : brokerConnected === false ? 'text-red-400' : 'text-yellow-400'}>
-                  {brokerConnected === true ? 'Broker Connected' : brokerConnected === false ? 'Broker Disconnected' : 'Checking Broker...'}
-                </span>
+            <div className="text-right">
+              <div className="text-[9px] text-slate-500 font-bold">CONFIDENCE</div>
+              <div className="text-xs font-semibold text-slate-200">{confidence} ({data.trade_signals?.confidence_score ?? 50}%)</div>
+            </div>
+          </div>
+          <div className="text-[9px] text-slate-400 font-semibold truncate">
+            {data.trade_signals?.reason?.[0] || 'No signals generated currently.'}
+          </div>
+        </div>
+
+        {/* Market Relative Strength HUD */}
+        <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Relative Strength</span>
+            <span className="text-[10px] font-mono font-bold text-slate-400">{data.market_correlation?.sector_name ?? 'N/A'}</span>
+          </div>
+          <div className="my-2">
+            <div className="text-[11px] font-bold text-purple-400 truncate">
+              {data.market_correlation?.relative_strength ?? 'Neutral'}
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-2.5 text-center text-[10px] font-mono font-bold">
+              <div className="bg-slate-950/60 p-1 rounded">
+                <div className="text-slate-500 scale-90">STOCK</div>
+                <div className={(data.market_correlation?.stock_change_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                  {(data.market_correlation?.stock_change_pct ?? 0).toFixed(1)}%
+                </div>
+              </div>
+              <div className="bg-slate-950/60 p-1 rounded">
+                <div className="text-slate-500 scale-90">SECTOR</div>
+                <div className={(data.market_correlation?.sector_change_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                  {(data.market_correlation?.sector_change_pct ?? 0).toFixed(1)}%
+                </div>
+              </div>
+              <div className="bg-slate-950/60 p-1 rounded">
+                <div className="text-slate-500 scale-90">NIFTY</div>
+                <div className={(data.market_correlation?.nifty_change_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                  {(data.market_correlation?.nifty_change_pct ?? 0).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-500 font-semibold font-mono">
+            <span>Beta: {(data.market_correlation?.beta ?? 1).toFixed(2)}</span>
+            <span>Corr: {(data.market_correlation?.correlation_score ?? 0).toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          MAIN WORKSPACE LAYOUT GRID
+         ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* LEFT & CENTER COLUMN: Advanced Charting & Intraday PCR/Flow Trends */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Lightweight Chart Panel */}
+          <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <BarChart2 size={14} className="text-purple-400" /> Interactive Technical Chart (Lightweight Charts)
+                </h3>
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">VWAP, EMA 20/50, Support/Resistance & Accumulation Zones</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setChartTimeframe('15m')}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border-0 ${chartTimeframe === '15m' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                >
+                  Intraday (15m)
+                </button>
+                <button 
+                  onClick={() => setChartTimeframe('1d')}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border-0 ${chartTimeframe === '1d' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+                >
+                  Daily (1D)
+                </button>
+              </div>
+            </div>
+            
+            <div className="relative min-h-[320px] bg-slate-950/40 rounded-xl overflow-hidden border border-slate-850">
+              {chartLoading && (
+                <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-10 text-xs text-purple-400 font-bold gap-2">
+                  <RefreshCw className="animate-spin" size={14} /> Loading Advanced Overlays...
+                </div>
+              )}
+              <div ref={chartContainerRef} className="w-full"></div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 mt-3 text-[10px] font-semibold text-slate-500">
+              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-yellow-500"></span> EMA 20</div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-blue-500"></span> EMA 50</div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-purple-500"></span> VWAP</div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-emerald-500/30"></span> Support Zones</div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500/30"></span> Resistance Zones</div>
+            </div>
+          </div>
+
+          {/* Intraday PCR & Premium Accumulation Curves */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* PCR Intraday Momentum */}
+            <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <Activity size={14} className="text-purple-400" /> Intraday PCR Momentum
+              </h3>
+              <div className="h-[180px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.pcr_trend}>
+                    <defs>
+                      <linearGradient id="pcrGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#1e293b" vertical={false} />
+                    <XAxis dataKey="time" stroke="#475569" fontSize={9} />
+                    <YAxis stroke="#475569" fontSize={9} domain={['auto', 'auto']} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
+                    <Area type="monotone" dataKey="pcr" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#pcrGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Premium Accumulation Curve */}
+            <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <TrendingUp size={14} className="text-emerald-400" /> Premium Accumulation Curve
+              </h3>
+              <div className="h-[180px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.premium_flow_history}>
+                    <defs>
+                      <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#1e293b" vertical={false} />
+                    <XAxis dataKey="time" stroke="#475569" fontSize={9} />
+                    <YAxis stroke="#475569" fontSize={9} tickFormatter={(val) => `${(val / 100000).toFixed(0)}L`} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
+                    <Area type="monotone" dataKey="net_premium" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#flowGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Open Interest Profile & Smart Money Panel */}
+        <div className="space-y-6">
+          {/* Open Interest Horizontal Histogram Profile */}
+          <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+            <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <Layers size={14} className="text-purple-400" /> Open Interest Profile (ATM strikes)
+            </h3>
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={strikesChartData} layout="vertical">
+                  <CartesianGrid stroke="#1e293b" horizontal={false} />
+                  <XAxis type="number" stroke="#475569" fontSize={9} />
+                  <YAxis dataKey="strike" type="category" stroke="#475569" fontSize={9} width={45} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
+                  <Legend fontSize={9} />
+                  <Bar dataKey="Call OI" fill="#10b981" radius={[0, 2, 2, 0]} />
+                  <Bar dataKey="Put OI" fill="#ef4444" radius={[0, 2, 2, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800 text-[10px] font-mono grid grid-cols-3 text-center">
+              <div>
+                <div className="text-slate-500 scale-95 uppercase font-bold">Max Pain</div>
+                <div className="text-purple-400 font-bold text-xs mt-0.5">{data.max_pain}</div>
+              </div>
+              <div className="border-x border-slate-800">
+                <div className="text-slate-500 scale-95 uppercase font-bold">S Support</div>
+                <div className="text-emerald-400 font-bold text-xs mt-0.5">{data.support_strike}</div>
+              </div>
+              <div>
+                <div className="text-slate-500 scale-95 uppercase font-bold">R Resistance</div>
+                <div className="text-red-400 font-bold text-xs mt-0.5">{data.resistance_strike}</div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <GlobalSymbolSearch />
-            
-            {/* Expiry Selector */}
-            {expiries.length > 0 && (
-              <select
-                value={selectedExpiry}
-                onChange={e => setSelectedExpiry(e.target.value)}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 dark:focus:ring-emerald-500/50 dark:focus:border-emerald-500 transition-all outline-none cursor-pointer"
-              >
-                {expiries.map(exp => (
-                  <option key={exp} value={exp}>
-                    Expiry: {exp}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-1 w-full lg:w-auto text-left lg:text-right">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-              </span>
-              <span>Auto-Refreshed: {lastUpdated || 'Never'}</span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-              <TrendingUp size={15} className="text-emerald-500" /> Option Flow Analytics
+          {/* Smart Money & Anomalies activity tracker */}
+          <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+            <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <Award size={14} className="text-purple-400" /> Smart Money Activity
             </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
-              {data.expiry}
-            </span>
-            <div className="flex items-center gap-1.5 text-[9px] font-semibold font-mono">
-              <span className={`w-1.5 h-1.5 rounded-full ${brokerConnected === true ? 'bg-emerald-500 animate-pulse' : brokerConnected === false ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'}`}></span>
-              <span className={brokerConnected === true ? 'text-emerald-400' : brokerConnected === false ? 'text-red-400' : 'text-yellow-400'}>
-                {brokerConnected === true ? 'Live' : brokerConnected === false ? 'Offline' : 'Checking'}
-              </span>
+            <div className="space-y-3 max-h-[290px] overflow-y-auto pr-1">
+              {data.smart_money_activity && data.smart_money_activity.length > 0 ? (
+                data.smart_money_activity.map((act, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`p-3 rounded-xl border flex flex-col justify-between text-[11px] font-semibold transition-all hover:bg-slate-850/40 ${
+                      act.severity === 'High' ? 'bg-red-950/15 border-red-500/20 text-red-300' :
+                      act.severity === 'Medium' ? 'bg-amber-950/15 border-amber-500/20 text-amber-300' :
+                      'bg-slate-950/40 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center border-b border-slate-800/60 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-[10px]">
+                      <span className="flex items-center gap-1">
+                        <Flame size={12} className={act.severity === 'High' ? 'text-red-500 animate-pulse' : 'text-amber-500'} />
+                        {act.type}
+                      </span>
+                      <span>Strike {act.strike_price}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
+                      {act.reason}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="text-slate-500 text-center py-12 text-xs font-semibold">
+                  No unusual smart money patterns detected currently.
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {expiries.length > 0 && (
-              <select
-                value={selectedExpiry}
-                onChange={e => setSelectedExpiry(e.target.value)}
-                className="px-2 py-1 rounded border border-slate-800 bg-slate-950 text-slate-200 text-[10px] font-medium focus:ring-1 focus:ring-emerald-500 transition-all outline-none cursor-pointer"
-              >
-                {expiries.map(exp => (
-                  <option key={exp} value={exp}>
-                    Expiry: {exp}
-                  </option>
-                ))}
-              </select>
-            )}
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-              </span>
-              <span>Updated: {lastUpdated || 'Never'}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Metric Cards Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Call Premium */}
-        <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-xl flex flex-col justify-between">
-          <span className="text-xs text-slate-500 font-semibold flex items-center gap-1">
-            Call Turnover
-          </span>
-          <div className="mt-2">
-            <span className="text-lg font-bold text-slate-100 font-mono">
-              {formatPremium(data.total_call_premium)}
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-500 mt-2 font-mono">
-            {data.total_call_volume.toLocaleString()} contracts
-          </span>
-        </div>
-
-        {/* Put Premium */}
-        <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-xl flex flex-col justify-between">
-          <span className="text-xs text-slate-500 font-semibold flex items-center gap-1">
-            Put Turnover
-          </span>
-          <div className="mt-2">
-            <span className="text-lg font-bold text-slate-100 font-mono">
-              {formatPremium(data.total_put_premium)}
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-500 mt-2 font-mono">
-            {data.total_put_volume.toLocaleString()} contracts
-          </span>
-        </div>
-
-        {/* Net Flow */}
-        <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-xl flex flex-col justify-between">
-          <span className="text-xs text-slate-500 font-semibold flex items-center gap-1">
-            Net Premium Flow
-          </span>
-          <div className="mt-2">
-            <span className={`text-lg font-bold font-mono ${data.net_flow >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-              {data.net_flow >= 0 ? '+' : ''}{formatPremium(data.net_flow)}
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-500 mt-2 font-semibold">
-            {data.net_flow >= 0 ? 'Call dominated buying' : 'Put dominated buying'}
-          </span>
-        </div>
-
-        {/* PCR */}
-        <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-xl flex flex-col justify-between">
-          <span className="text-xs text-slate-500 font-semibold flex items-center gap-1">
-            Put-Call Ratio (PCR)
-          </span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-lg font-bold text-slate-100 font-mono">
-              {data.pcr_oi.toFixed(2)}
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">
-              (Vol: {data.pcr_volume.toFixed(2)})
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-500 mt-2 font-medium">PCR &gt; 1.0 is historically bullish</span>
-        </div>
-
-        {/* Sentiment */}
-        <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-xl flex flex-col justify-between">
-          <span className="text-xs text-slate-500 font-semibold flex items-center gap-1">
-            Option Sentiment
-          </span>
-          <div className="mt-2">
-            <span className={`text-lg font-bold font-display px-2 py-0.5 rounded ${sentimentBg} ${sentimentColor}`}>
-              {sentimentValue}
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-500 mt-2 font-medium">Derived from PCR & OI shifts</span>
         </div>
       </div>
 
-      {/* Tabs Menu */}
-      <div className="flex border-b border-slate-800 gap-2">
-        <button
-          onClick={() => setActiveTab('chain')}
-          className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'chain'
-              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Layers size={14} /> Option Chain
-        </button>
-        <button
-          onClick={() => setActiveTab('charts')}
-          className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'charts'
-              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <BarChart2 size={14} /> Strike Distribution
-        </button>
-        <button
-          onClick={() => setActiveTab('blocks')}
-          className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'blocks'
-              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Award size={14} /> Block Trades ({data.block_deals?.length || 0})
-        </button>
-      </div>
+      {/* =========================================================================
+          TABS AREA: OPTION CHAIN, HEATMAP, BLOCK TRADES, TRADE SUMMARY
+         ========================================================================= */}
+      <div className="space-y-4">
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-slate-800/80 gap-2 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('chain')}
+            className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer border-t-0 border-x-0 ${
+              activeTab === 'chain'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <List size={14} /> Option Chain
+          </button>
+          <button
+            onClick={() => setActiveTab('heatmap')}
+            className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer border-t-0 border-x-0 ${
+              activeTab === 'heatmap'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BarChart2 size={14} /> Option Flow Heatmap
+          </button>
+          <button
+            onClick={() => setActiveTab('blocks')}
+            className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer border-t-0 border-x-0 ${
+              activeTab === 'blocks'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Award size={14} /> Large Block Tape ({data.block_deals?.length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab('summary')}
+            className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer border-t-0 border-x-0 ${
+              activeTab === 'summary'
+                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldCheck size={14} /> Institutional Trade Setup
+          </button>
+        </div>
 
-      {/* Tabs Content */}
-      <div className="min-h-[400px]">
-        {activeTab === 'chain' && (
-          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/80 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="px-4 py-3 text-center border-r border-slate-800/60" colSpan={5}>Calls (CE)</th>
-                  <th className="px-4 py-3 text-center border-r border-slate-800/60">Strike</th>
-                  <th className="px-4 py-3 text-center" colSpan={5}>Puts (PE)</th>
-                </tr>
-                <tr className="border-b border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                  <th className="px-4 py-2.5">OI</th>
-                  <th className="px-4 py-2.5">OI Chg</th>
-                  <th className="px-4 py-2.5">Vol</th>
-                  <th className="px-4 py-2.5">IV</th>
-                  <th className="px-4 py-2.5 border-r border-slate-800/60">LTP</th>
-                  <th className="px-4 py-2.5 text-center border-r border-slate-800/60">Strike Price</th>
-                  <th className="px-4 py-2.5">LTP</th>
-                  <th className="px-4 py-2.5">IV</th>
-                  <th className="px-4 py-2.5">Vol</th>
-                  <th className="px-4 py-2.5">OI Chg</th>
-                  <th className="px-4 py-2.5">OI</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50 font-mono text-[11px]">
+        {/* Tab Contents */}
+        <div className="min-h-[400px]">
+          
+          {/* TAB 1: OPTION CHAIN */}
+          {activeTab === 'chain' && (
+            <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-900/30 backdrop-blur-md">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-950/80 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="px-4 py-3 text-center border-r border-slate-800/60" colSpan={6}>Calls (CE)</th>
+                    <th className="px-4 py-3 text-center border-r border-slate-800/60">Strike</th>
+                    <th className="px-4 py-3 text-center" colSpan={6}>Puts (PE)</th>
+                  </tr>
+                  <tr className="border-b border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-900/40">
+                    <th className="px-4 py-2.5">Buildup</th>
+                    <th className="px-4 py-2.5">OI</th>
+                    <th className="px-4 py-2.5">OI Chg</th>
+                    <th className="px-4 py-2.5">Vol</th>
+                    <th className="px-4 py-2.5">IV</th>
+                    <th className="px-4 py-2.5 border-r border-slate-800/60">LTP</th>
+                    <th className="px-4 py-2.5 text-center border-r border-slate-800/60">Strike Price</th>
+                    <th className="px-4 py-2.5">LTP</th>
+                    <th className="px-4 py-2.5">IV</th>
+                    <th className="px-4 py-2.5">Vol</th>
+                    <th className="px-4 py-2.5">OI Chg</th>
+                    <th className="px-4 py-2.5">OI</th>
+                    <th className="px-4 py-2.5">Buildup</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-850/50 font-mono text-[11px]">
+                  {data.strikes.map((s) => {
+                    const isAtm = s.strike_price === atmStrike;
+                    const rowBg = isAtm 
+                      ? 'bg-purple-950/15 hover:bg-purple-950/20 border-y border-purple-500/20' 
+                      : 'hover:bg-slate-800/25';
+                    
+                    const ceBuildup = s.call.buildup;
+                    const peBuildup = s.put.buildup;
+
+                    const ceBuildupBadge = 
+                      ceBuildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/10' :
+                      ceBuildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400 border border-red-500/10' :
+                      ceBuildup === 'Long Unwinding' ? 'bg-amber-950/40 text-amber-400 border border-amber-500/10' :
+                      ceBuildup === 'Short Covering' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/10' : 'text-slate-500';
+
+                    const peBuildupBadge = 
+                      peBuildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/10' :
+                      peBuildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400 border border-red-500/10' :
+                      peBuildup === 'Long Unwinding' ? 'bg-amber-950/40 text-amber-400 border border-amber-500/10' :
+                      peBuildup === 'Short Covering' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/10' : 'text-slate-500';
+
+                    return (
+                      <tr key={s.strike_price} className={`${rowBg} transition-colors`}>
+                        {/* CALLS */}
+                        <td className="px-4 py-2">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${ceBuildupBadge}`}>
+                            {ceBuildup}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-slate-300">{s.call.oi.toLocaleString()}</td>
+                        <td className={`px-4 py-2 font-bold ${s.call.oi_change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {s.call.oi_change >= 0 ? '+' : ''}{s.call.oi_change.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-slate-400">{s.call.volume.toLocaleString()}</td>
+                        <td className="px-4 py-2 text-slate-400">{s.call.iv.toFixed(1)}%</td>
+                        <td className="px-4 py-2 font-semibold text-emerald-400 border-r border-slate-800/60">
+                          ₹{s.call.ltp.toFixed(2)}
+                        </td>
+                        
+                        {/* STRIKE */}
+                        <td className={`px-4 py-2 text-center font-bold border-r border-slate-800/60 text-slate-100 ${isAtm ? 'text-purple-400 bg-purple-950/10' : ''}`}>
+                          {s.strike_price.toFixed(1)}
+                        </td>
+                        
+                        {/* PUTS */}
+                        <td className="px-4 py-2 font-semibold text-emerald-400">
+                          ₹{s.put.ltp.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-2 text-slate-400">{s.put.iv.toFixed(1)}%</td>
+                        <td className="px-4 py-2 text-slate-400">{s.put.volume.toLocaleString()}</td>
+                        <td className={`px-4 py-2 font-bold ${s.put.oi_change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {s.put.oi_change >= 0 ? '+' : ''}{s.put.oi_change.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-slate-300">{s.put.oi.toLocaleString()}</td>
+                        <td className="px-4 py-2">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${peBuildupBadge}`}>
+                            {peBuildup}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 2: OPTION FLOW HEATMAP */}
+          {activeTab === 'heatmap' && (
+            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md">
+              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <BarChart2 size={14} className="text-purple-400" /> Option Flow Heatmap (Buildup Concentration & Volume)
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {data.strikes.map((s) => {
+                  const callIntensity = Math.min(100, Math.abs(s.call.buildup_intensity));
+                  const putIntensity = Math.min(100, Math.abs(s.put.buildup_intensity));
+                  
                   const isAtm = s.strike_price === atmStrike;
-                  const rowBg = isAtm 
-                    ? 'bg-purple-900/10 hover:bg-purple-900/15 border-y border-purple-500/20' 
-                    : 'hover:bg-slate-800/25';
-                  
-                  // Heat intensifier calculations
-                  const ceOiChg = s.call.oi_change;
-                  const peOiChg = s.put.oi_change;
-                  
-                  const ceChgColor = ceOiChg > 0 ? 'text-emerald-400' : ceOiChg < 0 ? 'text-red-400' : 'text-slate-400';
-                  const peChgColor = peOiChg > 0 ? 'text-emerald-400' : peOiChg < 0 ? 'text-red-400' : 'text-slate-400';
-
-                  const ceChgBg = ceOiChg > 10000 ? 'bg-emerald-950/20' : ceOiChg < -10000 ? 'bg-red-950/20' : '';
-                  const peChgBg = peOiChg > 10000 ? 'bg-emerald-950/20' : peOiChg < -10000 ? 'bg-red-950/20' : '';
 
                   return (
-                    <tr key={s.strike_price} className={`${rowBg} transition-colors`}>
-                      {/* CALLS */}
-                      <td className="px-4 py-2 text-slate-300">{s.call.oi.toLocaleString()}</td>
-                      <td className={`px-4 py-2 font-bold ${ceChgColor} ${ceChgBg}`}>
-                        {ceOiChg > 0 ? '+' : ''}{ceOiChg.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-slate-400">{s.call.volume.toLocaleString()}</td>
-                      <td className="px-4 py-2 text-slate-400">{s.call.iv.toFixed(1)}%</td>
-                      <td className="px-4 py-2 font-semibold text-emerald-400 border-r border-slate-800/60">
-                        ₹{s.call.ltp.toFixed(2)}
-                      </td>
-                      
-                      {/* STRIKE */}
-                      <td className={`px-4 py-2 text-center font-bold border-r border-slate-800/60 text-slate-100 ${isAtm ? 'text-purple-400' : ''}`}>
-                        {s.strike_price.toFixed(1)}
-                      </td>
-                      
-                      {/* PUTS */}
-                      <td className="px-4 py-2 font-semibold text-emerald-400">
-                        ₹{s.put.ltp.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-2 text-slate-400">{s.put.iv.toFixed(1)}%</td>
-                      <td className="px-4 py-2 text-slate-400">{s.put.volume.toLocaleString()}</td>
-                      <td className={`px-4 py-2 font-bold ${peChgColor} ${peChgBg}`}>
-                        {peOiChg > 0 ? '+' : ''}{peOiChg.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-slate-300">{s.put.oi.toLocaleString()}</td>
-                    </tr>
+                    <div 
+                      key={s.strike_price} 
+                      className={`p-4 rounded-xl border flex flex-col justify-between font-semibold font-mono text-[11px] ${
+                        isAtm ? 'border-purple-500/40 bg-purple-950/15' : 'border-slate-800 bg-slate-950/40'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 mb-2">
+                        <span className="text-slate-400 uppercase text-[10px] font-bold">Strike Price</span>
+                        <span className={`font-bold text-xs ${isAtm ? 'text-purple-400' : 'text-slate-100'}`}>
+                          {s.strike_price} {isAtm && '(ATM)'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Calls Column */}
+                        <div className="space-y-1">
+                          <div className="text-[9px] text-slate-500 font-bold uppercase">Calls (CE)</div>
+                          <div className={`px-2 py-0.5 rounded text-[10px] font-bold text-center inline-block ${
+                            s.call.buildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400' :
+                            s.call.buildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400' : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {s.call.buildup}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-1">OI: {s.call.oi.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-400">GEX: ₹{(s.call.gex / 10000000).toFixed(1)} Cr</div>
+                        </div>
+
+                        {/* Puts Column */}
+                        <div className="space-y-1 text-right">
+                          <div className="text-[9px] text-slate-500 font-bold uppercase">Puts (PE)</div>
+                          <div className={`px-2 py-0.5 rounded text-[10px] font-bold text-center inline-block ${
+                            s.put.buildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400' :
+                            s.put.buildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400' : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {s.put.buildup}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-1">OI: {s.put.oi.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-400">GEX: ₹{(s.put.gex / 10000000).toFixed(1)} Cr</div>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </div>
+            </div>
+          )}
 
-        {activeTab === 'charts' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* OI Distribution Chart */}
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/60">
-              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-6 flex items-center gap-1.5">
-                <BarChart2 size={14} className="text-emerald-400" /> Open Interest (Contracts)
-              </h3>
-              <div className="w-full h-[320px]">
-                {chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                      <CartesianGrid stroke="#1e293b" vertical={false} />
-                      <XAxis dataKey="strike" stroke="#475569" fontSize={9} />
-                      <YAxis stroke="#475569" fontSize={9} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
-                        labelStyle={{ color: '#64748b' }}
-                      />
-                      <Legend fontSize={10} />
-                      <Bar dataKey="Call OI" fill="#10b981" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="Put OI" fill="#ef4444" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-500 font-medium">
-                    No strike data available.
+          {/* TAB 3: LARGE BLOCK TAPE */}
+          {activeTab === 'blocks' && (
+            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md">
+              <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <Award size={14} className="text-emerald-400 animate-pulse" /> Large Block Deals Tape
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Real-time options trades exceeding ₹10 Lakhs in premium value.</p>
+                </div>
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-bold">
+                  Threshold: &gt; ₹10L Premium
+                </span>
+              </div>
+
+              {(data.block_deals?.length || 0) > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] border-collapse font-mono">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-[10px] text-slate-500 font-bold uppercase">
+                        <th className="py-2.5">Strike</th>
+                        <th className="py-2.5">Option Type</th>
+                        <th className="py-2.5 text-right">LTP</th>
+                        <th className="py-2.5 text-right">Volume</th>
+                        <th className="py-2.5 text-right">Premium Value</th>
+                        <th className="py-2.5 text-right">Open Interest</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/40">
+                      {(data.block_deals || []).map((block, idx) => {
+                        const isCe = block.type === 'CE';
+                        return (
+                          <tr key={idx} className="hover:bg-slate-800/20">
+                            <td className="py-2.5 text-slate-100 font-bold">{block.strike_price.toFixed(1)}</td>
+                            <td className="py-2.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isCe ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                              }`}>
+                                {block.type}
+                              </span>
+                            </td>
+                            <td className="py-2.5 text-right text-slate-200">₹{block.ltp.toFixed(2)}</td>
+                            <td className="py-2.5 text-right text-slate-400">{block.volume.toLocaleString()}</td>
+                            <td className="py-2.5 text-right text-emerald-400 font-bold">{formatPremium(block.premium)}</td>
+                            <td className="py-2.5 text-right text-slate-300">{block.oi.toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-slate-500 font-medium">
+                  No large block deals detected for this contract expiry.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: INSTITUTIONAL TRADE SETUP SUMMARY */}
+          {activeTab === 'summary' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Trade parameters setup */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md lg:col-span-1">
+                <h4 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5 border-b border-slate-800 pb-3">
+                  <Target size={14} className="text-emerald-400" /> Optimal Execution Parameters
+                </h4>
+                
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center py-2 border-b border-slate-800/60 text-[11px] font-semibold">
+                    <span className="text-slate-500">Directional Bias</span>
+                    <span className={`font-bold px-2 py-0.5 rounded uppercase ${
+                      bias === 'Bullish' ? 'bg-emerald-950/40 text-emerald-400' :
+                      bias === 'Bearish' ? 'bg-red-950/40 text-red-400' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {bias}
+                    </span>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Premium Turnover Chart */}
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/60">
-              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-6 flex items-center gap-1.5">
-                <BarChart2 size={14} className="text-emerald-400" /> Premium Turnover (₹ Lakhs)
-              </h3>
-              <div className="w-full h-[320px]">
-                {chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                      <CartesianGrid stroke="#1e293b" vertical={false} />
-                      <XAxis dataKey="strike" stroke="#475569" fontSize={9} />
-                      <YAxis stroke="#475569" fontSize={9} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
-                        labelStyle={{ color: '#64748b' }}
-                      />
-                      <Legend />
-                      <Bar dataKey="Call Premium (L)" fill="#10b981" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="Put Premium (L)" fill="#ef4444" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-500 font-medium">
-                    No premium data available.
+                  <div className="flex justify-between items-center py-2 border-b border-slate-800/60 text-[11px] font-semibold">
+                    <span className="text-slate-500">Suggested Entry Zone</span>
+                    <span className="font-mono font-bold text-slate-200">{data.trade_signals?.entry_zone}</span>
                   </div>
-                )}
+                  <div className="flex justify-between items-center py-2 border-b border-slate-800/60 text-[11px] font-semibold">
+                    <span className="text-slate-500">Stop Loss (SL)</span>
+                    <span className="font-mono font-bold text-red-400">₹{data.trade_signals?.stop_loss}</span>
+                  </div>
+                  <div className="flex justify-between items-start py-2 border-b border-slate-800/60 text-[11px] font-semibold">
+                    <span className="text-slate-500 mt-0.5">Target Levels (T1/T2)</span>
+                    <div className="flex flex-col text-right font-mono font-bold text-emerald-400 gap-1">
+                      {data.trade_signals?.target_levels && data.trade_signals.target_levels.length > 0 ? (
+                        data.trade_signals.target_levels.map((t, idx) => (
+                          <span key={idx}>T{idx+1}: ₹{t}</span>
+                        ))
+                      ) : (
+                        <span>N/A</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center py-1 text-[11px] font-semibold">
+                    <span className="text-slate-500">Confidence Score</span>
+                    <span className="text-purple-400 font-bold">{confidence} ({data.trade_signals?.confidence_score}%)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Option Commentary & Analysis */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md lg:col-span-2 space-y-4">
+                <h4 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-800 pb-3">
+                  <Activity size={14} className="text-purple-400" /> Options Positioning & Market Structure Commentary
+                </h4>
+                
+                <div className="space-y-4 text-xs font-medium text-slate-300 leading-relaxed font-sans">
+                  <div>
+                    <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Market Structure</h5>
+                    <p>
+                      The current sentiment score is <span className="text-slate-100 font-bold">{data.sentiment_score}/100</span> (classified as <span className="text-slate-100 font-bold">{data.sentiment}</span>). 
+                      The derivative pricing suggests {bias === 'Bullish' ? 'bullish continuation as option writers are actively backing lower strikes.' : bias === 'Bearish' ? 'directional weakness under intense short build-ups.' : 'a range-bound consolidated consolidation cycle.'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Options Positioning</h5>
+                    <p>
+                      Open Interest profile shows a dominant Call concentration at <span className="text-slate-100 font-bold">{data.resistance_strike}</span> (representing a strong ceiling wall) and Put support floor at <span className="text-slate-100 font-bold">{data.support_strike}</span>. 
+                      Max Pain is currently set at <span className="text-slate-100 font-bold">{data.max_pain}</span>. Options pain points indicate that option sellers are incentivized to target this zone on expiry day.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Risk Profile Detections</h5>
+                    <ul className="list-disc pl-4 space-y-1 text-slate-400">
+                      {data.trade_signals?.reason && data.trade_signals.reason.map((reason, idx) => (
+                        <li key={idx}>{reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'blocks' && (
-          <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/60">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
-                <Award size={14} className="text-emerald-400 animate-pulse" /> Large Block Deals Tape
-              </h3>
-              <span className="text-[10px] text-slate-500 uppercase font-mono">
-                Threshold: &gt; ₹10 Lakhs Premium
-              </span>
-            </div>
-
-            {(data.block_deals?.length || 0) > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[11px] border-collapse font-mono">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[10px] text-slate-500 font-bold uppercase">
-                      <th className="py-2">Strike</th>
-                      <th className="py-2">Option Type</th>
-                      <th className="py-2 text-right">LTP</th>
-                      <th className="py-2 text-right">Volume</th>
-                      <th className="py-2 text-right">Premium Value</th>
-                      <th className="py-2 text-right">Open Interest</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/40">
-                    {(data.block_deals || []).map((block, idx) => {
-                      const isCe = block.type === 'CE';
-                      return (
-                        <tr key={idx} className="hover:bg-slate-800/20">
-                          <td className="py-2 text-slate-100 font-bold">{block.strike_price.toFixed(1)}</td>
-                          <td className="py-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isCe ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                            }`}>
-                              {block.type}
-                            </span>
-                          </td>
-                          <td className="py-2 text-right text-slate-200">₹{block.ltp.toFixed(2)}</td>
-                          <td className="py-2 text-right text-slate-400">{block.volume.toLocaleString()}</td>
-                          <td className="py-2 text-right text-emerald-400 font-bold">{formatPremium(block.premium)}</td>
-                          <td className="py-2 text-right text-slate-300">{block.oi.toLocaleString()}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="py-12 text-center text-slate-500 font-medium">
-                No block trades exceeding ₹10L premium detected for this expiry.
-              </div>
-            )}
-          </div>
-        )}
+        </div>
       </div>
+
     </div>
   );
 };

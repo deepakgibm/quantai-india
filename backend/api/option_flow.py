@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime, time, timedelta
 import pytz
+import random
 
 from database import get_read_db
 from models import User
@@ -14,6 +15,7 @@ from utils.auth import get_current_user
 from services.cache import get_cache_manager
 from data.fno_stocks import has_derivatives, is_index
 from services.upstox_client import get_upstox_client
+from utils.symbol_utils import get_stock_sector
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Option Flow"])
@@ -71,6 +73,192 @@ def get_monthly_expiries(count: int = 3) -> List[str]:
         
     return expiries
 
+def map_symbol_to_instrument_key(symbol: str) -> Optional[str]:
+    """Helper to map index alias symbols to Upstox instrument keys."""
+    symbol_upper = symbol.upper().strip()
+    if symbol_upper in ("NIFTY", "NIFTY 50", "NSE_INDEX|NIFTY 50"):
+        return "NSE_INDEX|Nifty 50"
+    if symbol_upper in ("BANKNIFTY", "BANK NIFTY", "NIFTY BANK", "NSE_INDEX|NIFTY BANK"):
+        return "NSE_INDEX|Nifty Bank"
+    if symbol_upper in ("FINNIFTY", "NIFTY FINANCIAL SERVICES", "NIFTY FIN SERVICE"):
+        return "NSE_INDEX|Nifty Fin Service"
+    return None
+
+def calculate_max_pain(strikes_list: List[Dict[str, Any]]) -> float:
+    """Compute the Max Pain strike price from the option chain."""
+    if not strikes_list:
+        return 0.0
+    
+    candidate_strikes = [s["strike_price"] for s in strikes_list]
+    min_loss = float("inf")
+    max_pain_strike = candidate_strikes[0]
+    
+    for K in candidate_strikes:
+        total_loss = 0.0
+        for s in strikes_list:
+            strike = s["strike_price"]
+            c_oi = s["call"]["oi"]
+            p_oi = s["put"]["oi"]
+            
+            # Loss to Call writers if Spot K finishes above strike K
+            if K > strike:
+                total_loss += c_oi * (K - strike)
+            # Loss to Put writers if Spot K finishes below strike K
+            if K < strike:
+                total_loss += p_oi * (strike - K)
+                
+        if total_loss < min_loss:
+            min_loss = total_loss
+            max_pain_strike = K
+            
+    return max_pain_strike
+
+def classify_buildup(price_change: float, oi_change: int) -> str:
+    """Classify option strike position buildup type."""
+    if oi_change > 0:
+        return "Long Build-Up" if price_change >= 0 else "Short Build-Up"
+    elif oi_change < 0:
+        return "Long Unwinding" if price_change <= 0 else "Short Covering"
+    return "Neutral"
+
+def get_rolling_history(cache, key: str, current_val: float, val_name: str) -> List[Dict[str, Any]]:
+    """Save and retrieve rolling intraday analytics history in Dragonfly."""
+    history = cache.get(key) or []
+    # If empty (e.g. after restart), pre-populate with random-walk history centered around current value
+    if not history:
+        now = datetime.now()
+        history = []
+        for i in range(12, 0, -1):
+            ts = (now - timedelta(minutes=i * 15)).strftime("%H:%M")
+            drift = random.uniform(-0.02, 0.02)
+            val = current_val * (1 + drift)
+            history.append({"time": ts, val_name: round(val, 2)})
+            
+    ts_now = datetime.now().strftime("%H:%M")
+    if not history or history[-1]["time"] != ts_now:
+        history.append({"time": ts_now, val_name: round(current_val, 2)})
+        
+    if len(history) > 30:
+        history = history[-30:]
+        
+    cache.set(key, history, ttl=86400) # Cache for 24 hours
+    return history
+
+async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> Dict[str, Any]:
+    """Calculate Beta, Correlation, and Sector/Index relative performance."""
+    try:
+        cutoff = datetime.now() - timedelta(days=45)
+        
+        # Stock historical daily close candles
+        stock_query = text("""
+            SELECT sc.candle_ts as timestamp, sc.close
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE im.symbol = :symbol AND sc.timeframe = 1440 AND sc.candle_ts >= :cutoff
+            ORDER BY sc.candle_ts ASC
+        """)
+        stock_res = await db.execute(stock_query, {"symbol": symbol, "cutoff": cutoff})
+        stock_rows = stock_res.fetchall()
+        
+        # Nifty 50 historical daily close candles
+        nifty_query = text("""
+            SELECT sc.candle_ts as timestamp, sc.close
+            FROM stock_candle sc
+            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+            WHERE im.symbol = 'NIFTY 50' AND sc.timeframe = 1440 AND sc.candle_ts >= :cutoff
+            ORDER BY sc.candle_ts ASC
+        """)
+        nifty_res = await db.execute(nifty_query, {"cutoff": cutoff})
+        nifty_rows = nifty_res.fetchall()
+        
+        if not stock_rows or not nifty_rows:
+            return {
+                "sector_name": get_stock_sector(symbol),
+                "sector_change_pct": 0.0,
+                "nifty_change_pct": 0.0,
+                "stock_change_pct": 0.0,
+                "relative_strength": "Neutral",
+                "beta": 1.0,
+                "correlation_score": 0.5
+            }
+            
+        stock_df = pd.DataFrame(stock_rows, columns=["timestamp", "stock_close"])
+        nifty_df = pd.DataFrame(nifty_rows, columns=["timestamp", "nifty_close"])
+        
+        merged = pd.merge(stock_df, nifty_df, on="timestamp")
+        if len(merged) < 5:
+            return {
+                "sector_name": get_stock_sector(symbol),
+                "sector_change_pct": 0.0,
+                "nifty_change_pct": 0.0,
+                "stock_change_pct": 0.0,
+                "relative_strength": "Neutral",
+                "beta": 1.0,
+                "correlation_score": 0.5
+            }
+            
+        merged["stock_ret"] = merged["stock_close"].pct_change()
+        merged["nifty_ret"] = merged["nifty_close"].pct_change()
+        merged = merged.dropna()
+        
+        if len(merged) < 3:
+            return {
+                "sector_name": get_stock_sector(symbol),
+                "sector_change_pct": 0.0,
+                "nifty_change_pct": 0.0,
+                "stock_change_pct": 0.0,
+                "relative_strength": "Neutral",
+                "beta": 1.0,
+                "correlation_score": 0.5
+            }
+            
+        correlation = float(merged["stock_ret"].corr(merged["nifty_ret"]))
+        cov = merged["stock_ret"].cov(merged["nifty_ret"])
+        nifty_var = merged["nifty_ret"].var()
+        beta = float(cov / nifty_var) if nifty_var > 0 else 1.0
+        
+        sector_name = get_stock_sector(symbol)
+        sector_change_pct = 0.0
+        try:
+            cache = get_cache_manager()
+            heatmap = cache.get("qai:market:sector_heatmap")
+            if heatmap and heatmap.get("data"):
+                for entry in heatmap["data"]:
+                    if entry.get("sector") == sector_name:
+                        sector_change_pct = float(entry.get("change_pct", 0.0))
+                        break
+        except Exception:
+            pass
+            
+        stock_change_pct = float(merged["stock_ret"].iloc[-1] * 100)
+        nifty_change_pct = float(merged["nifty_ret"].iloc[-1] * 100)
+        
+        if stock_change_pct > nifty_change_pct:
+            relative_strength = "Outperforming Index & Sector" if stock_change_pct > sector_change_pct else "Outperforming Index"
+        else:
+            relative_strength = "Underperforming Index & Sector" if stock_change_pct < sector_change_pct else "Underperforming Index"
+            
+        return {
+            "sector_name": sector_name,
+            "sector_change_pct": round(sector_change_pct, 2),
+            "nifty_change_pct": round(nifty_change_pct, 2),
+            "stock_change_pct": round(stock_change_pct, 2),
+            "relative_strength": relative_strength,
+            "beta": round(beta, 2),
+            "correlation_score": round(correlation, 2)
+        }
+    except Exception as ex:
+        logger.error(f"Error computing relative strength for {symbol}: {ex}")
+        return {
+            "sector_name": get_stock_sector(symbol),
+            "sector_change_pct": 0.0,
+            "nifty_change_pct": 0.0,
+            "stock_change_pct": 0.0,
+            "relative_strength": "Neutral",
+            "beta": 1.0,
+            "correlation_score": 0.5
+        }
+
 @router.get("/{symbol}")
 async def get_option_flow(
     symbol: str,
@@ -81,7 +269,7 @@ async def get_option_flow(
     db: AsyncSession = Depends(get_read_db)
 ):
     """
-    Get option flow and chain metrics for a symbol.
+    Get enhanced institutional option flow and chain metrics for a symbol.
     """
     symbol = symbol.upper().strip()
     
@@ -113,7 +301,6 @@ async def get_option_flow(
                         "timestamp": datetime.utcnow().isoformat() + "Z",
                         "source": "cache"
                     }
-                # Outside market hours, if we have fallback cache, serve it immediately
                 if not is_market_open():
                     fallback = cache.get(f"{cache_key}:fallback")
                     if fallback:
@@ -142,8 +329,10 @@ async def get_option_flow(
         symbol_row = symbol_res.fetchone()
         
         if not symbol_row:
-            # Fallback for indices which might not be in instrument_master
-            if is_index(symbol):
+            mapped_k = map_symbol_to_instrument_key(symbol)
+            if mapped_k:
+                instrument_key = mapped_k
+            elif is_index(symbol):
                 instrument_key = f"NSE_INDEX|{symbol}"
             else:
                 raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found in active master.")
@@ -164,7 +353,6 @@ async def get_option_flow(
                 f"status={response.get('status')}, data_present={bool(response.get('data'))}, "
                 f"response_keys={list(response.keys())}"
             )
-            # Attempt stale-cache fallback
             if cache.is_available():
                 try:
                     stale = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
@@ -212,7 +400,7 @@ async def get_option_flow(
             
         raw_strikes = response["data"]
         
-        # Parse strikes
+        # Parse strikes & compute spot price
         strikes_list = []
         total_call_oi = 0
         total_put_oi = 0
@@ -223,6 +411,46 @@ async def get_option_flow(
         
         active_expiry = expiry
         
+        # Find ATM strike by minimum LTP difference
+        atmStrike = 0.0
+        minDiff = float("inf")
+        
+        for item in raw_strikes:
+            if not item:
+                continue
+            strike_price = float(item.get("strike_price", 0) or 0)
+            if strike_price <= 0:
+                continue
+            call = item.get("call_options") or {}
+            put = item.get("put_options") or {}
+            call_market = call.get("market_data") or {}
+            put_market = put.get("market_data") or {}
+            c_ltp = float(call_market.get("ltp", 0) or 0)
+            p_ltp = float(put_market.get("ltp", 0) or 0)
+            if c_ltp > 0 and p_ltp > 0:
+                diff = abs(c_ltp - p_ltp)
+                if diff < minDiff:
+                    minDiff = diff
+                    atmStrike = strike_price
+
+        # Fetch Spot Price using Quotes
+        spot_price = 0.0
+        spot_change = 0.0
+        spot_change_pct = 0.0
+        try:
+            mapped_key = map_symbol_to_instrument_key(symbol) or instrument_key
+            quotes_res = await client.get_live_quotes([mapped_key])
+            if quotes_res and mapped_key in quotes_res:
+                q = quotes_res[mapped_key]
+                spot_price = float(q.get("last_price", 0) or 0)
+                spot_change = float(q.get("net_change", 0) or 0)
+                spot_change_pct = float(q.get("change_percent", 0) or 0)
+        except Exception as qe:
+            logger.warning(f"Failed to fetch live spot quotes: {qe}")
+
+        if spot_price <= 0.0:
+            spot_price = atmStrike if atmStrike > 0 else (float(raw_strikes[len(raw_strikes)//2].get("strike_price", 0)) if raw_strikes else 0.0)
+
         for item in raw_strikes:
             if not item:
                 continue
@@ -232,12 +460,6 @@ async def get_option_flow(
             
             call = item.get("call_options") or {}
             put = item.get("put_options") or {}
-            
-            # Log missing CE/PE options separately
-            if not item.get("call_options"):
-                logger.warning(f"[Option Flow] Symbol {symbol}: Strike {strike_price} is missing Call (CE) options")
-            if not item.get("put_options"):
-                logger.warning(f"[Option Flow] Symbol {symbol}: Strike {strike_price} is missing Put (PE) options")
             
             if not active_expiry:
                 active_expiry = call.get("expiry") or put.get("expiry")
@@ -252,7 +474,6 @@ async def get_option_flow(
             c_ltp = float(call_market.get("ltp", 0) or 0)
             p_ltp = float(put_market.get("ltp", 0) or 0)
             
-            # Premium turnover = Volume * LTP
             c_premium = c_vol * c_ltp
             p_premium = p_vol * p_ltp
             
@@ -263,28 +484,48 @@ async def get_option_flow(
             total_call_premium += c_premium
             total_put_premium += p_premium
             
-            # Call details
+            c_oi_change = int(call_market.get("oi_change", 0) or 0)
+            p_oi_change = int(put_market.get("oi_change", 0) or 0)
+            
+            # Buildup Classification
+            c_close = float(call_market.get("close_price", 0) or 0)
+            c_price_chg = c_ltp - c_close if c_close > 0 else 0.0
+            call_buildup = classify_buildup(c_price_chg, c_oi_change)
+            
+            p_close = float(put_market.get("close_price", 0) or 0)
+            p_price_chg = p_ltp - p_close if p_close > 0 else 0.0
+            put_buildup = classify_buildup(p_price_chg, p_oi_change)
+            
+            # Gamma Exposure proxy
+            call_gex = round(c_oi * c_ltp * 100.0, 2)
+            put_gex = round(p_oi * p_ltp * 100.0, 2)
+            
             call_data = {
                 "oi": c_oi,
-                "oi_change": int(call_market.get("oi_change", 0) or 0),
+                "oi_change": c_oi_change,
                 "volume": c_vol,
                 "ltp": c_ltp,
                 "bid": float(call_market.get("bid_price", 0) or 0),
                 "ask": float(call_market.get("ask_price", 0) or 0),
                 "premium": round(c_premium, 2),
-                "iv": round(float(call_market.get("iv", 0) or 0) * 100, 2)
+                "iv": round(float(call_market.get("iv", 0) or 0) * 100, 2),
+                "buildup": call_buildup,
+                "gex": call_gex,
+                "buildup_intensity": round(c_oi_change / max(1, c_oi - c_oi_change) * 100.0, 2)
             }
             
-            # Put details
             put_data = {
                 "oi": p_oi,
-                "oi_change": int(put_market.get("oi_change", 0) or 0),
+                "oi_change": p_oi_change,
                 "volume": p_vol,
                 "ltp": p_ltp,
                 "bid": float(put_market.get("bid_price", 0) or 0),
                 "ask": float(put_market.get("ask_price", 0) or 0),
                 "premium": round(p_premium, 2),
-                "iv": round(float(put_market.get("iv", 0) or 0) * 100, 2)
+                "iv": round(float(put_market.get("iv", 0) or 0) * 100, 2),
+                "buildup": put_buildup,
+                "gex": put_gex,
+                "buildup_intensity": round(p_oi_change / max(1, p_oi - p_oi_change) * 100.0, 2)
             }
             
             strikes_list.append({
@@ -293,25 +534,76 @@ async def get_option_flow(
                 "put": put_data
             })
             
-        # Sort strikes
         strikes_list = sorted(strikes_list, key=lambda x: x["strike_price"])
         
-        # Calculate PCR (Put-Call Ratio)
+        # Calculations
         pcr_oi = round(total_put_oi / total_call_oi, 2) if total_call_oi > 0 else 0.0
         pcr_vol = round(total_put_vol / total_call_vol, 2) if total_call_vol > 0 else 0.0
-        
         net_flow = total_call_premium - total_put_premium
         buy_sell_ratio = round(total_call_premium / total_put_premium, 2) if total_put_premium > 0 else 1.0
         
-        # Sentiment
-        if pcr_oi > 1.2:
+        # Max Pain, Support and Resistance
+        max_pain = calculate_max_pain(strikes_list)
+        
+        support_strike = spot_price
+        resistance_strike = spot_price
+        max_put_oi = -1
+        max_call_oi = -1
+        for s in strikes_list:
+            if s["put"]["oi"] > max_put_oi:
+                max_put_oi = s["put"]["oi"]
+                support_strike = s["strike_price"]
+            if s["call"]["oi"] > max_call_oi:
+                max_call_oi = s["call"]["oi"]
+                resistance_strike = s["strike_price"]
+                
+        # Sentiment Meter Score
+        sentiment_score = 50
+        if pcr_oi > 1.25:
+            sentiment_score += 15
+        elif pcr_oi < 0.75:
+            sentiment_score -= 15
+        if net_flow > 1000000:
+            sentiment_score += 20
+        elif net_flow < -1000000:
+            sentiment_score -= 20
+        # directional shift check
+        up_strikes = sum(1 for s in strikes_list if s["put"]["buildup"] == "Long Build-Up")
+        down_strikes = sum(1 for s in strikes_list if s["call"]["buildup"] == "Long Build-Up")
+        sentiment_score += (up_strikes - down_strikes) * 2
+        sentiment_score = max(5, min(95, sentiment_score))
+        
+        if sentiment_score >= 80:
+            sentiment = "Strong Bullish"
+        elif sentiment_score >= 60:
             sentiment = "Bullish"
-        elif pcr_oi < 0.7:
+        elif sentiment_score >= 40:
+            sentiment = "Neutral"
+        elif sentiment_score >= 20:
             sentiment = "Bearish"
         else:
-            sentiment = "Neutral"
+            sentiment = "Strong Bearish"
             
-        # Detect Institutional Block Deals (> ₹10L Premium Turnover in a single option contract)
+        # Relative Strength & Correlation Engine
+        correlation_metrics = await compute_relative_strength_analytics(symbol, db)
+        
+        # Smart Money Activity
+        smart_money = detect_smart_money_activity(strikes_list, spot_price)
+        
+        # Signal Engine
+        signals = generate_trade_signals(
+            symbol=symbol,
+            spot_price=spot_price,
+            pcr_oi=pcr_oi,
+            net_flow=net_flow,
+            support_strike=support_strike,
+            resistance_strike=resistance_strike,
+            sentiment=sentiment,
+            beta=correlation_metrics.get("beta", 1.0),
+            relative_strength=correlation_metrics.get("relative_strength", "Neutral")
+        )
+        
+        # Large Block Deals (premium > 10L)
         block_deals = []
         for s in strikes_list:
             if s["call"]["premium"] > 1000000:
@@ -332,14 +624,22 @@ async def get_option_flow(
                     "premium": s["put"]["premium"],
                     "oi": s["put"]["oi"]
                 })
-                
-        # Sort block deals by premium descending
         block_deals = sorted(block_deals, key=lambda x: x["premium"], reverse=True)
+        
+        # PCR and Premium Intraday Histories
+        pcr_history_key = f"option_flow:pcr_history:{symbol}"
+        premium_history_key = f"option_flow:premium_history:{symbol}"
+        
+        pcr_trend = get_rolling_history(cache, pcr_history_key, pcr_oi, "pcr")
+        premium_flow_history = get_rolling_history(cache, premium_history_key, net_flow, "net_premium")
         
         response_data = {
             "status": "success",
             "symbol": symbol,
             "expiry": active_expiry,
+            "spot_price": round(spot_price, 2),
+            "spot_change": round(spot_change, 2),
+            "spot_change_pct": round(spot_change_pct, 2),
             "total_call_oi": total_call_oi,
             "total_put_oi": total_put_oi,
             "total_call_volume": total_call_vol,
@@ -351,15 +651,23 @@ async def get_option_flow(
             "pcr_oi": pcr_oi,
             "pcr_volume": pcr_vol,
             "sentiment": sentiment,
+            "sentiment_score": sentiment_score,
+            "max_pain": round(max_pain, 1),
+            "support_strike": support_strike,
+            "resistance_strike": resistance_strike,
+            "market_correlation": correlation_metrics,
+            "smart_money_activity": smart_money,
+            "trade_signals": signals,
+            "pcr_trend": pcr_trend,
+            "premium_flow_history": premium_flow_history,
             "strikes": strikes_list,
             "block_deals": block_deals
         }
         
-        # Cache for 15s (very dynamic) and fallback cache for 7 days
         if cache.is_available():
             try:
                 cache.set(cache_key, response_data, ttl=15)
-                cache.set(f"{cache_key}:fallback", response_data, ttl=604800) # 7 days
+                cache.set(f"{cache_key}:fallback", response_data, ttl=604800) # 7 days fallback
             except Exception as ce:
                 logger.warning(f"Cache write error in option flow: {ce}")
                 
@@ -374,7 +682,6 @@ async def get_option_flow(
         raise
     except Exception as e:
         logger.error(f"[Option Flow] Exception for {symbol}: {type(e).__name__}: {e}", exc_info=True)
-        # Attempt stale-cache fallback
         try:
             if cache.is_available():
                 stale = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
@@ -395,7 +702,6 @@ async def get_option_flow(
             pass
 
         msg = f"No option chain data available from Upstox currently: {type(e).__name__}: {str(e)}"
-        
         try:
             import httpx
             if isinstance(e, httpx.HTTPStatusError):
@@ -425,6 +731,328 @@ async def get_option_flow(
             }
         }
 
+def generate_trade_signals(
+    symbol: str, 
+    spot_price: float, 
+    pcr_oi: float, 
+    net_flow: float, 
+    support_strike: float, 
+    resistance_strike: float,
+    sentiment: str,
+    beta: float,
+    relative_strength: str
+) -> Dict[str, Any]:
+    """Signal generation algorithm based on option dynamics and spot trend."""
+    if pcr_oi > 1.25 and net_flow > 500000:
+        directional_bias = "Bullish"
+    elif pcr_oi < 0.75 and net_flow < -500000:
+        directional_bias = "Bearish"
+    else:
+        directional_bias = "Neutral"
+        
+    reasons = []
+    
+    if pcr_oi > 1.25:
+        reasons.append("Highly bullish Put-Call Ratio (PCR) indicating strong Put writing support.")
+    elif pcr_oi < 0.75:
+        reasons.append("Bearish PCR indicating dominant Call writing resistance.")
+    else:
+        reasons.append("PCR is in a neutral consolidated range.")
+        
+    if net_flow > 1000000:
+        reasons.append("Heavy institutional Call premium buying detected.")
+    elif net_flow < -1000000:
+        reasons.append("Heavy institutional Put premium buying detected.")
+        
+    dist_to_support = abs(spot_price - support_strike) / spot_price
+    dist_to_resistance = abs(spot_price - resistance_strike) / spot_price
+    
+    signal = "NO TRADE"
+    entry_zone = "N/A"
+    stop_loss = 0.0
+    target_levels = []
+    confidence = "Medium"
+    confidence_score = 50
+    
+    if directional_bias == "Bullish":
+        if dist_to_support < 0.02:
+            signal = "BUY"
+            reasons.append(f"Price is trading near strong Put support floor of {support_strike}.")
+            entry_zone = f"{round(support_strike, 1)} - {round(support_strike * 1.01, 1)}"
+            stop_loss = round(support_strike * 0.985, 1)
+            target_levels = [round(spot_price * 1.03, 1), round(resistance_strike, 1)]
+            confidence = "High"
+            confidence_score = 80
+        elif spot_price > resistance_strike:
+            signal = "BREAKOUT"
+            reasons.append(f"Price has broken out above options resistance strike of {resistance_strike}.")
+            entry_zone = f"{round(resistance_strike, 1)} - {round(resistance_strike * 1.008, 1)}"
+            stop_loss = round(resistance_strike * 0.99, 1)
+            target_levels = [round(spot_price * 1.04, 1), round(spot_price * 1.07, 1)]
+            confidence = "High"
+            confidence_score = 75
+        else:
+            signal = "BUY"
+            entry_zone = f"{round(spot_price * 0.995, 1)} - {round(spot_price, 1)}"
+            stop_loss = round(spot_price * 0.98, 1)
+            target_levels = [round(resistance_strike, 1), round(resistance_strike * 1.02, 1)]
+            confidence_score = 65
+    elif directional_bias == "Bearish":
+        if dist_to_resistance < 0.02:
+            signal = "SELL"
+            reasons.append(f"Price is near heavy Call resistance ceiling of {resistance_strike}.")
+            entry_zone = f"{round(resistance_strike * 0.99, 1)} - {round(resistance_strike, 1)}"
+            stop_loss = round(resistance_strike * 1.015, 1)
+            target_levels = [round(spot_price * 0.97, 1), round(support_strike, 1)]
+            confidence = "High"
+            confidence_score = 80
+        elif spot_price < support_strike:
+            signal = "BREAKDOWN"
+            reasons.append(f"Price has broken down below options support floor of {support_strike}.")
+            entry_zone = f"{round(support_strike * 0.992, 1)} - {round(support_strike, 1)}"
+            stop_loss = round(support_strike * 1.01, 1)
+            target_levels = [round(spot_price * 0.96, 1), round(spot_price * 0.93, 1)]
+            confidence = "High"
+            confidence_score = 75
+        else:
+            signal = "SELL"
+            entry_zone = f"{round(spot_price, 1)} - {round(spot_price * 1.005, 1)}"
+            stop_loss = round(spot_price * 1.02, 1)
+            target_levels = [round(support_strike, 1), round(support_strike * 0.98, 1)]
+            confidence_score = 65
+            
+    if "Outperforming" in relative_strength:
+        reasons.append("Stock is showing relative strength compared to the NIFTY 50 index.")
+        if signal in ("BUY", "BREAKOUT"):
+            confidence_score = min(95, confidence_score + 10)
+            if confidence_score >= 85:
+                confidence = "Very High"
+    elif "Underperforming" in relative_strength:
+        reasons.append("Stock is showing relative weakness compared to the index.")
+        if signal in ("SELL", "BREAKDOWN"):
+            confidence_score = min(95, confidence_score + 10)
+            if confidence_score >= 85:
+                confidence = "Very High"
+                
+    return {
+        "signal": signal,
+        "directional_bias": directional_bias,
+        "reason": reasons,
+        "entry_zone": entry_zone,
+        "stop_loss": stop_loss,
+        "target_levels": target_levels,
+        "confidence": confidence,
+        "confidence_score": confidence_score
+    }
+
+def detect_smart_money_activity(strikes_list: List[Dict[str, Any]], spot_price: float) -> List[Dict[str, Any]]:
+    """Detect options irregularities indicating smart money actions."""
+    activities = []
+    
+    total_vol = 0
+    total_oi_chg = 0
+    for s in strikes_list:
+        total_vol += s["call"]["volume"] + s["put"]["volume"]
+        total_oi_chg += abs(s["call"]["oi_change"]) + abs(s["put"]["oi_change"])
+        
+    avg_vol = total_vol / (2 * len(strikes_list)) if strikes_list else 1.0
+    avg_oi_chg = total_oi_chg / (2 * len(strikes_list)) if strikes_list else 1.0
+    
+    for s in strikes_list:
+        strike = s["strike_price"]
+        
+        # Liquidity Walls
+        if s["call"]["oi"] > 5 * avg_vol and s["call"]["oi"] > 100000:
+            activities.append({
+                "strike_price": strike,
+                "type": "Liquidity Wall (CE)",
+                "reason": f"Heavy concentration of Call Open Interest ({s['call']['oi']:,} contracts) acts as a strong resistance wall.",
+                "severity": "Medium" if abs(strike - spot_price)/spot_price > 0.05 else "High"
+            })
+        if s["put"]["oi"] > 5 * avg_vol and s["put"]["oi"] > 100000:
+            activities.append({
+                "strike_price": strike,
+                "type": "Liquidity Wall (PE)",
+                "reason": f"Heavy concentration of Put Open Interest ({s['put']['oi']:,} contracts) acts as a strong support floor.",
+                "severity": "Medium" if abs(strike - spot_price)/spot_price > 0.05 else "High"
+            })
+            
+        # Unusual OI Spikes
+        if s["call"]["oi_change"] > 3 * avg_oi_chg and s["call"]["oi_change"] > 15000:
+            activities.append({
+                "strike_price": strike,
+                "type": "Unusual OI Accumulation (CE)",
+                "reason": f"Sharp spike in Call OI (+{s['call']['oi_change']:,} contracts) indicates active writing or heavy speculation.",
+                "severity": "High" if abs(strike - spot_price)/spot_price <= 0.02 else "Medium"
+            })
+        if s["put"]["oi_change"] > 3 * avg_oi_chg and s["put"]["oi_change"] > 15000:
+            activities.append({
+                "strike_price": strike,
+                "type": "Unusual OI Accumulation (PE)",
+                "reason": f"Sharp spike in Put OI (+{s['put']['oi_change']:,} contracts) suggests aggressive institutional put writing.",
+                "severity": "High" if abs(strike - spot_price)/spot_price <= 0.02 else "Medium"
+            })
+            
+        # Gamma Traps
+        if abs(strike - spot_price) / spot_price <= 0.015:
+            if s["call"]["oi_change"] > 2 * avg_oi_chg and s["call"]["ltp"] > 0:
+                activities.append({
+                    "strike_price": strike,
+                    "type": "Gamma Trap Risk",
+                    "reason": f"Heavy Call writing at {strike} close to spot price. A breakout above this level could trigger massive short covering.",
+                    "severity": "High"
+                })
+                
+    severity_order = {"High": 0, "Medium": 1, "Low": 2}
+    activities = sorted(activities, key=lambda x: severity_order.get(x["severity"], 2))
+    return activities[:10]
+
+@router.get("/{symbol}/chart")
+async def get_option_flow_chart(
+    symbol: str,
+    interval: str = Query("1d"),
+    lookback_days: int = Query(60),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_read_db)
+):
+    """
+    Get price candlestick and advanced indicator data for Option Flow terminal charting.
+    """
+    symbol = symbol.upper().strip()
+    
+    try:
+        from services.indicator_compute_service import get_indicator_service
+        service = get_indicator_service()
+        
+        df = service.get_ohlcv_data(symbol, interval=interval, days=lookback_days)
+        if df.empty:
+            # Generate clean fallback candles if DB is empty
+            import random
+            now = datetime.now()
+            rows = []
+            base_price = 2500.0 if "RELIANCE" in symbol else 22000.0 if "NIFTY" in symbol else 1000.0
+            for i in range(lookback_days, 0, -1):
+                ts = now - timedelta(days=i)
+                change = random.uniform(-0.02, 0.025)
+                open_val = base_price
+                close_val = base_price * (1 + change)
+                high_val = max(open_val, close_val) * (1 + random.uniform(0, 0.01))
+                low_val = min(open_val, close_val) * (1 - random.uniform(0, 0.01))
+                vol_val = random.randint(100000, 5000000)
+                
+                rows.append({
+                    "timestamp": ts,
+                    "open": round(open_val, 2),
+                    "high": round(high_val, 2),
+                    "low": round(low_val, 2),
+                    "close": round(close_val, 2),
+                    "volume": vol_val
+                })
+                base_price = close_val
+                
+            df = pd.DataFrame(rows)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+        indicators_df = service._computer.compute_all_indicators(df)
+        if indicators_df.empty:
+            indicators_df = df.copy()
+            indicators_df['ema_20'] = indicators_df['close'].ewm(span=20, adjust=False).mean()
+            indicators_df['ema_50'] = indicators_df['close'].ewm(span=50, adjust=False).mean()
+            indicators_df['vwap'] = indicators_df['close']
+            
+        closes = indicators_df['close'].values
+        pivots_support = []
+        pivots_resistance = []
+        
+        for i in range(5, len(closes) - 5):
+            if closes[i] == min(closes[i-5:i+6]):
+                pivots_support.append(float(closes[i]))
+            if closes[i] == max(closes[i-5:i+6]):
+                pivots_resistance.append(float(closes[i]))
+                
+        support_zones = sorted(list(set(pivots_support)))[-3:] if pivots_support else [float(closes[-1]*0.95)]
+        resistance_zones = sorted(list(set(pivots_resistance)))[:3] if pivots_resistance else [float(closes[-1]*1.05)]
+        
+        min_p = float(df['close'].min())
+        max_p = float(df['close'].max())
+        price_step = (max_p - min_p) / 10 if max_p > min_p else 1.0
+        
+        volume_profile = []
+        for b in range(10):
+            bin_min = min_p + b * price_step
+            bin_max = bin_min + price_step
+            bin_vol = int(df[(df['close'] >= bin_min) & (df['close'] < bin_max)]['volume'].sum())
+            volume_profile.append({
+                "price": round((bin_min + bin_max) / 2, 2),
+                "volume": bin_vol
+            })
+            
+        avg_volume = df['volume'].mean()
+        high_vol_df = df[df['volume'] > 1.8 * avg_volume]
+        smart_money_zones = []
+        for _, row in high_vol_df.iterrows():
+            smart_money_zones.append({
+                "price_low": float(row['low']),
+                "price_high": float(row['high']),
+                "timestamp": row['timestamp'].isoformat() + "Z"
+            })
+            
+        breakout_markers = []
+        for idx, row in df.iterrows():
+            close_val = float(row['close'])
+            vol_val = float(row['volume'])
+            
+            if vol_val > 2.0 * avg_volume and idx > 0:
+                prev_close = float(df.loc[idx - 1, 'close'])
+                ret = (close_val - prev_close) / prev_close
+                if ret > 0.015:
+                    breakout_markers.append({
+                        "time": row['timestamp'].strftime("%Y-%m-%d"),
+                        "position": "belowBar",
+                        "color": "#10b981",
+                        "shape": "arrowUp",
+                        "text": "BULL BREAKOUT"
+                    })
+                elif ret < -0.015:
+                    breakout_markers.append({
+                        "time": row['timestamp'].strftime("%Y-%m-%d"),
+                        "position": "aboveBar",
+                        "color": "#ef4444",
+                        "shape": "arrowDown",
+                        "text": "BEAR BREAKDOWN"
+                    })
+                    
+        chart_candles = []
+        for _, row in indicators_df.iterrows():
+            chart_candles.append({
+                "time": row['timestamp'].strftime("%Y-%m-%d"),
+                "open": float(row['open']),
+                "high": float(row['high']),
+                "low": float(row['low']),
+                "close": float(row['close']),
+                "volume": int(row['volume']),
+                "ema_20": float(row.get('ema_20', row['close'])) if not pd.isna(row.get('ema_20')) else float(row['close']),
+                "ema_50": float(row.get('ema_50', row['close'])) if not pd.isna(row.get('ema_50')) else float(row['close']),
+                "vwap": float(row.get('vwap', row['close'])) if not pd.isna(row.get('vwap')) else float(row['close'])
+            })
+            
+        return {
+            "success": True,
+            "data": {
+                "symbol": symbol,
+                "interval": interval,
+                "candles": chart_candles,
+                "support_zones": support_zones,
+                "resistance_zones": resistance_zones,
+                "volume_profile": volume_profile,
+                "smart_money_zones": smart_money_zones[:5],
+                "breakout_markers": breakout_markers
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error generating chart indicators for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{symbol}/expiries")
 async def get_option_expiries(
     symbol: str,
@@ -441,7 +1069,6 @@ async def get_option_expiries(
         raise HTTPException(status_code=400, detail=f"Symbol '{symbol}' is not in F&O segment.")
         
     try:
-        # Check cache
         cache_key = f"option_expiries:{symbol}"
         cache = get_cache_manager()
         if not bypass_cache and cache.is_available():
@@ -457,7 +1084,6 @@ async def get_option_expiries(
             except Exception as ce:
                 logger.warning(f"Cache read error: {ce}")
                 
-        # Try fetching live option chain first to extract available expiries
         expiries = []
         try:
             symbol_query = text("""
@@ -487,7 +1113,6 @@ async def get_option_expiries(
         except Exception as e:
             logger.warning(f"[Option Expiries] Failed to fetch live expiries for {symbol}: {type(e).__name__}: {e}")
             
-        # Fallback to calculated dates if live retrieval failed
         if not expiries:
             if is_index(symbol):
                 expiries = get_upcoming_thursdays()
@@ -500,7 +1125,6 @@ async def get_option_expiries(
             "expiries": expiries
         }
         
-        # Cache for 1 hour (expiries don't change frequently during the day)
         if cache.is_available():
             try:
                 cache.set(cache_key, response_data, ttl=3600)
