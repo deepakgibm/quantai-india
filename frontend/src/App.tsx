@@ -28,6 +28,7 @@ import AdminMonitoring from './pages/AdminMonitoring';
 import MLTrainingControl from './pages/MLTrainingControl';
 import TradeScreener from './pages/TradeScreener';
 import BotTab from './pages/BotTab';
+import QuantWorkspace from './pages/QuantWorkspace';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -116,8 +117,13 @@ const App: React.FC = () => {
         return <LiveMonitor />;
       case Page.ETL_STATUS:
         return <ETLStatus />;
-      case Page.QUANT_BOT:
-        return <Backtest />;
+      // ── Legacy quant routes → redirect to unified Quant Workspace ──────────
+      case Page.QUANT_BOT:             // was: Backtest
+      case Page.WALK_FORWARD_BACKTEST: // was: Walk-Forward
+      case Page.EXPERIMENT_LAB:        // was: Experiment Lab
+      case Page.QUANT_WORKSPACE:
+        return <QuantWorkspace />;
+      // ── End legacy redirects ──────────────────────────────────────────────
       case Page.AUDIT_REPORTS:
         return <AuditReports />;
       case Page.SCANNER:
@@ -132,10 +138,6 @@ const App: React.FC = () => {
         return <MomentAlert />;
       case Page.WEEK52_BREAKOUT:
         return <Week52Breakout />;
-      case Page.WALK_FORWARD_BACKTEST:
-        return <WalkForwardBacktest />;
-      case Page.EXPERIMENT_LAB:
-        return <ExperimentLab />;
       case Page.PRICE_FORECAST:
         return <PriceForecast />;
       case Page.ADMIN_INDICES:
@@ -157,6 +159,13 @@ const App: React.FC = () => {
     currentPage === Page.LOGIN ||
     currentPage === Page.SIGNUP ||
     currentPage === Page.FORGOT_PASSWORD;
+
+  // Quant Workspace uses a full-bleed layout (no max-width padding)
+  const isFullBleed =
+    currentPage === Page.QUANT_WORKSPACE ||
+    currentPage === Page.QUANT_BOT ||
+    currentPage === Page.WALK_FORWARD_BACKTEST ||
+    currentPage === Page.EXPERIMENT_LAB;
 
   return (
     <GlobalSymbolProvider>
@@ -201,9 +210,16 @@ const App: React.FC = () => {
 
             {/* Main Content */}
             <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
-              <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-                {renderPage()}
-              </div>
+              {isFullBleed ? (
+                // Full-bleed layout for the Quant Research Terminal
+                <div className="h-full">
+                  {renderPage()}
+                </div>
+              ) : (
+                <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+                  {renderPage()}
+                </div>
+              )}
             </main>
           </div>
         )}
