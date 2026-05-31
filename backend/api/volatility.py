@@ -17,6 +17,94 @@ from services.upstox_client import get_upstox_client
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Volatility"])
 
+def generate_investor_summary(
+    iv: float,
+    hv: float,
+    iv_rank: float,
+    iv_percentile: float,
+    volatility_regime: str,
+    mean_reversion_score: float,
+    price_change_pct: float = 0.0,
+    symbol: str = "Stock"
+) -> Dict[str, Any]:
+    """
+    Translates complex volatility technical indicators into simple plain-English actions for retail investors.
+    """
+    reasons = []
+    
+    # 1. Translate IV / HV Relationship
+    if iv < hv:
+        reasons.append("The options market expects lower future volatility than recent history.")
+    else:
+        reasons.append("The options market expects larger price swings ahead.")
+        
+    # 2. Translate IV Rank
+    if iv_rank > 70:
+        reasons.append("Options are relatively expensive compared to the past year.")
+    elif iv_rank < 30:
+        reasons.append("Options are relatively cheap compared to the past year.")
+    else:
+        reasons.append("Options are priced fairly compared to the past year.")
+        
+    # 3. Translate Mean Reversion
+    if mean_reversion_score >= 60:
+        reasons.append("Volatility may move back toward its long-term average.")
+    elif mean_reversion_score <= 40:
+        reasons.append("Volatility is low and could expand in the near future.")
+        
+    # 4. Volatility Regime status
+    reasons.append(f"Volatility regime is {volatility_regime}.")
+    
+    # Determine Action, Risk Level, Summary
+    # STRONG BUY
+    if "low" in volatility_regime.lower() and iv_rank < 30 and price_change_pct >= 0:
+        action = "STRONG BUY"
+        risk_level = "Low"
+        summary = f"{symbol} appears attractively priced from a volatility perspective. Low volatility and low option pricing suggest an excellent entry point with low risk."
+    # WAIT FOR BETTER ENTRY / AVOID
+    elif iv_rank > 85 or ("high" in volatility_regime.lower() and iv_rank > 80):
+        action = "WAIT FOR BETTER ENTRY"
+        risk_level = "High"
+        summary = f"Current conditions suggest waiting for volatility to cool down. {symbol} is experiencing high volatility and option pricing, indicating elevated speculation."
+    # SELL
+    elif "high" in volatility_regime.lower() and price_change_pct < 0:
+        action = "SELL"
+        risk_level = "High"
+        summary = f"Risk has increased and downside pressure is building for {symbol}. Elevated volatility coupled with negative price momentum suggests caution."
+    # BUY
+    elif "normal" in volatility_regime.lower() and price_change_pct >= 0 and iv_rank <= 65:
+        action = "BUY"
+        risk_level = "Moderate"
+        summary = f"Conditions remain favorable for gradual accumulation of {symbol}. Volatility is stable and trading within historical norms."
+    # HOLD (Fallback / Mixed)
+    else:
+        action = "HOLD"
+        risk_level = "Moderate"
+        summary = f"There is no strong buy or sell signal currently for {symbol}. Volatility metrics are in a neutral consolidated range."
+        
+    # Calculate Confidence Score (0-100%)
+    base_conf = 60
+    if "low" in volatility_regime.lower() or "high" in volatility_regime.lower():
+        base_conf += 10
+    if iv_rank < 30 or iv_rank > 80:
+        base_conf += 10
+    if iv_percentile < 25 or iv_percentile > 75:
+        base_conf += 5
+    if mean_reversion_score > 65 or mean_reversion_score < 35:
+        base_conf += 5
+    if abs(iv - hv) / max(1.0, hv) > 0.15:
+        base_conf += 5
+        
+    confidence = min(95, max(45, base_conf))
+    
+    return {
+        "action": action,
+        "confidence": confidence,
+        "risk_level": risk_level,
+        "summary": summary,
+        "reasons": reasons
+    }
+
 @router.get("/{symbol}")
 async def get_volatility_data(
     symbol: str,
@@ -273,6 +361,18 @@ async def get_volatility_data(
                     "atr": round(float(row['atr']), 2) if not pd.isna(row['atr']) else 0.0
                 })
         
+        # Generate simple retail investor summary
+        investor_summary = generate_investor_summary(
+            iv=current_iv,
+            hv=latest_hv,
+            iv_rank=iv_rank,
+            iv_percentile=iv_percentile,
+            volatility_regime=regime_signal,
+            mean_reversion_score=mean_reversion_prob,
+            price_change_pct=latest_change_pct,
+            symbol=symbol
+        )
+        
         response_data = {
             "status": "success",
             "symbol": symbol,
@@ -290,7 +390,8 @@ async def get_volatility_data(
             "atr": round(latest_atr, 2),
             "regime": regime_signal,
             "mean_reversion_probability": round(mean_reversion_prob, 2),
-            "time_series": chart_data
+            "time_series": chart_data,
+            "investor_summary": investor_summary
         }
         
         # Set cache (30s TTL for real-time feel)

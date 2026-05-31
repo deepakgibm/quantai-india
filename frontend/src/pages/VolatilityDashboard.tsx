@@ -14,6 +14,14 @@ interface TimeSeriesItem {
   atr: number;
 }
 
+interface InvestorSummary {
+  action: string;
+  confidence: number;
+  risk_level: string;
+  summary: string;
+  reasons: string[];
+}
+
 interface VolatilityData {
   status: string;
   symbol: string;
@@ -32,6 +40,7 @@ interface VolatilityData {
   regime: string;
   mean_reversion_probability: number;
   time_series: TimeSeriesItem[];
+  investor_summary?: InvestorSummary;
 }
 
 export const VolatilityDashboard: React.FC = () => {
@@ -40,6 +49,7 @@ export const VolatilityDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [isWhyOpen, setIsWhyOpen] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchVolatility = async (symbol: string, days: number, forceSilent = false) => {
@@ -327,6 +337,105 @@ export const VolatilityDashboard: React.FC = () => {
               </span>
             </div>
           </div>
+
+          {/* Simple Investor Summary Card */}
+          {data.investor_summary && (() => {
+            const summary = data.investor_summary;
+            const action = summary.action;
+            
+            // Define Action Color Schemes
+            let actionColor = 'text-yellow-400 bg-yellow-950/40 border-yellow-500/20';
+            let actionDotColor = 'bg-yellow-400';
+            let cardBorderColor = 'border-slate-800 bg-slate-900/70';
+            
+            if (action === 'STRONG BUY') {
+              actionColor = 'text-emerald-400 bg-emerald-950/70 border-emerald-500/30';
+              actionDotColor = 'bg-emerald-400';
+              cardBorderColor = 'border-emerald-500/30 bg-emerald-950/5';
+            } else if (action === 'BUY') {
+              actionColor = 'text-emerald-500/90 bg-emerald-900/30 border-emerald-500/10';
+              actionDotColor = 'bg-emerald-500';
+              cardBorderColor = 'border-emerald-500/10 bg-emerald-500/5';
+            } else if (action === 'SELL') {
+              actionColor = 'text-orange-400 bg-orange-950/40 border-orange-500/20';
+              actionDotColor = 'bg-orange-400';
+              cardBorderColor = 'border-orange-500/30 bg-orange-950/5';
+            } else if (action === 'WAIT FOR BETTER ENTRY') {
+              actionColor = 'text-red-400 bg-red-950/70 border-red-500/40';
+              actionDotColor = 'bg-red-400';
+              cardBorderColor = 'border-red-500/30 bg-red-950/5';
+            }
+
+            return (
+              <div className={`p-6 rounded-xl border backdrop-blur-md flex flex-col justify-between ${cardBorderColor}`}>
+                <div>
+                  <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider flex items-center gap-2 mb-4">
+                    <span className={`w-2.5 h-2.5 rounded-full ${actionDotColor}`}></span> Simple Investor Summary
+                  </h3>
+                  
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-500">Action:</span>
+                      <span className={`text-xs font-bold font-mono px-2.5 py-0.5 rounded border uppercase ${actionColor}`}>
+                        {action}
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-slate-200 font-medium leading-relaxed">
+                      {summary.summary}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-4 text-xs justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 font-semibold">Risk Level:</span>
+                    <span className="font-bold text-slate-300 font-mono">{summary.risk_level}</span>
+                  </div>
+
+                  <div 
+                    className="flex items-center gap-1.5 cursor-help"
+                    title="Higher confidence means more indicators agree with the recommendation."
+                  >
+                    <span className="text-slate-500 font-semibold">Confidence:</span>
+                    <span className="font-bold text-slate-300 font-mono">{summary.confidence}%</span>
+                    <Info size={12} className="text-slate-500" />
+                  </div>
+                </div>
+
+                {/* Expandable Explanation Section */}
+                <div className="mt-4 pt-3 border-t border-slate-800/40">
+                  <button
+                    onClick={() => setIsWhyOpen(!isWhyOpen)}
+                    className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1.5 focus:outline-none transition-all cursor-pointer border-0 bg-transparent p-0"
+                  >
+                    <span>{isWhyOpen ? 'Hide Description' : 'Why am I seeing this recommendation?'}</span>
+                    <svg
+                      className={`w-3 h-3 transition-transform duration-200 ${isWhyOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </button>
+
+                  {isWhyOpen && (
+                    <div className="mt-2.5 p-3 rounded-lg bg-slate-950/40 border border-slate-800/50 space-y-1.5 text-xs text-slate-400 animate-fadeIn">
+                      <div className="font-semibold text-slate-500 text-[10px] uppercase tracking-wider mb-1">Recommendation Reasons:</div>
+                      {summary.reasons.map((reason, idx) => (
+                        <div key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                          <span className="text-purple-400/80 mt-0.5">•</span>
+                          <span>{reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Mean Reversion Probability */}
           <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/70 backdrop-blur-md flex flex-col justify-between">
