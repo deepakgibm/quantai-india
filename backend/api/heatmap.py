@@ -14,6 +14,163 @@ from services.cache import get_cache_manager
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Heatmap"])
 
+def generate_market_summary(df: pd.DataFrame, active_metric: str, sectors_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if df.empty or not sectors_list:
+        return {
+            "signal": "HOLD",
+            "confidence": 50,
+            "sentiment": "Neutral",
+            "top_sectors": [],
+            "weak_sectors": [],
+            "summary": "No market data available to generate summary.",
+            "actionable_insight": "Wait for market data to load.",
+            "score": 50.0,
+            "reasoning": "Insufficient market data."
+        }
+        
+    perf_pct = (df["change_pct"] > 0).sum() / len(df) * 100 if len(df) > 0 else 50.0
+    mom_pct = (df["momentum_pct"] > 0).sum() / len(df) * 100 if len(df) > 0 else 50.0
+    rs_pct = (df["rs_score"] > 0).sum() / len(df) * 100 if len(df) > 0 else 50.0
+    avg_deliv = df["delivery_pct"].mean() if len(df) > 0 else 50.0
+    
+    avg_vol = df["volatility_score"].mean() if len(df) > 0 else 2.0
+    vol_score = np.clip(100.0 - (avg_vol * 15.0), 0.0, 100.0)
+    
+    overall_weighted_score = (0.30 * perf_pct) + (0.20 * mom_pct) + (0.20 * rs_pct) + (0.15 * avg_deliv) + (0.15 * vol_score)
+    overall_weighted_score = float(np.clip(overall_weighted_score, 0.0, 100.0))
+    
+    if active_metric == "performance":
+        score = perf_pct
+    elif active_metric == "volatility":
+        score = vol_score
+    elif active_metric == "momentum":
+        score = mom_pct
+    elif active_metric == "delivery":
+        score = avg_deliv
+    elif active_metric == "relative_strength":
+        score = rs_pct
+    else:
+        score = overall_weighted_score
+        
+    score = float(np.clip(score, 0.0, 100.0))
+    
+    if score >= 60.0:
+        signal = "BUY"
+    elif score >= 40.0:
+        signal = "HOLD"
+    else:
+        signal = "SELL"
+        
+    if score > 80.0:
+        sentiment = "Strong Bullish"
+    elif score >= 60.0:
+        sentiment = "Bullish"
+    elif score >= 40.0:
+        sentiment = "Neutral"
+    elif score >= 25.0:
+        sentiment = "Bearish"
+    else:
+        sentiment = "Strong Bearish"
+        
+    # Get top and weak sectors based on active_metric
+    valid_sectors = [s for s in sectors_list if s["name"] not in ["Others", "Others/Unknown", "Unknown"]]
+    if not valid_sectors:
+        valid_sectors = sectors_list
+        
+    if active_metric == "volatility":
+        sorted_sectors = sorted(valid_sectors, key=lambda x: x.get("avg_value", 0.0))
+        top_sec = [s["name"] for s in sorted_sectors[:3]]
+        weak_sec = [s["name"] for s in sorted_sectors[-3:]][::-1]
+    else:
+        sorted_sectors = sorted(valid_sectors, key=lambda x: x.get("avg_value", 0.0), reverse=True)
+        top_sec = [s["name"] for s in sorted_sectors[:3]]
+        weak_sec = [s["name"] for s in sorted_sectors[-3:]][::-1]
+        
+    confidence = int(np.clip(50.0 + abs(score - 50.0) * 1.1 + 3.0, 50.0, 95.0))
+    
+    # Generate content based on active_metric and signal
+    summary = ""
+    actionable_insight = ""
+    
+    if active_metric == "performance":
+        if signal == "BUY":
+            summary = f"{int(perf_pct)}% of NIFTY 500 stocks are positive today. {', '.join(top_sec[:2])} are leading. Broad participation suggests bullish sentiment."
+            actionable_insight = "Retail investors may consider accumulating leaders while avoiding weak sectors."
+        elif signal == "HOLD":
+            summary = f"Market is mixed with balanced winners and losers ({int(perf_pct)}% positive stocks). {', '.join(top_sec[:2])} show resilience, but {', '.join(weak_sec[:2])} are lagging. No strong directional bias."
+            actionable_insight = "Consider holding current quality positions and wait for a clearer momentum shift."
+        else: # SELL
+            summary = f"Only {int(perf_pct)}% of NIFTY 500 stocks are positive today. Most sectors, led by weakness in {', '.join(weak_sec[:2])}, are declining, indicating risk-off sentiment."
+            actionable_insight = "Focus on capital preservation. Tighten stop-losses and avoid buying into weak rallies."
+            
+    elif active_metric == "volatility":
+        if signal == "BUY":
+            summary = f"Volatility remains low (avg score {avg_vol:.1f}) while prices are advancing. Healthy trend continuation with low market anxiety."
+            actionable_insight = "Favorable environment for accumulating quality stocks as volatility is low and stable."
+        elif signal == "HOLD":
+            summary = f"Moderate volatility suggests market consolidation (avg score {avg_vol:.1f}). Sector stability is mixed, with {', '.join(top_sec[:2])} showing steadiness."
+            actionable_insight = "Wait for volatility to contract before taking large directional bets."
+        else: # SELL
+            summary = f"Sharp increase in volatility (avg score {avg_vol:.1f}) indicates uncertainty and potential downside risk. {', '.join(weak_sec[:2])} are experiencing high volatility spikes."
+            actionable_insight = "High market risk. Retail investors should avoid aggressive buying and hold higher cash levels."
+            
+    elif active_metric == "momentum":
+        if signal == "BUY":
+            summary = f"Momentum is expanding across multiple sectors. {int(mom_pct)}% of stocks have positive 10-day momentum, led by {', '.join(top_sec[:2])}."
+            actionable_insight = "Ride the momentum. Focus on accumulating leaders showing strong breakout patterns."
+        elif signal == "HOLD":
+            summary = f"Momentum is mixed with no clear sector leadership. {int(mom_pct)}% of stocks have positive momentum, indicating consolidation."
+            actionable_insight = "Stock-specific action is key. Avoid chasing broad indices; focus on individual breakouts."
+        else: # SELL
+            summary = f"Negative momentum dominates the market. Only {int(mom_pct)}% of stocks maintain positive momentum. {', '.join(weak_sec[:2])} are losing strength rapidly."
+            actionable_insight = "Negative momentum is strong. Hold cash and wait for selling pressure to subside."
+            
+    elif active_metric == "delivery":
+        if signal == "BUY":
+            summary = f"High delivery volumes (avg {avg_deliv:.1f}%) suggest institutional accumulation, particularly in {', '.join(top_sec[:2])}."
+            actionable_insight = "Follow institutional flows. High delivery indicates strong conviction behind price moves."
+        elif signal == "HOLD":
+            summary = f"Delivery patterns remain average (avg {avg_deliv:.1f}%) with no significant institutional accumulation or distribution."
+            actionable_insight = "Consolidation phase. Prefer stocks with rising delivery percentages over the past week."
+        else: # SELL
+            summary = f"Declining delivery participation (avg {avg_deliv:.1f}%) suggests lack of conviction and distribution in key sectors like {', '.join(weak_sec[:2])}."
+            actionable_insight = "Avoid buying into low-delivery rallies as they may lack institutional support."
+            
+    elif active_metric == "relative_strength":
+        if signal == "BUY":
+            summary = f"{int(rs_pct)}% of stocks are outperforming the benchmark. Large-cap leaders continue to show healthy relative strength, led by {', '.join(top_sec[:2])}."
+            actionable_insight = "Focus on relative strength leaders. They tend to outperform in upward trends."
+        elif signal == "HOLD":
+            summary = f"Relative strength is neutral across sectors. {int(rs_pct)}% of stocks are outperforming, showing rotation without clear leadership."
+            actionable_insight = "Watch for sector rotation. Prepare to allocate capital as new leaders emerge."
+        else: # SELL
+            summary = f"Most stocks ({100 - int(rs_pct)}%) are underperforming the benchmark, indicating broad market weakness. Sector relative strength is deteriorating, especially in {', '.join(weak_sec[:2])}."
+            actionable_insight = "Defensive positioning recommended. Move capital towards defensive sectors or cash."
+            
+    else:
+        summary = "Market metrics are mixed. Analyze component tabs for detailed breakdowns."
+        actionable_insight = "Monitor sector trends and maintain appropriate risk management."
+
+    reasoning = (
+        f"Active metric ({active_metric}) score is {int(score)}/100. "
+        f"Overall weighted market score is {int(overall_weighted_score)}/100, composed of: "
+        f"Performance ({int(perf_pct)}%), Momentum ({int(mom_pct)}%), "
+        f"Relative Strength ({int(rs_pct)}%), Delivery ({int(avg_deliv)}%), "
+        f"and Low Volatility ({int(vol_score)}%)."
+    )
+
+    return {
+        "signal": signal,
+        "confidence": confidence,
+        "sentiment": sentiment,
+        "top_sectors": top_sec,
+        "weak_sectors": weak_sec,
+        "summary": summary,
+        "actionable_insight": actionable_insight,
+        "score": round(score, 1),
+        "reasoning": reasoning
+    }
+
 @router.get("")
 async def get_heatmap(
     mode: str = Query("performance", enum=["performance", "volatility", "momentum", "delivery", "relative_strength"]),
@@ -157,7 +314,6 @@ async def get_heatmap(
             })
             
         sectors_list = list(sectors_dict.values())
-        
         # Sort sectors by the average change_pct of their stocks
         for s in sectors_list:
             # Sort stocks inside sector by market cap descending
@@ -168,10 +324,14 @@ async def get_heatmap(
             
         sectors_list = sorted(sectors_list, key=lambda x: x["total_market_cap"], reverse=True)
         
+        # Generate AI-powered market summary
+        summary_data = generate_market_summary(df, mode, sectors_list)
+        
         response_data = {
             "status": "success",
             "mode": mode,
-            "sectors": sectors_list
+            "sectors": sectors_list,
+            "market_summary": summary_data
         }
         
         # Cache for 30s

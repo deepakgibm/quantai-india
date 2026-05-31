@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { api } from '../services/api';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
 import { Page } from '../types';
-import { TrendingUp, TrendingDown, ArrowLeft, Loader2, Search, Info, ZoomIn, ZoomOut, Zap, LayoutGrid } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowLeft, Loader2, Search, Info, ZoomIn, ZoomOut, Zap, LayoutGrid, Sparkles } from 'lucide-react';
 import ErrorCard from '../components/ErrorCard';
 
 interface TreemapNode {
@@ -120,6 +120,8 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 1000, height: 550 });
+  const [showDebug, setShowDebug] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
 
   // Handle Container Resizing
   useEffect(() => {
@@ -145,6 +147,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
       const data = await api.getHeatmapData(activeMode);
       if (data && data.status === 'success') {
         setHeatmapData(data);
+        setLastRefreshTime(new Date().toLocaleTimeString());
       } else {
         setError('Failed to compute market heatmap hierarchy.');
       }
@@ -431,6 +434,173 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {heatmapData?.market_summary && (
+        <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-2xl p-5 shadow-xl transition-all duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800/60 pb-3 mb-4 gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <Sparkles size={16} className="animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-200">Market Summary Panel</h3>
+                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                  AI Analytics &bull; <span className="text-slate-400">{mode.replace('_', ' ')} basis</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Signal:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-black tracking-wider ${
+                  heatmapData.market_summary.signal === 'BUY'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : heatmapData.market_summary.signal === 'SELL'
+                      ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                }`}>
+                  {heatmapData.market_summary.signal}
+                </span>
+              </div>
+              <span className="text-slate-800">|</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Sentiment:</span>
+                <span className={`text-xs font-bold ${
+                  heatmapData.market_summary.sentiment.includes('Bullish')
+                    ? 'text-emerald-400'
+                    : heatmapData.market_summary.sentiment.includes('Bearish')
+                      ? 'text-rose-400'
+                      : 'text-yellow-400'
+                }`}>
+                  {heatmapData.market_summary.sentiment}
+                </span>
+              </div>
+              <span className="text-slate-800">|</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Confidence:</span>
+                <span className="text-xs font-black text-slate-200">{heatmapData.market_summary.confidence}%</span>
+              </div>
+              <span className="text-slate-800">|</span>
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider transition-all border ${
+                  showDebug
+                    ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                    : 'text-slate-500 hover:text-slate-300 border-transparent hover:border-slate-800'
+                }`}
+              >
+                Debug
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Left: Overall Market Score & Rationale */}
+            <div className="space-y-3 md:border-r md:border-slate-800/40 md:pr-4">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-semibold">Weighted Scoring Engine</span>
+                <span className="font-bold text-slate-300 font-mono">{heatmapData.market_summary.score} / 100</span>
+              </div>
+              
+              {/* Score bar */}
+              <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    heatmapData.market_summary.signal === 'BUY'
+                      ? 'bg-emerald-500'
+                      : heatmapData.market_summary.signal === 'SELL'
+                        ? 'bg-rose-500'
+                        : 'bg-yellow-500'
+                  }`}
+                  style={{ width: `${heatmapData.market_summary.score}%` }}
+                />
+              </div>
+
+              <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                {heatmapData.market_summary.reasoning}
+              </p>
+            </div>
+
+            {/* Middle: Top/Weak Sectors */}
+            <div className="space-y-4 md:border-r md:border-slate-800/40 md:pr-4 flex flex-col justify-center">
+              {heatmapData.market_summary.top_sectors && heatmapData.market_summary.top_sectors.length > 0 && (
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                    <TrendingUp size={12} className="text-emerald-400" /> Leading Sectors
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {heatmapData.market_summary.top_sectors.slice(0, 3).map((sector: string, idx: number) => (
+                      <span key={sector} className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800/80 text-[10px] font-semibold text-emerald-400">
+                        {idx + 1}. {sector}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {heatmapData.market_summary.weak_sectors && heatmapData.market_summary.weak_sectors.length > 0 && (
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                    <TrendingDown size={12} className="text-rose-400" /> Weak Sectors
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {heatmapData.market_summary.weak_sectors.slice(0, 3).map((sector: string, idx: number) => (
+                      <span key={sector} className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800/80 text-[10px] font-semibold text-rose-400">
+                        {idx + 1}. {sector}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right: plain-English insights & Actionable Insight */}
+            <div className="space-y-3 flex flex-col justify-between">
+              <div>
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Market Insight</h4>
+                <p className="text-xs text-slate-300 font-medium leading-relaxed font-sans">
+                  {heatmapData.market_summary.summary}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-800/40">
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Actionable Insight</h4>
+                <p className="text-xs text-emerald-400 font-bold leading-relaxed font-sans">
+                  {heatmapData.market_summary.actionable_insight}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {showDebug && (
+            <div className="mt-4 pt-4 border-t border-slate-800/60 grid grid-cols-2 md:grid-cols-6 gap-4 text-[10px] text-slate-500 font-semibold font-mono">
+              <div>
+                <span className="text-slate-400 block mb-0.5">Active Metric</span>
+                <span className="text-yellow-400 font-bold uppercase">{mode}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Raw Score</span>
+                <span className="text-slate-200 font-bold">{heatmapData.market_summary.score} / 100</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Raw Confidence</span>
+                <span className="text-slate-200 font-bold">{heatmapData.market_summary.confidence}%</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Raw Sentiment</span>
+                <span className="text-slate-200 font-bold">{heatmapData.market_summary.sentiment}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">API Response</span>
+                <span className="text-slate-200 font-bold">status: {heatmapData.status} | mode: {heatmapData.mode}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Last Refresh Time</span>
+                <span className="text-slate-200 font-bold">{lastRefreshTime}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
