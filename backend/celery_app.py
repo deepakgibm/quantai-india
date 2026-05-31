@@ -15,7 +15,6 @@ celery_app = Celery(
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
-        "tasks.ml_tasks",
         "tasks.backtest_tasks",
         "tasks.institutional_tasks",
         "tasks.bot_tasks",
@@ -51,7 +50,6 @@ celery_app.conf.update(
     
     # Task Routing
     task_routes={
-        "tasks.ml_tasks.train_model": {"queue": "ml"},
         "tasks.backtest_tasks.run_backtest": {"queue": "backtest"},
     },
     
@@ -61,11 +59,6 @@ celery_app.conf.update(
 
 # Optional: periodic tasks (Celery Beat schedule)
 celery_app.conf.beat_schedule = {
-    "retrain-models-daily": {
-        "task": "tasks.ml_tasks.train_model",
-        "schedule": 86400.0, # seconds = 1 day
-        "args": (10, 64),
-    },
     "sync-institutional-flows-daily": {
         "task": "tasks.institutional_tasks.sync_institutional_flows",
         "schedule": 43200.0, # Wait until 18:00 IST logic handled in task if needed, but 12h interval for safety

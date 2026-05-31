@@ -62,17 +62,9 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.TRADE_SCREENER,       icon: Shield,          label: 'Trade Screener' },
       { page: Page.SIGNAL_BOT,           icon: Bot,             label: 'Signal Bot' },
       { page: Page.AI_PROMPT,            icon: BrainCircuit,    label: 'AI Prompt' },
-      { page: Page.PRICE_FORECAST,       icon: TrendingUp,      label: 'AI Forecast' },
       { page: Page.SCANNER,              icon: Search,          label: 'Scanner' },
       { page: Page.MOMENT_ALERT,         icon: Bell,            label: 'Moment Alert' },
       { page: Page.WEEK52_BREAKOUT,      icon: Target,          label: '52-Week Breakout' },
-    ],
-  },
-  {
-    title: 'Operations',
-    items: [
-      { page: Page.AI_TRAINING,          icon: Cpu,             label: 'AI Training' },
-      { page: Page.ADMIN_MONITORING,     icon: Activity,        label: 'System Monitor' },
     ],
   },
 ];

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+import pandas as pd
 
 from utils.auth import get_current_user
 from models import User
@@ -141,6 +142,10 @@ async def run_quant_backtest(
     end_date = request.end_date or datetime.now().strftime("%Y-%m-%d")
     start_date = request.start_date or (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
+    # Validate capital
+    if request.initial_capital <= 0:
+        raise HTTPException(status_code=422, detail="initial_capital must be greater than 0.")
+
     data_engine = get_market_data_engine()
     df = data_engine.load_candles(request.symbol, request.timeframe, start_date, end_date)
 
@@ -165,10 +170,23 @@ async def run_quant_backtest(
         recharts_equity = []
         for i, eq in enumerate(result["equity_curve"]):
             if i < len(df):
-                ts = str(df["timestamp"].iloc[i].date())
-                recharts_equity.append({"date": ts, "equity": round(eq, 2)})
+                try:
+                    ts_raw = df["timestamp"].iloc[i]
+                    # Safely convert any timestamp type (numpy.datetime64, pd.Timestamp, str)
+                    ts = pd.Timestamp(ts_raw).date().isoformat()
+                except Exception:
+                    ts = str(i)
+                recharts_equity.append({"date": ts, "equity": round(float(eq), 2)})
                 
         result["equity_curve_recharts"] = recharts_equity
+        # Ensure trades have JSON-serializable timestamps
+        for t in result.get("trades", []):
+            for k in ("entry_time", "exit_time"):
+                if t.get(k) is not None:
+                    try:
+                        t[k] = str(pd.Timestamp(t[k]))
+                    except Exception:
+                        t[k] = str(t[k])
         return {
             "success": True,
             "symbol": request.symbol,
@@ -177,6 +195,8 @@ async def run_quant_backtest(
             "execution_type": request.execution_type,
             "metrics": result
         }
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()

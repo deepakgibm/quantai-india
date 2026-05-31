@@ -157,28 +157,38 @@ async def get_volatility_data(
             try:
                 client = get_upstox_client()
                 chain = await client.get_option_chain(instrument_key)
-                if chain and "expiry" in chain:
-                    # Fetch detailed chain to get near-the-money implied volatility
-                    # The standard get_option_chain returns total numbers. Let's make a raw request if needed, or use a calculated IV
-                    # If we don't have detailed IV, we can use a mock/realistic option IV or calculate it
-                    # Let's check: does Upstox API option chain data have IV?
-                    # Let's make an API call to get the detailed option chain if possible:
-                    # In upstox_client, the detailed chain was mapped in get_option_chain. Let's see:
-                    # We can use the PCR and total OI. Let's estimate IV based on ATR or use HV as a proxy if IV is not returned.
-                    # Upstox returns detailed options in 'data' which we iterated in upstox_client.py:
-                    # Let's add a custom method in upstox_client to get detailed strikes, or just extract it here
-                    params = {"instrument_key": instrument_key}
+                
+                expiry_date = ""
+                if chain and chain.get("expiry"):
+                    expiry_date = chain["expiry"]
+                else:
+                    contracts_data = await client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key})
+                    if contracts_data.get("status") == "success" and contracts_data.get("data"):
+                        contracts = contracts_data["data"]
+                        unique_expiries = sorted(list(set(c.get("expiry") for c in contracts if c.get("expiry"))))
+                        if unique_expiries:
+                            expiry_date = unique_expiries[0]
+                
+                if expiry_date:
+                    params = {"instrument_key": instrument_key, "expiry_date": expiry_date}
                     response = await client._make_request("GET", "/option/chain", params=params)
                     if response.get("status") == "success" and response.get("data"):
                         strikes = response["data"]
                         # Find closest strike to latest price (ATM)
                         closest_strike = min(strikes, key=lambda s: abs(float(s.get("strike_price", 0)) - latest_price))
-                        # Get IV of call or put option
-                        call_iv = closest_strike.get("call_options", {}).get("market_data", {}).get("iv", 0)
-                        put_iv = closest_strike.get("put_options", {}).get("market_data", {}).get("iv", 0)
+                        call_opt = closest_strike.get("call_options") or {}
+                        put_opt = closest_strike.get("put_options") or {}
+                        call_market = call_opt.get("market_data") or {}
+                        put_market = put_opt.get("market_data") or {}
+                        call_greeks = call_opt.get("option_greeks") or {}
+                        put_greeks = put_opt.get("option_greeks") or {}
+                        
+                        call_iv = call_greeks.get("iv", 0) or call_market.get("iv", 0) or 0
+                        put_iv = put_greeks.get("iv", 0) or put_market.get("iv", 0) or 0
                         iv_list = [v for v in [call_iv, put_iv] if v and v > 0]
                         if iv_list:
-                            current_iv = float(np.mean(iv_list) * 100) # Convert to percentage if stored as decimal
+                            mean_iv = float(np.mean(iv_list))
+                            current_iv = mean_iv * 100.0 if 0.0 < mean_iv < 1.0 else mean_iv
             except Exception as e:
                 logger.debug(f"Could not retrieve live IV from option chain for {symbol}: {e}")
         

@@ -60,7 +60,6 @@ async def custom_validation_exception_handler(request, exc):
 # 5. Router Imports (Unified Layer)
 from api.auth import router as auth_router
 from api.ai import router as ai_router
-from api.forecast import router as forecast_router
 from api.scanners import router as scanner_router
 from api.market_data import router as market_router
 from api.indicators import router as indicator_router
@@ -70,7 +69,6 @@ from api.orders import router as orders_router
 from api.analytics import router as analytics_router
 from api.risk import router as risk_router
 from api.etl_status import router as etl_router
-from api.metrics import router as metrics_router
 from api.upstox import router as upstox_router
 from api.admin import router as admin_router
 from api.engines import router as engine_router
@@ -92,13 +90,11 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(market_router, prefix="/api/market", tags=["Market Data"])
 app.include_router(indicator_router, prefix="/api/indicators", tags=["Technical Indicators"])
 app.include_router(scanner_router, prefix="/api/scanner", tags=["Standard Scanners"])
-app.include_router(forecast_router, prefix="/api/forecast", tags=["ML Forecasts"])
 app.include_router(trading_router, prefix="/api/trading", tags=["Trading Operations"])
 app.include_router(orders_router, prefix="/api/orders", tags=["Order Management"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Performance Analytics"])
 app.include_router(risk_router, prefix="/api/risk", tags=["Risk Management"])
 app.include_router(etl_router, prefix="/api/etl", tags=["Data Pipelines"])
-app.include_router(metrics_router, prefix="/api/metrics", tags=["System Metrics"])
 app.include_router(ai_router, prefix="/api/ai", tags=["AI Engine"])
 app.include_router(upstox_router, prefix="/api/upstox", tags=["Upstox Broker"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Administration"])
@@ -161,6 +157,16 @@ async def shutdown_event():
     logger.info("?? QuantAI Backend Shutting Down...")
 
 # 8. Root Endpoints
+from api.health import health_check, readiness_check
+
+@app.get("/health", tags=["Health"])
+async def root_health_check():
+    return await health_check()
+
+@app.get("/ready", tags=["Health"])
+async def root_readiness_check():
+    return await readiness_check()
+
 @app.get("/")
 async def root():
     return {

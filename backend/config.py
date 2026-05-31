@@ -85,10 +85,7 @@ class Settings:
     SAFE_MODE = os.getenv("SAFE_MODE", "false").lower() == "true"
     MOCK_AI_RESPONSES = os.getenv("MOCK_AI_RESPONSES", "true").lower() == "true"
     
-    # AlphaPrime Module Settings
-    ALPHA_PRIME_ENABLED = os.getenv("ALPHA_PRIME_ENABLED", "true").lower() == "true"
-    ALPHA_PRIME_DATA_DIR = os.getenv("ALPHA_PRIME_DATA_DIR", "./data/alpha_prime")
-    ALPHA_PRIME_MODEL_DIR = os.getenv("ALPHA_PRIME_MODEL_DIR", "./models/alpha_prime")
+
     
     # ETL Configuration
     NIFTY_200_SYMBOLS_URL = "https://www.niftyindices.com/IndexConstituent/ind_nifty200list.csv"
@@ -114,10 +111,7 @@ class Settings:
     METRICS_ENABLED = os.getenv("METRICS_ENABLED", "true").lower() == "true"
     TRACING_ENABLED = os.getenv("TRACING_ENABLED", "true").lower() == "true"
     
-    # ML Model Parameters
-    ML_LOOKBACK_DAYS = int(os.getenv("ML_LOOKBACK_DAYS", "30"))
-    ML_MIN_TRAINING_SAMPLES = int(os.getenv("ML_MIN_TRAINING_SAMPLES", "1000"))
-    ML_RETRAIN_FREQUENCY_HOURS = int(os.getenv("ML_RETRAIN_FREQUENCY_HOURS", "24"))
+
     
     # Factor Calculation Windows
     RSI_PERIOD = int(os.getenv("RSI_PERIOD", "14"))

@@ -435,10 +435,23 @@ class UpstoxClient:
         import urllib.parse
         await self.rate_limiter.acquire()
 
-        params = {"instrument_key": instrument_key}
-        if expiry_date:
-            params["expiry_date"] = expiry_date
+        if not expiry_date:
+            try:
+                contracts_data = await self._make_request("GET", "/option/contract", params={"instrument_key": instrument_key})
+                if contracts_data.get("status") == "success" and contracts_data.get("data"):
+                    contracts = contracts_data["data"]
+                    unique_expiries = sorted(list(set(c.get("expiry") for c in contracts if c.get("expiry"))))
+                    if unique_expiries:
+                        expiry_date = unique_expiries[0]
+                        logger.info(f"[get_option_chain] Resolved nearest expiry for {instrument_key}: {expiry_date}")
+            except Exception as e:
+                logger.error(f"[get_option_chain] Failed to automatically resolve nearest expiry for {instrument_key}: {e}")
 
+        if not expiry_date:
+            logger.warning(f"[get_option_chain] No active expiry found for {instrument_key}, option chain call skipped.")
+            return None
+
+        params = {"instrument_key": instrument_key, "expiry_date": expiry_date}
         endpoint = "/option/chain"
 
         try:
@@ -464,8 +477,8 @@ class UpstoxClient:
                 total_put_oi += put_oi
                 num_strikes += 1
 
-                if not expiry and call.get("expiry"):
-                    expiry = call["expiry"]
+                if not expiry and strike.get("expiry"):
+                    expiry = strike["expiry"]
 
             pcr = round(total_put_oi / total_call_oi, 4) if total_call_oi > 0 else None
 

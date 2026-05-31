@@ -47,7 +47,9 @@ class VectorizedExecutionEngine:
 
         # 3. Simulate returns vectorially
         close_prices = df_signals['close'].values
-        timestamps = df_signals['timestamp'].values
+        # Convert timestamps to ISO strings immediately to avoid numpy.datetime64 serialization errors
+        raw_timestamps = df_signals['timestamp'].values
+        timestamps = [pd.Timestamp(t).isoformat() if not isinstance(t, str) else t for t in raw_timestamps]
         signals = df_signals['signal'].values
         
         # Convert string signals to position shifts
@@ -92,53 +94,53 @@ class VectorizedExecutionEngine:
             
             if pos == 1.0 and not in_trade:
                 in_trade = True
-                entry_price = price
-                entry_time = ts
+                entry_price = float(price)
+                entry_time = str(ts)
                 entry_idx = i
             elif pos == 0.0 and in_trade:
                 # Sell/Exit
                 in_trade = False
-                pnl = (price - entry_price) * (self.initial_capital / entry_price)
-                pnl_pct = ((price - entry_price) / entry_price) * 100.0
+                pnl = (float(price) - entry_price) * (self.initial_capital / entry_price)
+                pnl_pct = ((float(price) - entry_price) / entry_price) * 100.0
                 trades.append({
                     "symbol": "STOCK",
                     "entry_time": entry_time,
-                    "exit_time": ts,
-                    "entry_price": entry_price,
-                    "exit_price": price,
+                    "exit_time": str(ts),
+                    "entry_price": float(entry_price),
+                    "exit_price": float(price),
                     "quantity": int(self.initial_capital / entry_price),
-                    "pnl": pnl,
-                    "pnl_percent": pnl_pct,
+                    "pnl": round(pnl, 2),
+                    "pnl_percent": round(pnl_pct, 4),
                     "holding_bars": i - entry_idx,
                     "exit_reason": "SIGNAL"
                 })
                 
         # Close out active trade at last bar close
         if in_trade:
-            price = close_prices[-1]
-            ts = timestamps[-1]
+            price = float(close_prices[-1])
+            ts = str(timestamps[-1])
             pnl = (price - entry_price) * (self.initial_capital / entry_price)
             pnl_pct = ((price - entry_price) / entry_price) * 100.0
             trades.append({
                 "symbol": "STOCK",
                 "entry_time": entry_time,
                 "exit_time": ts,
-                "entry_price": entry_price,
-                "exit_price": price,
+                "entry_price": float(entry_price),
+                "exit_price": float(price),
                 "quantity": int(self.initial_capital / entry_price),
-                "pnl": pnl,
-                "pnl_percent": pnl_pct,
+                "pnl": round(pnl, 2),
+                "pnl_percent": round(pnl_pct, 4),
                 "holding_bars": len(close_prices) - 1 - entry_idx,
                 "exit_reason": "FORCE_CLOSE"
             })
 
         # Calculate metrics using unified calculator
         duration = time.time() - start_time
-        ts_list = [str(x) for x in timestamps]
+        # timestamps are already strings (converted above)
         metrics = UnifiedMetricsCalculator.calculate_performance_summary(
             trades=trades,
-            equity_curve=equity_curve.tolist(),
-            timestamps=ts_list,
+            equity_curve=[float(x) for x in equity_curve.tolist()],
+            timestamps=timestamps,  # already ISO strings
             initial_capital=self.initial_capital
         )
         

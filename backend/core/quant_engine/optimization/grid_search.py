@@ -25,7 +25,6 @@ def _run_single_backtest(
     Pickle-friendly helper function executed in a separate process.
     Re-imports the strategy class inside the process to avoid unpickleable issues.
     """
-    import importmodule_hack
     import pandas as pd
     
     # Dynamically import strategy class
@@ -38,7 +37,17 @@ def _run_single_backtest(
     if 'timestamp' in df.columns:
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         
-    strategy = strategy_class(params)
+    from core.quant_engine.strategy.base import UnifiedStrategy
+    from core.quant_engine.adapters.legacy_adapter import LegacyStrategyAdapter
+    
+    if isinstance(strategy_class, type) and issubclass(strategy_class, UnifiedStrategy):
+        strategy = strategy_class(params)
+    else:
+        # Legacy strategy: instantiate without params, wrap, and apply params
+        legacy_inst = strategy_class()
+        strategy = LegacyStrategyAdapter(legacy_inst)
+        strategy.params = params
+        
     engine = VectorizedExecutionEngine(initial_capital)
     
     try:

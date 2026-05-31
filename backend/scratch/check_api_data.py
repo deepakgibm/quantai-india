@@ -35,7 +35,7 @@ def check_backend_api():
         print(f"   Broker status request failed: {e}")
 
     # 3. Check Option Expiries
-    exp_url = f"{base_url}/api/option-flow/RELIANCE/expiries"
+    exp_url = f"{base_url}/api/option-flow/RELIANCE/expiries?bypass_cache=true"
     print(f"\n3. Checking Option Expiries: GET {exp_url}")
     try:
         r = requests.get(exp_url, headers=headers)
@@ -50,7 +50,7 @@ def check_backend_api():
         print(f"   Expiries request failed: {e}")
 
     # 4. Check Option Flow metrics (using nearest expiry)
-    flow_url = f"{base_url}/api/option-flow/RELIANCE"
+    flow_url = f"{base_url}/api/option-flow/RELIANCE?bypass_cache=true"
     print(f"\n4. Checking Option Flow (nearest expiry): GET {flow_url}")
     try:
         r = requests.get(flow_url, headers=headers)

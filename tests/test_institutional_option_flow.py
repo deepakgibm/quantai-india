@@ -108,3 +108,49 @@ def test_detect_smart_money_activity():
     
     types = [act["type"] for act in activities]
     assert any("Wall" in t or "Accumulation" in t or "Trap" in t for t in types)
+
+def test_confluence_signal_engine():
+    import asyncio
+    
+    async def run_test():
+        from services.confluence_signal_engine import ConfluenceSignalEngine
+        engine = ConfluenceSignalEngine()
+        
+        # 1. Test F&O Active Bullish setup
+        res = await engine.generate_confluence_signal(
+            symbol="RELIANCE",
+            spot_price=2500.0,
+            option_data={
+                "pcr_oi": 1.4,
+                "net_flow": 1200000.0,
+                "max_pain": 2490.0,
+                "support_strike": 2480.0,
+                "resistance_strike": 2550.0,
+                "sentiment": "Bullish",
+                "sentiment_score": 85,
+                "smart_money_activity": []
+            }
+        )
+        
+        assert "signal" in res
+        assert "directional_bias" in res
+        assert "confidence_score" in res
+        assert "equity_contribution" in res
+        assert "options_contribution" in res
+        assert "bullish_evidence" in res
+        assert "bearish_evidence" in res
+        assert "key_indicators" in res
+        
+        # RELIANCE is F&O active, so options contribution should be present
+        assert res["options_contribution"] > 0
+        
+        # 2. Test Non-F&O setup (using an explicitly non-F&O symbol)
+        res_non_fno = await engine.generate_confluence_signal(
+            symbol="MRF",  # Not F&O active
+            spot_price=100000.0,
+            option_data=None
+        )
+        assert res_non_fno["options_contribution"] == 0.0
+        assert res_non_fno["equity_contribution"] == 100.0
+
+    asyncio.run(run_test())

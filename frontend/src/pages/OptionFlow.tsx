@@ -70,6 +70,11 @@ interface TradeSignal {
   target_levels: number[];
   confidence: 'Low' | 'Medium' | 'High' | 'Very High';
   confidence_score: number;
+  equity_contribution?: number;
+  options_contribution?: number;
+  bullish_evidence?: string[];
+  bearish_evidence?: string[];
+  key_indicators?: Record<string, string>;
 }
 
 interface MarketCorrelation {
@@ -735,6 +740,18 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
           <div className="text-[9px] text-slate-400 font-semibold truncate">
             {data.trade_signals?.reason?.[0] || 'No signals generated currently.'}
           </div>
+          {data.trade_signals?.equity_contribution !== undefined && data.trade_signals?.options_contribution !== undefined && (
+            <div className="mt-2.5 pt-2 border-t border-slate-800/40">
+              <div className="flex justify-between text-[8px] font-mono font-bold text-slate-500 mb-1">
+                <span>EQUITY: {data.trade_signals.equity_contribution}%</span>
+                <span>OPTIONS: {data.trade_signals.options_contribution}%</span>
+              </div>
+              <div className="w-full bg-slate-850 h-1.5 rounded-full overflow-hidden flex border border-slate-800/60">
+                <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${data.trade_signals.equity_contribution}%` }}></div>
+                <div className="bg-purple-500 h-full transition-all duration-500" style={{ width: `${data.trade_signals.options_contribution}%` }}></div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Market Relative Strength HUD */}
@@ -1241,7 +1258,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
                     <span className="font-mono font-bold text-slate-200">{data.trade_signals?.entry_zone}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-slate-800/60 text-[11px] font-semibold">
-                    <span className="text-slate-500">Stop Loss (SL)</span>
+                    <span className="text-slate-500">Stop Loss / Invalidation</span>
                     <span className="font-mono font-bold text-red-400">₹{data.trade_signals?.stop_loss}</span>
                   </div>
                   <div className="flex justify-between items-start py-2 border-b border-slate-800/60 text-[11px] font-semibold">
@@ -1256,44 +1273,111 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
                       )}
                     </div>
                   </div>
-                  <div className="flex justify-between items-center py-1 text-[11px] font-semibold">
+                  <div className="flex justify-between items-center py-2 border-b border-slate-800/60 text-[11px] font-semibold">
                     <span className="text-slate-500">Confidence Score</span>
                     <span className="text-purple-400 font-bold">{confidence} ({data.trade_signals?.confidence_score}%)</span>
                   </div>
+                  {data.trade_signals?.equity_contribution !== undefined && (
+                    <div className="flex justify-between items-center py-2 border-b border-slate-800/60 text-[11px] font-semibold">
+                      <span className="text-slate-500">Equity Contribution</span>
+                      <span className="text-blue-400 font-bold">{data.trade_signals.equity_contribution}%</span>
+                    </div>
+                  )}
+                  {data.trade_signals?.options_contribution !== undefined && (
+                    <div className="flex justify-between items-center py-1 text-[11px] font-semibold">
+                      <span className="text-slate-500">Options Contribution</span>
+                      <span className="text-purple-400 font-bold">{data.trade_signals.options_contribution}%</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Dynamic Option Commentary & Analysis */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md lg:col-span-2 space-y-4">
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md lg:col-span-2 space-y-6">
                 <h4 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-800 pb-3">
                   <Activity size={14} className="text-purple-400" /> Options Positioning & Market Structure Commentary
                 </h4>
                 
                 <div className="space-y-4 text-xs font-medium text-slate-300 leading-relaxed font-sans">
-                  <div>
-                    <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Market Structure</h5>
-                    <p>
-                      The current sentiment score is <span className="text-slate-100 font-bold">{data.sentiment_score}/100</span> (classified as <span className="text-slate-100 font-bold">{data.sentiment}</span>). 
-                      The derivative pricing suggests {bias === 'Bullish' ? 'bullish continuation as option writers are actively backing lower strikes.' : bias === 'Bearish' ? 'directional weakness under intense short build-ups.' : 'a range-bound consolidated consolidation cycle.'}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Options Positioning</h5>
-                    <p>
-                      Open Interest profile shows a dominant Call concentration at <span className="text-slate-100 font-bold">{data.resistance_strike}</span> (representing a strong ceiling wall) and Put support floor at <span className="text-slate-100 font-bold">{data.support_strike}</span>. 
-                      Max Pain is currently set at <span className="text-slate-100 font-bold">{data.max_pain}</span>. Options pain points indicate that option sellers are incentivized to target this zone on expiry day.
-                    </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Market Structure</h5>
+                      <p>
+                        The current sentiment score is <span className="text-slate-100 font-bold">{data.sentiment_score}/100</span> (classified as <span className="text-slate-100 font-bold">{data.sentiment}</span>). 
+                        The derivative pricing suggests {bias === 'Bullish' ? 'bullish continuation as option writers are actively backing lower strikes.' : bias === 'Bearish' ? 'directional weakness under intense short build-ups.' : 'a range-bound consolidated consolidation cycle.'}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Options Positioning</h5>
+                      <p>
+                        Open Interest profile shows a dominant Call concentration at <span className="text-slate-100 font-bold">{data.resistance_strike}</span> (representing a strong ceiling wall) and Put support floor at <span className="text-slate-100 font-bold">{data.support_strike}</span>. 
+                        Max Pain is currently set at <span className="text-slate-100 font-bold">{data.max_pain}</span>. Options pain points indicate that option sellers are incentivized to target this zone on expiry day.
+                      </p>
+                    </div>
                   </div>
 
-                  <div>
-                    <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-1">Risk Profile Detections</h5>
-                    <ul className="list-disc pl-4 space-y-1 text-slate-400">
-                      {data.trade_signals?.reason && data.trade_signals.reason.map((reason, idx) => (
-                        <li key={idx}>{reason}</li>
-                      ))}
-                    </ul>
+                  {/* Bullish vs Bearish Evidence Columns */}
+                  <div className="border-t border-slate-800/80 pt-4">
+                    <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-2">Confluence Evidence Breakdown</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Bullish List */}
+                      <div className="p-3 bg-emerald-950/10 border border-emerald-950/40 rounded-xl space-y-1.5">
+                        <div className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1 mb-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Bullish Support Evidence
+                        </div>
+                        {data.trade_signals?.bullish_evidence && data.trade_signals.bullish_evidence.length > 0 ? (
+                          <ul className="space-y-1 pl-1 text-[10px] text-slate-350 list-none">
+                            {data.trade_signals.bullish_evidence.map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-1">
+                                <span className="text-emerald-400">✓</span> <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-[10px] text-slate-500 italic">No significant bullish indicators detected.</div>
+                        )}
+                      </div>
+
+                      {/* Bearish List */}
+                      <div className="p-3 bg-red-950/10 border border-red-950/40 rounded-xl space-y-1.5">
+                        <div className="text-[9px] text-red-400 font-bold uppercase tracking-wider flex items-center gap-1 mb-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span> Bearish Risk Evidence
+                        </div>
+                        {data.trade_signals?.bearish_evidence && data.trade_signals.bearish_evidence.length > 0 ? (
+                          <ul className="space-y-1 pl-1 text-[10px] text-slate-350 list-none">
+                            {data.trade_signals.bearish_evidence.map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-1">
+                                <span className="text-red-400">✗</span> <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-[10px] text-slate-500 italic">No major bearish risks detected.</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Key Indicators Confluence Table */}
+                  {data.trade_signals?.key_indicators && (
+                    <div className="border-t border-slate-800/80 pt-4">
+                      <h5 className="text-[10px] text-slate-500 uppercase font-bold mb-2">Key Indicators Dashboard</h5>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {Object.entries(data.trade_signals.key_indicators).map(([key, value]) => (
+                          <div key={key} className="p-2 bg-slate-950/50 border border-slate-800/60 rounded-lg text-center">
+                            <div className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">
+                              {key.replace(/_/g, ' ')}
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-200 truncate">
+                              {value}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
             </div>

@@ -647,25 +647,7 @@ export const api = {
     }
   },
 
-  // --- ML FORECAST ---
-  getPriceForecast: async (symbol: string, timeframe: string = '5m', horizon: number = 10) => {
-    try {
-      const params = new URLSearchParams({
-        symbol: symbol.toUpperCase(),
-        timeframe,
-        horizon: horizon.toString()
-      });
-      const res = await fetch(`${API_URL}/api/forecast/predict?${params}`);
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({ detail: { message: 'Prediction failed' } }));
-        throw new Error(error.detail?.message || 'Prediction failed');
-      }
-      return await res.json();
-    } catch (e) {
-      console.error('ML Forecast failed:', e);
-      throw e;
-    }
-  },
+
 
   // --- ADMIN & MONITORING ---
   getAdminIndices: async () => {
@@ -705,30 +687,7 @@ export const api = {
     throw res.error;
   },
 
-  getSystemHealth: async () => {
-    const res = await apiGet<any>('/api/health/');
-    if (res.success) return res.data;
-    throw res.error;
-  },
 
-  getEtlLogs: async () => {
-    // Using existing endpoint
-    const res = await apiGet<any>('/api/etl/status');
-    if (res.success) return res.data;
-    throw res.error;
-  },
-
-  getSymbols: async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/metrics/symbols`, {
-        headers: getAuthHeaders()
-      });
-      if (res.ok) return await res.json();
-    } catch (e) {
-      console.warn("Failed to fetch symbols");
-    }
-    return { symbols: [] };
-  },
 
   // --- INSTITUTIONAL SCREENER ---
   getScreenerRankings: async (params: any = {}) => {

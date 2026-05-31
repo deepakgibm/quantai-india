@@ -12,39 +12,22 @@ from config import settings
 from models import User
 from database import get_db
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
+
 # Use auto_error=False to get 401 (not 403) for missing tokens
 security = HTTPBearer(auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against a hashed password.
-    
-    Handles edge cases:
-    - Empty or None passwords
-    - Malformed bcrypt hashes
-    - Password byte length limits (bcrypt max 72 bytes)
-    """
+    """Verify a plain password against a hashed password using raw bcrypt."""
     try:
-        # Handle edge cases
         if not plain_password or not hashed_password:
             return False
         
-        # Check if the hash looks like a valid bcrypt hash
-        if not hashed_password.startswith('$2'):
-            # Not a bcrypt hash - might be Firebase auth marker or corrupted
-            if hashed_password == "firebase_auth_no_password":
-                return False  # Firebase users should use Firebase auth
-            # Try anyway, will likely fail
-            return False
-        
-        # Truncate password to 72 bytes if needed (bcrypt limitation)
-        # This prevents "password cannot be longer than 72 bytes" error
         password_bytes = plain_password.encode('utf-8')[:72]
-        truncated_password = password_bytes.decode('utf-8', errors='ignore')
+        hashed_bytes = hashed_password.encode('utf-8')
         
-        return pwd_context.verify(truncated_password, hashed_password)
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
     except Exception as e:
-        # Log but don't expose the error details
         import logging
         logging.getLogger(__name__).error(f"Password verification error: {type(e).__name__}")
         return False
@@ -56,7 +39,9 @@ async def verify_password_async(plain_password: str, hashed_password: str) -> bo
     return await loop.run_in_executor(None, verify_password, plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hash password using raw bcrypt."""
+    password_bytes = password.encode('utf-8')[:72]
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

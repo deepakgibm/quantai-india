@@ -278,14 +278,30 @@ async def get_option_flow(
         
     if not expiry:
         try:
-            if is_index(symbol):
-                calculated_exp = get_upcoming_thursdays()
-            else:
-                calculated_exp = get_monthly_expiries()
-            if calculated_exp:
-                expiry = calculated_exp[0]
+            # Try to resolve from live expiries first
+            expiries_res = await get_option_expiries(
+                symbol=symbol,
+                bypass_cache=bypass_cache,
+                current_user=current_user,
+                db=db
+            )
+            if expiries_res.get("success") and expiries_res.get("data", {}).get("expiries"):
+                expiry = expiries_res["data"]["expiries"][0]
+                logger.info(f"Resolved default live expiry for {symbol}: {expiry}")
         except Exception as ee:
-            logger.warning(f"Failed to resolve default expiry for {symbol}: {ee}")
+            logger.warning(f"Failed to resolve live default expiry for {symbol}: {ee}")
+
+        if not expiry:
+            try:
+                if is_index(symbol):
+                    calculated_exp = get_upcoming_thursdays()
+                else:
+                    calculated_exp = get_monthly_expiries()
+                if calculated_exp:
+                    expiry = calculated_exp[0]
+                    logger.info(f"Resolved default calculated expiry for {symbol}: {expiry}")
+            except Exception as ee:
+                logger.warning(f"Failed to resolve default calculated expiry for {symbol}: {ee}")
 
     try:
         cache_key = f"option_flow:{symbol}:{expiry or 'nearest'}:{strike_range or 'all'}"
@@ -345,15 +361,29 @@ async def get_option_flow(
             params["expiry_date"] = expiry
             
         # Call Upstox option chain API
-        response = await client._make_request("GET", "/option/chain", params=params)
+        raw_strikes = []
+        api_failed = True
+        api_status = "unknown"
+        api_message = ""
         
-        if response.get("status") != "success" or not response.get("data"):
-            logger.warning(
-                f"[Option Flow] Upstox API non-success for {symbol}: "
-                f"status={response.get('status')}, data_present={bool(response.get('data'))}, "
-                f"response_keys={list(response.keys())}"
-            )
-            if cache.is_available():
+        try:
+            response = await client._make_request("GET", "/option/chain", params=params)
+            api_status = response.get("status", "unknown")
+            api_message = response.get("message", "")
+            if response.get("status") == "success" and response.get("data"):
+                raw_strikes = response["data"]
+                api_failed = False
+            else:
+                logger.warning(
+                    f"[Option Flow] Upstox API returned no option data for {symbol}: "
+                    f"status={response.get('status')}, data_present={bool(response.get('data'))}"
+                )
+        except Exception as e:
+            logger.error(f"Option chain request failed for {symbol}: {e}")
+            api_message = str(e)
+            
+        if api_failed:
+            if not bypass_cache and cache.is_available():
                 try:
                     stale = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
                     if stale:
@@ -366,39 +396,12 @@ async def get_option_flow(
                             "_diagnostics": {
                                 "reason": "live_api_failed",
                                 "market_open": is_market_open(),
-                                "api_status": response.get("status"),
-                                "api_message": response.get("message", ""),
+                                "api_status": api_status,
+                                "api_message": api_message,
                             }
                         }
                 except Exception as sce:
                     logger.debug(f"[Option Flow] Stale cache read failed: {sce}")
-
-            api_status = response.get("status", "unknown")
-            api_message = response.get("message", "")
-            msg = f"No option chain data available from Upstox currently for {symbol}. API status: {api_status}."
-            if api_message:
-                msg += f" Message: {api_message}"
-            if not is_market_open():
-                msg += " Note: NSE market is currently closed \u2013 data may reflect last closing session."
-            return {
-                "success": False,
-                "data": None,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "source": "upstox",
-                "error": {
-                    "code": "BROKER_UNAVAILABLE",
-                    "message": msg
-                },
-                "_diagnostics": {
-                    "market_open": is_market_open(),
-                    "api_status": api_status,
-                    "api_message": api_message,
-                    "token_present": bool(client.access_token),
-                    "instrument_key": instrument_key,
-                }
-            }
-            
-        raw_strikes = response["data"]
         
         # Parse strikes & compute spot price
         strikes_list = []
@@ -450,6 +453,18 @@ async def get_option_flow(
 
         if spot_price <= 0.0:
             spot_price = atmStrike if atmStrike > 0 else (float(raw_strikes[len(raw_strikes)//2].get("strike_price", 0)) if raw_strikes else 0.0)
+            
+        if spot_price <= 0.0:
+            try:
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
+                p_res = await resolver.get_price(symbol)
+                spot_price = p_res.get("price", 0.0)
+                spot_change_pct = p_res.get("change_pct", 0.0)
+                prev_close = p_res.get("prev_close", 0.0)
+                spot_change = spot_price - prev_close if prev_close > 0 else 0.0
+            except Exception as e:
+                logger.warning(f"Failed to resolve spot price via resolver: {e}")
 
         for item in raw_strikes:
             if not item:
@@ -500,6 +515,15 @@ async def get_option_flow(
             call_gex = round(c_oi * c_ltp * 100.0, 2)
             put_gex = round(p_oi * p_ltp * 100.0, 2)
             
+            # Get IV from option_greeks or market_data
+            c_greeks = call.get("option_greeks") or {}
+            c_iv_raw = float(c_greeks.get("iv", 0) or call_market.get("iv", 0) or 0)
+            c_iv = c_iv_raw * 100.0 if 0.0 < c_iv_raw < 1.0 else c_iv_raw
+            
+            p_greeks = put.get("option_greeks") or {}
+            p_iv_raw = float(p_greeks.get("iv", 0) or put_market.get("iv", 0) or 0)
+            p_iv = p_iv_raw * 100.0 if 0.0 < p_iv_raw < 1.0 else p_iv_raw
+            
             call_data = {
                 "oi": c_oi,
                 "oi_change": c_oi_change,
@@ -508,7 +532,7 @@ async def get_option_flow(
                 "bid": float(call_market.get("bid_price", 0) or 0),
                 "ask": float(call_market.get("ask_price", 0) or 0),
                 "premium": round(c_premium, 2),
-                "iv": round(float(call_market.get("iv", 0) or 0) * 100, 2),
+                "iv": round(c_iv, 2),
                 "buildup": call_buildup,
                 "gex": call_gex,
                 "buildup_intensity": round(c_oi_change / max(1, c_oi - c_oi_change) * 100.0, 2)
@@ -522,7 +546,7 @@ async def get_option_flow(
                 "bid": float(put_market.get("bid_price", 0) or 0),
                 "ask": float(put_market.get("ask_price", 0) or 0),
                 "premium": round(p_premium, 2),
-                "iv": round(float(put_market.get("iv", 0) or 0) * 100, 2),
+                "iv": round(p_iv, 2),
                 "buildup": put_buildup,
                 "gex": put_gex,
                 "buildup_intensity": round(p_oi_change / max(1, p_oi - p_oi_change) * 100.0, 2)
@@ -591,16 +615,22 @@ async def get_option_flow(
         smart_money = detect_smart_money_activity(strikes_list, spot_price)
         
         # Signal Engine
-        signals = generate_trade_signals(
+        from services.confluence_signal_engine import ConfluenceSignalEngine
+        engine = ConfluenceSignalEngine()
+        signals = await engine.generate_confluence_signal(
             symbol=symbol,
             spot_price=spot_price,
-            pcr_oi=pcr_oi,
-            net_flow=net_flow,
-            support_strike=support_strike,
-            resistance_strike=resistance_strike,
-            sentiment=sentiment,
-            beta=correlation_metrics.get("beta", 1.0),
-            relative_strength=correlation_metrics.get("relative_strength", "Neutral")
+            option_data={
+                "pcr_oi": pcr_oi,
+                "net_flow": net_flow,
+                "max_pain": max_pain,
+                "support_strike": support_strike,
+                "resistance_strike": resistance_strike,
+                "sentiment": sentiment,
+                "sentiment_score": sentiment_score,
+                "smart_money_activity": smart_money,
+                "is_empty": len(raw_strikes) == 0
+            }
         )
         
         # Large Block Deals (premium > 10L)
@@ -1097,17 +1127,16 @@ async def get_option_expiries(
             instrument_key = symbol_row.instrument_key if symbol_row else f"NSE_INDEX|{symbol}"
             
             client = get_upstox_client()
-            response = await client._make_request("GET", "/option/chain", params={"instrument_key": instrument_key})
+            response = await client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key})
             if response.get("status") == "success" and response.get("data"):
-                strikes = response["data"]
+                contracts = response["data"]
                 unique_expiries = set()
-                for item in strikes:
+                for item in contracts:
                     if not item:
                         continue
-                    c_exp = (item.get("call_options") or {}).get("expiry")
-                    p_exp = (item.get("put_options") or {}).get("expiry")
-                    if c_exp: unique_expiries.add(c_exp)
-                    if p_exp: unique_expiries.add(p_exp)
+                    exp = item.get("expiry")
+                    if exp:
+                        unique_expiries.add(exp)
                 expiries = sorted(list(unique_expiries))
                 logger.info(f"[Option Expiries] Found {len(expiries)} expiry dates for {symbol} from live API")
         except Exception as e:
