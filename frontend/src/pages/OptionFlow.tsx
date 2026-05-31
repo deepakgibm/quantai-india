@@ -27,6 +27,8 @@ interface StrikeData {
     premium: number;
     iv: number;
     buildup: string;
+    sentiment?: string;
+    confidence_score?: number;
     gex: number;
     buildup_intensity: number;
   };
@@ -40,6 +42,8 @@ interface StrikeData {
     premium: number;
     iv: number;
     buildup: string;
+    sentiment?: string;
+    confidence_score?: number;
     gex: number;
     buildup_intensity: number;
   };
@@ -79,12 +83,12 @@ interface TradeSignal {
 
 interface MarketCorrelation {
   sector_name: string;
-  sector_change_pct: number;
-  nifty_change_pct: number;
-  stock_change_pct: number;
+  sector_change_pct: number | null;
+  nifty_change_pct: number | null;
+  stock_change_pct: number | null;
   relative_strength: string;
-  beta: number;
-  correlation_score: number;
+  beta: number | null;
+  correlation_score: number | null;
 }
 
 interface OptionFlowData {
@@ -242,6 +246,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
       
       if (response && response.success && response.data) {
         setData(response.data);
+        console.log("Relative Strength API Response", response.data.market_correlation);
+        console.log("Heatmap Classification", response.data.strikes);
         setError(null);
         setDataSource(response.source || 'upstox');
         setLastUpdated(new Date().toLocaleTimeString());
@@ -755,41 +761,62 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
         </div>
 
         {/* Market Relative Strength HUD */}
-        <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all">
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Relative Strength</span>
-            <span className="text-[10px] font-mono font-bold text-slate-400">{data.market_correlation?.sector_name ?? 'N/A'}</span>
-          </div>
-          <div className="my-2">
-            <div className="text-[11px] font-bold text-purple-400 truncate">
-              {data.market_correlation?.relative_strength ?? 'Neutral'}
+        {(() => {
+          const stockChange = data.market_correlation?.stock_change_pct;
+          const sectorChange = data.market_correlation?.sector_change_pct;
+          const niftyChange = data.market_correlation?.nifty_change_pct;
+          
+          const isAvailable = stockChange !== null && stockChange !== undefined;
+          
+          const stockChangeStr = isAvailable ? `${stockChange!.toFixed(1)}%` : 'N/A';
+          const sectorChangeStr = sectorChange !== null && sectorChange !== undefined ? `${sectorChange!.toFixed(1)}%` : 'N/A';
+          const niftyChangeStr = niftyChange !== null && niftyChange !== undefined ? `${niftyChange!.toFixed(1)}%` : 'N/A';
+          
+          const stockColor = isAvailable ? (stockChange! >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500';
+          const sectorColor = sectorChange !== null && sectorChange !== undefined ? (sectorChange! >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500';
+          const niftyColor = niftyChange !== null && niftyChange !== undefined ? (niftyChange! >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500';
+          
+          const betaVal = data.market_correlation?.beta;
+          const corrVal = data.market_correlation?.correlation_score;
+          
+          const betaStr = betaVal !== null && betaVal !== undefined ? betaVal.toFixed(2) : 'N/A';
+          const corrStr = corrVal !== null && corrVal !== undefined ? corrVal.toFixed(2) : 'N/A';
+          
+          return (
+            <div 
+              className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all"
+              title={isAvailable ? undefined : "Relative strength data unavailable"}
+            >
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Relative Strength</span>
+                <span className="text-[10px] font-mono font-bold text-slate-400">{data.market_correlation?.sector_name ?? 'N/A'}</span>
+              </div>
+              <div className="my-2">
+                <div className="text-[11px] font-bold text-purple-400 truncate">
+                  {data.market_correlation?.relative_strength ?? 'N/A'}
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2.5 text-center text-[10px] font-mono font-bold">
+                  <div className="bg-slate-950/60 p-1 rounded">
+                    <div className="text-slate-500 scale-90">STOCK</div>
+                    <div className={stockColor}>{stockChangeStr}</div>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded">
+                    <div className="text-slate-500 scale-90">SECTOR</div>
+                    <div className={sectorColor}>{sectorChangeStr}</div>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded">
+                    <div className="text-slate-500 scale-90">NIFTY</div>
+                    <div className={niftyColor}>{niftyChangeStr}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-500 font-semibold font-mono">
+                <span>Beta: {betaStr}</span>
+                <span>Corr: {corrStr}</span>
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 mt-2.5 text-center text-[10px] font-mono font-bold">
-              <div className="bg-slate-950/60 p-1 rounded">
-                <div className="text-slate-500 scale-90">STOCK</div>
-                <div className={(data.market_correlation?.stock_change_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {(data.market_correlation?.stock_change_pct ?? 0).toFixed(1)}%
-                </div>
-              </div>
-              <div className="bg-slate-950/60 p-1 rounded">
-                <div className="text-slate-500 scale-90">SECTOR</div>
-                <div className={(data.market_correlation?.sector_change_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {(data.market_correlation?.sector_change_pct ?? 0).toFixed(1)}%
-                </div>
-              </div>
-              <div className="bg-slate-950/60 p-1 rounded">
-                <div className="text-slate-500 scale-90">NIFTY</div>
-                <div className={(data.market_correlation?.nifty_change_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {(data.market_correlation?.nifty_change_pct ?? 0).toFixed(1)}%
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-between text-[10px] text-slate-500 font-semibold font-mono">
-            <span>Beta: {(data.market_correlation?.beta ?? 1).toFixed(2)}</span>
-            <span>Corr: {(data.market_correlation?.correlation_score ?? 0).toFixed(2)}</span>
-          </div>
-        </div>
+          );
+        })()}
       </div>
 
       {/* =========================================================================
@@ -1146,10 +1173,16 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
                         <div className="space-y-1">
                           <div className="text-[9px] text-slate-500 font-bold uppercase">Calls (CE)</div>
                           <div className={`px-2 py-0.5 rounded text-[10px] font-bold text-center inline-block ${
-                            s.call.buildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400' :
-                            s.call.buildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400' : 'bg-slate-800 text-slate-400'
+                            s.call.sentiment === 'Strong Bullish' ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40' :
+                            s.call.sentiment === 'Bullish' ? 'bg-emerald-900/30 text-emerald-500/90 border border-emerald-500/10' :
+                            s.call.sentiment === 'Bearish' ? 'bg-orange-950/40 text-orange-400 border border-orange-500/20' :
+                            s.call.sentiment === 'Strong Bearish' ? 'bg-red-950/70 text-red-400 border border-red-500/40' :
+                            'bg-slate-800 text-slate-400 border border-slate-700/30'
                           }`}>
-                            {s.call.buildup}
+                            {s.call.sentiment ?? 'Neutral'}
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-semibold mt-0.5">
+                            Conf: {s.call.confidence_score ?? 50}%
                           </div>
                           <div className="text-[10px] text-slate-400 mt-1">OI: {s.call.oi.toLocaleString()}</div>
                           <div className="text-[10px] text-slate-400">GEX: ₹{(s.call.gex / 10000000).toFixed(1)} Cr</div>
@@ -1159,10 +1192,16 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
                         <div className="space-y-1 text-right">
                           <div className="text-[9px] text-slate-500 font-bold uppercase">Puts (PE)</div>
                           <div className={`px-2 py-0.5 rounded text-[10px] font-bold text-center inline-block ${
-                            s.put.buildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400' :
-                            s.put.buildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400' : 'bg-slate-800 text-slate-400'
+                            s.put.sentiment === 'Strong Bullish' ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-500/40' :
+                            s.put.sentiment === 'Bullish' ? 'bg-emerald-900/30 text-emerald-500/90 border border-emerald-500/10' :
+                            s.put.sentiment === 'Bearish' ? 'bg-orange-950/40 text-orange-400 border border-orange-500/20' :
+                            s.put.sentiment === 'Strong Bearish' ? 'bg-red-950/70 text-red-400 border border-red-500/40' :
+                            'bg-slate-800 text-slate-400 border border-slate-700/30'
                           }`}>
-                            {s.put.buildup}
+                            {s.put.sentiment ?? 'Neutral'}
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-semibold mt-0.5">
+                            Conf: {s.put.confidence_score ?? 50}%
                           </div>
                           <div className="text-[10px] text-slate-400 mt-1">OI: {s.put.oi.toLocaleString()}</div>
                           <div className="text-[10px] text-slate-400">GEX: ₹{(s.put.gex / 10000000).toFixed(1)} Cr</div>

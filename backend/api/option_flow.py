@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import logging
 from datetime import datetime, time, timedelta
 import pytz
@@ -121,6 +121,90 @@ def classify_buildup(price_change: float, oi_change: int) -> str:
         return "Long Unwinding" if price_change <= 0 else "Short Covering"
     return "Neutral"
 
+def classify_option_sentiment(
+    option_type: str,  # "call" or "put"
+    oi: int,
+    oi_change: int,
+    volume: int,
+    ltp: float,
+    gex: float,
+    buildup: str,
+    opponent_oi: int,
+    opponent_gex: float,
+    strike_price: float,
+    spot_price: float,
+    max_chain_oi: int,
+    max_chain_vol: int
+) -> Tuple[str, int]:
+    """
+    Classify options sentiment at a specific strike.
+    Returns: Tuple[sentiment_label: str, confidence_score: int]
+    """
+    # Configurable thresholds
+    oi_ratio_strong = 1.5
+    
+    sentiment = "Neutral"
+    
+    # 1. Base Sentiment from Buildup if there's active interest
+    if buildup == "Long Build-Up":
+        sentiment = "Bullish" if option_type == "call" else "Bearish"
+    elif buildup == "Short Build-Up":
+        sentiment = "Bearish" if option_type == "call" else "Bullish"
+    elif buildup == "Long Unwinding":
+        sentiment = "Bearish" if option_type == "call" else "Bullish"
+    elif buildup == "Short Covering":
+        sentiment = "Bullish" if option_type == "call" else "Bearish"
+        
+    # 2. Static Concentration reinforcement/override if buildup is Neutral
+    oi_ratio = (oi / max(1, opponent_oi)) if opponent_oi > 0 else float(oi)
+    
+    if buildup == "Neutral" or abs(oi_change) < 0.05 * max(1, oi):
+        if option_type == "call":
+            if oi_ratio > oi_ratio_strong:
+                sentiment = "Strong Bearish" if strike_price > spot_price else "Bearish"
+            elif oi_ratio < (1.0 / oi_ratio_strong):
+                sentiment = "Bullish"
+            else:
+                sentiment = "Neutral"
+        else:  # put
+            if oi_ratio > oi_ratio_strong:
+                sentiment = "Strong Bullish" if strike_price < spot_price else "Bullish"
+            elif oi_ratio < (1.0 / oi_ratio_strong):
+                sentiment = "Bearish"
+            else:
+                sentiment = "Neutral"
+                
+    # 3. Upgrade to "Strong" states if positioning is extreme & near spot
+    if sentiment == "Bullish":
+        if option_type == "call" and buildup == "Long Build-Up" and strike_price > spot_price and oi > 0.3 * max_chain_oi:
+            sentiment = "Strong Bullish"
+        elif option_type == "put" and buildup == "Short Build-Up" and strike_price < spot_price and oi > 0.3 * max_chain_oi:
+            sentiment = "Strong Bullish"
+    elif sentiment == "Bearish":
+        if option_type == "call" and buildup == "Short Build-Up" and strike_price > spot_price and oi > 0.3 * max_chain_oi:
+            sentiment = "Strong Bearish"
+        elif option_type == "put" and buildup == "Long Build-Up" and strike_price < spot_price and oi > 0.3 * max_chain_oi:
+            sentiment = "Strong Bearish"
+            
+    # 4. Calculate Confidence Score (0 to 100)
+    # Proximity to spot (ATM options have highest confidence)
+    spot_dist_pct = abs(strike_price - spot_price) / max(1.0, spot_price)
+    dist_factor = max(0.0, 1.0 - (spot_dist_pct / 0.15))  # 100% near spot, 0% at 15% distance
+    
+    # OI ratio relative to max strike in chain
+    oi_factor = (oi / max(1, max_chain_oi)) if max_chain_oi > 0 else 0.0
+    
+    # Volume ratio relative to max volume in chain
+    vol_factor = (volume / max(1, max_chain_vol)) if max_chain_vol > 0 else 0.0
+    
+    # Weight: 40% distance, 40% open interest, 20% volume
+    confidence = (dist_factor * 40.0) + (oi_factor * 40.0) + (vol_factor * 20.0)
+    
+    # Ensure reasonable boundaries (e.g. 35 to 98)
+    confidence_score = int(max(35, min(98, confidence)))
+    
+    return sentiment, confidence_score
+
 def get_rolling_history(cache, key: str, current_val: float, val_name: str) -> List[Dict[str, Any]]:
     """Save and retrieve rolling intraday analytics history in Dragonfly."""
     history = cache.get(key) or []
@@ -172,29 +256,35 @@ async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> 
         nifty_rows = nifty_res.fetchall()
         
         if not stock_rows or not nifty_rows:
+            logger.warning(f"[Relative Strength] Missing historical price data for {symbol} or Nifty 50.")
             return {
                 "sector_name": get_stock_sector(symbol),
-                "sector_change_pct": 0.0,
-                "nifty_change_pct": 0.0,
-                "stock_change_pct": 0.0,
-                "relative_strength": "Neutral",
-                "beta": 1.0,
-                "correlation_score": 0.5
+                "sector_change_pct": None,
+                "nifty_change_pct": None,
+                "stock_change_pct": None,
+                "relative_strength": "N/A",
+                "beta": None,
+                "correlation_score": None
             }
             
         stock_df = pd.DataFrame(stock_rows, columns=["timestamp", "stock_close"])
         nifty_df = pd.DataFrame(nifty_rows, columns=["timestamp", "nifty_close"])
         
+        # Convert Decimals to float to prevent type errors in pandas statistical calculations
+        stock_df["stock_close"] = stock_df["stock_close"].astype(float)
+        nifty_df["nifty_close"] = nifty_df["nifty_close"].astype(float)
+        
         merged = pd.merge(stock_df, nifty_df, on="timestamp")
         if len(merged) < 5:
+            logger.warning(f"[Relative Strength] Insufficient overlapping daily candles ({len(merged)} < 5) for {symbol}.")
             return {
                 "sector_name": get_stock_sector(symbol),
-                "sector_change_pct": 0.0,
-                "nifty_change_pct": 0.0,
-                "stock_change_pct": 0.0,
-                "relative_strength": "Neutral",
-                "beta": 1.0,
-                "correlation_score": 0.5
+                "sector_change_pct": None,
+                "nifty_change_pct": None,
+                "stock_change_pct": None,
+                "relative_strength": "N/A",
+                "beta": None,
+                "correlation_score": None
             }
             
         merged["stock_ret"] = merged["stock_close"].pct_change()
@@ -202,14 +292,15 @@ async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> 
         merged = merged.dropna()
         
         if len(merged) < 3:
+            logger.warning(f"[Relative Strength] Insufficient data points after return calculations ({len(merged)} < 3) for {symbol}.")
             return {
                 "sector_name": get_stock_sector(symbol),
-                "sector_change_pct": 0.0,
-                "nifty_change_pct": 0.0,
-                "stock_change_pct": 0.0,
-                "relative_strength": "Neutral",
-                "beta": 1.0,
-                "correlation_score": 0.5
+                "sector_change_pct": None,
+                "nifty_change_pct": None,
+                "stock_change_pct": None,
+                "relative_strength": "N/A",
+                "beta": None,
+                "correlation_score": None
             }
             
         correlation = float(merged["stock_ret"].corr(merged["nifty_ret"]))
@@ -220,15 +311,16 @@ async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> 
         sector_name = get_stock_sector(symbol)
         sector_change_pct = 0.0
         try:
-            cache = get_cache_manager()
-            heatmap = cache.get("qai:market:sector_heatmap")
+            from services.dragonfly_client import get_cache
+            cache = get_cache()
+            heatmap = await cache.get_async("qai:market:sector_heatmap")
             if heatmap and heatmap.get("data"):
                 for entry in heatmap["data"]:
                     if entry.get("sector") == sector_name:
                         sector_change_pct = float(entry.get("change_pct", 0.0))
                         break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to fetch sector performance for {sector_name}: {e}")
             
         stock_change_pct = float(merged["stock_ret"].iloc[-1] * 100)
         nifty_change_pct = float(merged["nifty_ret"].iloc[-1] * 100)
@@ -238,6 +330,11 @@ async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> 
         else:
             relative_strength = "Underperforming Index & Sector" if stock_change_pct < sector_change_pct else "Underperforming Index"
             
+        logger.info(
+            f"[Relative Strength] {symbol} | stock={round(stock_change_pct, 2)}%, sector={round(sector_change_pct, 2)}%, nifty={round(nifty_change_pct, 2)}% | "
+            f"status={relative_strength}, beta={round(beta, 2)}, correlation_score={round(correlation, 2)}"
+        )
+        
         return {
             "sector_name": sector_name,
             "sector_change_pct": round(sector_change_pct, 2),
@@ -248,15 +345,15 @@ async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> 
             "correlation_score": round(correlation, 2)
         }
     except Exception as ex:
-        logger.error(f"Error computing relative strength for {symbol}: {ex}")
+        logger.error(f"Error computing relative strength for {symbol}: {ex}", exc_info=True)
         return {
             "sector_name": get_stock_sector(symbol),
-            "sector_change_pct": 0.0,
-            "nifty_change_pct": 0.0,
-            "stock_change_pct": 0.0,
-            "relative_strength": "Neutral",
-            "beta": 1.0,
-            "correlation_score": 0.5
+            "sector_change_pct": None,
+            "nifty_change_pct": None,
+            "stock_change_pct": None,
+            "relative_strength": "N/A",
+            "beta": None,
+            "correlation_score": None
         }
 
 @router.get("/{symbol}")
@@ -466,6 +563,23 @@ async def get_option_flow(
             except Exception as e:
                 logger.warning(f"Failed to resolve spot price via resolver: {e}")
 
+        # Calculate max chain open interest and volume first to scale confidence scores
+        max_chain_oi = 1
+        max_chain_vol = 1
+        for item in raw_strikes:
+            if not item:
+                continue
+            call = item.get("call_options") or {}
+            put = item.get("put_options") or {}
+            call_market = call.get("market_data") or {}
+            put_market = put.get("market_data") or {}
+            c_oi = int(call_market.get("oi", 0) or 0)
+            p_oi = int(put_market.get("oi", 0) or 0)
+            c_vol = int(call_market.get("volume", 0) or 0)
+            p_vol = int(put_market.get("volume", 0) or 0)
+            max_chain_oi = max(max_chain_oi, c_oi, p_oi)
+            max_chain_vol = max(max_chain_vol, c_vol, p_vol)
+
         for item in raw_strikes:
             if not item:
                 continue
@@ -523,6 +637,21 @@ async def get_option_flow(
             p_greeks = put.get("option_greeks") or {}
             p_iv_raw = float(p_greeks.get("iv", 0) or put_market.get("iv", 0) or 0)
             p_iv = p_iv_raw * 100.0 if 0.0 < p_iv_raw < 1.0 else p_iv_raw
+
+            # Option Sentiment Classification
+            call_sentiment, call_conf = classify_option_sentiment(
+                "call", c_oi, c_oi_change, c_vol, c_ltp, call_gex, call_buildup,
+                p_oi, put_gex, strike_price, spot_price, max_chain_oi, max_chain_vol
+            )
+            put_sentiment, put_conf = classify_option_sentiment(
+                "put", p_oi, p_oi_change, p_vol, p_ltp, put_gex, put_buildup,
+                c_oi, call_gex, strike_price, spot_price, max_chain_oi, max_chain_vol
+            )
+
+            logger.info(
+                "Strike Classification | Strike: %s | Call Sentiment: %s (Conf: %s%%) | Put Sentiment: %s (Conf: %s%%)",
+                strike_price, call_sentiment, call_conf, put_sentiment, put_conf
+            )
             
             call_data = {
                 "oi": c_oi,
@@ -534,6 +663,8 @@ async def get_option_flow(
                 "premium": round(c_premium, 2),
                 "iv": round(c_iv, 2),
                 "buildup": call_buildup,
+                "sentiment": call_sentiment,
+                "confidence_score": call_conf,
                 "gex": call_gex,
                 "buildup_intensity": round(c_oi_change / max(1, c_oi - c_oi_change) * 100.0, 2)
             }
@@ -548,6 +679,8 @@ async def get_option_flow(
                 "premium": round(p_premium, 2),
                 "iv": round(p_iv, 2),
                 "buildup": put_buildup,
+                "sentiment": put_sentiment,
+                "confidence_score": put_conf,
                 "gex": put_gex,
                 "buildup_intensity": round(p_oi_change / max(1, p_oi - p_oi_change) * 100.0, 2)
             }
