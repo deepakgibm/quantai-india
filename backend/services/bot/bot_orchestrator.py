@@ -123,9 +123,16 @@ class BotOrchestrator:
             collector = DataCollector()
 
             # Load symbol registry
-            symbols = collector.load_nifty500_symbols()
-            if not symbols:
-                raise RuntimeError("Failed to load NIFTY 500 symbols")
+            try:
+                symbols = collector.load_nifty500_symbols()
+                if not symbols:
+                    raise ValueError("No symbols returned by any provider (DB, CSV, static, fallback)")
+            except Exception as actual_error:
+                logger.error(f"Failed loading symbols: {actual_error}")
+                raise RuntimeError(
+                    f"BOT_ERR_SYMBOLS_UNAVAILABLE|{actual_error}|"
+                    "Refresh symbol master list or check API configuration."
+                )
 
             self._set_step(run_id, BotStep.COLLECTING_DATA, 10)
 

@@ -401,15 +401,53 @@ const BotTab: React.FC = () => {
       )}
 
       {/* Error State */}
-      {status === 'ERROR' && error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
-          <XCircle size={20} className="text-red-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-red-400">Bot Error</p>
-            <p className="text-sm text-red-300/80 mt-1">{error}</p>
+      {status === 'ERROR' && error && (() => {
+        if (error.startsWith('BOT_ERR_SYMBOLS_UNAVAILABLE')) {
+          const parts = error.split('|');
+          const errorCode = parts[0] || 'BOT_ERR_SYMBOLS_UNAVAILABLE';
+          const cause = parts[1] || 'No active symbols found in DB, CSV, or fallback static list.';
+          const suggestion = parts[2] || 'Refresh symbol master list or check API configuration.';
+          return (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 flex flex-col gap-4 text-sm shadow-lg shadow-red-500/5">
+              <div className="flex items-center gap-3 border-b border-red-500/20 pb-4">
+                <XCircle size={24} className="text-red-400 flex-shrink-0" />
+                <div>
+                  <h3 className="font-bold text-red-400 text-lg">Symbol Source Unavailable</h3>
+                  <span className="text-[10px] font-mono bg-red-500/20 text-red-300 px-2 py-0.5 rounded mt-1 inline-block border border-red-500/30">
+                    Error Code: {errorCode}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-bold text-red-300 uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <span className="w-1 h-1.5 rounded-full bg-red-400" />
+                    Cause
+                  </h4>
+                  <p className="text-slate-300 mt-1.5 leading-relaxed">{cause}</p>
+                </div>
+                <div>
+                  <h4 className="font-bold text-emerald-400 uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <span className="w-1 h-1.5 rounded-full bg-emerald-400" />
+                    Recommended Action
+                  </h4>
+                  <p className="text-emerald-300/90 mt-1.5 font-medium leading-relaxed">{suggestion}</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+            <XCircle size={20} className="text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-red-400">Bot Error</p>
+              <p className="text-sm text-red-300/80 mt-1">{error}</p>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Results */}
       {result && status === 'COMPLETED' && (

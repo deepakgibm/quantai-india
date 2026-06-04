@@ -39,7 +39,12 @@ class DataCollector:
 
     def load_nifty500_symbols(self) -> List[Tuple[str, str]]:
         """
-        Load NIFTY 500 symbols from the CSV file.
+        Load NIFTY 500 symbols using a multi-tier fallback approach:
+        1. Cache (in-memory)
+        2. Database (instrument_master table)
+        3. Static python module (data.nifty500_instruments)
+        4. CSV file (nifty_500.csv) with name-to-symbol resolution
+        5. Hardcoded fallback list (top NIFTY symbols)
         
         Returns:
             List of (symbol_name, instrument_key) tuples
@@ -47,11 +52,53 @@ class DataCollector:
         if self._nifty500_cache is not None:
             return self._nifty500_cache
 
-        # Search multiple candidate locations for nifty_500.csv
+        # Tier 2: Database Source
+        try:
+            from database import SessionLocal
+            from sqlalchemy import text
+            db_symbols = []
+            with SessionLocal() as session:
+                res = session.execute(text(
+                    "SELECT symbol, instrument_key FROM instrument_master "
+                    "WHERE is_active = TRUE AND exchange = 'NSE' AND series = 'EQ' "
+                    "AND instrument_key IS NOT NULL"
+                ))
+                for row in res:
+                    sym = row[0]
+                    ik = row[1]
+                    if sym and ik:
+                        db_symbols.append((sym.strip(), ik.strip()))
+            
+            if db_symbols:
+                logger.info(f"Loaded {len(db_symbols)} active symbols from instrument_master database")
+                db_symbols.sort()
+                self._nifty500_cache = db_symbols
+                return db_symbols
+        except Exception as db_err:
+            logger.warning(f"Database symbol loading failed: {db_err}")
+
+        # Tier 3: Static Python Mapping
+        try:
+            from data.nifty500_instruments import NIFTY_500_MAPPING
+            if NIFTY_500_MAPPING:
+                static_symbols = [(sym.strip(), ik.strip()) for sym, ik in NIFTY_500_MAPPING.items() if sym and ik]
+                if static_symbols:
+                    logger.info(f"Loaded {len(static_symbols)} symbols from static NIFTY_500_MAPPING")
+                    static_symbols.sort()
+                    self._nifty500_cache = static_symbols
+                    return static_symbols
+        except Exception as static_err:
+            logger.warning(f"Static mapping symbol loading failed: {static_err}")
+
+        # Tier 4: CSV File
         candidates = [
-            Path(__file__).parent.parent.parent / "nifty_500.csv",      # backend/nifty_500.csv (Docker /app/)
+            Path(__file__).parent.parent.parent / "data" / "nifty_500.csv", # backend/data/nifty_500.csv
+            Path(__file__).parent.parent.parent / "nifty_500.csv",         # backend/nifty_500.csv (Docker /app/)
             Path(__file__).parent.parent.parent.parent / "nifty_500.csv",  # project_root/nifty_500.csv
-            Path.cwd() / "nifty_500.csv",                                 # working directory
+            Path.cwd() / "nifty_500.csv",                                  # working directory
+            Path.cwd() / "data" / "nifty_500.csv",                            # working directory / data
+            Path("/app/data/nifty_500.csv"),                                  # Docker volume path
+            Path("/app/nifty_500.csv"),                                       # Docker app root
         ]
         csv_path = None
         for p in candidates:
@@ -59,31 +106,61 @@ class DataCollector:
                 csv_path = p
                 break
 
-        symbols = []
+        if csv_path is not None:
+            try:
+                # Load ik to symbol mappings from static mapping if possible to translate company name
+                ik_to_symbol = {}
+                try:
+                    from data.nifty500_instruments import NIFTY_500_MAPPING
+                    ik_to_symbol = {ik.strip(): sym.strip() for sym, ik in NIFTY_500_MAPPING.items() if sym and ik}
+                except Exception:
+                    pass
 
-        if csv_path is None:
-            logger.error(f"nifty_500.csv not found in any of: {[str(p) for p in candidates]}")
-            return []
+                csv_symbols = []
+                with open(csv_path, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        symbol = row.get("symbol", "").strip()
+                        instrument_key = row.get("instrument_key", "").strip()
+                        if symbol and instrument_key:
+                            # Map to proper trading symbol if possible, otherwise use name from CSV
+                            resolved_symbol = ik_to_symbol.get(instrument_key, symbol)
+                            csv_symbols.append((resolved_symbol, instrument_key))
+                
+                if csv_symbols:
+                    logger.info(f"Loaded {len(csv_symbols)} symbols from CSV file at {csv_path}")
+                    csv_symbols.sort()
+                    self._nifty500_cache = csv_symbols
+                    return csv_symbols
+            except Exception as csv_err:
+                logger.error(f"Error loading symbols from CSV {csv_path}: {csv_err}")
 
-        try:
-            with open(csv_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    symbol = row.get("symbol", "").strip()
-                    instrument_key = row.get("instrument_key", "").strip()
-                    if symbol and instrument_key:
-                        symbols.append((symbol, instrument_key))
-            
-            logger.info(f"Loaded {len(symbols)} NIFTY 500 symbols from CSV")
-            self._nifty500_cache = symbols
-            return symbols
-
-        except FileNotFoundError:
-            logger.error(f"nifty_500.csv not found at {csv_path}")
-            return []
-        except Exception as e:
-            logger.error(f"Error loading NIFTY 500 symbols: {e}")
-            return []
+        # Tier 5: Hardcoded Fallback List
+        logger.warning("All symbol loading sources failed. Using hardcoded NIFTY fallback list.")
+        hardcoded_symbols = [
+            ("RELIANCE", "NSE_EQ|INE002A01018"),
+            ("TCS", "NSE_EQ|INE467B01029"),
+            ("HDFCBANK", "NSE_EQ|INE040A01034"),
+            ("INFY", "NSE_EQ|INE009A01021"),
+            ("ICICIBANK", "NSE_EQ|INE090A01021"),
+            ("HINDUNILVR", "NSE_EQ|INE030A01027"),
+            ("ITC", "NSE_EQ|INE154A01025"),
+            ("SBIN", "NSE_EQ|INE062A01020"),
+            ("BHARTIARTL", "NSE_EQ|INE397D01024"),
+            ("KOTAKBANK", "NSE_EQ|INE237A01028"),
+            ("LT", "NSE_EQ|INE018A01030"),
+            ("AXISBANK", "NSE_EQ|INE238A01034"),
+            ("ASIANPAINT", "NSE_EQ|INE021A01026"),
+            ("MARUTI", "NSE_EQ|INE585B01010"),
+            ("BAJFINANCE", "NSE_EQ|INE296A01024"),
+            ("TITAN", "NSE_EQ|INE280A01028"),
+            ("SUNPHARMA", "NSE_EQ|INE044A01036"),
+            ("ULTRACEMCO", "NSE_EQ|INE481G01011"),
+            ("HCLTECH", "NSE_EQ|INE860A01027"),
+            ("WIPRO", "NSE_EQ|INE075A01022"),
+        ]
+        self._nifty500_cache = hardcoded_symbols
+        return hardcoded_symbols
 
     async def fetch_nifty50_history(self, days: int = 90) -> pd.DataFrame:
         """

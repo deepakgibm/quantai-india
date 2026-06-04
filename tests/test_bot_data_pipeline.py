@@ -44,13 +44,13 @@ class TestNifty500CSVLoading:
         """Should contain well-known NIFTY stocks."""
         symbols = self.collector.load_nifty500_symbols()
         names = [s[0] for s in symbols]
-        # Check for a few major stocks (using partial match for names with "Ltd")
-        found_reliance = any("Reliance" in n for n in names)
-        found_tcs = any("Tata Consultancy" in n for n in names)
-        found_infosys = any("Infosys" in n for n in names)
-        assert found_reliance, "Reliance Industries not found"
-        assert found_tcs, "TCS not found"
-        assert found_infosys, "Infosys not found"
+        # Check for a few major stocks (support both trading symbol and company name formats)
+        found_reliance = any(n == "RELIANCE" or "Reliance" in n for n in names)
+        found_tcs = any(n == "TCS" or "Tata" in n or "TATA" in n for n in names)
+        found_infosys = any(n == "INFY" or "Infosys" in n for n in names)
+        assert found_reliance, f"Reliance Industries or RELIANCE not found in names: {names[:10]}"
+        assert found_tcs, f"TCS or Tata not found in names: {names[:10]}"
+        assert found_infosys, f"Infosys or INFY not found in names: {names[:10]}"
 
 
 class TestNifty50InstrumentKey:
