@@ -18,6 +18,7 @@ import {
   Bot,
   BarChart2,
   Cpu,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -48,6 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.VOLATILITY_DASHBOARD, icon: Activity,        label: 'Volatility Index' },
       { page: Page.OPTION_FLOW,          icon: TrendingUp,      label: 'Option Flow' },
       { page: Page.SECTOR_HEATMAP,       icon: Zap,             label: 'Sector Heatmap' },
+      { page: Page.SECTOR_ANALYSIS,      icon: LayoutGrid,      label: 'Sector Analysis' },
     ],
   },
   {

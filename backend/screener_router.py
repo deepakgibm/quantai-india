@@ -30,21 +30,39 @@ router = APIRouter(
 # === Helpers ===
 
 async def get_latest_score_date(db: AsyncSession) -> date:
-    """Helper to find the most recent date with scoring data.
+    """Helper to find the most recent date with complete scoring data (>= 300 stocks).
     
     IMPORTANT: result.scalar() is a SYNCHRONOUS method on the buffered 
     CursorResult returned by 'await db.execute()'. Do NOT 'await' it.
     """
     try:
-        result = await db.execute(text("SELECT MAX(score_date) FROM screener_stock_score"))
-        latest = result.scalar()  # NO await — already buffered
+        # First, try to get the latest date with at least 300 stock scores
+        result = await db.execute(text("""
+            SELECT score_date FROM screener_stock_score
+            GROUP BY score_date
+            HAVING COUNT(*) >= 300
+            ORDER BY score_date DESC
+            LIMIT 1
+        """))
+        latest = result.scalar()
         if latest is not None:
-            # Ensure it's a date object
             if isinstance(latest, str):
                 return datetime.strptime(latest, "%Y-%m-%d").date()
             return latest
     except Exception as e:
-        logger.warning(f"Failed to fetch latest score date: {e}")
+        logger.warning(f"Failed to fetch latest score date with complete data: {e}")
+
+    # Fallback to absolute max date if no date has >= 100 stocks
+    try:
+        result = await db.execute(text("SELECT MAX(score_date) FROM screener_stock_score"))
+        latest = result.scalar()
+        if latest is not None:
+            if isinstance(latest, str):
+                return datetime.strptime(latest, "%Y-%m-%d").date()
+            return latest
+    except Exception as e:
+        logger.warning(f"Absolute max score date fallback failed: {e}")
+
     return date.today()
 
 
@@ -539,27 +557,29 @@ async def get_screener_status(
 ):
     """Get status of the screener - last run date, stock counts, etc."""
     try:
-        # Latest scoring date
+        target_date = await get_latest_score_date(db)
+
+        # Get stock count and sector count for this specific target date
         date_result = await db.execute(text("""
-            SELECT MAX(score_date) as latest_date,
-                   COUNT(DISTINCT symbol) as stock_count,
+            SELECT COUNT(DISTINCT symbol) as stock_count,
                    COUNT(DISTINCT sector) as sector_count
             FROM screener_stock_score
-        """))
+            WHERE score_date = :score_date
+        """), {"score_date": target_date})
         date_row = date_result.fetchone()  # NO await
 
-        # Conviction distribution
+        # Conviction distribution for this specific target date
         dist_result = await db.execute(text("""
             SELECT conviction_level, COUNT(*) as cnt
             FROM screener_stock_score
-            WHERE score_date = (SELECT MAX(score_date) FROM screener_stock_score)
+            WHERE score_date = :score_date
             GROUP BY conviction_level
-        """))
+        """), {"score_date": target_date})
         distribution = {row[0]: row[1] for row in dist_result.all()}  # NO await
 
         return {
             "status": "success",
-            "latest_score_date": str(date_row.latest_date) if date_row and date_row.latest_date else None,
+            "latest_score_date": target_date.isoformat(),
             "total_stocks_scored": date_row.stock_count if date_row else 0,
             "sector_count": date_row.sector_count if date_row else 0,
             "conviction_distribution": distribution,

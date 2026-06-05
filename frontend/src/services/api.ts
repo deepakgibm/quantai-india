@@ -833,5 +833,11 @@ export const api = {
     if (res.success) return res.data;
     throw res.error;
   },
+
+  getSectorAnalysisData: async () => {
+    const res = await apiGet<any>('/api/sector-analysis');
+    if (res.success) return res.data;
+    throw res.error;
+  },
 };
 

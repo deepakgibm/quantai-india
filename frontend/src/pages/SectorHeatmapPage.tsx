@@ -145,6 +145,19 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
     setError(null);
     try {
       const data = await api.getHeatmapData(activeMode);
+      
+      const stocks = data?.sectors ? data.sectors.flatMap((s: any) => s.stocks || []) : [];
+      const sectorData = data?.sectors || [];
+      const groupedSectors = data?.sectors || [];
+      const sectorMetrics = data?.market_summary || {};
+      const response = data;
+
+      console.log("Nifty 500 Stocks Loaded:", stocks.length);
+      console.log("Sector Data:", sectorData);
+      console.log("Grouped Sectors:", groupedSectors);
+      console.log("Sector Metrics:", sectorMetrics);
+      console.log("API Response:", response);
+
       if (data && data.status === 'success') {
         setHeatmapData(data);
         setLastRefreshTime(new Date().toLocaleTimeString());
@@ -171,19 +184,19 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
       name: 'Root',
       value: heatmapData.sectors.reduce((sum: number, s: any) => sum + s.total_market_cap, 0),
       colorValue: 0,
-      children: heatmapData.sectors.map((s: any) => ({
+      children: (Array.isArray(heatmapData?.sectors) ? heatmapData.sectors : []).map((s: any) => ({
         name: s.name,
-        value: s.total_market_cap,
-        colorValue: s.avg_value,
-        children: s.stocks.map((st: any) => ({
+        value: s.total_market_cap || 0,
+        colorValue: s.avg_value || 0,
+        children: (Array.isArray(s?.stocks) ? s.stocks : []).map((st: any) => ({
           name: st.symbol,
           symbol: st.symbol,
           company_name: st.name,
           price: st.price,
-          value: st.market_cap,
-          colorValue: st.value,
-          change_pct: st.change_pct,
-          volume: st.volume
+          value: st.market_cap || 0,
+          colorValue: st.value || 0,
+          change_pct: st.change_pct || 0,
+          volume: st.volume || 0
         }))
       }))
     };
@@ -227,15 +240,15 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
       name: sector.name,
       value: sector.total_market_cap,
       colorValue: sector.avg_value,
-      children: sector.stocks.map((st: any) => ({
+      children: (Array.isArray(sector?.stocks) ? sector.stocks : []).map((st: any) => ({
         name: st.symbol,
         symbol: st.symbol,
         company_name: st.name,
         price: st.price,
-        value: st.market_cap,
-        colorValue: st.value,
-        change_pct: st.change_pct,
-        volume: st.volume
+        value: st.market_cap || 0,
+        colorValue: st.value || 0,
+        change_pct: st.change_pct || 0,
+        volume: st.volume || 0
       }))
     };
 
@@ -531,7 +544,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
                     <TrendingUp size={12} className="text-emerald-400" /> Leading Sectors
                   </h4>
                   <div className="flex flex-wrap gap-1">
-                    {heatmapData.market_summary.top_sectors.slice(0, 3).map((sector: string, idx: number) => (
+                    {(Array.isArray(heatmapData?.market_summary?.top_sectors) ? heatmapData.market_summary.top_sectors.slice(0, 3) : []).map((sector: string, idx: number) => (
                       <span key={sector} className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800/80 text-[10px] font-semibold text-emerald-400">
                         {idx + 1}. {sector}
                       </span>
@@ -546,7 +559,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
                     <TrendingDown size={12} className="text-rose-400" /> Weak Sectors
                   </h4>
                   <div className="flex flex-wrap gap-1">
-                    {heatmapData.market_summary.weak_sectors.slice(0, 3).map((sector: string, idx: number) => (
+                    {(Array.isArray(heatmapData?.market_summary?.weak_sectors) ? heatmapData.market_summary.weak_sectors.slice(0, 3) : []).map((sector: string, idx: number) => (
                       <span key={sector} className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800/80 text-[10px] font-semibold text-rose-400">
                         {idx + 1}. {sector}
                       </span>
@@ -616,7 +629,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
             >
               {selectedSector ? (
                 // Zoomed Sector View: Render leaf nodes directly
-                rootNode.children.map(stock => {
+                (Array.isArray(rootNode?.children) ? rootNode.children : []).map(stock => {
                   const tileColor = getColorForValue(stock.colorValue, mode);
                   const isHighlighted = isQueryMatching(stock.symbol || '');
                   const showLabel = (stock.width || 0) > 40 && (stock.height || 0) > 28;
@@ -671,7 +684,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
                 })
               ) : (
                 // Full Market Nested Sector View
-                computedRoot?.children?.map(sector => {
+                (Array.isArray(computedRoot?.children) ? computedRoot.children : []).map(sector => {
                   const sectorLabelVisible = (sector.width || 0) > 80 && (sector.height || 0) > 40;
                   
                   return (
@@ -703,7 +716,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
                       )}
 
                       {/* Sector stocks (leaves) */}
-                      {sector.children?.map(stock => {
+                      {(Array.isArray(sector?.children) ? sector.children : []).map(stock => {
                         const tileColor = getColorForValue(stock.colorValue, mode);
                         const isHighlighted = isQueryMatching(stock.symbol || '');
                         const showLabel = (stock.width || 0) > 30 && (stock.height || 0) > 18;

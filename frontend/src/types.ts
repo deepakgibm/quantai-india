@@ -25,6 +25,7 @@ export enum Page {
   VOLATILITY_DASHBOARD = 'VOLATILITY_DASHBOARD',
   OPTION_FLOW = 'OPTION_FLOW',
   QUANT_WORKSPACE = 'quant_workspace',
+  SECTOR_ANALYSIS = 'SECTOR_ANALYSIS',
 }
 
 export interface Stock {

@@ -16,6 +16,7 @@ import Backtest from './pages/Backtest';
 import AuditReports from './pages/AuditReports';
 import Scanner from './pages/Scanner';
 import SectorHeatmapPage from './pages/SectorHeatmapPage';
+import SectorAnalysisPage from './pages/SectorAnalysisPage';
 import VolatilityDashboard from './pages/VolatilityDashboard';
 import OptionFlow from './pages/OptionFlow';
 import MomentAlert from './pages/MomentAlert';
@@ -126,6 +127,8 @@ const App: React.FC = () => {
         return <Scanner />;
       case Page.SECTOR_HEATMAP:
         return <SectorHeatmapPage onNavigate={setCurrentPage} />;
+      case Page.SECTOR_ANALYSIS:
+        return <SectorAnalysisPage onNavigate={setCurrentPage} />;
       case Page.VOLATILITY_DASHBOARD:
         return <VolatilityDashboard />;
       case Page.OPTION_FLOW:
