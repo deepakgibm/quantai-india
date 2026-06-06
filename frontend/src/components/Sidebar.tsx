@@ -50,6 +50,7 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.OPTION_FLOW,          icon: TrendingUp,      label: 'Option Flow' },
       { page: Page.SECTOR_HEATMAP,       icon: Zap,             label: 'Sector Heatmap' },
       { page: Page.SECTOR_ANALYSIS,      icon: LayoutGrid,      label: 'Sector Analysis' },
+      { page: Page.VOLUME_PROFILE,       icon: Cpu,             label: 'Volume Profile' },
     ],
   },
   {

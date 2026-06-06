@@ -83,6 +83,7 @@ from api.volatility import router as volatility_router
 from api.option_flow import router as option_flow_router
 from api.heatmap import router as heatmap_router
 from api.sector_analysis import router as sector_analysis_router
+from api.volume_profile import router as volume_profile_router
 
 
 # 6. Unified API Registration (Flattened for Reliability)
@@ -109,6 +110,7 @@ app.include_router(volatility_router, prefix="/api/volatility", tags=["Volatilit
 app.include_router(option_flow_router, prefix="/api/option-flow", tags=["Option Flow"])
 app.include_router(heatmap_router, prefix="/api/heatmap", tags=["Heatmap"])
 app.include_router(sector_analysis_router, prefix="/api/sector-analysis", tags=["Sector Analysis"])
+app.include_router(volume_profile_router, prefix="/api/volume-profile", tags=["Volume Profile"])
 
 
 from api.v1 import router as v1_router

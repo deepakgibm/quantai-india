@@ -839,5 +839,23 @@ export const api = {
     if (res.success) return res.data;
     throw res.error;
   },
+
+  getVolumeProfileData: async (symbol: string, lookback: number) => {
+    const res = await apiGet<any>(`/api/volume-profile?symbol=${encodeURIComponent(symbol)}&lookback=${lookback}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getVolumeProfileSummary: async (symbol: string) => {
+    const res = await apiGet<any>(`/api/volume-profile/summary?symbol=${encodeURIComponent(symbol)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getVolumeProfileVerdict: async (symbol: string) => {
+    const res = await apiGet<any>(`/api/volume-profile/ai-verdict?symbol=${encodeURIComponent(symbol)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
 };
 

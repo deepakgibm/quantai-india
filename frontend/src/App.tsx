@@ -17,6 +17,7 @@ import AuditReports from './pages/AuditReports';
 import Scanner from './pages/Scanner';
 import SectorHeatmapPage from './pages/SectorHeatmapPage';
 import SectorAnalysisPage from './pages/SectorAnalysisPage';
+import VolumeProfilePage from './pages/VolumeProfilePage';
 import VolatilityDashboard from './pages/VolatilityDashboard';
 import OptionFlow from './pages/OptionFlow';
 import MomentAlert from './pages/MomentAlert';
@@ -133,6 +134,8 @@ const App: React.FC = () => {
         return <VolatilityDashboard />;
       case Page.OPTION_FLOW:
         return <OptionFlow />;
+      case Page.VOLUME_PROFILE:
+        return <VolumeProfilePage onNavigate={setCurrentPage} />;
       case Page.MOMENT_ALERT:
         return <MomentAlert />;
       case Page.WEEK52_BREAKOUT:
