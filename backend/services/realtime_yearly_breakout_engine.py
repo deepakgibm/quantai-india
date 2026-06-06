@@ -45,12 +45,15 @@ class RealTimeYearlyBreakoutEngine:
         # 1. Load 52-week levels (Heavy DB query, do once)
         await self._load_levels_from_db()
         
-        # 2. Ensure Feed Active
-        await self.feed_manager.ensure_active()
-        
-        # 3. Start Cache Loop
-        asyncio.create_task(self._cache_write_loop())
-        
+        try:
+            # 2. Ensure Feed Active
+            await self.feed_manager.ensure_active()
+            
+            # 3. Start Cache Loop
+            asyncio.create_task(self._cache_write_loop())
+        except Exception as e:
+            logger.error(f"Failed to start websocket feed in RealTimeYearlyBreakoutEngine: {e}")
+            
         self._is_initialized = True
         
     async def _load_levels_from_db(self):
@@ -278,5 +281,8 @@ def get_realtime_yearly_breakout_engine() -> RealTimeYearlyBreakoutEngine:
     return _rt_breakout_engine
 
 async def start_realtime_breakout_service():
-    engine = get_realtime_yearly_breakout_engine()
-    await engine.initialize()
+    try:
+        engine = get_realtime_yearly_breakout_engine()
+        await engine.initialize()
+    except Exception as e:
+        logger.error(f"Failed to start realtime breakout service: {e}")

@@ -149,7 +149,7 @@ interface OptionFlowProps {
   isWidget?: boolean;
 }
 
-export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
+export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = false }) => {
   const { selectedSymbol } = useGlobalSymbol();
   const [data, setData] = useState<OptionFlowData | null>(null);
   const [expiries, setExpiries] = useState<string[]>([]);
@@ -170,6 +170,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const lightweightChartRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxRetries = 2;
 
   // Fetch Broker Connection Status
@@ -249,16 +250,17 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
         console.log("Relative Strength API Response", response.data.market_correlation);
         console.log("Heatmap Classification", response.data.strikes);
         setError(null);
-        setDataSource(response.source || 'upstox');
+        setDataSource(response.status === 'stale' || response.source === 'stale_cache' ? 'stale_cache' : response.source || 'upstox');
         setLastUpdated(new Date().toLocaleTimeString());
         
-        if (response.source === 'stale_cache' && response._diagnostics) {
+        if ((response.status === 'stale' || response.source === 'stale_cache') && response._diagnostics) {
           console.warn('[OptionFlow] Serving STALE CACHE data:', response._diagnostics);
         }
       } else if (response && response.error) {
         if (attempt < maxRetries && !forceSilent) {
           const backoffMs = Math.min(500 * Math.pow(2, attempt), 4000);
-          setTimeout(() => {
+          if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = setTimeout(() => {
             fetchOptionFlow(symbol, expiry, forceSilent, true, attempt + 1);
           }, backoffMs);
           return;
@@ -271,7 +273,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
       if (err.name !== 'AbortError') {
         if (attempt < maxRetries && !forceSilent) {
           const backoffMs = Math.min(500 * Math.pow(2, attempt), 4000);
-          setTimeout(() => {
+          if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = setTimeout(() => {
             fetchOptionFlow(symbol, expiry, forceSilent, true, attempt + 1);
           }, backoffMs);
           return;
@@ -350,6 +353,9 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
       clearInterval(interval);
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
       }
     };
   }, [selectedSymbol, selectedExpiry, isNonFno, chartTimeframe]);
@@ -1427,6 +1433,6 @@ export const OptionFlow: React.FC<OptionFlowProps> = ({ isWidget = false }) => {
 
     </div>
   );
-};
+});
 
 export default OptionFlow;

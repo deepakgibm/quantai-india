@@ -4,6 +4,7 @@ Consolidates standard, HP (Cache-First), and AI scanners.
 """
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -135,7 +136,7 @@ async def scanner_websocket(websocket: WebSocket):
                     "timestamp": datetime.now().isoformat()
                 }
                 
-                await websocket.send_json(payload)
+                await websocket.send_json(jsonable_encoder(payload))
                 consecutive_errors = 0  # Reset on success
                 tick += 1
                 

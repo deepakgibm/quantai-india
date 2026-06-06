@@ -20,6 +20,8 @@ from utils.symbol_utils import get_stock_sector
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Option Flow"])
 
+active_refreshes = set()
+
 def is_market_open() -> bool:
     """Check if the Indian stock market (NSE) is currently open (9:15 AM to 3:30 PM IST Mon-Fri)."""
     try:
@@ -356,6 +358,25 @@ async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> 
             "correlation_score": None
         }
 
+async def run_background_refresh(symbol: str, expiry: str, strike_range: Optional[str], cache_key: str):
+    try:
+        logger.info(f"[Option Flow] Starting background refresh for {symbol} (expiry={expiry})")
+        from database import get_db_session_context
+        async with get_db_session_context() as db:
+            await get_option_flow(
+                symbol=symbol,
+                expiry=expiry,
+                strike_range=strike_range,
+                bypass_cache=True,
+                current_user=None,
+                db=db
+            )
+        logger.info(f"[Option Flow] Background refresh completed for {symbol}")
+    except Exception as e:
+        logger.error(f"[Option Flow] Background refresh failed for {symbol}: {e}", exc_info=True)
+    finally:
+        active_refreshes.discard(cache_key)
+
 @router.get("/{symbol}")
 async def get_option_flow(
     symbol: str,
@@ -403,33 +424,65 @@ async def get_option_flow(
     try:
         cache_key = f"option_flow:{symbol}:{expiry or 'nearest'}:{strike_range or 'all'}"
         cache = get_cache_manager()
+        now_utc = datetime.utcnow()
+        is_open = is_market_open()
+        fresh_threshold = 30 if is_open else 3600  # 30 seconds if market open, 1 hour if market closed
+        stale_threshold = 300 if is_open else 43200  # 5 minutes if market open, 12 hours if market closed
+        
         if not bypass_cache and cache.is_available():
             try:
-                cached = cache.get(cache_key)
-                if cached:
-                    logger.info(f"Serving option flow for {symbol} from cache")
-                    return {
-                        "success": True,
-                        "data": cached,
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
-                        "source": "cache"
-                    }
-                if not is_market_open():
-                    fallback = cache.get(f"{cache_key}:fallback")
-                    if fallback:
-                        logger.info(f"Serving stale option flow for {symbol} outside market hours")
+                cached_wrapper = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
+                if cached_wrapper:
+                    if isinstance(cached_wrapper, dict) and "last_refresh" in cached_wrapper and "data" in cached_wrapper:
+                        last_refresh_str = cached_wrapper["last_refresh"]
+                        data_payload = cached_wrapper["data"]
+                    else:
+                        last_refresh_str = datetime.utcnow().isoformat() + "Z"
+                        data_payload = cached_wrapper
+                    
+                    last_refresh = datetime.fromisoformat(last_refresh_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                    age = (now_utc - last_refresh).total_seconds()
+                    
+                    # 1. Fresh Cache
+                    if age < fresh_threshold:
+                        logger.info(f"[Option Flow] Serving FRESH cache for {symbol} (age={age}s)")
                         return {
                             "success": True,
-                            "data": fallback,
-                            "timestamp": datetime.utcnow().isoformat() + "Z",
-                            "source": "stale_cache",
+                            "data": data_payload,
+                            "timestamp": last_refresh_str,
+                            "source": "cache",
+                            "status": "fresh",
                             "_diagnostics": {
-                                "reason": "market_closed_direct_fallback",
-                                "market_open": False
+                                "cacheAge": age,
+                                "ttl": max(0, fresh_threshold - age),
+                                "lastRefresh": last_refresh_str,
+                                "refreshStatus": "idle"
+                            }
+                        }
+                    
+                    # 2. Stale Cache (Serve immediately, refresh in background)
+                    elif age < stale_threshold:
+                        logger.info(f"[Option Flow] Serving STALE cache for {symbol} (age={age}s). Triggering background refresh.")
+                        if cache_key not in active_refreshes:
+                            active_refreshes.add(cache_key)
+                            import asyncio
+                            asyncio.create_task(run_background_refresh(symbol, expiry, strike_range, cache_key))
+                        
+                        return {
+                            "success": True,
+                            "data": data_payload,
+                            "timestamp": last_refresh_str,
+                            "source": "cache",
+                            "status": "stale",
+                            "_diagnostics": {
+                                "cacheAge": age,
+                                "ttl": max(0, stale_threshold - age),
+                                "lastRefresh": last_refresh_str,
+                                "refreshStatus": "refreshing"
                             }
                         }
             except Exception as ce:
-                logger.warning(f"Cache read error in option flow: {ce}")
+                logger.warning(f"[Option Flow] Cache evaluation error for {symbol}: {ce}")
                 
         # Get instrument_key
         symbol_query = text("""
@@ -827,10 +880,14 @@ async def get_option_flow(
             "block_deals": block_deals
         }
         
+        cache_wrapper = {
+            "data": response_data,
+            "last_refresh": datetime.utcnow().isoformat() + "Z"
+        }
         if cache.is_available():
             try:
-                cache.set(cache_key, response_data, ttl=15)
-                cache.set(f"{cache_key}:fallback", response_data, ttl=604800) # 7 days fallback
+                cache.set(cache_key, cache_wrapper, ttl=86400) # 24 hours
+                cache.set(f"{cache_key}:fallback", cache_wrapper, ttl=604800) # 7 days
             except Exception as ce:
                 logger.warning(f"Cache write error in option flow: {ce}")
                 
@@ -838,7 +895,14 @@ async def get_option_flow(
             "success": True,
             "data": response_data,
             "timestamp": datetime.utcnow().isoformat() + "Z",
-            "source": "upstox"
+            "source": "upstox",
+            "status": "fresh",
+            "_diagnostics": {
+                "cacheAge": 0,
+                "ttl": 30 if is_market_open() else 3600,
+                "lastRefresh": datetime.utcnow().isoformat() + "Z",
+                "refreshStatus": "updated"
+            }
         }
         
     except HTTPException:
@@ -850,15 +914,23 @@ async def get_option_flow(
                 stale = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
                 if stale:
                     logger.info(f"[Option Flow] Serving stale cache for {symbol} after exception")
+                    if isinstance(stale, dict) and "last_refresh" in stale and "data" in stale:
+                        last_refresh_str = stale["last_refresh"]
+                        data_payload = stale["data"]
+                    else:
+                        last_refresh_str = datetime.utcnow().isoformat() + "Z"
+                        data_payload = stale
                     return {
                         "success": True,
-                        "data": stale,
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "data": data_payload,
+                        "timestamp": last_refresh_str,
                         "source": "stale_cache",
+                        "status": "expired_fallback",
                         "_diagnostics": {
                             "reason": "exception_fallback",
                             "error": str(e),
                             "market_open": is_market_open(),
+                            "lastRefresh": last_refresh_str
                         }
                     }
         except Exception:

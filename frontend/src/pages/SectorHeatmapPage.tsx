@@ -98,7 +98,7 @@ const getColorForValue = (value: number, mode: string) => {
   }
 };
 
-export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate, isWidget = false }) => {
+export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({ onNavigate, isWidget = false }) => {
   const { setSelectedSymbol } = useGlobalSymbol();
   const [heatmapData, setHeatmapData] = useState<any>(null);
   const [mode, setMode] = useState<string>('performance');
@@ -827,6 +827,6 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = ({ onNavigate
       </div>
     </div>
   );
-};
+});
 
 export default SectorHeatmapPage;
