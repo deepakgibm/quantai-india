@@ -6,14 +6,6 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import AIPrompt from './pages/AIPrompt';
-import Orders from './pages/Orders';
-import RiskManager from './pages/RiskManager';
-import Settings from './pages/Settings';
-import AlgoBuilder from './pages/AlgoBuilder';
-import LiveMonitor from './pages/LiveMonitor';
-import ETLStatus from './pages/ETLStatus';
-import Backtest from './pages/Backtest';
-import AuditReports from './pages/AuditReports';
 import Scanner from './pages/Scanner';
 import SectorHeatmapPage from './pages/SectorHeatmapPage';
 import SectorAnalysisPage from './pages/SectorAnalysisPage';
@@ -22,11 +14,17 @@ import VolatilityDashboard from './pages/VolatilityDashboard';
 import OptionFlow from './pages/OptionFlow';
 import MomentAlert from './pages/MomentAlert';
 import Week52Breakout from './pages/Week52Breakout';
-import WalkForwardBacktest from './pages/WalkForwardBacktest';
-import AdminIndices from './pages/AdminIndices';
 import TradeScreener from './pages/TradeScreener';
 import BotTab from './pages/BotTab';
 import QuantWorkspace from './pages/QuantWorkspace';
+import Subscription from './pages/Subscription';
+import PortfolioIntelligence from './pages/PortfolioIntelligence';
+import SignalCenter from './pages/SignalCenter';
+import SMCAnalysis from './pages/SMCAnalysis';
+import PatternLab from './pages/PatternLab';
+import Academy from './pages/Academy';
+import ResearchCenter from './pages/ResearchCenter';
+import Affiliate from './pages/Affiliate';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -103,18 +101,6 @@ const App: React.FC = () => {
         return <Dashboard onNavigate={setCurrentPage} />;
       case Page.AI_PROMPT:
         return <AIPrompt />;
-      case Page.ORDERS:
-        return <Orders />;
-      case Page.RISK_MANAGER:
-        return <RiskManager />;
-      case Page.SETTINGS:
-        return <Settings />;
-      case Page.ALGO_BUILDER:
-        return <AlgoBuilder />;
-      case Page.LIVE_MONITOR:
-        return <LiveMonitor />;
-      case Page.ETL_STATUS:
-        return <ETLStatus />;
       // ── Legacy quant routes → redirect to unified Quant Workspace ──────────
       case Page.QUANT_BOT:             // was: Backtest
       case Page.WALK_FORWARD_BACKTEST: // was: Walk-Forward
@@ -122,8 +108,6 @@ const App: React.FC = () => {
       case Page.QUANT_WORKSPACE:
         return <QuantWorkspace />;
       // ── End legacy redirects ──────────────────────────────────────────────
-      case Page.AUDIT_REPORTS:
-        return <AuditReports />;
       case Page.SCANNER:
         return <Scanner />;
       case Page.SECTOR_HEATMAP:
@@ -140,12 +124,26 @@ const App: React.FC = () => {
         return <MomentAlert />;
       case Page.WEEK52_BREAKOUT:
         return <Week52Breakout />;
-      case Page.ADMIN_INDICES:
-        return <AdminIndices />;
       case Page.TRADE_SCREENER:
         return <TradeScreener />;
       case Page.SIGNAL_BOT:
         return <BotTab />;
+      case Page.SUBSCRIPTION:
+        return <Subscription />;
+      case Page.PORTFOLIO_INTELLIGENCE:
+        return <PortfolioIntelligence />;
+      case Page.SIGNAL_CENTER:
+        return <SignalCenter />;
+      case Page.SMC_ANALYSIS:
+        return <SMCAnalysis />;
+      case Page.PATTERN_LAB:
+        return <PatternLab />;
+      case Page.ACADEMY:
+        return <Academy />;
+      case Page.RESEARCH_CENTER:
+        return <ResearchCenter />;
+      case Page.AFFILIATE:
+        return <Affiliate />;
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }

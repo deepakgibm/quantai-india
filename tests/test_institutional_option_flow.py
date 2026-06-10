@@ -153,4 +153,6 @@ def test_confluence_signal_engine():
         assert res_non_fno["options_contribution"] == 0.0
         assert res_non_fno["equity_contribution"] == 100.0
 
+    import nest_asyncio
+    nest_asyncio.apply()
     asyncio.run(run_test())

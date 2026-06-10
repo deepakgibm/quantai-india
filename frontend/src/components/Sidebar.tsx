@@ -19,6 +19,14 @@ import {
   BarChart2,
   Cpu,
   LayoutGrid,
+  CreditCard,
+  GraduationCap,
+  Newspaper,
+  Handshake,
+  Award,
+  Compass,
+  BookOpen,
+  Briefcase
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,20 +62,33 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'Research',
+    title: 'Research & Tools',
     items: [
       { page: Page.QUANT_WORKSPACE,      icon: BarChart2,       label: 'Research Terminal', badge: 'NEW' },
+      { page: Page.RESEARCH_CENTER,      icon: Newspaper,       label: 'Research Center' },
+      { page: Page.PORTFOLIO_INTELLIGENCE, icon: Briefcase,     label: 'Portfolio Intel' },
+      { page: Page.SMC_ANALYSIS,         icon: Compass,         label: 'SMC Analysis' },
+      { page: Page.PATTERN_LAB,          icon: BookOpen,        label: 'Pattern Lab' },
     ],
   },
   {
-    title: 'Intelligence',
+    title: 'Intelligence & Signals',
     items: [
       { page: Page.TRADE_SCREENER,       icon: Shield,          label: 'Trade Screener' },
       { page: Page.SIGNAL_BOT,           icon: Bot,             label: 'Signal Bot' },
+      { page: Page.SIGNAL_CENTER,        icon: Award,           label: 'Signal Performance' },
       { page: Page.AI_PROMPT,            icon: BrainCircuit,    label: 'AI Prompt' },
       { page: Page.SCANNER,              icon: Search,          label: 'Scanner' },
       { page: Page.MOMENT_ALERT,         icon: Bell,            label: 'Moment Alert' },
       { page: Page.WEEK52_BREAKOUT,      icon: Target,          label: '52-Week Breakout' },
+    ],
+  },
+  {
+    title: 'SaaS & Partners',
+    items: [
+      { page: Page.ACADEMY,              icon: GraduationCap,   label: 'Academy' },
+      { page: Page.SUBSCRIPTION,         icon: CreditCard,      label: 'Subscription' },
+      { page: Page.AFFILIATE,            icon: Handshake,       label: 'Affiliate' },
     ],
   },
 ];

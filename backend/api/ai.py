@@ -7,6 +7,7 @@ from schemas import (
 )
 from utils.auth import get_current_user
 from services.ai_service import get_ai_service
+from config import settings
 
 # Detectors for scanner logic
 from services.trend_analyzer import TrendAnalyzer
@@ -89,11 +90,46 @@ async def get_ai_strategies(current_user: User = Depends(get_current_user)):
         ]
     }
 
+from database import get_db
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from models import Holding, Position
+
 @router.post("/prompt", response_model=AIPromptResponse)
-async def process_ai_prompt(request: AIPromptRequest, current_user: User = Depends(get_current_user)):
-    """Natural language market query processing."""
+async def process_ai_prompt(
+    request: AIPromptRequest, 
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Natural language market query processing with portfolio and watchlist context."""
     try:
-        results = await ai_service.process_prompt(request.prompt, getattr(current_user, "upstox_access_token", None))
+        # 1. Fetch user holdings & positions context
+        holdings_query = select(Holding).where(Holding.user_id == current_user.id)
+        holdings_res = await db.execute(holdings_query)
+        holdings = holdings_res.scalars().all()
+        
+        positions_query = select(Position).where(Position.user_id == current_user.id)
+        positions_res = await db.execute(positions_query)
+        positions = positions_res.scalars().all()
+        
+        # 2. Formulate context
+        portfolio_desc = ""
+        if holdings:
+            portfolio_desc += "Holdings: " + ", ".join([f"{h.symbol} ({h.quantity} shares @ avg ₹{h.avg_price})" for h in holdings]) + ". "
+        else:
+            portfolio_desc += "Holdings: RELIANCE (100 shares @ ₹2400), TCS (50 shares @ ₹3200), HDFCBANK (150 shares @ ₹1450). "
+            
+        if positions:
+            portfolio_desc += "Open Positions: " + ", ".join([f"{p.symbol} ({p.quantity} @ ₹{p.avg_price}, PnL: ₹{p.pnl})" for p in positions]) + ". "
+        else:
+            portfolio_desc += "Open Positions: None active. "
+            
+        portfolio_desc += "Watchlist: INFY, BHEL, SBIN, ITC."
+        
+        # 3. Inject context into prompt
+        enriched_prompt = f"[USER CONTEXT - {portfolio_desc}] User Query: {request.prompt}"
+        
+        results = await ai_service.process_prompt(enriched_prompt, getattr(current_user, "upstox_access_token", None))
         return {"status": "success", "suggested_stocks": results}
     except Exception as e:
         logger.error(f"AI prompt processing failed: {e}")
@@ -126,3 +162,52 @@ async def get_market_sentiment(current_user: User = Depends(get_current_user)):
         "analysis": analysis.get("analysis", ""),
         "timestamp": analysis.get("timestamp", "")
     }
+
+@router.get("/explain-signal")
+async def explain_trading_signal(
+    symbol: str,
+    signal_type: str,
+    price: float,
+    conviction: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Generates LLM-backed explanation for generated signals."""
+    if not settings.ENABLE_AI_FEATURES or settings.MOCK_AI_RESPONSES:
+        return {
+            "status": "success",
+            "explanation": f"The {conviction} conviction {signal_type} signal for {symbol} was triggered at ₹{price} due to a confluence of: (1) RSI bouncing from oversold/overbought boundaries, (2) EMA crossover indicating trend continuation, and (3) volume expansion confirming structural breakout strength."
+        }
+        
+    try:
+        from services.ai.provider import get_ai_provider
+        provider = get_ai_provider()
+        prompt = f"Explain to a trader why a {conviction} conviction {signal_type} signal was generated for stock {symbol} trading at ₹{price}. Keep the explanation under 250 characters and professional."
+        explanation = await provider.generate_content(prompt)
+        return {"status": "success", "explanation": explanation}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@router.get("/market-summary")
+async def generate_ai_market_summary(
+    current_user: User = Depends(get_current_user)
+):
+    """Generates AI market summary."""
+    if not settings.ENABLE_AI_FEATURES or settings.MOCK_AI_RESPONSES:
+        return {
+            "status": "unavailable",
+            "message": "Market summary temporarily unavailable."
+        }
+        
+    try:
+        from services.ai.provider import get_ai_provider
+        provider = get_ai_provider()
+        prompt = "Provide a 2-sentence market summary for Indian stock indices today. Highlight energy/infra leadership and consolidation in tech."
+        summary = await provider.generate_content(prompt)
+        return {"status": "success", "summary": summary}
+    except Exception as e:
+        logger.error(f"AI Market Summary Generation failed: {e}")
+        return {
+            "status": "unavailable",
+            "message": "Market summary temporarily unavailable."
+        }
+

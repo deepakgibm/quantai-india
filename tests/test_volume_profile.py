@@ -115,6 +115,8 @@ def test_live_volume_profile_endpoint():
             
             print(f"Volume Profile API verification succeeded. Shape: {api_res['shape']}, Action: {api_res['action']}, Verdict: {api_res['verdict']}")
             
+    import nest_asyncio
+    nest_asyncio.apply()
     asyncio.run(run_test())
 
 if __name__ == "__main__":

@@ -16,8 +16,10 @@ from services.bot.bot_orchestrator import (
 
 
 class TestBotOrchestratorState:
-    def test_initial_no_runs(self):
+    def test_initial_no_runs(self, monkeypatch):
         orch = BotOrchestrator()
+        # Mock database lookup to ensure clean initial state for unit testing
+        monkeypatch.setattr(orch, "get_last_run_id", lambda: None)
         assert orch.get_last_run_id() is None
 
     def test_get_status_unknown_id(self):

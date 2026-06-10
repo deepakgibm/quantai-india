@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from '
 import AgenticBotCard from '../components/AgenticBotCard';
 import { useMarketDataStream } from '../hooks/useMarketDataStream';
 import { Page, Stock, AlgoConfig } from '../types';
-import { Zap, X, Loader2, Play, Activity, Shield, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, AlertTriangle, Calendar } from 'lucide-react';
+import { Zap, X, Loader2, Play, Activity, Shield, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, AlertTriangle, Calendar, Calculator, CreditCard, Award, Heart, Sparkles } from 'lucide-react';
 
 import { api } from '../services/api';
+import PositionSizeCalculator from '../components/PositionSizeCalculator';
 import { PriceWithSource } from '../components/PriceSourceBadge';
 import TopMoversCard from '../components/TopMoversCard';
 
@@ -29,6 +30,53 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
    const [volError, setVolError] = useState<string | null>(null);
    const [volLastUpdated, setVolLastUpdated] = useState<string>('');
    const abortControllerRef = useRef<AbortController | null>(null);
+
+   // SaaS Enterprise States
+   const [saasSub, setSaasSub] = useState<any>({ plan_name: 'FREE' });
+   const [saasPortfolio, setSaasPortfolio] = useState<any>({ health_score: 85, beta: 1.15, risk_level: 'MODERATE' });
+   const [saasSignals, setSaasSignals] = useState<any>({ win_rate: 72.5, total_signals: 7 });
+   const [saasOpportunities, setSaasOpportunities] = useState<any[]>([
+      { symbol: 'RELIANCE', action: 'BUY' },
+      { symbol: 'TCS', action: 'BUY' },
+      { symbol: 'INFY', action: 'SELL' }
+   ]);
+   const [saasSummary, setSaasSummary] = useState<string>('Loading AI Market Summary...');
+   const [calcOpen, setCalcOpen] = useState(false);
+
+   useEffect(() => {
+      const fetchSaaSStats = async () => {
+         try {
+            const subRes = await api.getSubscriptionDashboard();
+            if (subRes?.status === 'success') setSaasSub(subRes.subscription);
+            
+            const portRes = await api.getPortfolioIntelligence();
+            if (portRes?.status === 'success') setSaasPortfolio(portRes.analysis);
+            
+            const sigRes = await api.getSignalCenter();
+            if (sigRes?.status === 'success') setSaasSignals(sigRes.metrics);
+            
+            try {
+               const sumRes = await api.getAIMarketSummary();
+               if (sumRes?.status === 'success') {
+                  setSaasSummary(sumRes.summary);
+               } else {
+                  setSaasSummary(sumRes?.message || "Market summary temporarily unavailable.");
+               }
+            } catch (sumErr) {
+               console.warn("Failed to load AI market summary:", sumErr);
+               setSaasSummary("Market summary temporarily unavailable.");
+            }
+
+            const oppsRes = await api.runScanner('/api/ai/top5-picks');
+            if (oppsRes?.stocks && oppsRes.stocks.length > 0) {
+               setSaasOpportunities(oppsRes.stocks.slice(0, 3));
+            }
+         } catch (e) {
+            console.warn("Failed to load SaaS stats", e);
+         }
+      };
+      fetchSaaSStats();
+   }, []);
 
    const fetchVolatility = async (symbol: string, days: number, forceSilent = false) => {
       if (!forceSilent) {
@@ -597,6 +645,102 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
          )}
 
+         {/* SaaS Enterprise Cards */}
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Subscription Status Card */}
+            <div
+               onClick={() => onNavigate(Page.SUBSCRIPTION)}
+               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-brand-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Subscription</span>
+                  <CreditCard size={15} className="text-brand-500 animate-pulse" />
+               </div>
+               <span className="text-lg font-black text-slate-900 dark:text-white mt-2 uppercase font-mono">
+                  {saasSub?.plan_name || 'FREE'}
+               </span>
+               <span className="text-[9px] text-slate-400 mt-2">Click to manage billing</span>
+            </div>
+
+            {/* Portfolio Health Card */}
+            <div
+               onClick={() => onNavigate(Page.PORTFOLIO_INTELLIGENCE)}
+               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-emerald-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Portfolio Health</span>
+                  <Heart size={15} className="text-emerald-500" />
+               </div>
+               <span className="text-lg font-black text-slate-900 dark:text-white mt-2 font-mono">
+                  {saasPortfolio?.health_score || 85}/100
+               </span>
+               <span className="text-[9px] text-slate-400 mt-2">Click to view allocations</span>
+            </div>
+
+            {/* Signal Accuracy Card */}
+            <div
+               onClick={() => onNavigate(Page.SIGNAL_CENTER)}
+               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-purple-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Signal Win Rate</span>
+                  <Award size={15} className="text-purple-500" />
+               </div>
+               <span className="text-lg font-black text-slate-900 dark:text-white mt-2 font-mono">
+                  {saasSignals?.win_rate || 72.5}%
+               </span>
+               <span className="text-[9px] text-slate-400 mt-2">Based on {saasSignals?.total_signals || 7} signals</span>
+            </div>
+
+            {/* Risk Exposure Card */}
+            <div
+               onClick={() => onNavigate(Page.PORTFOLIO_INTELLIGENCE)}
+               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-amber-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Risk Profile</span>
+                  <AlertTriangle size={15} className="text-amber-500" />
+               </div>
+               <span className="text-lg font-black text-slate-900 dark:text-white mt-2 uppercase font-mono">
+                  {saasPortfolio?.risk_level || 'MODERATE'}
+               </span>
+               <span className="text-[9px] text-slate-400 mt-2">Beta: {saasPortfolio?.beta?.toFixed(2) || '1.15'}</span>
+            </div>
+
+            {/* Top Opportunities Card */}
+            <div
+               onClick={() => onNavigate(Page.SIGNAL_CENTER)}
+               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-rose-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Top Opportunities</span>
+                  <TrendingUp size={15} className="text-rose-500 animate-pulse" />
+               </div>
+               <div className="mt-2 flex flex-wrap gap-1">
+                  {saasOpportunities && saasOpportunities.slice(0, 3).map((opp: any, i: number) => (
+                     <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 font-mono">
+                        {opp.symbol} {opp.action}
+                     </span>
+                  ))}
+               </div>
+               <span className="text-[9px] text-slate-400 mt-2">Click to view signals</span>
+            </div>
+
+            {/* AI Market Summary Card */}
+            <div
+               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md transition-all border-l-4 border-l-indigo-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">AI Copilot Market Summary</span>
+                  <Sparkles size={15} className="text-indigo-500 animate-pulse" />
+               </div>
+               <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-2 leading-relaxed font-semibold">
+                  {saasSummary}
+               </p>
+               <span className="text-[8px] text-slate-400 mt-2 uppercase tracking-widest font-bold">Real-time LLM summary</span>
+            </div>
+         </div>
+
          {/* Welcome & Stats Section */}
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* NIFTY 100 Top Movers */}
@@ -975,6 +1119,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                </div>
             )
          }
+
+         {/* Floating position size calculator toggle */}
+         <button
+            onClick={() => setCalcOpen(!calcOpen)}
+            className="fixed bottom-6 right-6 z-50 p-4 rounded-full bg-gradient-to-r from-brand-600 to-purple-600 text-white shadow-2xl hover:scale-105 transition-all border border-brand-500/20"
+            title="Risk Position Size Calculator"
+         >
+            <Calculator size={20} />
+         </button>
+         <PositionSizeCalculator isOpen={calcOpen} onClose={() => setCalcOpen(false)} />
       </div >
    );
 

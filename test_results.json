@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-06-09T23:54:35.459465",
+  "summary": {
+    "total": 12,
+    "passed": 6,
+    "failed": 6,
+    "pass_rate": "50.0%"
+  },
+  "api_results": [
+    {
+      "endpoint": "Trading Health",
+      "url": "http://localhost:8000/api/trading/health",
+      "status_code": 200,
+      "response_time_ms": 25.86,
+      "pass": true,
+      "data_preview": "{\"status\":\"healthy\",\"service\":\"quantai-trading-api\"}"
+    },
+    {
+      "endpoint": "Trading Instruments",
+      "url": "http://localhost:8000/api/trading/instruments",
+      "status_code": 200,
+      "response_time_ms": 6.16,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"instruments\":[{\"symbol\":\"360ONE\",\"name\":\"360 ONE WAM Ltd.\",\"exchange\":\"NSE\"},{\"symbol\":\"3MINDIA\",\"name\":\"3M India Ltd.\",\"exchange\":\"NSE\"},{\"symbol\":\"ABB\",\"name\":\"ABB India Ltd.\",\""
+    },
+    {
+      "endpoint": "Market Indices",
+      "url": "http://localhost:8000/api/trading/market-indices",
+      "status_code": 200,
+      "response_time_ms": 4.51,
+      "pass": true,
+      "data_preview": "[{\"name\":\"NIFTY 50\",\"value\":23242.1,\"change\":119.1,\"percent\":0.52,\"source\":\"upstox_rest\",\"stale\":false,\"timestamp\":null},{\"name\":\"BANK NIFTY\",\"value\":55194.5,\"change\":1130.75,\"percent\":2.09,\"source\":\""
+    },
+    {
+      "endpoint": "Metrics Symbols",
+      "url": "http://localhost:8000/api/metrics/symbols",
+      "status_code": 404,
+      "response_time_ms": 20.05,
+      "pass": false,
+      "data_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "Data Freshness",
+      "url": "http://localhost:8000/api/metrics/freshness",
+      "status_code": 404,
+      "response_time_ms": 13.64,
+      "pass": false,
+      "data_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "Cache Stats",
+      "url": "http://localhost:8000/api/metrics/cache/stats",
+      "status_code": 404,
+      "response_time_ms": 14.75,
+      "pass": false,
+      "data_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "Sectors",
+      "url": "http://localhost:8000/api/metrics/sectors",
+      "status_code": 404,
+      "response_time_ms": 31.8,
+      "pass": false,
+      "data_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "Scanner Strategies",
+      "url": "http://localhost:8000/api/scanner/strategies",
+      "status_code": 200,
+      "response_time_ms": 31.51,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"strategies\":[{\"name\":\"Multi-Timeframe Confluence\",\"description\":\"3-layer confluence: Daily trend + 4H structure + 1H entry trigger\",\"tier\":\"Multi-Timeframe Confluence\",\"min_bars\":"
+    },
+    {
+      "endpoint": "Scanner Timeframes",
+      "url": "http://localhost:8000/api/scanner/timeframes",
+      "status_code": 404,
+      "response_time_ms": 8.75,
+      "pass": false,
+      "data_preview": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "Scanner Momentum",
+      "url": "http://localhost:8000/api/scanner/momentum",
+      "status_code": 401,
+      "response_time_ms": 20.7,
+      "pass": true,
+      "data_preview": "{\"detail\":\"Authentication token is missing. Please log in.\"}"
+    },
+    {
+      "endpoint": "Week52 Breakouts",
+      "url": "http://localhost:8000/api/scanner/week52-breakouts",
+      "status_code": 401,
+      "response_time_ms": 6.93,
+      "pass": true,
+      "data_preview": "{\"detail\":\"Authentication token is missing. Please log in.\"}"
+    },
+    {
+      "endpoint": "QuantBot Symbols",
+      "url": "http://localhost:8000/api/quant-bot/symbols",
+      "status_code": 404,
+      "response_time_ms": 7.13,
+      "pass": false,
+      "data_preview": "{\"detail\":\"Not Found\"}"
+    }
+  ],
+  "db_validations": {
+    "instrument_count": 439,
+    "daily_candle_count": 56622,
+    "latest_daily_candle": "2026-05-15 00:00:00",
+    "symbols_with_daily_candles": 439
+  }
+}

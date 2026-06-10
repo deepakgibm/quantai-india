@@ -1,13 +1,12 @@
 {
-  "timestamp": "2026-01-22T17:59:42.572185",
+  "timestamp": "2026-06-10T22:59:32.756154",
   "endpoints_tested": [
-    "/api/market/nifty100/top-movers",
-    "/api/v3/scanner/momentum"
+    "/api/market/nifty100/top-movers"
   ],
   "symbols_validated": [],
   "results": [],
   "summary": {
-    "total_endpoints": 2,
+    "total_endpoints": 1,
     "total_symbols": 0,
     "total_validations": 0,
     "passed": 0,

@@ -31,17 +31,18 @@ def get_db_connection():
         return None
 
 
+@pytest.fixture
+def db_connection():
+    """Get database connection."""
+    conn = get_db_connection()
+    if conn is None:
+        pytest.skip("Could not connect to database")
+    yield conn
+    conn.close()
+
+
 class TestDatabaseConsistency:
     """Test API vs Database consistency."""
-    
-    @pytest.fixture
-    def db_connection(self):
-        """Get database connection."""
-        conn = get_db_connection()
-        if conn is None:
-            pytest.skip("Could not connect to database")
-        yield conn
-        conn.close()
     
     @pytest.mark.parametrize("symbol", QUICK_TEST_SYMBOLS[:3])
     def test_candle_count_consistency(self, api_client, db_connection, symbol):

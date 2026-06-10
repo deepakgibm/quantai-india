@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
-    onAuthStateChanged,
+    onIdTokenChanged,
     User,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
@@ -35,9 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
-
+        const unsubscribe = onIdTokenChanged(auth, async (currentUser) => {
             if (currentUser) {
                 try {
                     // CRITICAL: Always verify or refresh the backend token to prevent 401s
@@ -48,9 +46,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                     if (syncResult && syncResult.access_token) {
                         console.log('[Auth] Backend token successfully refreshed and synced');
+                        setUser(currentUser);
                     } else {
                         console.warn('[Auth] Sync returned no token, clearing legacy state');
                         localStorage.removeItem('access_token');
+                        setUser(null);
                     }
                 } catch (err: any) {
                     console.error('[Auth] Sync failure:', err);
@@ -61,12 +61,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     if (isAuthError) {
                         console.warn('[Auth] Definitive auth failure, clearing token');
                         localStorage.removeItem('access_token');
+                        setUser(null);
                     } else {
                         console.warn('[Auth] Non-auth failure (network?), retaining existing token');
+                        const existingToken = localStorage.getItem('access_token');
+                        if (existingToken) {
+                            setUser(currentUser);
+                        } else {
+                            setUser(null);
+                        }
                     }
                 }
             } else {
                 localStorage.removeItem('access_token');
+                setUser(null);
             }
 
             setLoading(false);

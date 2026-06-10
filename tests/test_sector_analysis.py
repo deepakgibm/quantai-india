@@ -17,6 +17,8 @@ def test_sector_analysis_calculations():
         async with AsyncSessionLocal() as session:
             return await get_sector_analysis(current_user=MockUser(), db=session)
             
+    import nest_asyncio
+    nest_asyncio.apply()
     res = asyncio.run(run_test())
         
     # Structure validations

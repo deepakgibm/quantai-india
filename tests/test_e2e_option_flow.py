@@ -74,7 +74,7 @@ def test_option_flow_e2e(page: Page):
         
         # 3. Click 'Option Flow' sidebar link
         print("[E2E Option Flow] Clicking 'Option Flow' sidebar link...")
-        page.get_by_role("button", name="Option Flow").click()
+        page.get_by_role("button", name="Option Flow", exact=True).click()
         page.wait_for_timeout(2000)
         
         # 4. Verify Option Flow Page loads

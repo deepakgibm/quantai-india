@@ -34,6 +34,19 @@ export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) =>
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Monitoring refs
+    const sessionStartRef = useRef<number | null>(null);
+    const messageCountRef = useRef(0);
+    const sessionDurationsRef = useRef<number[]>([]);
+
+    const [metrics, setMetrics] = useState({
+        connectionTime: null as string | null,
+        disconnectReason: '',
+        reconnectCount: 0,
+        averageSessionDuration: 0,
+        messageThroughput: 0
+    });
+
     // Exponential backoff state
     const retryCountRef = useRef(0);
     const maxRetries = 10;
@@ -51,9 +64,28 @@ export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) =>
                 console.log('Market WS Connected');
                 setIsConnected(true);
                 retryCountRef.current = 0; // Reset backoff
+                
+                const now = new Date();
+                sessionStartRef.current = now.getTime();
+                messageCountRef.current = 0;
+                
+                setMetrics(prev => ({
+                    ...prev,
+                    connectionTime: now.toISOString()
+                }));
             };
 
             ws.onmessage = (event) => {
+                messageCountRef.current++;
+                if (sessionStartRef.current) {
+                    const elapsedSec = (Date.now() - sessionStartRef.current) / 1000;
+                    const throughput = elapsedSec > 0 ? messageCountRef.current / elapsedSec : 0;
+                    setMetrics(prev => ({
+                        ...prev,
+                        messageThroughput: parseFloat(throughput.toFixed(2))
+                    }));
+                }
+
                 try {
                     const message = JSON.parse(event.data);
                     if (message.indices && Array.isArray(message.indices)) {
@@ -73,10 +105,30 @@ export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) =>
                 }
             };
 
-            ws.onclose = () => {
+            ws.onclose = (event) => {
                 console.log('Market WS Closed');
                 setIsConnected(false);
                 wsRef.current = null;
+
+                let reason = `Code: ${event.code}`;
+                if (event.reason) reason += ` - ${event.reason}`;
+
+                if (sessionStartRef.current) {
+                    const duration = Date.now() - sessionStartRef.current;
+                    sessionDurationsRef.current.push(duration);
+                }
+
+                const durations = sessionDurationsRef.current;
+                const avgDur = durations.length > 0
+                    ? durations.reduce((a, b) => a + b, 0) / durations.length
+                    : 0;
+
+                setMetrics(prev => ({
+                    ...prev,
+                    disconnectReason: reason,
+                    averageSessionDuration: parseFloat((avgDur / 1000).toFixed(2))
+                }));
+
                 scheduleReconnect();
             };
 
@@ -95,10 +147,14 @@ export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) =>
         if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
 
         if (retryCountRef.current < maxRetries) {
-            const delay = Math.min(10000, baseDelay * Math.pow(1.5, retryCountRef.current));
+            const delay = Math.min(30000, baseDelay * Math.pow(2, retryCountRef.current));
             console.log(`Scheduling reconnect in ${delay}ms (attempt ${retryCountRef.current + 1})`);
             reconnectTimeoutRef.current = setTimeout(() => {
                 retryCountRef.current++;
+                setMetrics(prev => ({
+                    ...prev,
+                    reconnectCount: retryCountRef.current
+                }));
                 connect();
             }, delay);
         }
@@ -119,6 +175,7 @@ export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) =>
 
     return {
         isConnected,
-        indices
+        indices,
+        metrics
     };
 };

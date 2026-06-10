@@ -295,36 +295,6 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
     return symbol.toUpperCase().includes(searchQuery.toUpperCase());
   };
 
-  if (loading && !heatmapData) {
-    return (
-      <div className="space-y-6">
-        {!isWidget && (
-          <div className="pb-4 border-b border-slate-800">
-            <h1 className="text-3xl font-display font-bold text-slate-100">Market Heatmap</h1>
-            <p className="text-slate-500 font-medium">Loading sector maps and components...</p>
-          </div>
-        )}
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        {!isWidget && (
-          <div className="pb-4 border-b border-slate-800">
-            <h1 className="text-3xl font-display font-bold text-slate-100">Market Heatmap</h1>
-            <p className="text-slate-500">Error loading map</p>
-          </div>
-        )}
-        <ErrorCard message={error} onRetry={() => fetchHeatmap(mode)} title="Heatmap Compute Error" />
-      </div>
-    );
-  }
-
   // Active Layout Nodes
   const rootNode = selectedSector ? computedZoomedSector : computedRoot;
 
@@ -450,7 +420,15 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
         </div>
       )}
 
-      {heatmapData?.market_summary && (
+      {loading && !heatmapData ? (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+        </div>
+      ) : error ? (
+        <ErrorCard message={error} onRetry={() => fetchHeatmap(mode)} title="Heatmap Compute Error" />
+      ) : (
+        <>
+          {heatmapData?.market_summary && (
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-2xl p-5 shadow-xl transition-all duration-300">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800/60 pb-3 mb-4 gap-3">
             <div className="flex items-center gap-2">
@@ -825,6 +803,8 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 });

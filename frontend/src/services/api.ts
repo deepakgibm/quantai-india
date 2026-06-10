@@ -1,4 +1,5 @@
 // import { Order } from "../types"; // Removed unused import
+import { auth } from '../lib/firebase';
 
 // ============= API Error Handling =============
 
@@ -118,6 +119,146 @@ export const getAuthHeaders = () => {
   return headers;
 };
 
+// ============= Token Refresh & Interception =============
+
+const originalFetch = window.fetch;
+let refreshPromise: Promise<boolean> | null = null;
+
+const getFirebaseUser = (): Promise<any> => {
+  return new Promise((resolve) => {
+    if (auth.currentUser) {
+      resolve(auth.currentUser);
+      return;
+    }
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+};
+
+export const refreshBackendToken = async (): Promise<boolean> => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const currentUser = await getFirebaseUser();
+      if (!currentUser) {
+        console.warn("[Auth] No Firebase user found for token refresh.");
+        return false;
+      }
+
+      console.log("[Auth] Refreshing backend JWT using Firebase ID token...");
+      const idToken = await currentUser.getIdToken(true);
+      
+      const res = await originalFetch(`${API_URL}/api/auth/firebase-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_token: idToken,
+          email: currentUser.email!,
+          full_name: currentUser.displayName || undefined
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Firebase login sync failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data && data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+        console.log("[Auth] Backend token successfully refreshed and stored.");
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("[Auth] Failed to refresh backend token:", err);
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+};
+
+const authenticatedFetch = async (
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> => {
+  const urlString = typeof input === 'string' ? input : (input as any).url || String(input);
+  const isAuthRequest = urlString.includes('/api/auth/firebase-login') || 
+                        urlString.includes('/api/auth/login') || 
+                        urlString.includes('/api/auth/signup');
+
+  if (isAuthRequest) {
+    return originalFetch(input, init);
+  }
+
+  const authHeaders = getAuthHeaders();
+  const requestHeaders: Record<string, string> = {};
+
+  if (init && init.headers) {
+    Object.entries(init.headers).forEach(([k, v]) => {
+      requestHeaders[k] = String(v);
+    });
+  }
+
+  if (!requestHeaders['Content-Type'] && init && init.body && typeof init.body === 'string') {
+    requestHeaders['Content-Type'] = 'application/json';
+  }
+
+  if (authHeaders['Authorization']) {
+    requestHeaders['Authorization'] = authHeaders['Authorization'];
+  } else {
+    delete requestHeaders['Authorization'];
+  }
+
+  const requestOptions = {
+    ...init,
+    headers: requestHeaders
+  };
+
+  let response = await originalFetch(input, requestOptions);
+
+  if (response.status === 401) {
+    console.warn(`[Auth] Received 401 from ${urlString}. Attempting token refresh...`);
+    const refreshed = await refreshBackendToken();
+    if (refreshed) {
+      console.log(`[Auth] Token refreshed successfully. Retrying request to ${urlString}...`);
+      
+      const newAuthHeaders = getAuthHeaders();
+      const retryHeaders = { ...requestHeaders };
+      
+      if (newAuthHeaders['Authorization']) {
+        retryHeaders['Authorization'] = newAuthHeaders['Authorization'];
+      } else {
+        delete retryHeaders['Authorization'];
+      }
+
+      const retryOptions = {
+        ...init,
+        headers: retryHeaders
+      };
+      
+      response = await originalFetch(input, retryOptions);
+    } else {
+      console.error(`[Auth] Token refresh failed. Propagating 401 for ${urlString}.`);
+    }
+  }
+
+  return response;
+};
+
+// Redefine fetch locally in this module
+const fetch = authenticatedFetch;
+
+const inFlightRequests = new Map<string, Promise<any>>();
+const apiCache = new Map<string, { data: any; expiry: number }>();
+
 /**
  * Standardized API request wrapper with proper error handling.
  * Use this for new API calls to get consistent error handling.
@@ -127,6 +268,56 @@ export async function apiRequest<T>(
   options: RequestInit = {},
   timeout = REQUEST_TIMEOUT
 ): Promise<ApiResult<T>> {
+  const method = options.method || 'GET';
+
+  if (method === 'GET') {
+    const cacheKey = url;
+
+    // Check Cache
+    const cached = apiCache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) {
+      return cached.data;
+    }
+
+    // Check In-flight
+    let inFlight = inFlightRequests.get(cacheKey);
+    if (!inFlight) {
+      inFlight = (async () => {
+        try {
+          const response = await fetchWithTimeout(url, options, timeout);
+
+          // Try to parse JSON body
+          let body: any;
+          try {
+            body = await response.json();
+          } catch {
+            body = null;
+          }
+
+          if (!response.ok) {
+            return err(ApiError.fromResponse(response, body));
+          }
+
+          const result = ok(body as T);
+
+          // Cache for 3 seconds
+          apiCache.set(cacheKey, {
+            data: result,
+            expiry: Date.now() + 3000
+          });
+
+          return result;
+        } catch (error: any) {
+          return err(ApiError.networkError(error));
+        } finally {
+          inFlightRequests.delete(cacheKey);
+        }
+      })();
+      inFlightRequests.set(cacheKey, inFlight);
+    }
+    return inFlight;
+  }
+
   try {
     const response = await fetchWithTimeout(url, options, timeout);
 
@@ -854,6 +1045,105 @@ export const api = {
 
   getVolumeProfileVerdict: async (symbol: string) => {
     const res = await apiGet<any>(`/api/volume-profile/ai-verdict?symbol=${encodeURIComponent(symbol)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  // --- SAAS ENTERPRISE MODULES ---
+  getSubscriptionDashboard: async () => {
+    const res = await apiGet<any>('/api/saas/subscription');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  createSubscriptionCheckout: async (planName: string, couponCode?: string) => {
+    let url = `/api/saas/subscription/checkout?plan_name=${planName}`;
+    if (couponCode) url += `&coupon_code=${encodeURIComponent(couponCode)}`;
+    const res = await apiPost<any>(url, {});
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  verifySubscriptionPayment: async (subscriptionId: number, razorpayPaymentId: string, razorpaySignature: string = 'mock_sig') => {
+    const res = await apiPost<any>(`/api/saas/subscription/verify?subscription_id=${subscriptionId}&razorpay_payment_id=${razorpayPaymentId}&razorpay_signature=${razorpaySignature}`, {});
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getPortfolioIntelligence: async () => {
+    const res = await apiGet<any>('/api/saas/portfolio-intel');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getSignalCenter: async () => {
+    const res = await apiGet<any>('/api/saas/signal-center');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getSMCAnalysis: async (symbol: string) => {
+    const res = await apiGet<any>(`/api/saas/smc?symbol=${encodeURIComponent(symbol)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getPatternRecognition: async (symbol: string) => {
+    const res = await apiGet<any>(`/api/saas/patterns?symbol=${encodeURIComponent(symbol)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getAcademyCourses: async () => {
+    const res = await apiGet<any>('/api/saas/academy');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getAcademyCourseDetails: async (courseId: number) => {
+    const res = await apiGet<any>(`/api/saas/academy/course/${courseId}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  completeAcademyLesson: async (courseId: number, lessonIdx: number) => {
+    const res = await apiPost<any>(`/api/saas/academy/course/${courseId}/complete-lesson?lesson_idx=${lessonIdx}`, {});
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  submitAcademyQuiz: async (courseId: number, answers: number[]) => {
+    const res = await apiPost<any>(`/api/saas/academy/course/${courseId}/submit-quiz`, answers);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getResearchReports: async () => {
+    const res = await apiGet<any>('/api/saas/research');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  generateAIResearchReport: async (topic: string) => {
+    const res = await apiPost<any>('/api/saas/research/generate', { topic });
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getAffiliateDashboard: async () => {
+    const res = await apiGet<any>('/api/saas/affiliate');
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  explainTradingSignal: async (symbol: string, signalType: string, price: number, conviction: string) => {
+    const res = await apiGet<any>(`/api/ai/explain-signal?symbol=${encodeURIComponent(symbol)}&signal_type=${encodeURIComponent(signal_type)}&price=${price}&conviction=${encodeURIComponent(conviction)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+  getAIMarketSummary: async () => {
+    const res = await apiGet<any>('/api/ai/market-summary');
     if (res.success) return res.data;
     throw res.error;
   },

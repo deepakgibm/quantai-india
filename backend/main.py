@@ -28,9 +28,10 @@ import models
 import models_ml
 import models_alpha
 import models_indicators
-import models_risk
 import models_bot
 import screener.models
+import models_saas
+
 
 # 3. CORS Configuration (env-driven, not hardcoded wildcard)
 from config import settings as app_settings
@@ -65,16 +66,10 @@ from api.market_data import router as market_router
 from api.indicators import router as indicator_router
 from api.health import router as health_router
 from api.trading import router as trading_router
-from api.orders import router as orders_router
 from api.analytics import router as analytics_router
-from api.risk import router as risk_router
-from api.etl_status import router as etl_router
 from api.upstox import router as upstox_router
-from api.admin import router as admin_router
 from api.engines import router as engine_router
 from api.bot import router as bot_router
-from api.v1.experiment_lab import router as experiment_lab_router
-from api.v1.backtest_strategies import router as backtest_strategies_router
 from engine.scanner_api import router as scanner_v3_router
 from screener.api.screener_router import router as screener_router
 from api.websockets import market_ws_router
@@ -84,6 +79,7 @@ from api.option_flow import router as option_flow_router
 from api.heatmap import router as heatmap_router
 from api.sector_analysis import router as sector_analysis_router
 from api.volume_profile import router as volume_profile_router
+from api.saas_router import router as saas_router
 
 
 # 6. Unified API Registration (Flattened for Reliability)
@@ -93,13 +89,9 @@ app.include_router(market_router, prefix="/api/market", tags=["Market Data"])
 app.include_router(indicator_router, prefix="/api/indicators", tags=["Technical Indicators"])
 app.include_router(scanner_router, prefix="/api/scanner", tags=["Standard Scanners"])
 app.include_router(trading_router, prefix="/api/trading", tags=["Trading Operations"])
-app.include_router(orders_router, prefix="/api/orders", tags=["Order Management"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Performance Analytics"])
-app.include_router(risk_router, prefix="/api/risk", tags=["Risk Management"])
-app.include_router(etl_router, prefix="/api/etl", tags=["Data Pipelines"])
 app.include_router(ai_router, prefix="/api/ai", tags=["AI Engine"])
 app.include_router(upstox_router, prefix="/api/upstox", tags=["Upstox Broker"])
-app.include_router(admin_router, prefix="/api/admin", tags=["Administration"])
 app.include_router(engine_router, prefix="/api/engines", tags=["Engine Management"])
 app.include_router(bot_router, prefix="/api/bot", tags=["Signal Bot"])
 app.include_router(screener_router, prefix="/api/screener", tags=["Trade Screener"])
@@ -111,6 +103,7 @@ app.include_router(option_flow_router, prefix="/api/option-flow", tags=["Option 
 app.include_router(heatmap_router, prefix="/api/heatmap", tags=["Heatmap"])
 app.include_router(sector_analysis_router, prefix="/api/sector-analysis", tags=["Sector Analysis"])
 app.include_router(volume_profile_router, prefix="/api/volume-profile", tags=["Volume Profile"])
+app.include_router(saas_router, prefix="/api/saas", tags=["SaaS Enterprise"])
 
 
 from api.v1 import router as v1_router

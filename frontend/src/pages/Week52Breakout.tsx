@@ -139,7 +139,7 @@ const Week52Breakout: React.FC = () => {
 
                 wsRetryCount.current += 1;
                 if (wsRetryCount.current <= maxWsRetries) {
-                    const delay = Math.min(1000 * Math.pow(2, wsRetryCount.current), 10000);
+                    const delay = Math.min(1000 * Math.pow(2, wsRetryCount.current), 30000);
                     console.log(`Breakouts WS Closed. Scheduling reconnect in ${delay}ms (Attempt ${wsRetryCount.current}/${maxWsRetries})`);
                     wsReconnectTimeout.current = setTimeout(connectWS, delay);
                 } else {

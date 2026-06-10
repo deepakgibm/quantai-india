@@ -13,6 +13,8 @@ import {
   Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area 
 } from 'recharts';
 import { createChart, ColorType, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+import { isFOSymbol } from '../utils/fnoUtils';
+
 
 // TypeScript Definitions matching Backend response
 interface StrikeData {
@@ -190,6 +192,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
   // Fetch Expiries
   const fetchExpiries = async (symbol: string, bypassCache = false) => {
+    const clean = symbol.toUpperCase().replace("NSE:", "").trim();
+    if (!isFOSymbol(clean)) {
+      setIsNonFno(true);
+      setLoading(false);
+      return;
+    }
+
     setIsNonFno(false);
     setError(null);
     try {
@@ -225,7 +234,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
   // Fetch Option Flow Details
   const fetchOptionFlow = async (symbol: string, expiry: string, forceSilent = false, bypassCache = false, attempt = 0) => {
-    if (isNonFno) {
+    const clean = symbol.toUpperCase().replace("NSE:", "").trim();
+    if (isNonFno || !isFOSymbol(clean)) {
       setLoading(false);
       return;
     }
@@ -291,6 +301,11 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
   // Fetch Advanced Chart Overlay Data
   const fetchChartData = async (symbol: string, timeframe: '1d' | '15m') => {
+    const clean = symbol.toUpperCase().replace("NSE:", "").trim();
+    if (!isFOSymbol(clean)) {
+      setChartLoading(false);
+      return;
+    }
     setChartLoading(true);
     try {
       // Call endpoint /api/option-flow/{symbol}/chart
@@ -323,8 +338,18 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       setChartData(null);
       setExpiries([]);
       setSelectedExpiry('');
-      setIsNonFno(false);
       setError(null);
+      
+      const clean = selectedSymbol.toUpperCase().replace("NSE:", "").trim();
+      const fnoValid = isFOSymbol(clean);
+      
+      if (!fnoValid) {
+        setIsNonFno(true);
+        setLoading(false);
+        return;
+      }
+      
+      setIsNonFno(false);
       setLoading(true);
       
       await Promise.all([
@@ -337,7 +362,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
   // Run on Expiry or Timeframe change
   useEffect(() => {
-    if (selectedExpiry || isNonFno) {
+    const clean = selectedSymbol.toUpperCase().replace("NSE:", "").trim();
+    if (!isFOSymbol(clean)) {
+      setIsNonFno(true);
+      setLoading(false);
+      return;
+    }
+
+    if (selectedExpiry) {
       fetchOptionFlow(selectedSymbol, selectedExpiry);
       fetchChartData(selectedSymbol, chartTimeframe);
     }
@@ -499,6 +531,18 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   }, [data]);
 
   if (isNonFno) {
+    if (isWidget) {
+      return (
+        <div className="flex flex-col items-center justify-center p-6 min-h-[200px] text-center">
+          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2.5 text-slate-400">
+            <ShieldAlert size={16} className="text-slate-400 dark:text-slate-500" />
+          </div>
+          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+            Options data unavailable for this stock.
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="space-y-6">
         {!isWidget && (
