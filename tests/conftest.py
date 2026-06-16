@@ -58,7 +58,7 @@ def auth_token(base_url: str, session: requests.Session) -> Optional[str]:
     """
     # Try to login first
     login_data = {
-        "username": TEST_USERNAME,
+        "email": TEST_USERNAME,
         "password": TEST_PASSWORD
     }
     
@@ -73,10 +73,11 @@ def auth_token(base_url: str, session: requests.Session) -> Optional[str]:
             data = response.json()
             return data.get("access_token")
         
-        # If login fails, try to create user
-        if response.status_code in [401, 404]:
+        # If login fails (or validation error because user doesn't exist), try to create user
+        if response.status_code in [401, 404, 422]:
             signup_data = {
                 "email": TEST_USERNAME,
+                "username": TEST_USERNAME.split("@")[0],
                 "password": TEST_PASSWORD,
                 "full_name": "Test User"
             }
@@ -133,25 +134,33 @@ def api_client(base_url: str, session: requests.Session, auth_headers: Dict[str,
         
         def get(self, endpoint: str, auth: bool = True, **kwargs) -> requests.Response:
             url = f"{self.base_url}{endpoint}"
-            headers = self.auth_headers if auth else {"Accept": "application/json"}
+            headers = self.auth_headers.copy() if auth else {"Accept": "application/json"}
+            if "headers" in kwargs:
+                headers.update(kwargs.pop("headers"))
             self.request_count += 1
             return self.session.get(url, headers=headers, timeout=30, **kwargs)
         
         def post(self, endpoint: str, auth: bool = True, **kwargs) -> requests.Response:
             url = f"{self.base_url}{endpoint}"
-            headers = self.auth_headers if auth else {"Accept": "application/json"}
+            headers = self.auth_headers.copy() if auth else {"Accept": "application/json"}
+            if "headers" in kwargs:
+                headers.update(kwargs.pop("headers"))
             self.request_count += 1
             return self.session.post(url, headers=headers, timeout=30, **kwargs)
         
         def put(self, endpoint: str, auth: bool = True, **kwargs) -> requests.Response:
             url = f"{self.base_url}{endpoint}"
-            headers = self.auth_headers if auth else {"Accept": "application/json"}
+            headers = self.auth_headers.copy() if auth else {"Accept": "application/json"}
+            if "headers" in kwargs:
+                headers.update(kwargs.pop("headers"))
             self.request_count += 1
             return self.session.put(url, headers=headers, timeout=30, **kwargs)
         
         def delete(self, endpoint: str, auth: bool = True, **kwargs) -> requests.Response:
             url = f"{self.base_url}{endpoint}"
-            headers = self.auth_headers if auth else {"Accept": "application/json"}
+            headers = self.auth_headers.copy() if auth else {"Accept": "application/json"}
+            if "headers" in kwargs:
+                headers.update(kwargs.pop("headers"))
             self.request_count += 1
             return self.session.delete(url, headers=headers, timeout=30, **kwargs)
     

@@ -41,7 +41,7 @@ def get_auth_token():
         print(f"    Exception: {e}")
         return None
 
-def test_endpoint(url, name, auth_token=None):
+def run_endpoint_check(url, name, auth_token=None):
     """Test a single endpoint and return result."""
     headers = {}
     if auth_token:
@@ -131,7 +131,7 @@ def main():
     failed = 0
     
     for url, name in endpoints:
-        result = test_endpoint(url, name, token)
+        result = run_endpoint_check(url, name, token)
         results.append(result)
         
         status = "✅ PASS" if result["pass"] else "❌ FAIL"

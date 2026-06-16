@@ -46,8 +46,11 @@ class DuckDBAnalyticsEngine:
             self._conn = duckdb.connect(self.db_path)
             
             # Install and load useful extensions
-            self._conn.execute("INSTALL httpfs")
-            self._conn.execute("LOAD httpfs")
+            try:
+                self._conn.execute("INSTALL httpfs")
+                self._conn.execute("LOAD httpfs")
+            except Exception as ext_err:
+                logger.warning(f"Failed to install/load httpfs extension: {ext_err}. Continuing using local engine capabilities.")
             
             logger.info(f"DuckDB initialized: {self.db_path}")
             

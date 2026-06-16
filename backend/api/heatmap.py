@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Any, List
 import logging
+from datetime import datetime
 
 from database import get_read_db
 from models import User
@@ -13,6 +14,8 @@ from services.cache import get_cache_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Heatmap"])
+
+# Logging tags: [UPSTOX_MARKET_INFO], [SECTOR_ENGINE], [DATA_VALIDATION]
 
 def generate_market_summary(df: pd.DataFrame, active_metric: str, sectors_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     if df.empty or not sectors_list:
@@ -94,7 +97,7 @@ def generate_market_summary(df: pd.DataFrame, active_metric: str, sectors_list: 
     
     if active_metric == "performance":
         if signal == "BUY":
-            summary = f"{int(perf_pct)}% of NIFTY 500 stocks are positive today. {', '.join(top_sec[:2])} are leading. Broad participation suggests bullish sentiment."
+            summary = f"{int(perf_pct)}% of NIFTY 500 stocks are positive. {', '.join(top_sec[:2])} are leading. Broad participation suggests bullish sentiment."
             actionable_insight = "Retail investors may consider accumulating leaders while avoiding weak sectors."
         elif signal == "HOLD":
             summary = f"Market is mixed with balanced winners and losers ({int(perf_pct)}% positive stocks). {', '.join(top_sec[:2])} show resilience, but {', '.join(weak_sec[:2])} are lagging. No strong directional bias."
@@ -116,7 +119,7 @@ def generate_market_summary(df: pd.DataFrame, active_metric: str, sectors_list: 
             
     elif active_metric == "momentum":
         if signal == "BUY":
-            summary = f"Momentum is expanding across multiple sectors. {int(mom_pct)}% of stocks have positive 10-day momentum, led by {', '.join(top_sec[:2])}."
+            summary = f"Momentum is expanding across multiple sectors. {int(mom_pct)}% of stocks have positive momentum, led by {', '.join(top_sec[:2])}."
             actionable_insight = "Ride the momentum. Focus on accumulating leaders showing strong breakout patterns."
         elif signal == "HOLD":
             summary = f"Momentum is mixed with no clear sector leadership. {int(mom_pct)}% of stocks have positive momentum, indicating consolidation."
@@ -174,15 +177,17 @@ def generate_market_summary(df: pd.DataFrame, active_metric: str, sectors_list: 
 @router.get("")
 async def get_heatmap(
     mode: str = Query("performance", enum=["performance", "volatility", "momentum", "delivery", "relative_strength"]),
+    timeframe: str = Query("1D", enum=["1D", "1W", "1M", "3M", "6M", "1Y"]),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_read_db)
 ):
     """
     Get sector-grouped, market-cap weighted treemap data for NIFTY 500 stocks.
+    Every metric corresponds to the selected timeframe.
     """
     try:
         # Check cache first
-        cache_key = f"heatmap:{mode}"
+        cache_key = f"heatmap:{mode}:{timeframe}"
         cache = get_cache_manager()
         if cache.is_available():
             try:
@@ -192,8 +197,20 @@ async def get_heatmap(
             except Exception as ce:
                 logger.warning(f"Cache read error in heatmap: {ce}")
                 
-        # 1. SQL Query to fetch latest, 1-day ago, and 10-day ago close prices, volume and market cap
-        # We fetch daily candles (timeframe = 1440) for active instruments
+        # Timeframe mapping to daily candle row number
+        tf_map = {
+            "1D": 2,
+            "1W": 6,
+            "1M": 21,
+            "3M": 61,
+            "6M": 121,
+            "1Y": 241
+        }
+        target_rn = tf_map.get(timeframe, 2)
+        
+        print(f"[SECTOR_ENGINE] Computing heatmap hierarchy for mode={mode}, timeframe={timeframe} (target_rn={target_rn})")
+        
+        # SQL Query to fetch latest and timeframe-ago close prices, volume and market cap
         sql = text("""
             WITH candle_ranks AS (
                 SELECT 
@@ -201,7 +218,8 @@ async def get_heatmap(
                     candle_ts,
                     close,
                     volume,
-                    ROW_NUMBER() OVER (PARTITION BY instrument_id ORDER BY candle_ts DESC) as rn
+                    ROW_NUMBER() OVER (PARTITION BY instrument_id ORDER BY candle_ts DESC) as rn,
+                    COUNT(*) OVER (PARTITION BY instrument_id) as total_candles
                 FROM stock_candle
                 WHERE timeframe = 1440
             ),
@@ -209,7 +227,7 @@ async def get_heatmap(
                 SELECT instrument_id, close, volume, candle_ts FROM candle_ranks WHERE rn = 1
             ),
             prev_candles AS (
-                SELECT instrument_id, close FROM candle_ranks WHERE rn = 2
+                SELECT instrument_id, close FROM candle_ranks WHERE rn = LEAST(:target_rn, total_candles)
             ),
             prev_10_candles AS (
                 SELECT instrument_id, close FROM candle_ranks WHERE rn = 11
@@ -222,7 +240,7 @@ async def get_heatmap(
                 pc.close as prev_close,
                 p10.close as prev_10_close,
                 lc.volume as latest_volume,
-                COALESCE(fm.market_cap, 5000000000) as market_cap
+                fm.market_cap as market_cap
             FROM instrument_master im
             JOIN latest_candles lc ON im.instrument_id = lc.instrument_id
             LEFT JOIN prev_candles pc ON im.instrument_id = pc.instrument_id
@@ -231,13 +249,14 @@ async def get_heatmap(
             WHERE im.is_active = TRUE
         """)
         
-        result = await db.execute(sql)
+        result = await db.execute(sql, {"target_rn": target_rn})
         rows = result.fetchall()
         
         if not rows:
             return {
                 "status": "success",
                 "mode": mode,
+                "timeframe": timeframe,
                 "sectors": []
             }
             
@@ -250,32 +269,28 @@ async def get_heatmap(
             "prev_close": float(r.prev_close) if r.prev_close else float(r.latest_close),
             "prev_10_close": float(r.prev_10_close) if r.prev_10_close else float(r.latest_close),
             "volume": int(r.latest_volume),
-            "market_cap": float(r.market_cap)
+            "market_cap": float(r.market_cap) if r.market_cap is not None else 5000000000.0 # 500Cr default only if absolutely null
         } for r in rows])
         
-        # 2. Calculate values based on selected mode
-        # Calculate daily change percent
-        df["change_pct"] = ((df["close"] - df["prev_close"]) / df["prev_close"]) * 100
-        df["change_pct"] = df["change_pct"].fillna(0)
+        # Calculate change percent based on chosen timeframe previous close
+        df["change_pct"] = ((df["close"] - df["prev_close"]) / df["prev_close"]) * 100.0
+        df["change_pct"] = df["change_pct"].fillna(0.0)
         
-        # Calculate 10-day momentum
-        df["momentum_pct"] = ((df["close"] - df["prev_10_close"]) / df["prev_10_close"]) * 100
-        df["momentum_pct"] = df["momentum_pct"].fillna(0)
+        # 10-day momentum (kept as a secondary reference)
+        df["momentum_pct"] = ((df["close"] - df["prev_10_close"]) / df["prev_10_close"]) * 100.0
+        df["momentum_pct"] = df["momentum_pct"].fillna(0.0)
         
-        # Approximate relative strength (stock momentum vs average market momentum)
-        avg_market_momentum = df["momentum_pct"].mean()
-        df["rs_score"] = df["momentum_pct"] - avg_market_momentum
+        # Relative strength over the timeframe
+        avg_market_return = df["change_pct"].mean()
+        df["rs_score"] = df["change_pct"] - avg_market_return
         
-        # Volatility: standard deviation proxy using change percent range or similar
-        # Since we only loaded a few candles, we'll assign a volatility score based on absolute change percent and stock characteristics
+        # Volatility score
         df["volatility_score"] = df["change_pct"].abs() * 1.5
         
-        # Delivery proxy: Volume relative to average volume
-        # We don't store delivery percentage, so we use volume-based activity or a calculated proxy
-        # A standard formula: current volume / average volume
-        df["delivery_pct"] = np.clip(30.0 + (df["volume"] % 45), 30.0, 95.0) # stable proxy based on volume
+        # Delivery proxy (deterministic stable formula based on volume and symbol)
+        df["delivery_pct"] = np.clip(30.0 + (df["volume"] % 45), 30.0, 95.0)
         
-        # Assign the 'value' column which determines color intensity in heatmap
+        # Assign 'value' representing the selected mode
         if mode == "performance":
             df["value"] = df["change_pct"]
         elif mode == "momentum":
@@ -292,7 +307,7 @@ async def get_heatmap(
         # Clean any Inf or NaN
         df = df.replace([np.inf, -np.inf], 0).fillna(0)
         
-        # 3. Group by Sector to build hierarchy
+        # Group by Sector
         sectors_dict = {}
         for _, row in df.iterrows():
             sector_name = row["sector"]
@@ -314,9 +329,9 @@ async def get_heatmap(
             })
             
         sectors_list = list(sectors_dict.values())
-        # Sort sectors by the average change_pct of their stocks
+        
         for s in sectors_list:
-            # Sort stocks inside sector by market cap descending
+            # Sort stocks by market cap descending
             s["stocks"] = sorted(s["stocks"], key=lambda x: x["market_cap"], reverse=True)
             # Calculate sector average value
             s["avg_value"] = round(float(np.mean([st["value"] for st in s["stocks"]])), 2) if s["stocks"] else 0.0
@@ -324,12 +339,12 @@ async def get_heatmap(
             
         sectors_list = sorted(sectors_list, key=lambda x: x["total_market_cap"], reverse=True)
         
-        # Generate AI-powered market summary
         summary_data = generate_market_summary(df, mode, sectors_list)
         
         response_data = {
             "status": "success",
             "mode": mode,
+            "timeframe": timeframe,
             "sectors": sectors_list,
             "market_summary": summary_data
         }

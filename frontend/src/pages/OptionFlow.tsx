@@ -449,7 +449,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     // EMA 20 Overlays (Yellow)
     const ema20Series = chart.addLineSeries({
       color: '#eab308',
-      lineWidth: 1.5,
+      lineWidth: 1,
       title: 'EMA 20'
     });
     ema20Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_20 })));
@@ -457,7 +457,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     // EMA 50 Overlays (Blue)
     const ema50Series = chart.addLineSeries({
       color: '#3b82f6',
-      lineWidth: 1.5,
+      lineWidth: 1,
       title: 'EMA 50'
     });
     ema50Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_50 })));
@@ -465,7 +465,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     // VWAP Overlay (Purple)
     const vwapSeries = chart.addLineSeries({
       color: '#a855f7',
-      lineWidth: 1.5,
+      lineWidth: 1,
       title: 'VWAP'
     });
     vwapSeries.setData(chartData.candles.map(c => ({ time: c.time, value: c.vwap })));

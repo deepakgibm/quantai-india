@@ -185,14 +185,14 @@ class Nifty100RankingService:
         is_open = self._market_hours.is_market_open()
         
         # 1. Try our own cache first (short TTL ensures freshness)
-        # try:
-        #     cached = self._cache.get(cache_key)
-        #     if cached:
-        #         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        #         logger.info(f"CACHE HIT: {cache_key} in {elapsed_ms:.2f}ms")
-        #         return cached
-        # except Exception as e:
-        #     logger.warning(f"Cache read error: {e}")
+        try:
+            cached = self._cache.get(cache_key)
+            if cached:
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(f"CACHE HIT: {cache_key} in {elapsed_ms:.2f}ms")
+                return cached
+        except Exception as e:
+            logger.warning(f"Cache read error: {e}")
         
         logger.info(f"CACHE MISS: {cache_key}, fetching live data")
         

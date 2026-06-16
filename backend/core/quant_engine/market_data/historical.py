@@ -31,6 +31,7 @@ class HistoricalMarketDataEngine:
             "30m": "30", "1h": "60", "1d": "1440", "1w": "10080"
         }
         self.db = duckdb.connect(database=':memory:')
+        self._candle_cache = {}
         logger.info(f"HistoricalMarketDataEngine initialized at {self.lake_root}")
 
     def get_partition_path(self, symbol: str, timeframe: str) -> Path:
@@ -55,6 +56,12 @@ class HistoricalMarketDataEngine:
         # 1. Parse dates
         start_dt = pd.to_datetime(start_date) if start_date else None
         end_dt = pd.to_datetime(end_date) if end_date else None
+
+        cache_key = (symbol, timeframe, str(start_date), str(end_date), limit)
+        logger.debug(f"[CANDLE CACHE] Checking key={cache_key} | in_cache={hasattr(self, '_candle_cache') and cache_key in self._candle_cache}")
+        if hasattr(self, '_candle_cache') and cache_key in self._candle_cache:
+            logger.info(f"[CANDLE CACHE] HIT: returning copy for {symbol} ({timeframe})")
+            return self._candle_cache[cache_key].copy()
 
         partition_dir = self.get_partition_path(symbol, timeframe)
         parquet_glob = str(partition_dir / "**" / "*.parquet").replace("\\", "/")
@@ -87,7 +94,8 @@ class HistoricalMarketDataEngine:
                 if limit:
                     sql += f" LIMIT {limit}"
 
-                df_pl = self.db.execute(sql).pl()
+                with duckdb.connect(database=':memory:') as conn:
+                    df_pl = conn.execute(sql).pl()
                 if not df_pl.is_empty():
                     df_pd = df_pl.to_pandas()
                     logger.info(f"Loaded {len(df_pd)} rows for {symbol} ({timeframe}) from Parquet Lake.")
@@ -125,6 +133,15 @@ class HistoricalMarketDataEngine:
             df_pd = df_pd.sort_values('timestamp').reset_index(drop=True)
             for col in ['open', 'high', 'low', 'close', 'volume']:
                 df_pd[col] = pd.to_numeric(df_pd[col], errors='coerce').fillna(0.0)
+
+        # Cache the result
+        if not hasattr(self, '_candle_cache'):
+            self._candle_cache = {}
+        if not df_pd.empty:
+            logger.info(f"[CANDLE CACHE] MISS: loaded {len(df_pd)} candles for {symbol}, saving to cache")
+            self._candle_cache[cache_key] = df_pd
+        else:
+            logger.warning(f"[CANDLE CACHE] loaded empty candles for {symbol}")
 
         return df_pd
 

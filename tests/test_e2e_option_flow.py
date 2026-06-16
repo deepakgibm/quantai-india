@@ -4,7 +4,7 @@ import os
 
 TEST_EMAIL = "test_auth@quantai.com"
 TEST_PASSWORD = "ValidPassword123!"
-SCREENSHOT_DIR = r"C:\Users\Deepak Kumar\.gemini\antigravity\brain\0976eb79-b652-4b91-9d17-f5f011016220\scratch"
+SCREENSHOT_DIR = r"C:\Users\Deepak Kumar\.gemini\antigravity\brain\a53650b9-98a9-4f58-a371-d1cae513b52a\scratch"
 
 @pytest.mark.e2e
 def test_option_flow_e2e(page: Page):
@@ -92,11 +92,11 @@ def test_option_flow_e2e(page: Page):
         
         # 6. Verify Option metrics
         print("[E2E Option Flow] Verifying metric cards...")
-        expect(page.get_by_text("Call Turnover")).to_be_visible(timeout=5000)
-        expect(page.get_by_text("Put Turnover")).to_be_visible(timeout=5000)
-        expect(page.get_by_text("Net Premium Flow")).to_be_visible(timeout=5000)
-        expect(page.get_by_text("Put-Call Ratio (PCR)")).to_be_visible(timeout=5000)
-        expect(page.get_by_text("Option Sentiment")).to_be_visible(timeout=5000)
+        expect(page.get_by_text("Call Turnover", exact=True)).to_be_visible(timeout=5000)
+        expect(page.get_by_text("Put Turnover", exact=True)).to_be_visible(timeout=5000)
+        expect(page.get_by_text("Net Premium Flow", exact=True)).to_be_visible(timeout=5000)
+        expect(page.get_by_text("Put-Call Ratio (PCR)", exact=True)).to_be_visible(timeout=5000)
+        expect(page.get_by_text("Option Sentiment", exact=True)).to_be_visible(timeout=5000)
         print(" -> All standard option flow metrics cards are visible!")
         
         print("[E2E Option Flow] Test Passed successfully!")

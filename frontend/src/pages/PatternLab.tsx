@@ -1,12 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Search, Loader2, Sparkles, RefreshCw, BarChart2, Award } from 'lucide-react';
-import { api } from '../services/api';
+import { BookOpen, Search, Loader2, Sparkles, RefreshCw, BarChart2, Award, Eye, Plus } from 'lucide-react';
+import { api, apiGet, apiPost, apiRequest, API_URL, getAuthHeaders } from '../services/api';
+import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
+import GlobalSymbolSearch from '../components/GlobalSymbolSearch';
 
 const PatternLab: React.FC = () => {
-  const [symbol, setSymbol] = useState('RELIANCE');
+  const { selectedSymbol, setSelectedSymbol } = useGlobalSymbol();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+
+  const checkWatchlist = async () => {
+    try {
+      const res = await apiGet<any[]>('/api/watchlist');
+      if (res.success) {
+        const found = res.data.some((item: any) => item.symbol.toUpperCase() === selectedSymbol.toUpperCase());
+        setIsInWatchlist(found);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch watchlist status:", e);
+    }
+  };
+
+  const handleWatchlistToggle = async () => {
+    setWatchlistLoading(true);
+    try {
+      if (isInWatchlist) {
+        const res = await apiRequest<{ status: string }>(
+          `${API_URL}/api/watchlist/${selectedSymbol}`,
+          { method: 'DELETE', headers: getAuthHeaders() }
+        );
+        if (res.success) {
+          setIsInWatchlist(false);
+        }
+      } else {
+        const res = await apiPost<any>('/api/watchlist', { symbol: selectedSymbol });
+        if (res.success) {
+          setIsInWatchlist(true);
+        }
+      }
+    } catch (e) {
+      console.error("Watchlist toggle error:", e);
+    } finally {
+      setWatchlistLoading(false);
+    }
+  };
 
   const fetchPatterns = async (sym: string) => {
     setLoading(true);
@@ -26,19 +67,12 @@ const PatternLab: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPatterns(symbol);
-  }, []);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (symbol.trim()) {
-      fetchPatterns(symbol.trim().toUpperCase());
-    }
-  };
+    fetchPatterns(selectedSymbol);
+    checkWatchlist();
+  }, [selectedSymbol]);
 
   const handleQuickSelect = (sym: string) => {
-    setSymbol(sym);
-    fetchPatterns(sym);
+    setSelectedSymbol(sym);
   };
 
   return (
@@ -46,7 +80,28 @@ const PatternLab: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white font-display">AI Pattern Recognition Lab</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white font-display flex items-center gap-3">
+            AI Pattern Recognition Lab
+            <button
+              onClick={handleWatchlistToggle}
+              disabled={watchlistLoading}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                isInWatchlist
+                  ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-500 hover:bg-indigo-500/20'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-transparent'
+              }`}
+            >
+              {isInWatchlist ? (
+                <>
+                  <Eye size={13} /> Tracked
+                </>
+              ) : (
+                <>
+                  <Plus size={13} /> Add Watchlist
+                </>
+              )}
+            </button>
+          </h1>
           <p className="text-xs text-slate-500 font-semibold mt-1">
             Real-time scanner recognizing Candlestick profiles, Fibonacci Harmonics, and Triangle/Flag structures.
           </p>
@@ -59,7 +114,7 @@ const PatternLab: React.FC = () => {
               key={s}
               onClick={() => handleQuickSelect(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                symbol === s
+                selectedSymbol === s
                   ? 'bg-brand-600 text-white shadow'
                   : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
               }`}
@@ -71,31 +126,19 @@ const PatternLab: React.FC = () => {
       </div>
 
       {/* Search Bar */}
-      <form onSubmit={handleSearch} className="flex gap-2 max-w-md">
-        <input
-          type="text"
-          placeholder="Search Symbol (e.g. INFY, SBIN)"
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          className="flex-grow bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold focus:border-brand-500 focus:outline-none text-slate-800 dark:text-slate-100"
-        />
-        <button
-          type="submit"
-          className="bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5"
-        >
-          <Search size={14} /> Scan
-        </button>
-      </form>
+      <div className="flex gap-2 max-w-md">
+        <GlobalSymbolSearch />
+      </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center min-h-[40vh]">
           <Loader2 size={40} className="text-brand-500 animate-spin mb-4" />
-          <p className="text-slate-400">Scanning {symbol} charts...</p>
+          <p className="text-slate-400">Scanning {selectedSymbol} charts...</p>
         </div>
       ) : error ? (
         <div className="text-center py-12 bg-rose-500/5 border border-rose-500/10 rounded-2xl p-6">
           <p className="text-rose-500 mb-4">{error}</p>
-          <button onClick={() => fetchPatterns(symbol)} className="px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold uppercase">Retry</button>
+          <button onClick={() => fetchPatterns(selectedSymbol)} className="px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold uppercase">Retry</button>
         </div>
       ) : data ? (
         <div className="space-y-6">

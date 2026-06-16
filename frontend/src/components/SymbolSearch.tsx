@@ -71,26 +71,48 @@ const SymbolSearch: React.FC<SymbolSearchProps> = ({
         fetchSymbols();
     }, [timeframe]);
 
-    // Debounced search with filtering
+    // Debounced search querying PostgreSQL via `/api/search/stocks`
     useEffect(() => {
         if (!searchQuery.trim()) {
             setFilteredSymbols([]);
             return;
         }
 
-        const query = searchQuery.toUpperCase();
-        const filtered = availableSymbols
-            .filter(symbol => {
-                // Don't show already selected symbols
-                if (selectedSymbols.includes(symbol)) return false;
-                // Match query
-                return symbol.includes(query);
-            })
-            .slice(0, 20); // Limit to 20 results
+        const timer = setTimeout(async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const response = await fetch(
+                    `${API_URL}/api/search/stocks?q=${encodeURIComponent(searchQuery)}`,
+                    { headers: getAuthHeaders() }
+                );
 
-        setFilteredSymbols(filtered);
-        setHighlightedIndex(0);
-    }, [searchQuery, availableSymbols, selectedSymbols]);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data && Array.isArray(data.results)) {
+                    // Extract symbols, filter out already selected symbols
+                    const symbols = data.results
+                        .map((item: any) => item.symbol)
+                        .filter((symbol: string) => !selectedSymbols.includes(symbol));
+                    setFilteredSymbols(symbols);
+                } else {
+                    setFilteredSymbols([]);
+                }
+            } catch (err: any) {
+                console.error('[Symbol Search] Error:', err);
+                setError('Failed to fetch search results');
+                setFilteredSymbols([]);
+            } finally {
+                setLoading(false);
+                setHighlightedIndex(0);
+            }
+        }, 300); // 300ms debounce
+
+        return () => clearTimeout(timer);
+    }, [searchQuery, selectedSymbols]);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -121,7 +143,11 @@ const SymbolSearch: React.FC<SymbolSearchProps> = ({
     }, [selectedSymbols, onSymbolsChange, maxSymbols]);
 
     const removeSymbol = useCallback((symbol: string) => {
-        onSymbolsChange(selectedSymbols.filter(s => s !== symbol));
+        console.log("CLICKED REMOVE SYMBOL:", symbol);
+        console.log("BEFORE REMOVE selectedSymbols:", selectedSymbols);
+        const nextSymbols = selectedSymbols.filter(s => s !== symbol);
+        console.log("TRIGGERING onSymbolsChange with:", nextSymbols);
+        onSymbolsChange(nextSymbols);
     }, [selectedSymbols, onSymbolsChange]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -227,7 +253,12 @@ const SymbolSearch: React.FC<SymbolSearchProps> = ({
                         </label>
                         {selectedSymbols.length > 0 && (
                             <button
-                                onClick={() => onSymbolsChange([])}
+                                onClick={() => {
+                                    console.log("CLICKED CLEAR ALL");
+                                    console.log("BEFORE CLEAR ALL selectedSymbols:", selectedSymbols);
+                                    console.log("TRIGGERING onSymbolsChange with: []");
+                                    onSymbolsChange([]);
+                                }}
                                 className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
                             >
                                 Clear All

@@ -102,6 +102,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
   const { setSelectedSymbol } = useGlobalSymbol();
   const [heatmapData, setHeatmapData] = useState<any>(null);
   const [mode, setMode] = useState<string>('performance');
+  const [timeframe, setTimeframe] = useState<string>(() => localStorage.getItem('sector_timeframe') || '1D');
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -123,6 +124,11 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
   const [showDebug, setShowDebug] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
 
+  const changeTimeframe = (tf: string) => {
+    setTimeframe(tf);
+    localStorage.setItem('sector_timeframe', tf);
+  };
+
   // Handle Container Resizing
   useEffect(() => {
     if (!containerRef.current) return;
@@ -140,11 +146,11 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
   }, []);
 
   // Fetch Heatmap API
-  const fetchHeatmap = async (activeMode: string) => {
+  const fetchHeatmap = async (activeMode: string, activeTimeframe: string) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getHeatmapData(activeMode);
+      const data = await api.getHeatmapData(activeMode, activeTimeframe);
       
       const stocks = data?.sectors ? data.sectors.flatMap((s: any) => s.stocks || []) : [];
       const sectorData = data?.sectors || [];
@@ -173,8 +179,8 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
   };
 
   useEffect(() => {
-    fetchHeatmap(mode);
-  }, [mode]);
+    fetchHeatmap(mode, timeframe);
+  }, [mode, timeframe]);
 
   // Compute Layout when dimensions or data changes
   const computedRoot = useMemo(() => {
@@ -348,6 +354,23 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
               ))}
             </div>
 
+            {/* Timeframe Selector */}
+            <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+              {['1D', '1W', '1M', '3M', '6M', '1Y'].map(tf => (
+                <button
+                  key={tf}
+                  onClick={() => changeTimeframe(tf)}
+                  className={`px-2.5 py-1 rounded text-[10px] uppercase font-bold tracking-wider transition-all ${
+                    timeframe === tf
+                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+
             {/* Search box to highlight stocks */}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={13} />
@@ -405,6 +428,23 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
               ))}
             </div>
 
+            {/* Timeframe Selector */}
+            <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+              {['1D', '1W', '1M', '3M', '6M', '1Y'].map(tf => (
+                <button
+                  key={tf}
+                  onClick={() => changeTimeframe(tf)}
+                  className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider transition-all ${
+                    timeframe === tf
+                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+
             {/* Search box to highlight stocks */}
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={11} />
@@ -425,7 +465,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
           <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
         </div>
       ) : error ? (
-        <ErrorCard message={error} onRetry={() => fetchHeatmap(mode)} title="Heatmap Compute Error" />
+        <ErrorCard message={error} onRetry={() => fetchHeatmap(mode, timeframe)} title="Heatmap Compute Error" />
       ) : (
         <>
           {heatmapData?.market_summary && (

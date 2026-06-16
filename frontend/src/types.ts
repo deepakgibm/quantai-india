@@ -35,6 +35,9 @@ export enum Page {
   ACADEMY = 'academy',
   RESEARCH_CENTER = 'research_center',
   AFFILIATE = 'affiliate',
+  WATCHLIST = 'watchlist',
+  INSTITUTIONAL_SCANNER = 'institutional_scanner',
+  INSTITUTIONAL_STOCK_DETAIL = 'institutional_stock_detail',
 }
 
 export interface Stock {

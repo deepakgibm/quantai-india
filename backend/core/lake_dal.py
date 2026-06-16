@@ -88,21 +88,22 @@ class LakeDAL:
             # 1. Attempt DuckDB (Robust)
             logger.debug("Trying DuckDB read_parquet...")
             sql = f"SELECT * FROM read_parquet('{parquet_glob}', hive_partitioning=1) LIMIT 0"
-            self.db.execute(sql) # Check schema
-            
-            sql_full = f"""
-                SELECT 
-                    instrument_id, 
-                    timeframe, 
-                    candle_ts, 
-                    CAST(open AS DOUBLE) as open, 
-                    CAST(high AS DOUBLE) as high, 
-                    CAST(low AS DOUBLE) as low, 
-                    CAST(close AS DOUBLE) as close, 
-                    volume
-                FROM read_parquet('{parquet_glob}', hive_partitioning=1)
-            """
-            df = self.db.execute(sql_full).pl()
+            with duckdb.connect(database=':memory:') as conn:
+                conn.execute(sql) # Check schema
+                
+                sql_full = f"""
+                    SELECT 
+                        instrument_id, 
+                        timeframe, 
+                        candle_ts, 
+                        CAST(open AS DOUBLE) as open, 
+                        CAST(high AS DOUBLE) as high, 
+                        CAST(low AS DOUBLE) as low, 
+                        CAST(close AS DOUBLE) as close, 
+                        volume
+                    FROM read_parquet('{parquet_glob}', hive_partitioning=1)
+                """
+                df = conn.execute(sql_full).pl()
             lf = df.lazy()
             logger.info(f"✅ Success: Loaded {len(df)} rows via DuckDB engine")
             
@@ -140,7 +141,8 @@ class LakeDAL:
         Example:
             dal.query_lake("SELECT * FROM read_parquet('data/lake/raw/1d/*.parquet') WHERE close > 2000")
         """
-        return self.db.execute(sql_query).pl()
+        with duckdb.connect(database=':memory:') as conn:
+            return conn.execute(sql_query).pl()
 
     def list_symbols(self, timeframe: str) -> List[str]:
         """List all symbols available for a given timeframe."""

@@ -21,7 +21,7 @@ import requests
 from typing import Optional, Dict
 
 BASE_URL = "http://localhost:8000"
-FRONTEND_URL = "http://localhost:5173"
+FRONTEND_URL = "http://localhost:3000"
 TEST_EMAIL = "dthat53@gmail.com"
 TEST_PASSWORD = "admin1243"
 

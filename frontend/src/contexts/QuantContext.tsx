@@ -32,8 +32,8 @@ import { API_URL, getAuthHeaders } from '../services/api';
 
 interface QuantContextValue {
   // ── Global inputs ──────────────────────────────────────────────────────
-  selectedSymbol: string;
-  setSelectedSymbol: (s: string) => void;
+  selectedSymbol: string | null;
+  setSelectedSymbol: (s: string | null) => void;
   timeframe: string;
   setTimeframe: (t: string) => void;
   startDate: string;
@@ -119,7 +119,10 @@ interface QuantProviderProps {
 
 export function QuantProvider({ children }: QuantProviderProps) {
   // Global inputs
-  const [selectedSymbol, setSelectedSymbol] = useState('RELIANCE');
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('symbol') || 'RELIANCE';
+  });
   const [timeframe, setTimeframe] = useState('1D');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -160,6 +163,37 @@ export function QuantProvider({ children }: QuantProviderProps) {
   // Status
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sync selectedSymbol to URL query parameters
+  useEffect(() => {
+    console.log("QUANTCONTEXT selectedSymbol EFFECT TRIGGERED. selectedSymbol:", selectedSymbol);
+    const params = new URLSearchParams(window.location.search);
+    console.log("QUANTCONTEXT URL search before update:", window.location.search);
+    if (selectedSymbol) {
+      params.set('symbol', selectedSymbol);
+    } else {
+      params.delete('symbol');
+    }
+    const newSearch = params.toString();
+    const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+    window.history.replaceState(null, '', newPath);
+    console.log("QUANTCONTEXT URL search after update:", window.location.search);
+  }, [selectedSymbol]);
+
+  // Clear dependent states when symbol is cleared (null)
+  useEffect(() => {
+    console.log("QUANTCONTEXT state cleanup EFFECT TRIGGERED. selectedSymbol:", selectedSymbol);
+    if (selectedSymbol === null) {
+      console.log("QUANTCONTEXT CLEARING dependent states");
+      setBacktestData(null);
+      setBacktestRecharts([]);
+      setWalkForwardData(null);
+      setMonteCarloData(null);
+      setOptimizationData(null);
+      setDiscoveryScans({});
+      setPortfolioData([]);
+    }
+  }, [selectedSymbol]);
 
   // ── Fetch strategies ──────────────────────────────────────────────────
   const fetchStrategies = useCallback(async () => {
@@ -281,6 +315,10 @@ export function QuantProvider({ children }: QuantProviderProps) {
 
   // ── Actions ───────────────────────────────────────────────────────────
   const runBacktest = useCallback(async () => {
+    if (!selectedSymbol) {
+      setError("Please select a symbol before running a backtest.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -318,6 +356,10 @@ export function QuantProvider({ children }: QuantProviderProps) {
   }, [selectedSymbol, timeframe, selectedStrategyId, startDate, endDate, capital, riskMode, riskPercent, executionType, strategyParams]);
 
   const runOptimization = useCallback(async () => {
+    if (!selectedSymbol) {
+      setError("Please select a symbol before running optimization.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -346,6 +388,10 @@ export function QuantProvider({ children }: QuantProviderProps) {
   }, [optParamConfigs, selectedSymbol, timeframe, selectedStrategyId, startDate, endDate, capital, maxWorkers]);
 
   const runWalkForward = useCallback(async () => {
+    if (!selectedSymbol) {
+      setError("Please select a symbol before running walk-forward validation.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -400,32 +446,92 @@ export function QuantProvider({ children }: QuantProviderProps) {
   }, [backtestData, capital, mcSimRuns, mcRuinThreshold]);
 
   const runDiscoveryScan = useCallback(async () => {
+    const selectedSymbols = selectedSymbol ? [selectedSymbol] : [];
+    console.log("Selected Symbols:", selectedSymbols);
+    if (!selectedSymbol) {
+      setError("Please select a symbol before running a strategy discovery scan.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const initial: Record<string, DiscoveryScan> = {};
     strategies.forEach(s => { initial[s.id] = { loading: true }; });
     setDiscoveryScans(initial);
+    
+    const currentState = {
+      selectedSymbol,
+      timeframe,
+      startDate,
+      endDate,
+      capital,
+      strategies,
+      discoveryScans: initial
+    };
+    console.log("Current State:", currentState);
+
+    // Prime the cache using the first strategy sequentially
+    if (strategies.length > 0) {
+      const firstStrat = strategies[0];
+      const payload = {
+        symbol: selectedSymbol, timeframe, strategy_id: firstStrat.id,
+        start_date: startDate, end_date: endDate, initial_capital: capital,
+        risk_mode: 'percent_capital', risk_percent: 2.0,
+        execution_type: 'vectorized', strategy_params: {},
+      };
+      console.log("Priming payload:", payload);
+      try {
+        const res = await fetch(`${API_URL}/api/v1/quant/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const b = await res.json();
+          console.log("Priming API Response (Error):", b);
+          setDiscoveryScans(p => ({ ...p, [firstStrat.id]: { loading: false, error: b.detail || 'Scan failed' } }));
+        } else {
+          const data: QuantRunResponse = await res.json();
+          console.log("Priming API Response:", data);
+          setDiscoveryScans(p => ({ ...p, [firstStrat.id]: { loading: false, metrics: data.metrics } }));
+        }
+      } catch (err: any) {
+        console.error("Priming API Response (Exception):", err);
+        setDiscoveryScans(p => ({ ...p, [firstStrat.id]: { loading: false, error: err.message } }));
+      }
+    }
+
+    // Run the remaining strategies in parallel (they will benefit from the primed cache!)
+    const remainingStrategies = strategies.slice(1);
     await Promise.all(
-      strategies.map(async strat => {
+      remainingStrategies.map(async strat => {
+        const payload = {
+          symbol: selectedSymbol, timeframe, strategy_id: strat.id,
+          start_date: startDate, end_date: endDate, initial_capital: capital,
+          risk_mode: 'percent_capital', risk_percent: 2.0,
+          execution_type: 'vectorized', strategy_params: {},
+        };
+        console.log("Payload:", payload);
+
         try {
           const res = await fetch(`${API_URL}/api/v1/quant/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-            body: JSON.stringify({
-              symbol: selectedSymbol, timeframe, strategy_id: strat.id,
-              start_date: startDate, end_date: endDate, initial_capital: capital,
-              risk_mode: 'percent_capital', risk_percent: 2.0,
-              execution_type: 'vectorized', strategy_params: {},
-            }),
+            body: JSON.stringify(payload),
           });
+          
           if (!res.ok) {
             const b = await res.json();
+            console.log("API Response (Error):", b);
             setDiscoveryScans(p => ({ ...p, [strat.id]: { loading: false, error: b.detail || 'Scan failed' } }));
           } else {
             const data: QuantRunResponse = await res.json();
-            setDiscoveryScans(p => ({ ...p, [strat.id]: { loading: false, metrics: data.metrics } }));
+            console.log("API Response:", data);
+            const mappedResults = data.metrics;
+            console.log("Mapped Results:", mappedResults);
+            setDiscoveryScans(p => ({ ...p, [strat.id]: { loading: false, metrics: mappedResults } }));
           }
         } catch (err: any) {
+          console.error("API Response (Exception):", err);
           setDiscoveryScans(p => ({ ...p, [strat.id]: { loading: false, error: err.message } }));
         }
       })
@@ -434,7 +540,7 @@ export function QuantProvider({ children }: QuantProviderProps) {
   }, [strategies, selectedSymbol, timeframe, startDate, endDate, capital]);
 
   const addCurrentToPortfolio = useCallback(() => {
-    if (!backtestData || !activeStrategy) return;
+    if (!backtestData || !activeStrategy || !selectedSymbol) return;
     const isDup = portfolioData.some(p => p.name === activeStrategy.name && p.symbol === selectedSymbol);
     if (isDup) return;
     setPortfolioData(prev => [...prev, { name: activeStrategy.name, symbol: selectedSymbol, result: backtestData }]);

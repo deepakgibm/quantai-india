@@ -46,7 +46,7 @@ const WorkspaceHeader: React.FC = () => {
               <div className="text-slate-600 font-semibold uppercase text-[10px]">Target</div>
               <div className="text-white font-bold flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {selectedSymbol} · {timeframe}
+                {selectedSymbol || '—'} · {timeframe}
               </div>
             </div>
             <div className="w-px h-8 bg-slate-800" />
@@ -66,7 +66,7 @@ const WorkspaceHeader: React.FC = () => {
             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Symbol</label>
             <SymbolSearch
               selectedSymbols={selectedSymbol ? [selectedSymbol] : []}
-              onSymbolsChange={syms => setSelectedSymbol(syms[0] || 'RELIANCE')}
+              onSymbolsChange={syms => setSelectedSymbol(syms[0] || null)}
               timeframe={timeframe}
               maxSymbols={1}
             />

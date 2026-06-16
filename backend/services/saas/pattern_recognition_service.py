@@ -40,9 +40,43 @@ class PatternRecognitionService:
                     "timestamp": c.candle_ts
                 })
                 
-        # Generate mock candles if data not in DB
+        # If DB has less than 30 candles, fetch from Upstox REST API
+        if len(candles) < 30 and instrument and instrument.instrument_key:
+            try:
+                from services.upstox_client import UpstoxClient
+                upstox = UpstoxClient()
+                to_date = datetime.now()
+                from_date = to_date - timedelta(days=90)
+                df = await upstox.get_historical_data(
+                    symbol=symbol,
+                    instrument_key=instrument.instrument_key,
+                    from_date=from_date,
+                    to_date=to_date,
+                    interval="day"
+                )
+                if not df.empty:
+                    df = df.sort_values("timestamp")
+                    candles = []
+                    for _, row in df.iterrows():
+                        candles.append({
+                            "open": float(row["open"] or 0.0),
+                            "high": float(row["high"] or 0.0),
+                            "low": float(row["low"] or 0.0),
+                            "close": float(row["close"] or 0.0),
+                            "timestamp": row["timestamp"].to_pydatetime() if hasattr(row["timestamp"], "to_pydatetime") else row["timestamp"]
+                        })
+                    logger.info(f"Loaded {len(candles)} candles from Upstox API for {symbol}")
+            except Exception as ue:
+                logger.error(f"Failed to fetch candles from Upstox API for {symbol}: {ue}")
+
         if len(candles) < 30:
-            candles = PatternRecognitionService._generate_mock_candles()
+            logger.warning(f"Insufficient historical data ({len(candles)} candles) for symbol {symbol}. Returning empty metrics.")
+            return {
+                "symbol": symbol,
+                "candlestick_patterns": [],
+                "harmonic_patterns": [],
+                "chart_patterns": []
+            }
             
         n = len(candles)
         detected_candlesticks = []
@@ -153,26 +187,4 @@ class PatternRecognitionService:
             "chart_patterns": detected_charts
         }
 
-    @staticmethod
-    def _generate_mock_candles():
-        """Generates mock daily candles for pattern scanning."""
-        candles = []
-        price = 250.0
-        start_date = datetime.utcnow() - timedelta(days=60)
-        
-        for i in range(60):
-            change = random.uniform(-4.0, 5.0)
-            o = price
-            c = price + change
-            h = max(o, c) + random.uniform(0.2, 2.5)
-            l = min(o, c) - random.uniform(0.2, 2.5)
-            
-            candles.append({
-                "open": o,
-                "high": h,
-                "low": l,
-                "close": c,
-                "timestamp": start_date + timedelta(days=i)
-            })
-            price = c
-        return candles
+

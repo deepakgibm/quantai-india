@@ -208,3 +208,58 @@ class DashboardStats(BaseModel):
     active_algorithms: int
     win_rate: float
     total_trades: int
+
+# Watchlist Schemas
+class WatchlistItemCreate(BaseModel):
+    symbol: str
+    exchange: Optional[str] = "NSE"
+    watchlist_price: Optional[float] = None
+
+class WatchlistItemResponse(BaseModel):
+    id: int
+    user_id: int
+    symbol: str
+    company_name: Optional[str] = None
+    exchange: str
+    added_at: datetime
+    watchlist_price: float
+    current_price: Optional[float] = None
+    change_percent: Optional[float] = None
+    change_amount: Optional[float] = None
+    last_updated: datetime
+    days_tracked: int
+    status: str
+
+    class Config:
+        from_attributes = True
+
+class WatchlistPerformance(BaseModel):
+    total_value: float
+    total_pnl: float
+    pnl_percent: float
+    total_invested: float
+    accuracy_percent: float
+
+class WinnerLoserData(BaseModel):
+    name: str
+    value: int
+    color: str
+
+class TopPerformerData(BaseModel):
+    symbol: str
+    change_percent: float
+
+class ROIEquityPoint(BaseModel):
+    date: str
+    roi_percent: float
+    portfolio_value: float
+
+class WatchlistAnalytics(BaseModel):
+    best_pick: Optional[Dict[str, Any]] = None
+    worst_pick: Optional[Dict[str, Any]] = None
+    fastest_gainer: Optional[Dict[str, Any]] = None
+    accuracy_percent: float
+    winners_losers_chart: List[WinnerLoserData]
+    top_performers_chart: List[TopPerformerData]
+    roi_over_time_chart: List[ROIEquityPoint]
+

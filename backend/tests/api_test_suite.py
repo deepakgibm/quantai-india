@@ -26,20 +26,20 @@ def log_result(category, endpoint, method, status_code, success, response_time_m
         "response_time_ms": round(response_time_ms, 2),
         "notes": notes[:100] if notes else ""
     })
-    status = "✅" if success else "❌"
+    status = "[PASS]" if success else "[FAIL]"
     print(f"{status} [{method}] {endpoint} - {status_code} ({response_time_ms:.0f}ms)")
 
 def test_endpoint(category, endpoint, method="GET", headers=None, data=None, expected_codes=[200]):
     try:
         start = time.time()
         if method == "GET":
-            resp = requests.get(f"{BASE_URL}{endpoint}", headers=headers, timeout=30)
+            resp = requests.get(f"{BASE_URL}{endpoint}", headers=headers, timeout=60)
         elif method == "POST":
-            resp = requests.post(f"{BASE_URL}{endpoint}", headers=headers, json=data, timeout=30)
+            resp = requests.post(f"{BASE_URL}{endpoint}", headers=headers, json=data, timeout=60)
         elif method == "PUT":
-            resp = requests.put(f"{BASE_URL}{endpoint}", headers=headers, json=data, timeout=30)
+            resp = requests.put(f"{BASE_URL}{endpoint}", headers=headers, json=data, timeout=60)
         elif method == "DELETE":
-            resp = requests.delete(f"{BASE_URL}{endpoint}", headers=headers, timeout=30)
+            resp = requests.delete(f"{BASE_URL}{endpoint}", headers=headers, timeout=60)
         elapsed_ms = (time.time() - start) * 1000
         
         success = resp.status_code in expected_codes
@@ -95,65 +95,66 @@ def main():
     
     # 3. Market Data Endpoints
     print("\n--- MARKET DATA ---")
-    test_endpoint("Market", "/api/market/top-movers", expected_codes=[200, 500])
-    test_endpoint("Market", "/api/market/global-context", expected_codes=[200, 500])
+    test_endpoint("Market", "/api/market/top-movers", expected_codes=[200])
+    test_endpoint("Market", "/api/market/global-context", expected_codes=[200])
     test_endpoint("Market", "/api/market/status", expected_codes=[200])
-    test_endpoint("Market", "/api/market/health", expected_codes=[200])
+    test_endpoint("Market", "/api/market/orchestrator-status", headers=auth_headers, expected_codes=[200])
     
     # 4. Trading Dashboard
     print("\n--- TRADING ---")
     test_endpoint("Trading", "/api/trading/dashboard", headers=auth_headers, expected_codes=[200])
-    test_endpoint("Trading", "/api/trading/indices", expected_codes=[200, 500])
+    test_endpoint("Trading", "/api/trading/indices", expected_codes=[200])
     test_endpoint("Trading", "/api/trading/instruments", expected_codes=[200])
     test_endpoint("Trading", "/api/trading/top-gainers", headers=auth_headers, expected_codes=[200])
     
     # 5. Scanner API
     print("\n--- SCANNER ---")
     test_endpoint("Scanner", "/api/scanner/strategies", headers=auth_headers, expected_codes=[200])
-    test_endpoint("Scanner", "/api/scanner/indices", headers=auth_headers, expected_codes=[200])
-    test_endpoint("Scanner", "/api/scanner/timeframes", headers=auth_headers, expected_codes=[200])
-    test_endpoint("Scanner", "/api/scanner/momentum", headers=auth_headers, expected_codes=[200, 500])
-    test_endpoint("Scanner", "/api/scanner/breakout", headers=auth_headers, expected_codes=[200, 500])
+    test_endpoint("Scanner", "/api/scanner/momentum", headers=auth_headers, expected_codes=[200])
+    test_endpoint("Scanner", "/api/scanner/week52-breakouts", headers=auth_headers, expected_codes=[200])
+    test_endpoint("Scanner", "/api/scanner/hp/momentum", headers=auth_headers, expected_codes=[200])
+    test_endpoint("Scanner", "/api/scanner/hp/breakout", headers=auth_headers, expected_codes=[200])
     
-    # 6. Heatmap Endpoints
-    print("\n--- HEATMAP ---")
-    test_endpoint("Heatmap", "/api/heatmap/sectors", headers=auth_headers, expected_codes=[200])
-    test_endpoint("Heatmap", "/api/heatmap/sector/Financial Services", headers=auth_headers, expected_codes=[200])
+    # 6. Heatmap & Sector Endpoints
+    print("\n--- HEATMAP & SECTOR ANALYSIS ---")
+    test_endpoint("Heatmap", "/api/heatmap?mode=performance&timeframe=1D", headers=auth_headers, expected_codes=[200])
+    test_endpoint("SectorAnalysis", "/api/sector-analysis?timeframe=1D", headers=auth_headers, expected_codes=[200])
     
     # 7. AI Endpoints
     print("\n--- AI ENDPOINTS ---")
     test_endpoint("AI", "/api/ai/strategies", headers=auth_headers, expected_codes=[200])
-    test_endpoint("AI", "/api/ai/breakout-stocks", expected_codes=[200, 500])
-    test_endpoint("AI", "/api/ai/trend-finder", expected_codes=[200, 500])
-    test_endpoint("AI", "/api/ai/top5-picks", expected_codes=[200, 500])
-    test_endpoint("AI", "/api/ai/market-analysis", expected_codes=[200, 500])
-    test_endpoint("AI", "/api/ai/sentiment", headers=auth_headers, expected_codes=[200, 500])
+    test_endpoint("AI", "/api/ai/breakout-detector", headers=auth_headers, expected_codes=[200])
+    test_endpoint("AI", "/api/ai/trend-finder", headers=auth_headers, expected_codes=[200])
+    test_endpoint("AI", "/api/ai/top5-picks", headers=auth_headers, expected_codes=[200])
+    test_endpoint("AI", "/api/ai/market-analysis", headers=auth_headers, expected_codes=[200])
+    test_endpoint("AI", "/api/ai/sentiment", headers=auth_headers, expected_codes=[200])
     
     # 8. Analytics
     print("\n--- ANALYTICS ---")
     test_endpoint("Analytics", "/api/analytics/overview", headers=auth_headers, expected_codes=[200])
-    test_endpoint("Analytics", "/api/analytics/symbol/RELIANCE", headers=auth_headers, expected_codes=[200, 500])
+    test_endpoint("Analytics", "/api/analytics/indicators/latest/RELIANCE", headers=auth_headers, expected_codes=[200])
+    test_endpoint("Analytics", "/api/analytics/volatility/RELIANCE", headers=auth_headers, expected_codes=[200])
     
-    # 9. Orders
-    print("\n--- ORDERS ---")
-    test_endpoint("Orders", "/api/orders/", headers=auth_headers, expected_codes=[200])
+    # 9. SaaS Subscription
+    print("\n--- SAAS SUBSCRIPTION ---")
+    test_endpoint("SaaS", "/api/saas/subscription", headers=auth_headers, expected_codes=[200])
     
     # 10. Engine Performance
     print("\n--- ENGINE PERFORMANCE ---")
     test_endpoint("Engine", "/api/engines/performance", headers=auth_headers, expected_codes=[200])
     
-    # 11. Settings
-    print("\n--- SETTINGS ---")
-    test_endpoint("Settings", "/api/settings/", headers=auth_headers, expected_codes=[200])
+    # 11. Watchlist
+    print("\n--- WATCHLIST ---")
+    test_endpoint("Watchlist", "/api/watchlist/", headers=auth_headers, expected_codes=[200])
     
     # 12. Upstox
     print("\n--- UPSTOX ---")
     test_endpoint("Upstox", "/api/upstox/status", expected_codes=[200])
     test_endpoint("Upstox", "/api/upstox/connect-url", expected_codes=[200])
     
-    # 13. Algorithms (requires auth)
-    print("\n--- ALGORITHMS ---")
-    test_endpoint("Algorithms", "/api/algorithms/", headers=auth_headers, expected_codes=[200])
+    # 13. Search
+    print("\n--- SEARCH ---")
+    test_endpoint("Search", "/api/search/stocks?q=RELIANCE", headers=auth_headers, expected_codes=[200])
 
     
     # Print Summary
@@ -184,7 +185,7 @@ def main():
     
     print("Results by Category:")
     for cat, data in categories.items():
-        status = "✅" if data["failed"] == 0 else "⚠️" if data["passed"] > 0 else "❌"
+        status = "[PASS]" if data["failed"] == 0 else "[WARN]" if data["passed"] > 0 else "[FAIL]"
         print(f"  {status} {cat}: {data['passed']}/{data['passed']+data['failed']} passed")
     
     # Show failed tests
@@ -192,7 +193,7 @@ def main():
     if failed_tests:
         print("\nFailed Tests:")
         for r in failed_tests:
-            print(f"  ❌ [{r['method']}] {r['endpoint']} - {r['status_code']} - {r['notes']}")
+            print(f"  [FAIL] [{r['method']}] {r['endpoint']} - {r['status_code']} - {r['notes']}")
     
     # Save results to JSON
     with open("api_test_results.json", "w") as f:

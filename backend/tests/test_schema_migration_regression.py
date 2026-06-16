@@ -720,7 +720,7 @@ Pass Rate:   {summary['pass_rate']}
     
     # Save report to file
     report_path = os.path.join(os.path.dirname(__file__), "test_report.txt")
-    with open(report_path, "w") as f:
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(report)
     
     print(f"\nReport saved to: {report_path}")

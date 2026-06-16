@@ -22,7 +22,7 @@ const EquityCurveChart: React.FC<EquityCurveChartProps> = ({
     // Memoize downsampled data to prevent unnecessary recalculations (P3.2 virtualization)
     const processedData = useMemo(() => {
         if (data.length <= MAX_DATA_POINTS) return data;
-        return downsampleLTTB(data, MAX_DATA_POINTS, 'equity' as keyof typeof data[0]);
+        return downsampleLTTB(data, MAX_DATA_POINTS, 'equity' as any);
     }, [data]);
 
     useEffect(() => {

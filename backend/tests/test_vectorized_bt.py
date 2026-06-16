@@ -9,7 +9,7 @@ from core.backtest.engine import BacktestConfig
 from core.backtest.vectorized_engine import VectorizedBacktestEngine
 from core.backtest.strategies.rsi_vectorized import RSIVectorizedStrategy
 
-async def test_vectorized_rsi():
+def test_vectorized_rsi():
     print("Starting Vectorized Backtest Test...")
     
     # 1. Setup Config (using intraday for more trades)
@@ -57,5 +57,4 @@ async def test_vectorized_rsi():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(test_vectorized_rsi())
+    test_vectorized_rsi()

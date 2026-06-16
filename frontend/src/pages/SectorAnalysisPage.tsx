@@ -2,16 +2,19 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   TrendingUp, TrendingDown, RefreshCw, Search, Award, 
   Loader2, X, Download, Shield, LayoutGrid, ChevronRight,
-  TrendingUp as TrendUpIcon, ArrowUpRight, ArrowDownRight, ArrowRight
+  TrendingUp as TrendUpIcon, ArrowUpRight, ArrowDownRight, ArrowRight,
+  Info
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import { api } from '../services/api';
 import ErrorCard from '../components/ErrorCard';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
+  state: { hasError: boolean; error: any } = { hasError: false, error: null };
+  props!: { children: React.ReactNode };
+
   constructor(props: any) {
     super(props);
-    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: any) {
@@ -48,6 +51,27 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
+const LineageTooltip: React.FC<{ fieldKey: string; lineageData?: any }> = ({ fieldKey, lineageData }) => {
+  if (!lineageData || !lineageData[fieldKey]) return null;
+  const item = lineageData[fieldKey];
+
+  return (
+    <span className="relative inline-block ml-1 align-middle group cursor-help">
+      <Info 
+        size={11} 
+        className="text-slate-500 hover:text-slate-300 transition-colors"
+      />
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-slate-950/95 border border-slate-800 rounded-xl text-[10px] text-slate-300 shadow-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 z-50 normal-case font-normal font-sans tracking-normal text-left">
+        <span className="block font-bold text-white mb-1.5 border-b border-slate-850 pb-1">{item.field_name} Lineage</span>
+        <span className="block mb-1"><span className="text-slate-500 font-semibold uppercase tracking-wider text-[8px] mr-1">Source:</span>{item.source_api}</span>
+        <span className="block mb-1"><span className="text-slate-500 font-semibold uppercase tracking-wider text-[8px] mr-1">Updated:</span>{item.last_updated}</span>
+        <span className="block mb-1"><span className="text-slate-500 font-semibold uppercase tracking-wider text-[8px] mr-1">Logic:</span>{item.transformation_logic}</span>
+        <span className="block"><span className="text-slate-500 font-semibold uppercase tracking-wider text-[8px] mr-1">Confidence:</span><span className="text-emerald-400 font-bold">{item.confidence_score}%</span></span>
+      </span>
+    </span>
+  );
+};
+
 interface StockMetric {
   symbol: string;
   company_name: string;
@@ -58,6 +82,7 @@ interface StockMetric {
   change_3m: number;
   change_6m: number;
   change_1y: number;
+  timeframe_return: number;
   rsi: number;
   volume: number;
   market_cap: number;
@@ -103,9 +128,10 @@ interface SectorMetric {
 }
 
 const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () => {
-  const [data, setData] = useState<{ summary: any; sectors: SectorMetric[]; stocks: StockMetric[] } | null>(null);
+  const [data, setData] = useState<{ summary: any; sectors: SectorMetric[]; stocks: StockMetric[]; lineage?: any } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [timeframe, setTimeframe] = useState<string>(() => localStorage.getItem('sector_timeframe') || '1D');
   
   // Interactive / UI States
   const [selectedSector, setSelectedSector] = useState<SectorMetric | null>(null);
@@ -115,11 +141,16 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  const fetchSectorAnalysis = async () => {
+  const changeTimeframe = (tf: string) => {
+    setTimeframe(tf);
+    localStorage.setItem('sector_timeframe', tf);
+  };
+
+  const fetchSectorAnalysis = async (activeTimeframe: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.getSectorAnalysisData();
+      const res = await api.getSectorAnalysisData(activeTimeframe);
       if (res && res.status === 'success') {
         setData(res);
         
@@ -141,8 +172,8 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
   };
 
   useEffect(() => {
-    fetchSectorAnalysis();
-  }, []);
+    fetchSectorAnalysis(timeframe);
+  }, [timeframe]);
 
   // Performance Table Sorting & Searching
   const sortedAndFilteredSectors = useMemo(() => {
@@ -277,7 +308,7 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
         <ErrorCard 
           message={error || "No sectors detected in dataset"} 
           title="Sector Mapping Failure" 
-          onRetry={fetchSectorAnalysis} 
+          onRetry={() => fetchSectorAnalysis(timeframe)} 
         />
       </div>
     );
@@ -302,12 +333,31 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
             </div>
           </div>
         </div>
-        <button
-          onClick={fetchSectorAnalysis}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 rounded-lg hover:bg-slate-700 border border-slate-700 transition-colors"
-        >
-          <RefreshCw size={13} /> Refresh Analysis
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Timeframe Selector */}
+          <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+            {['1D', '1W', '1M', '3M', '6M', '1Y'].map(tf => (
+              <button
+                key={tf}
+                onClick={() => changeTimeframe(tf)}
+                className={`px-2.5 py-1 rounded text-[10px] uppercase font-bold tracking-wider transition-all ${
+                  timeframe === tf
+                    ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => fetchSectorAnalysis(timeframe)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 rounded-lg hover:bg-slate-700 border border-slate-700 transition-colors"
+          >
+            <RefreshCw size={13} /> Refresh Analysis
+          </button>
+        </div>
       </div>
 
       {/* 1. Sector Overview Dashboard */}
@@ -403,7 +453,10 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
                   <th onClick={() => handleSort('avg_return_1w')} className="py-2.5 text-right cursor-pointer hover:text-slate-300">1W</th>
                   <th onClick={() => handleSort('avg_return_1m')} className="py-2.5 text-right cursor-pointer hover:text-slate-300">1M</th>
                   <th onClick={() => handleSort('avg_return_1y')} className="py-2.5 text-right cursor-pointer hover:text-slate-300">1Y</th>
-                  <th onClick={() => handleSort('avg_rsi')} className="py-2.5 text-right cursor-pointer hover:text-slate-300">RSI</th>
+                  <th onClick={() => handleSort('avg_rsi')} className="py-2.5 text-right cursor-pointer hover:text-slate-300">
+                    RSI
+                    <LineageTooltip fieldKey="rsi" lineageData={data?.lineage} />
+                  </th>
                   <th onClick={() => handleSort('trend')} className="py-2.5 text-center cursor-pointer hover:text-slate-300">Trend</th>
                 </tr>
               </thead>
@@ -541,7 +594,10 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
         {/* Valuation Chart */}
         <div className="bg-slate-900/20 border border-slate-800/80 rounded-2xl p-6 shadow-md space-y-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-200">Sector Valuation Index (PE)</h2>
+            <h2 className="text-sm font-bold text-slate-200">
+              Sector Valuation Index (PE)
+              <LineageTooltip fieldKey="pe_ratio" lineageData={data?.lineage} />
+            </h2>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Average PE compared to standard benchmarks</p>
           </div>
           <div className="h-64 w-full">
@@ -670,45 +726,47 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               {/* Leaders and Laggards snapshot */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1">
-                    <TrendingUp size={10} /> Top Performers (1D)
-                  </h3>
-                  <div className="space-y-1.5">
-                    {(() => {
-                      const gainers = Array.isArray(selectedSector?.gainers) ? selectedSector.gainers.slice(0, 3) : [];
-                      console.log("Rendering Modal Top Performers, gainers:", gainers);
-                      console.log("Is Array:", Array.isArray(gainers));
-                      return gainers.map(st => (
-                        <div key={st.symbol} className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
-                          <span className="font-mono text-emerald-400 font-bold">+{st.change_1d.toFixed(1)}%</span>
-                        </div>
-                      ));
-                    })()}
+              {selectedSector.stock_count > 5 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1">
+                      <TrendingUp size={10} /> Top Performers ({timeframe})
+                    </h3>
+                    <div className="space-y-1.5">
+                      {(() => {
+                        const gainers = Array.isArray(selectedSector?.gainers) ? selectedSector.gainers.slice(0, 3) : [];
+                        console.log("Rendering Modal Top Performers, gainers:", gainers);
+                        console.log("Is Array:", Array.isArray(gainers));
+                        return gainers.map(st => (
+                          <div key={st.symbol} className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
+                            <span className="font-mono text-emerald-400 font-bold">+{st.change_1d.toFixed(1)}%</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
                   </div>
-                </div>
 
-                <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1">
-                    <TrendingDown size={10} /> Bottom Performers (1D)
-                  </h3>
-                  <div className="space-y-1.5">
-                    {(() => {
-                      const losers = Array.isArray(selectedSector?.losers) ? selectedSector.losers.slice(0, 3) : [];
-                      console.log("Rendering Modal Bottom Performers, losers:", losers);
-                      console.log("Is Array:", Array.isArray(losers));
-                      return losers.map(st => (
-                        <div key={st.symbol} className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
-                          <span className="font-mono text-rose-400 font-bold">{st.change_1d.toFixed(1)}%</span>
-                        </div>
-                      ));
-                    })()}
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1">
+                      <TrendingDown size={10} /> Bottom Performers ({timeframe})
+                    </h3>
+                    <div className="space-y-1.5">
+                      {(() => {
+                        const losers = Array.isArray(selectedSector?.losers) ? selectedSector.losers.slice(0, 3) : [];
+                        console.log("Rendering Modal Bottom Performers, losers:", losers);
+                        console.log("Is Array:", Array.isArray(losers));
+                        return losers.map(st => (
+                          <div key={st.symbol} className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
+                            <span className="font-mono text-rose-400 font-bold">{st.change_1d.toFixed(1)}%</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Table of all constituents */}
               <div className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/40">
@@ -719,11 +777,23 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
                         <th className="px-4 py-3 text-left">Symbol</th>
                         <th className="px-4 py-3 text-left">Company Name</th>
                         <th className="px-4 py-3 text-right">Price</th>
-                        <th className="px-4 py-3 text-right">1D %</th>
-                        <th className="px-4 py-3 text-right">RSI</th>
-                        <th className="px-4 py-3 text-right">PE</th>
-                        <th className="px-4 py-3 text-right">M.Cap</th>
-                        <th className="px-4 py-3 text-center">Rating</th>
+                        <th className="px-4 py-3 text-right">{timeframe} %</th>
+                        <th className="px-4 py-3 text-right">
+                          RSI
+                          <LineageTooltip fieldKey="rsi" lineageData={data?.lineage} />
+                        </th>
+                        <th className="px-4 py-3 text-right">
+                          PE
+                          <LineageTooltip fieldKey="pe_ratio" lineageData={data?.lineage} />
+                        </th>
+                        <th className="px-4 py-3 text-right">
+                          M.Cap
+                          <LineageTooltip fieldKey="market_cap" lineageData={data?.lineage} />
+                        </th>
+                        <th className="px-4 py-3 text-center">
+                          Rating
+                          <LineageTooltip fieldKey="macd" lineageData={data?.lineage} />
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/30 text-slate-300">
@@ -736,8 +806,8 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
                             <td className="px-4 py-2 font-bold text-white">{st.symbol}</td>
                             <td className="px-4 py-2 text-slate-500 truncate max-w-[150px]">{st.company_name}</td>
                             <td className="px-4 py-2 text-right font-mono font-semibold">₹{st.price.toFixed(1)}</td>
-                            <td className={`px-4 py-2 text-right font-mono font-bold ${st.change_1d >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {st.change_1d >= 0 ? '+' : ''}{st.change_1d.toFixed(1)}%
+                            <td className={`px-4 py-2 text-right font-mono font-bold ${st.timeframe_return >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {st.timeframe_return >= 0 ? '+' : ''}{st.timeframe_return.toFixed(1)}%
                             </td>
                             <td className={`px-4 py-2 text-right font-mono ${st.rsi >= 70 ? 'text-amber-400' : st.rsi <= 30 ? 'text-emerald-400' : 'text-slate-400'}`}>
                               {st.rsi.toFixed(0)}

@@ -28,6 +28,7 @@ class User(Base):
     holdings = relationship("Holding", back_populates="user")
     risk_config = relationship("RiskConfig", back_populates="user", uselist=False)
     scanner_presets = relationship("ScannerPreset", back_populates="user")
+    watchlist = relationship("WatchlistItem", back_populates="user", cascade="all, delete-orphan")
 
 class ScannerPreset(Base):
     __tablename__ = "scanner_presets"
@@ -217,6 +218,8 @@ class FundamentalMetrics(Base):
     roce = Column(Float)
     roe = Column(Float)
     eps = Column(Float)
+    sector_pe_benchmark = Column(Float, nullable=True)
+    sector_pb_benchmark = Column(Float, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class InstitutionalFlows(Base):
@@ -235,3 +238,24 @@ class InstitutionalFlows(Base):
     price = Column(Float)
     flow_category = Column(String, index=True) # "FII", "DII", "HNI"
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class WatchlistItem(Base):
+    """
+    Stores stock watchlist entries with entry baseline price and real-time P&L tracking.
+    """
+    __tablename__ = "watchlist"
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    symbol = Column(String(20), index=True)
+    company_name = Column(String(255), nullable=True)
+    exchange = Column(String(20), default="NSE")
+    added_at = Column(DateTime, default=datetime.utcnow, index=True)
+    watchlist_price = Column(Float, nullable=False)
+    current_price = Column(Float, nullable=True)
+    change_percent = Column(Float, nullable=True)
+    change_amount = Column(Float, nullable=True)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User", back_populates="watchlist")

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from '
 import AgenticBotCard from '../components/AgenticBotCard';
 import { useMarketDataStream } from '../hooks/useMarketDataStream';
 import { Page, Stock, AlgoConfig } from '../types';
-import { Zap, X, Loader2, Play, Activity, Shield, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, AlertTriangle, Calendar, Calculator, CreditCard, Award, Heart, Sparkles } from 'lucide-react';
+import { Zap, X, Loader2, Play, Activity, Shield, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, AlertTriangle, Calendar, Calculator, CreditCard, Award, Heart, Sparkles, Eye } from 'lucide-react';
 
-import { api } from '../services/api';
+import { api, apiGet } from '../services/api';
 import PositionSizeCalculator from '../components/PositionSizeCalculator';
 import { PriceWithSource } from '../components/PriceSourceBadge';
 import TopMoversCard from '../components/TopMoversCard';
@@ -42,6 +42,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
    ]);
    const [saasSummary, setSaasSummary] = useState<string>('Loading AI Market Summary...');
    const [calcOpen, setCalcOpen] = useState(false);
+   const [watchlistPerf, setWatchlistPerf] = useState<any>(null);
 
    useEffect(() => {
       const fetchSaaSStats = async () => {
@@ -70,6 +71,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             const oppsRes = await api.runScanner('/api/ai/top5-picks');
             if (oppsRes?.stocks && oppsRes.stocks.length > 0) {
                setSaasOpportunities(oppsRes.stocks.slice(0, 3));
+            }
+
+            try {
+               const watchlistRes = await apiGet<any>('/api/watchlist/performance');
+               if (watchlistRes.success) {
+                  setWatchlistPerf(watchlistRes.data);
+               }
+            } catch (wErr) {
+               console.warn("Failed to load watchlist performance on dashboard:", wErr);
             }
          } catch (e) {
             console.warn("Failed to load SaaS stats", e);
@@ -646,7 +656,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
          )}
 
          {/* SaaS Enterprise Cards */}
-         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
             {/* Subscription Status Card */}
             <div
                onClick={() => onNavigate(Page.SUBSCRIPTION)}
@@ -705,6 +715,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   {saasPortfolio?.risk_level || 'MODERATE'}
                </span>
                <span className="text-[9px] text-slate-400 mt-2">Beta: {saasPortfolio?.beta?.toFixed(2) || '1.15'}</span>
+            </div>
+
+            {/* Watchlist Portfolio Card */}
+            <div
+               onClick={() => onNavigate(Page.WATCHLIST)}
+               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-indigo-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Watchlist Portfolio</span>
+                  <Eye size={15} className="text-indigo-500" />
+               </div>
+               <span className="text-lg font-black text-slate-900 dark:text-white mt-2 font-mono">
+                  ₹{watchlistPerf?.total_value?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || '0'}
+               </span>
+               <span className={`text-[9px] font-bold mt-2 font-mono ${
+                  (watchlistPerf?.total_pnl || 0) >= 0 ? 'text-green-500' : 'text-rose-500'
+               }`}>
+                  {(watchlistPerf?.total_pnl || 0) >= 0 ? '+' : ''}
+                  {watchlistPerf?.pnl_percent?.toFixed(1) || '0.0'}% (₹{watchlistPerf?.total_pnl?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || '0'})
+               </span>
             </div>
 
             {/* Top Opportunities Card */}

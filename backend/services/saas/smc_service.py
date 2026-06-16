@@ -4,6 +4,7 @@ Smart Money Concepts (SMC) Detection Service
 
 import logging
 import random
+from datetime import datetime, timedelta
 from sqlalchemy.future import select
 from models_alpha import StockCandle, InstrumentMaster
 from database import AsyncSessionLocal
@@ -40,10 +41,45 @@ class SMCService:
                     "close": float(c.close or 0.0),
                     "timestamp": c.candle_ts
                 })
-                
-        # Generate mock candles if data not in DB to make page demoable
+        
+        # If DB has less than 20 candles, fetch from Upstox REST API
+        if len(candles) < 20 and instrument and instrument.instrument_key:
+            try:
+                from services.upstox_client import UpstoxClient
+                upstox = UpstoxClient()
+                to_date = datetime.now()
+                from_date = to_date - timedelta(days=90)
+                df = await upstox.get_historical_data(
+                    symbol=symbol,
+                    instrument_key=instrument.instrument_key,
+                    from_date=from_date,
+                    to_date=to_date,
+                    interval="day"
+                )
+                if not df.empty:
+                    df = df.sort_values("timestamp")
+                    candles = []
+                    for _, row in df.iterrows():
+                        candles.append({
+                            "open": float(row["open"] or 0.0),
+                            "high": float(row["high"] or 0.0),
+                            "low": float(row["low"] or 0.0),
+                            "close": float(row["close"] or 0.0),
+                            "timestamp": row["timestamp"].to_pydatetime() if hasattr(row["timestamp"], "to_pydatetime") else row["timestamp"]
+                        })
+                    logger.info(f"Loaded {len(candles)} candles from Upstox API for {symbol}")
+            except Exception as ue:
+                logger.error(f"Failed to fetch candles from Upstox API for {symbol}: {ue}")
+
         if len(candles) < 20:
-            candles = SMCService._generate_mock_candles()
+            logger.warning(f"Insufficient historical data ({len(candles)} candles) for symbol {symbol}. Returning empty metrics.")
+            return {
+                "symbol": symbol,
+                "fair_value_gaps": [],
+                "order_blocks": [],
+                "structural_events": [],
+                "liquidity_zones": []
+            }
             
         # 2. Execute SMC calculations
         fvgs = []
@@ -196,28 +232,4 @@ class SMCService:
             "liquidity_zones": liquidity_zones[:3]
         }
 
-    @staticmethod
-    def _generate_mock_candles():
-        """Generates 50 mock daily candles for analysis fallback."""
-        candles = []
-        price = 100.0
-        start_date = datetime.utcnow() - timedelta(days=50)
-        
-        for i in range(50):
-            change = random.uniform(-2.5, 3.5) # slightly bullish bias
-            o = price
-            c = price + change
-            h = max(o, c) + random.uniform(0.1, 1.5)
-            l = min(o, c) - random.uniform(0.1, 1.5)
-            
-            candles.append({
-                "open": o,
-                "high": h,
-                "low": l,
-                "close": c,
-                "timestamp": start_date + timedelta(days=i)
-            })
-            price = c
-        return candles
 
-from datetime import timedelta

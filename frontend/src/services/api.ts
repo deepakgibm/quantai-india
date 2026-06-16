@@ -36,9 +36,11 @@ export class ApiError extends Error {
 /**
  * Result type for API calls - either success with data or error
  */
-export type ApiResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: ApiError };
+export type ApiResult<T> = {
+  success: boolean;
+  data?: T;
+  error?: ApiError;
+};
 
 // Helper to create success result
 const ok = <T>(data: T): ApiResult<T> => ({ success: true, data });
@@ -829,7 +831,7 @@ export const api = {
         const errData = await res.json().catch(() => ({}));
         // Standardize error message extraction from QuantAI envelope or FastAPI detail
         const errorMessage = errData.error?.message || errData.message || errData.detail || `API error: ${res.status}`;
-        throw new ApiError(errorMessage, res.status);
+        throw new ApiError('SCAN_ERROR', errorMessage, res.status);
       }
       return await res.json();
     } catch (e) {
@@ -1019,14 +1021,14 @@ export const api = {
     throw res.error;
   },
 
-  getHeatmapData: async (mode: string) => {
-    const res = await apiGet<any>(`/api/heatmap?mode=${mode}`);
+  getHeatmapData: async (mode: string, timeframe: string = "1D") => {
+    const res = await apiGet<any>(`/api/heatmap?mode=${mode}&timeframe=${timeframe}`);
     if (res.success) return res.data;
     throw res.error;
   },
 
-  getSectorAnalysisData: async () => {
-    const res = await apiGet<any>('/api/sector-analysis');
+  getSectorAnalysisData: async (timeframe: string = "1D") => {
+    const res = await apiGet<any>(`/api/sector-analysis?timeframe=${timeframe}`);
     if (res.success) return res.data;
     throw res.error;
   },
@@ -1137,7 +1139,7 @@ export const api = {
   },
 
   explainTradingSignal: async (symbol: string, signalType: string, price: number, conviction: string) => {
-    const res = await apiGet<any>(`/api/ai/explain-signal?symbol=${encodeURIComponent(symbol)}&signal_type=${encodeURIComponent(signal_type)}&price=${price}&conviction=${encodeURIComponent(conviction)}`);
+    const res = await apiGet<any>(`/api/ai/explain-signal?symbol=${encodeURIComponent(symbol)}&signal_type=${encodeURIComponent(signalType)}&price=${price}&conviction=${encodeURIComponent(conviction)}`);
     if (res.success) return res.data;
     throw res.error;
   },

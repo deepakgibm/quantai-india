@@ -34,8 +34,8 @@ class TestRiskEngine(unittest.TestCase):
         
         # Risk is 1% of 100,000 = $1,000
         # Qty = 1,000 / 5 = 200
-        qty = self.rm.calculate_position_size(equity, price, stop)
-        self.assertEqual(qty, 200)
+        res = self.rm.calculate_position_size(equity, price, stop, risk_per_trade_pct=1.0, max_position_size_pct=50.0)
+        self.assertEqual(res.quantity, 200)
 
     def test_concentration_limit(self):
         equity = 100000.0
@@ -45,14 +45,14 @@ class TestRiskEngine(unittest.TestCase):
         # Risk amount = $1,000 -> Qty = 1,000 / 100 = 10 shares
         # Notional = 10 * 1,000 = $10,000 (10% of equity)
         # Limit is 20% ($20,000) -> OK
-        qty = self.rm.calculate_position_size(equity, price, stop)
-        self.assertEqual(qty, 10)
+        res = self.rm.calculate_position_size(equity, price, stop, risk_per_trade_pct=1.0, max_position_size_pct=20.0)
+        self.assertEqual(res.quantity, 10)
         
         # Now lower concentration to 5%
         self.rm.config.max_concentration = 0.05 # $5,000 limit
-        qty = self.rm.calculate_position_size(equity, price, stop)
+        res = self.rm.calculate_position_size(equity, price, stop, risk_per_trade_pct=1.0, max_position_size_pct=5.0)
         # Limit hits: $5,000 / 1,000 = 5 shares
-        self.assertEqual(qty, 5)
+        self.assertEqual(res.quantity, 5)
 
 if __name__ == "__main__":
     unittest.main()

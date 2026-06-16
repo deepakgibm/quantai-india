@@ -121,8 +121,18 @@ class AIProvider:
 
     def _get_mock_response(self, prompt: str) -> str:
         """Generate a generic mock response for AI features."""
-        if "sentiment" in prompt.lower():
-            return '{"sentiment": "NEUTRAL", "score": 0.5, "analysis": "AI Analysis is currently disabled in safe mode."}'
+        if "sentiment" in prompt.lower() or "market analysis" in prompt.lower():
+            import time
+            return json.dumps({
+                "status": "success",
+                "sentiment": "NEUTRAL",
+                "trend": "SIDEWAYS",
+                "analysis": "AI Analysis is currently disabled in safe mode.",
+                "top_sectors": ["Nifty 50"],
+                "stocks_to_watch": [],
+                "timestamp": time.strftime("%Y-%m-%d"),
+                "score": 0.5
+            })
         if "recommendation" in prompt.lower() or "picks" in prompt.lower():
             return '{"recommendations": [], "summary": "AI Recommendations are currently disabled."}'
         return "AI response mocked (Safe Mode)."

@@ -31,6 +31,7 @@ import models_indicators
 import models_bot
 import screener.models
 import models_saas
+import models_institutional_scanner
 
 
 # 3. CORS Configuration (env-driven, not hardcoded wildcard)
@@ -80,6 +81,7 @@ from api.heatmap import router as heatmap_router
 from api.sector_analysis import router as sector_analysis_router
 from api.volume_profile import router as volume_profile_router
 from api.saas_router import router as saas_router
+from api.watchlist import router as watchlist_router
 
 
 # 6. Unified API Registration (Flattened for Reliability)
@@ -104,6 +106,7 @@ app.include_router(heatmap_router, prefix="/api/heatmap", tags=["Heatmap"])
 app.include_router(sector_analysis_router, prefix="/api/sector-analysis", tags=["Sector Analysis"])
 app.include_router(volume_profile_router, prefix="/api/volume-profile", tags=["Volume Profile"])
 app.include_router(saas_router, prefix="/api/saas", tags=["SaaS Enterprise"])
+app.include_router(watchlist_router, prefix="/api/watchlist", tags=["Watchlist"])
 
 
 from api.v1 import router as v1_router

@@ -25,6 +25,9 @@ import PatternLab from './pages/PatternLab';
 import Academy from './pages/Academy';
 import ResearchCenter from './pages/ResearchCenter';
 import Affiliate from './pages/Affiliate';
+import Watchlist from './pages/Watchlist';
+import InstitutionalScanner from './pages/InstitutionalScanner';
+import InstitutionalStockDetail from './pages/InstitutionalStockDetail';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -33,10 +36,47 @@ import { GlobalSymbolProvider } from './contexts/GlobalSymbolContext';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.LANDING);
+  const [selectedDetailSymbol, setSelectedDetailSymbol] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, loading, logout } = useAuth();
   const [isReady, setIsReady] = useState(false);
+
+  // Sync page with URL path on load and popstate
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const path = window.location.pathname;
+      if (path === '/institutional-scanner') {
+        setCurrentPage(Page.INSTITUTIONAL_SCANNER);
+      } else if (path.startsWith('/institutional-scanner/')) {
+        const parts = path.split('/');
+        const sym = parts[parts.length - 1];
+        if (sym) {
+          setSelectedDetailSymbol(sym.toUpperCase());
+          setCurrentPage(Page.INSTITUTIONAL_STOCK_DETAIL);
+        }
+      }
+    };
+    handleUrlChange();
+    window.addEventListener('popstate', handleUrlChange);
+    return () => window.removeEventListener('popstate', handleUrlChange);
+  }, []);
+
+  const handleNavigate = (page: Page, symbol?: string) => {
+    let path = '/dashboard';
+    if (page === Page.LANDING) path = '/';
+    else if (page === Page.LOGIN) path = '/login';
+    else if (page === Page.SIGNUP) path = '/signup';
+    else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
+    else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
+      path = `/institutional-scanner/${symbol.toUpperCase()}`;
+      setSelectedDetailSymbol(symbol.toUpperCase());
+    } else if (page === Page.WATCHLIST) path = '/watchlist';
+    
+    window.history.pushState(null, '', path);
+    setCurrentPage(page);
+    setSidebarOpen(false);
+  };
 
   // Sync current page with auth state
   useEffect(() => {
@@ -144,6 +184,17 @@ const App: React.FC = () => {
         return <ResearchCenter />;
       case Page.AFFILIATE:
         return <Affiliate />;
+      case Page.WATCHLIST:
+        return <Watchlist onNavigate={setCurrentPage} />;
+      case Page.INSTITUTIONAL_SCANNER:
+        return <InstitutionalScanner onNavigate={handleNavigate} />;
+      case Page.INSTITUTIONAL_STOCK_DETAIL:
+        return (
+          <InstitutionalStockDetail
+            symbol={selectedDetailSymbol || 'RELIANCE'}
+            onBack={() => handleNavigate(Page.INSTITUTIONAL_SCANNER)}
+          />
+        );
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }
@@ -189,10 +240,7 @@ const App: React.FC = () => {
             <div className={`fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${darkMode ? 'bg-slate-900 border-r border-slate-800' : 'bg-white border-r border-slate-200'}`}>
               <Sidebar
                 activePage={currentPage}
-                onNavigate={(page) => {
-                  setCurrentPage(page);
-                  setSidebarOpen(false);
-                }}
+                onNavigate={handleNavigate}
                 onLogout={async () => {
                   await logout();
                   setCurrentPage(Page.LANDING);
