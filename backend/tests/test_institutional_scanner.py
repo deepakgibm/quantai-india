@@ -27,27 +27,35 @@ def dummy_candle_data():
         if idx < 50:
             # First wave (troughs around 900, peaks around 1100)
             wave = np.sin(idx / 8.0) * 100.0
-            price = base_price + wave
+            price = base_price + wave + (idx * 2.0)
         elif idx < 100:
             # Second wave (troughs around 970, peaks around 1040)
             wave = np.sin(idx / 6.0) * 35.0
-            price = base_price + 20.0 + wave
+            price = base_price + 20.0 + wave + (idx * 2.0)
         else:
             # Third wave (troughs around 1005, peaks 1025)
             wave = np.sin(idx / 4.0) * 10.0
-            price = base_price + 15.0 + wave
+            price = base_price + 15.0 + wave + (idx * 2.0)
             
         prices.append(price)
         
+    volumes = []
+    for idx in range(len(dates)):
+        if idx >= len(dates) - 20:
+            volumes.append(np.random.randint(2000, 8000))
+        else:
+            volumes.append(np.random.randint(15000, 45000))
+            
     df = pd.DataFrame({
         "timestamp": dates,
         "open": prices,
         "high": [p + 2.0 for p in prices],
         "low": [p - 2.0 for p in prices],
         "close": [p + 0.5 for p in prices],
-        "volume": np.random.randint(10000, 50000, len(dates))
+        "volume": volumes
     })
     return df
+
 
 def test_minervini_trend_template_math(dummy_candle_data):
     """Verify that Minervini Trend Template conditions match expectations."""

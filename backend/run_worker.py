@@ -1,22 +1,14 @@
 """
-Standalone HP Scanner Worker Process
-Runs independently from FastAPI to avoid GIL contention.
-
-Usage:
-    python hp_scanner_worker.py
+Standalone HP Scanner Worker Process — Celery distributed mode.
+Runs independently from FastAPI to orchestrate scanning.
 
 This process:
 1. Loads symbols from database
-2. Computes indicators using multiprocessing pool
-3. Writes results to Dragonfly (Redis-compatible, 25x faster)
-4. Runs continuously with 5-second scan cycles
-
-The FastAPI process reads from Dragonfly only (no computation).
-
-Prerequisites:
-    docker run -d --name dragonfly -p 6379:6379 docker.dragonflydb.io/dragonflydb/dragonfly
+2. Loads daily candles
+3. Dispatches indicator calculation chunks to Celery workers
+4. Collects results and writes aggregated data (reversal, momentum, breakout, etc.) to Dragonfly
+5. Runs continuously in a loop
 """
-
 
 import os
 import sys
@@ -24,16 +16,13 @@ import time
 import signal
 import logging
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Any
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from services.dragonfly_client import (
     get_cache, CacheKeys, TTLPolicy
-)
-from workers.indicator_worker import (
-    get_indicator_worker, ComputeTask, start_indicator_workers
 )
 
 # Configure logging
@@ -93,8 +82,7 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
         conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
         cur = conn.cursor()
         
-        # Single batch query using NEW SCHEMA: stock_candle + instrument_master
-        # timeframe = 1440 means daily (1d = 1440 minutes)
+        # Single batch query using new schema: stock_candle + instrument_master
         cur.execute("""
             SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
             FROM stock_candle sc
@@ -112,11 +100,9 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
         for row in rows:
             symbol_rows[row[0]].append(row)
         
-        # Process each symbol's rows (limit to 200 most recent, reverse for chronological order)
+        # Process each symbol's rows
         for symbol, sym_rows in symbol_rows.items():
-            # Take first 200 (already ordered DESC, so these are most recent)
             recent_rows = sym_rows[:200]
-            # Allow even 1 candle for basic heatmap/latest price visibility
             if len(recent_rows) >= 1:
                 candles_map[symbol] = [
                     {
@@ -129,7 +115,7 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
                     for r in reversed(recent_rows)  # Reverse to chronological order
                 ]
         
-        logger.info(f"Loaded candles for {len(candles_map)} symbols using stock_candle (1 round trip)")
+        logger.info(f"Loaded candles for {len(candles_map)} symbols using stock_candle")
         return candles_map
         
     except Exception as e:
@@ -138,30 +124,50 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
 
 
 def run_scan_cycle(symbols: List[str], candles_map: Dict[str, List[Dict]]):
-    """Execute one scan cycle."""
+    """Execute one scan cycle by distributing to Celery tasks."""
     start = time.time()
     
-    worker = get_indicator_worker()
+    # Chunk symbols into batches of 40 symbols
+    chunk_size = 40
+    chunks = []
     
-    # Build compute tasks
-    tasks = []
+    current_chunk = []
     for symbol in symbols:
         candles = candles_map.get(symbol)
-        if candles and len(candles) >= 1: # Allow 1+ for snapshots
-            tasks.append(ComputeTask(
-                symbol=symbol,
-                interval="1day",
-                candles=candles
-            ))
-    
-    if not tasks:
+        if candles and len(candles) >= 1:
+            current_chunk.append({
+                "symbol": symbol,
+                "interval": "1day",
+                "candles": candles
+            })
+            if len(current_chunk) >= chunk_size:
+                chunks.append(current_chunk)
+                current_chunk = []
+    if current_chunk:
+        chunks.append(current_chunk)
+        
+    if not chunks:
         logger.warning("No tasks to compute")
         return
+        
+    # Dispatch to Celery group
+    from celery import group
+    from tasks.hp_scanner_tasks import compute_chunk_task
     
-    # Compute in parallel
-    results = worker.compute_batch(tasks)
+    try:
+        job = group(compute_chunk_task.s(chunk) for chunk in chunks)
+        result_group = job.apply_async()
+        
+        # Wait for all chunks to finish (Map step)
+        results_list_of_lists = result_group.get(timeout=15)
+    except Exception as e:
+        logger.error(f"Celery parallel execution failed: {e}")
+        return
+
+    # Flatten results (Reduce step)
+    results = [res for sublist in results_list_of_lists for res in sublist]
     
-    # Write to cache
+    # Aggregate results and write to cache (on this orchestrator node)
     cache = get_cache()
     all_snapshots = []
     momentum_data = []
@@ -169,31 +175,14 @@ def run_scan_cycle(symbols: List[str], candles_map: Dict[str, List[Dict]]):
     reversal_data = []
     all_signals = []
     
-    for result in results:
-        if not result.snapshot:
+    for res in results:
+        snapshot = res.get("snapshot")
+        symbol = res.get("symbol")
+        if not snapshot:
             continue
-        
-        snapshot = result.snapshot
-        symbol = result.symbol
-        
-        # Cache individual snapshot
-        cache.set(
-            CacheKeys.snapshot(symbol),
-            snapshot,
-            TTLPolicy.SNAPSHOT
-        )
-        
-        # Cache indicators
-        cache.set(
-            CacheKeys.indicator(symbol, "1d"),
-            result.indicators,
-            TTLPolicy.INDICATOR
-        )
-        
-        # Collect for aggregated caches
+            
         all_snapshots.append(snapshot)
         
-        # Categorize
         change_pct = snapshot.get('change_pct', 0)
         signals = snapshot.get('signals', [])
         
@@ -212,7 +201,7 @@ def run_scan_cycle(symbols: List[str], candles_map: Dict[str, List[Dict]]):
                 'change_pct': change_pct,
                 'updated_at': snapshot.get('updated_at')
             })
-    
+            
     # Sort by change_pct
     momentum_data.sort(key=lambda x: abs(x.get('change_pct', 0)), reverse=True)
     breakout_data.sort(key=lambda x: abs(x.get('change_pct', 0)), reverse=True)
@@ -234,7 +223,7 @@ def run_scan_cycle(symbols: List[str], candles_map: Dict[str, List[Dict]]):
         'pid': os.getpid()
     }, TTLPolicy.SCANNER * 2)
     
-    logger.info(f"Scan cycle: {len(results)} symbols in {elapsed:.0f}ms")
+    logger.info(f"Scan cycle: {len(results)} symbols in {elapsed:.0f}ms (distributed via Celery)")
 
 
 def main():
@@ -246,14 +235,9 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     logger.info("=" * 60)
-    logger.info("HP Scanner Worker Process Starting")
+    logger.info("HP Scanner Worker Process Starting (Celery mode)")
     logger.info(f"PID: {os.getpid()}")
     logger.info("=" * 60)
-    
-    # Start indicator worker pool
-    start_indicator_workers()
-    worker = get_indicator_worker()
-    logger.info(f"Worker pool started with {worker.num_workers} processes")
     
     # Load symbols
     symbols = load_symbols()
@@ -290,9 +274,6 @@ def main():
         # Sleep until next cycle
         time.sleep(scan_interval)
     
-    # Cleanup
-    logger.info("Shutting down worker pool...")
-    worker.stop()
     logger.info("HP Scanner Worker Process stopped")
 
 

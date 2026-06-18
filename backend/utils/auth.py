@@ -99,13 +99,17 @@ async def get_current_user(
         
         # Handle offline demo token for local testing/dev
         if token == "offline_demo_token":
-            # Return a system/test user for demo mode
-            result = await db.execute(select(User).limit(1))
-            user = result.scalar_one_or_none()
-            if user:
-                return user
-            # Fallback if no users in DB
-            return User(id=1, email="demo@example.com", username="demo", full_name="Demo User")
+            if settings.ENVIRONMENT == "development" or getattr(settings, "SAFE_MODE", False):
+                # Return a system/test user for demo mode
+                result = await db.execute(select(User).limit(1))
+                user = result.scalar_one_or_none()
+                if user:
+                    return user
+                # Fallback if no users in DB
+                return User(id=1, email="demo@example.com", username="demo", full_name="Demo User")
+            else:
+                logging.getLogger(__name__).warning("Authentication bypass attempt with offline_demo_token blocked in production!")
+                raise credentials_exception
 
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

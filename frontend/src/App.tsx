@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Page } from './types';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
@@ -33,69 +35,40 @@ import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { GlobalSymbolProvider } from './contexts/GlobalSymbolContext';
 
+// Initialize React Query Client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 30000, // 30 seconds
+    },
+  },
+});
 
-const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>(Page.LANDING);
-  const [selectedDetailSymbol, setSelectedDetailSymbol] = useState<string | null>(null);
+const InstitutionalStockDetailWrapper: React.FC = () => {
+  const { symbol } = useParams<{ symbol: string }>();
+  const navigate = useNavigate();
+  return (
+    <InstitutionalStockDetail
+      symbol={symbol || 'RELIANCE'}
+      onBack={() => navigate('/institutional-scanner')}
+    />
+  );
+};
+
+const PublicRoute: React.FC<{ element: React.ReactNode; activePage: Page }> = ({ element, activePage }) => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, loading, logout } = useAuth();
-  const [isReady, setIsReady] = useState(false);
 
-  // Sync page with URL path on load and popstate
   useEffect(() => {
-    const handleUrlChange = () => {
-      const path = window.location.pathname;
-      if (path === '/institutional-scanner') {
-        setCurrentPage(Page.INSTITUTIONAL_SCANNER);
-      } else if (path.startsWith('/institutional-scanner/')) {
-        const parts = path.split('/');
-        const sym = parts[parts.length - 1];
-        if (sym) {
-          setSelectedDetailSymbol(sym.toUpperCase());
-          setCurrentPage(Page.INSTITUTIONAL_STOCK_DETAIL);
-        }
-      }
-    };
-    handleUrlChange();
-    window.addEventListener('popstate', handleUrlChange);
-    return () => window.removeEventListener('popstate', handleUrlChange);
-  }, []);
-
-  const handleNavigate = (page: Page, symbol?: string) => {
-    let path = '/dashboard';
-    if (page === Page.LANDING) path = '/';
-    else if (page === Page.LOGIN) path = '/login';
-    else if (page === Page.SIGNUP) path = '/signup';
-    else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
-    else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
-      path = `/institutional-scanner/${symbol.toUpperCase()}`;
-      setSelectedDetailSymbol(symbol.toUpperCase());
-    } else if (page === Page.WATCHLIST) path = '/watchlist';
-    
-    window.history.pushState(null, '', path);
-    setCurrentPage(page);
-    setSidebarOpen(false);
-  };
-
-  // Sync current page with auth state
-  useEffect(() => {
-    if (!loading) {
-      const isPublic = currentPage === Page.LANDING ||
-        currentPage === Page.LOGIN ||
-        currentPage === Page.SIGNUP ||
-        currentPage === Page.FORGOT_PASSWORD;
-
-      if (!user && !isPublic) {
-        setCurrentPage(Page.LOGIN);
-      } else if (user && (currentPage === Page.LOGIN || currentPage === Page.SIGNUP || currentPage === Page.FORGOT_PASSWORD)) {
-        setCurrentPage(Page.DASHBOARD);
-      }
-      setIsReady(true);
+    if (!loading && user) {
+      navigate('/dashboard');
     }
-  }, [user, loading, currentPage]);
+  }, [user, loading, navigate]);
 
-  if (loading || !isReady) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-500"></div>
@@ -112,161 +85,233 @@ const App: React.FC = () => {
     }
   };
 
-  const renderPage = () => {
-    switch (currentPage) {
-      case Page.LANDING:
-        return <LandingPage onNavigate={setCurrentPage} />;
-      case Page.LOGIN:
-        return (
-          <Login
-            onLogin={() => setCurrentPage(Page.DASHBOARD)}
-            onSwitchToSignup={() => setCurrentPage(Page.SIGNUP)}
-            onForgotPassword={() => setCurrentPage(Page.FORGOT_PASSWORD)}
-          />
-        );
-      case Page.SIGNUP:
-        return (
-          <Signup
-            onSignup={() => setCurrentPage(Page.DASHBOARD)}
-            onSwitchToLogin={() => setCurrentPage(Page.LOGIN)}
-          />
-        );
-      case Page.FORGOT_PASSWORD:
-        return (
-          <ForgotPassword
-            onBackToLogin={() => setCurrentPage(Page.LOGIN)}
-          />
-        );
-      case Page.DASHBOARD:
-        return <Dashboard onNavigate={setCurrentPage} />;
-      case Page.AI_PROMPT:
-        return <AIPrompt />;
-      // ── Legacy quant routes → redirect to unified Quant Workspace ──────────
-      case Page.QUANT_BOT:             // was: Backtest
-      case Page.WALK_FORWARD_BACKTEST: // was: Walk-Forward
-      case Page.EXPERIMENT_LAB:        // was: Experiment Lab
-      case Page.QUANT_WORKSPACE:
-        return <QuantWorkspace />;
-      // ── End legacy redirects ──────────────────────────────────────────────
-      case Page.SCANNER:
-        return <Scanner />;
-      case Page.SECTOR_HEATMAP:
-        return <SectorHeatmapPage onNavigate={setCurrentPage} />;
-      case Page.SECTOR_ANALYSIS:
-        return <SectorAnalysisPage onNavigate={setCurrentPage} />;
-      case Page.VOLATILITY_DASHBOARD:
-        return <VolatilityDashboard />;
-      case Page.OPTION_FLOW:
-        return <OptionFlow />;
-      case Page.VOLUME_PROFILE:
-        return <VolumeProfilePage onNavigate={setCurrentPage} />;
-      case Page.MOMENT_ALERT:
-        return <MomentAlert />;
-      case Page.WEEK52_BREAKOUT:
-        return <Week52Breakout />;
-      case Page.TRADE_SCREENER:
-        return <TradeScreener />;
-      case Page.SIGNAL_BOT:
-        return <BotTab />;
-      case Page.SUBSCRIPTION:
-        return <Subscription />;
-      case Page.PORTFOLIO_INTELLIGENCE:
-        return <PortfolioIntelligence />;
-      case Page.SIGNAL_CENTER:
-        return <SignalCenter />;
-      case Page.SMC_ANALYSIS:
-        return <SMCAnalysis />;
-      case Page.PATTERN_LAB:
-        return <PatternLab />;
-      case Page.ACADEMY:
-        return <Academy />;
-      case Page.RESEARCH_CENTER:
-        return <ResearchCenter />;
-      case Page.AFFILIATE:
-        return <Affiliate />;
-      case Page.WATCHLIST:
-        return <Watchlist onNavigate={setCurrentPage} />;
-      case Page.INSTITUTIONAL_SCANNER:
-        return <InstitutionalScanner onNavigate={handleNavigate} />;
-      case Page.INSTITUTIONAL_STOCK_DETAIL:
-        return (
-          <InstitutionalStockDetail
-            symbol={selectedDetailSymbol || 'RELIANCE'}
-            onBack={() => handleNavigate(Page.INSTITUTIONAL_SCANNER)}
-          />
-        );
-      default:
-        return <Dashboard onNavigate={setCurrentPage} />;
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      <div className="relative">
+        <div className="absolute top-4 right-4 z-50">
+          <button
+            onClick={toggleDarkMode}
+            className="p-2 rounded-full bg-white/20 backdrop-blur hover:bg-white/30 transition-all border border-white/10"
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+        </div>
+        {element}
+      </div>
+    </div>
+  );
+};
+
+const ProtectedRoute: React.FC<{ element: React.ReactNode; activePage: Page }> = ({ element, activePage }) => {
+  const { user, loading, logout } = useAuth();
+  const navigate = useNavigate();
+  const [darkMode, setDarkMode] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/login');
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-500"></div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+    if (!darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
   };
 
-  const isPublicPage = currentPage === Page.LANDING ||
-    currentPage === Page.LOGIN ||
-    currentPage === Page.SIGNUP ||
-    currentPage === Page.FORGOT_PASSWORD;
+  const handleSidebarNavigate = (page: Page, symbol?: string) => {
+    setSidebarOpen(false);
+    let path = '/dashboard';
+    if (page === Page.LANDING) path = '/';
+    else if (page === Page.LOGIN) path = '/login';
+    else if (page === Page.SIGNUP) path = '/signup';
+    else if (page === Page.FORGOT_PASSWORD) path = '/forgot-password';
+    else if (page === Page.DASHBOARD) path = '/dashboard';
+    else if (page === Page.AI_PROMPT) path = '/ai-prompt';
+    else if (page === Page.QUANT_WORKSPACE || page === Page.QUANT_BOT || page === Page.WALK_FORWARD_BACKTEST || page === Page.EXPERIMENT_LAB) path = '/quant-workspace';
+    else if (page === Page.SCANNER) path = '/scanner';
+    else if (page === Page.SECTOR_HEATMAP) path = '/sector-heatmap';
+    else if (page === Page.SECTOR_ANALYSIS) path = '/sector-analysis';
+    else if (page === Page.VOLUME_PROFILE) path = '/volume-profile';
+    else if (page === Page.VOLATILITY_DASHBOARD) path = '/volatility';
+    else if (page === Page.OPTION_FLOW) path = '/option-flow';
+    else if (page === Page.MOMENT_ALERT) path = '/moment-alert';
+    else if (page === Page.WEEK52_BREAKOUT) path = '/week52-breakout';
+    else if (page === Page.TRADE_SCREENER) path = '/trade-screener';
+    else if (page === Page.SIGNAL_BOT) path = '/signal-bot';
+    else if (page === Page.SUBSCRIPTION) path = '/subscription';
+    else if (page === Page.PORTFOLIO_INTELLIGENCE) path = '/portfolio-intelligence';
+    else if (page === Page.SIGNAL_CENTER) path = '/signal-center';
+    else if (page === Page.SMC_ANALYSIS) path = '/smc-analysis';
+    else if (page === Page.PATTERN_LAB) path = '/pattern-lab';
+    else if (page === Page.ACADEMY) path = '/academy';
+    else if (page === Page.RESEARCH_CENTER) path = '/research-center';
+    else if (page === Page.AFFILIATE) path = '/affiliate';
+    else if (page === Page.WATCHLIST) path = '/watchlist';
+    else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
+    else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
+      path = `/institutional-scanner/${symbol.toUpperCase()}`;
+    }
+    navigate(path);
+  };
 
-  // Quant Workspace uses a full-bleed layout (no max-width padding)
   const isFullBleed =
-    currentPage === Page.QUANT_WORKSPACE ||
-    currentPage === Page.QUANT_BOT ||
-    currentPage === Page.WALK_FORWARD_BACKTEST ||
-    currentPage === Page.EXPERIMENT_LAB;
+    activePage === Page.QUANT_WORKSPACE ||
+    activePage === Page.QUANT_BOT ||
+    activePage === Page.WALK_FORWARD_BACKTEST ||
+    activePage === Page.EXPERIMENT_LAB;
 
   return (
-    <GlobalSymbolProvider>
-      <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
-        {isPublicPage ? (
-          <div className="relative">
-            <div className="absolute top-4 right-4 z-50">
-              <button
-                onClick={toggleDarkMode}
-                className="p-2 rounded-full bg-white/20 backdrop-blur hover:bg-white/30 transition-all border border-white/10"
-              >
-                {darkMode ? '☀️' : '🌙'}
-              </button>
-            </div>
-            {renderPage()}
-          </div>
-        ) : (
-          <div className="flex h-screen overflow-hidden">
-            {/* Mobile Sidebar Toggle */}
-            <div className="fixed top-0 left-0 p-4 z-50 lg:hidden">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 bg-brand-600 text-white rounded-md shadow-lg">
-                <Menu size={24} />
-              </button>
-            </div>
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      <div className="flex h-screen overflow-hidden">
+        {/* Mobile Sidebar Toggle */}
+        <div className="fixed top-0 left-0 p-4 z-50 lg:hidden">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 bg-brand-600 text-white rounded-md shadow-lg">
+            <Menu size={24} />
+          </button>
+        </div>
 
-            {/* Sidebar */}
-            <div className={`fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${darkMode ? 'bg-slate-900 border-r border-slate-800' : 'bg-white border-r border-slate-200'}`}>
-              <Sidebar
-                activePage={currentPage}
-                onNavigate={handleNavigate}
-                onLogout={async () => {
-                  await logout();
-                  setCurrentPage(Page.LANDING);
-                }}
-                darkMode={darkMode}
-                toggleDarkMode={toggleDarkMode}
-              />
-            </div>
+        {/* Sidebar */}
+        <div className={`fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${darkMode ? 'bg-slate-900 border-r border-slate-800' : 'bg-white border-r border-slate-200'}`}>
+          <Sidebar
+            activePage={activePage}
+            onNavigate={handleSidebarNavigate}
+            onLogout={async () => {
+              await logout();
+              navigate('/');
+            }}
+            darkMode={darkMode}
+            toggleDarkMode={toggleDarkMode}
+          />
+        </div>
 
-            {/* Main Content */}
-            <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
-              {isFullBleed ? (
-                // Full-bleed layout for the Quant Research Terminal
-                <div className="h-full">
-                  {renderPage()}
-                </div>
-              ) : (
-                <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-                  {renderPage()}
-                </div>
-              )}
-            </main>
-          </div>
-        )}
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
+          {isFullBleed ? (
+            <div className="h-full">{element}</div>
+          ) : (
+            <div className="p-6 lg:p-8 max-w-7xl mx-auto">{element}</div>
+          )}
+        </main>
       </div>
-    </GlobalSymbolProvider>
+    </div>
+  );
+};
+
+const AppRoutes: React.FC = () => {
+  const navigate = useNavigate();
+  const handleNavigate = (page: Page, symbol?: string) => {
+    let path = '/dashboard';
+    if (page === Page.LANDING) path = '/';
+    else if (page === Page.LOGIN) path = '/login';
+    else if (page === Page.SIGNUP) path = '/signup';
+    else if (page === Page.FORGOT_PASSWORD) path = '/forgot-password';
+    else if (page === Page.DASHBOARD) path = '/dashboard';
+    else if (page === Page.AI_PROMPT) path = '/ai-prompt';
+    else if (page === Page.QUANT_WORKSPACE || page === Page.QUANT_BOT || page === Page.WALK_FORWARD_BACKTEST || page === Page.EXPERIMENT_LAB) path = '/quant-workspace';
+    else if (page === Page.SCANNER) path = '/scanner';
+    else if (page === Page.SECTOR_HEATMAP) path = '/sector-heatmap';
+    else if (page === Page.SECTOR_ANALYSIS) path = '/sector-analysis';
+    else if (page === Page.VOLUME_PROFILE) path = '/volume-profile';
+    else if (page === Page.VOLATILITY_DASHBOARD) path = '/volatility';
+    else if (page === Page.OPTION_FLOW) path = '/option-flow';
+    else if (page === Page.MOMENT_ALERT) path = '/moment-alert';
+    else if (page === Page.WEEK52_BREAKOUT) path = '/week52-breakout';
+    else if (page === Page.TRADE_SCREENER) path = '/trade-screener';
+    else if (page === Page.SIGNAL_BOT) path = '/signal-bot';
+    else if (page === Page.SUBSCRIPTION) path = '/subscription';
+    else if (page === Page.PORTFOLIO_INTELLIGENCE) path = '/portfolio-intelligence';
+    else if (page === Page.SIGNAL_CENTER) path = '/signal-center';
+    else if (page === Page.SMC_ANALYSIS) path = '/smc-analysis';
+    else if (page === Page.PATTERN_LAB) path = '/pattern-lab';
+    else if (page === Page.ACADEMY) path = '/academy';
+    else if (page === Page.RESEARCH_CENTER) path = '/research-center';
+    else if (page === Page.AFFILIATE) path = '/affiliate';
+    else if (page === Page.WATCHLIST) path = '/watchlist';
+    else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
+    else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
+      path = `/institutional-scanner/${symbol.toUpperCase()}`;
+    }
+    navigate(path);
+  };
+
+  return (
+    <Routes>
+      <Route path="/" element={<PublicRoute activePage={Page.LANDING} element={<LandingPage onNavigate={handleNavigate} />} />} />
+      <Route path="/login" element={<PublicRoute activePage={Page.LOGIN} element={
+        <Login
+          onLogin={() => navigate('/dashboard')}
+          onSwitchToSignup={() => navigate('/signup')}
+          onForgotPassword={() => navigate('/forgot-password')}
+        />
+      } />} />
+      <Route path="/signup" element={<PublicRoute activePage={Page.SIGNUP} element={
+        <Signup
+          onSignup={() => navigate('/dashboard')}
+          onSwitchToLogin={() => navigate('/login')}
+        />
+      } />} />
+      <Route path="/forgot-password" element={<PublicRoute activePage={Page.FORGOT_PASSWORD} element={
+        <ForgotPassword
+          onBackToLogin={() => navigate('/login')}
+        />
+      } />} />
+      
+      {/* Protected Routes */}
+      <Route path="/dashboard" element={<ProtectedRoute activePage={Page.DASHBOARD} element={<Dashboard onNavigate={handleNavigate} />} />} />
+      <Route path="/ai-prompt" element={<ProtectedRoute activePage={Page.AI_PROMPT} element={<AIPrompt />} />} />
+      <Route path="/quant-workspace" element={<ProtectedRoute activePage={Page.QUANT_WORKSPACE} element={<QuantWorkspace />} />} />
+      <Route path="/scanner" element={<ProtectedRoute activePage={Page.SCANNER} element={<Scanner />} />} />
+      <Route path="/sector-heatmap" element={<ProtectedRoute activePage={Page.SECTOR_HEATMAP} element={<SectorHeatmapPage onNavigate={handleNavigate} />} />} />
+      <Route path="/sector-analysis" element={<ProtectedRoute activePage={Page.SECTOR_ANALYSIS} element={<SectorAnalysisPage onNavigate={handleNavigate} />} />} />
+      <Route path="/volume-profile" element={<ProtectedRoute activePage={Page.VOLUME_PROFILE} element={<VolumeProfilePage onNavigate={handleNavigate} />} />} />
+      <Route path="/volatility" element={<ProtectedRoute activePage={Page.VOLATILITY_DASHBOARD} element={<VolatilityDashboard />} />} />
+      <Route path="/option-flow" element={<ProtectedRoute activePage={Page.OPTION_FLOW} element={<OptionFlow />} />} />
+      <Route path="/moment-alert" element={<ProtectedRoute activePage={Page.MOMENT_ALERT} element={<MomentAlert />} />} />
+      <Route path="/week52-breakout" element={<ProtectedRoute activePage={Page.WEEK52_BREAKOUT} element={<Week52Breakout />} />} />
+      <Route path="/trade-screener" element={<ProtectedRoute activePage={Page.TRADE_SCREENER} element={<TradeScreener />} />} />
+      <Route path="/signal-bot" element={<ProtectedRoute activePage={Page.SIGNAL_BOT} element={<BotTab />} />} />
+      <Route path="/subscription" element={<ProtectedRoute activePage={Page.SUBSCRIPTION} element={<Subscription />} />} />
+      <Route path="/portfolio-intelligence" element={<ProtectedRoute activePage={Page.PORTFOLIO_INTELLIGENCE} element={<PortfolioIntelligence />} />} />
+      <Route path="/signal-center" element={<ProtectedRoute activePage={Page.SIGNAL_CENTER} element={<SignalCenter />} />} />
+      <Route path="/smc-analysis" element={<ProtectedRoute activePage={Page.SMC_ANALYSIS} element={<SMCAnalysis />} />} />
+      <Route path="/pattern-lab" element={<ProtectedRoute activePage={Page.PATTERN_LAB} element={<PatternLab />} />} />
+      <Route path="/academy" element={<ProtectedRoute activePage={Page.ACADEMY} element={<Academy />} />} />
+      <Route path="/research-center" element={<ProtectedRoute activePage={Page.RESEARCH_CENTER} element={<ResearchCenter />} />} />
+      <Route path="/affiliate" element={<ProtectedRoute activePage={Page.AFFILIATE} element={<Affiliate />} />} />
+      <Route path="/watchlist" element={<ProtectedRoute activePage={Page.WATCHLIST} element={<Watchlist onNavigate={handleNavigate} />} />} />
+      <Route path="/institutional-scanner" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_SCANNER} element={<InstitutionalScanner onNavigate={handleNavigate} />} />} />
+      <Route path="/institutional-scanner/:symbol" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_STOCK_DETAIL} element={<InstitutionalStockDetailWrapper />} />} />
+      
+      {/* Catch-all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <GlobalSymbolProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </GlobalSymbolProvider>
+    </QueryClientProvider>
   );
 };
 

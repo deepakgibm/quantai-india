@@ -7,7 +7,8 @@ async def ensure_indexes():
         ("idx_indicators_lookup", "CREATE INDEX IF NOT EXISTS idx_indicators_lookup ON precomputed_indicators (symbol, interval, timestamp DESC)"),
         ("idx_indicators_momentum", "CREATE INDEX IF NOT EXISTS idx_indicators_momentum ON precomputed_indicators (momentum_score)"),
         ("idx_indicators_volatility", "CREATE INDEX IF NOT EXISTS idx_indicators_volatility ON precomputed_indicators (volatility_score)"),
-        ("idx_candles_lookup", "CREATE INDEX IF NOT EXISTS idx_candles_lookup_fast ON stock_candle (instrument_id, timeframe, candle_ts DESC)")
+        ("idx_candles_lookup", "CREATE INDEX IF NOT EXISTS idx_candles_lookup_fast ON stock_candle (instrument_id, timeframe, candle_ts DESC)"),
+        ("idx_candle_timeframe_instrument_ts", "CREATE INDEX IF NOT EXISTS idx_candle_timeframe_instrument_ts ON stock_candle (timeframe, instrument_id, candle_ts DESC)")
     ]
     
     async with engine.connect() as conn:

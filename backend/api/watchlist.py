@@ -15,7 +15,12 @@ from schemas import (
 from services.watchlist_service import WatchlistService
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["Watchlist"])
+from utils.rate_limit import rate_limit
+
+router = APIRouter(
+    tags=["Watchlist"],
+    dependencies=[Depends(rate_limit(60, 60, "watchlist"))]
+)
 
 @router.get("", response_model=List[WatchlistItemResponse])
 async def get_watchlist(

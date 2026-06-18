@@ -44,12 +44,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# if _observability_available:
-#     setup_observability_middleware(app)
+if _observability_available:
+    setup_observability_middleware(app)
 
 # 4. Exception Handlers
-from utils.error_responses import generic_exception_handler, validation_exception_handler
+from utils.error_responses import (
+    generic_exception_handler,
+    validation_exception_handler,
+    http_exception_handler,
+    api_error_handler,
+    APIError
+)
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
@@ -58,6 +65,14 @@ async def global_exception_handler(request, exc):
 @app.exception_handler(RequestValidationError)
 async def custom_validation_exception_handler(request, exc):
     return await validation_exception_handler(request, exc)
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request, exc):
+    return await http_exception_handler(request, exc)
+
+@app.exception_handler(APIError)
+async def custom_api_error_handler(request, exc):
+    return await api_error_handler(request, exc)
 
 # 5. Router Imports (Unified Layer)
 from api.auth import router as auth_router
@@ -82,6 +97,8 @@ from api.sector_analysis import router as sector_analysis_router
 from api.volume_profile import router as volume_profile_router
 from api.saas_router import router as saas_router
 from api.watchlist import router as watchlist_router
+from api.metrics import router as metrics_router
+from api.system import router as system_router
 
 
 # 6. Unified API Registration (Flattened for Reliability)
@@ -107,10 +124,13 @@ app.include_router(sector_analysis_router, prefix="/api/sector-analysis", tags=[
 app.include_router(volume_profile_router, prefix="/api/volume-profile", tags=["Volume Profile"])
 app.include_router(saas_router, prefix="/api/saas", tags=["SaaS Enterprise"])
 app.include_router(watchlist_router, prefix="/api/watchlist", tags=["Watchlist"])
+app.include_router(metrics_router, prefix="/api/metrics", tags=["Metrics"])
+app.include_router(system_router, prefix="/api/system", tags=["System Diagnostics"])
 
 
 from api.v1 import router as v1_router
 app.include_router(v1_router, prefix="/api/v1")
+
 
 logger.info("?? QuantAI Production API v2.0 Registered at Root.")
 
@@ -118,11 +138,19 @@ logger.info("?? QuantAI Production API v2.0 Registered at Root.")
 @app.on_event("startup")
 async def startup_event():
     logger.info("?? QuantAI Backend Starting Up...")
+    
+    # 1. Enforce critical database health audit (Ping, Read, Write, Transaction) on startup.
     try:
-        from database import init_db
+        from database import init_db, verify_database_health
+        await verify_database_health()
         await init_db()
         logger.info("?? Database schema verified/created.")
+    except Exception as e:
+        logger.critical(f"FATAL DATABASE ERROR DURING STARTUP: {e}", exc_info=True)
+        import sys
+        sys.exit(1)
         
+    try:
         from config import settings
         
         # Initialize Core Services
@@ -150,7 +178,7 @@ async def startup_event():
         
         logger.info("?? Real-time data engines initiated.")
     except Exception as e:
-        logger.error(f"Startup warning: {e}")
+        logger.error(f"Startup warning for non-critical services: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -166,6 +194,12 @@ async def root_health_check():
 @app.get("/ready", tags=["Health"])
 async def root_readiness_check():
     return await readiness_check()
+
+@app.get("/metrics", tags=["Observability"])
+async def prometheus_metrics():
+    from core.observability.metrics import get_metrics
+    metrics = get_metrics()
+    return Response(content=metrics.get_metrics_output(), media_type=metrics.get_content_type())
 
 @app.get("/")
 async def root():

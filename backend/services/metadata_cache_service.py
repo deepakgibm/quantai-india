@@ -187,10 +187,10 @@ class MetadataCacheService:
             symbols = []
             for row in cur.fetchall():
                 symbols.append({
-                    "symbol": row[0],
-                    "company_name": row[1] or row[0],
-                    "sector": row[2] or "Unknown",
-                    "instrument_key": row[3]
+                    "symbol": row[0].strip() if row[0] else "",
+                    "company_name": (row[1].strip() if row[1] else "") or row[0],
+                    "sector": (row[2].strip() if row[2] else "") or "Unknown",
+                    "instrument_key": row[3].strip() if row[3] else ""
                 })
             
             conn.close()
@@ -314,9 +314,16 @@ class MetadataCacheService:
                 self._stats["hits"] += 1
                 return data
             self._stats["misses"] += 1
-            return None
         except CacheUnavailableError:
-            return None
+            pass
+            
+        # Fallback to DB
+        symbols = self._load_symbols_from_db()
+        for s in symbols:
+            if s.get("symbol") == symbol:
+                return s
+        return None
+
     
     def get_sectors(self) -> List[str]:
         """Get cached list of sectors."""

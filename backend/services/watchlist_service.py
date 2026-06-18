@@ -4,11 +4,11 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select, delete
 
 from models import WatchlistItem, User
 from schemas import WatchlistItemCreate, WatchlistItemResponse
 from services.upstox_client import UpstoxClient
+from repositories.watchlist_repository import WatchlistRepository
 
 logger = logging.getLogger(__name__)
 
@@ -24,44 +24,17 @@ class WatchlistService:
         exchange = item_in.exchange.upper().strip() if item_in.exchange else "NSE"
 
         # Check if already in watchlist for this user
-        stmt = select(WatchlistItem).where(
-            WatchlistItem.user_id == user_id,
-            WatchlistItem.symbol == symbol
-        )
-        existing_res = await db.execute(stmt)
-        if existing_res.scalars().first():
+        existing_item = await WatchlistRepository.get_by_user_and_symbol(db, user_id, symbol)
+        if existing_item:
             logger.info(f"Symbol {symbol} is already in user {user_id}'s watchlist")
             return None
 
         # Resolve instrument details
-        sql = text("""
-            SELECT instrument_id, company_name, instrument_key
-            FROM instrument_master
-            WHERE symbol = :symbol AND exchange = :exchange AND is_active = TRUE
-            LIMIT 1
-        """)
-        result = await db.execute(sql, {"symbol": symbol, "exchange": exchange})
-        row = result.fetchone()
-        
-        if not row:
-            # Try matching by symbol without exchange restriction just in case
-            sql_fallback = text("""
-                SELECT instrument_id, company_name, instrument_key, exchange
-                FROM instrument_master
-                WHERE symbol = :symbol AND is_active = TRUE
-                LIMIT 1
-            """)
-            result = await db.execute(sql_fallback, {"symbol": symbol})
-            row = result.fetchone()
-            if not row:
-                logger.error(f"Symbol {symbol} not found in instrument_master")
-                return None
-            company_name = row.company_name
-            instrument_key = row.instrument_key
-            exchange = row.exchange
-        else:
-            company_name = row.company_name
-            instrument_key = row.instrument_key
+        inst = await WatchlistRepository.get_instrument_details(db, symbol, exchange)
+        if not inst:
+            logger.error(f"Symbol {symbol} not found in instrument_master")
+            return None
+        _, company_name, instrument_key, exchange = inst
 
         added_at = datetime.utcnow()
         watchlist_price = item_in.watchlist_price
@@ -108,7 +81,7 @@ class WatchlistService:
             last_updated=added_at
         )
 
-        db.add(db_item)
+        db_item = await WatchlistRepository.add(db, db_item)
         await db.commit()
         await db.refresh(db_item)
         return db_item
@@ -148,22 +121,14 @@ class WatchlistService:
         Fetch all watchlist items for the user, update their current prices
         via a single batch live quote fetch, and calculate returns.
         """
-        stmt = select(WatchlistItem).where(WatchlistItem.user_id == user_id).order_by(WatchlistItem.added_at.desc())
-        res = await db.execute(stmt)
-        items = list(res.scalars().all())
+        items = await WatchlistRepository.get_all_by_user(db, user_id)
 
         if not items:
             return []
 
         # Batch resolve instrument_keys
         symbols = [item.symbol for item in items]
-        sql = text("""
-            SELECT symbol, instrument_key
-            FROM instrument_master
-            WHERE symbol = ANY(:symbols) AND is_active = TRUE
-        """)
-        result = await db.execute(sql, {"symbols": symbols})
-        keys_map = {row.symbol: row.instrument_key for row in result.fetchall() if row.instrument_key}
+        keys_map = await WatchlistRepository.get_instrument_keys_map(db, symbols)
 
         # Build list of keys to fetch from Upstox
         instrument_keys = [keys_map[item.symbol] for item in items if item.symbol in keys_map]
@@ -200,13 +165,10 @@ class WatchlistService:
         Delete a stock symbol from the user's watchlist.
         """
         symbol_upper = symbol.upper().strip()
-        stmt = delete(WatchlistItem).where(
-            WatchlistItem.user_id == user_id,
-            WatchlistItem.symbol == symbol_upper
-        )
-        res = await db.execute(stmt)
+        success = await WatchlistRepository.delete_by_user_and_symbol(db, user_id, symbol_upper)
         await db.commit()
-        return res.rowcount > 0
+        return success
+
 
     @staticmethod
     def get_days_tracked(added_at: datetime) -> int:

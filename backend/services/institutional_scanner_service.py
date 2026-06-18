@@ -335,7 +335,12 @@ class InstitutionalScannerService:
         else:
             category = "Ignore"
             
-        breakout_ready = (proximity <= 3.0 and proximity >= -1.0 and total_score >= 70.0)
+        # Adaptive proximity threshold based on 14-day ATR percent
+        atr_val = float(df_copy['atr'].iloc[-1]) if 'atr' in df_copy.columns else 2.0
+        atr_pct = (atr_val / current_close) * 100.0 if current_close > 0 else 2.0
+        proximity_threshold = max(1.5, min(4.0, atr_pct * 1.2))
+        
+        breakout_ready = (proximity <= proximity_threshold and proximity >= -1.0 and total_score >= 70.0)
         
         return {
             "is_vcp": (total_score >= 60.0 and len(depths) >= 2),
@@ -516,128 +521,172 @@ class InstitutionalScannerService:
 
     def _detect_cup_and_handle(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        Detect Cup and Handle formation.
-        Returns Pivot Point, Handle Depth, Confidence Score, Breakout Confirmation.
+        Detect Cup and Handle formation using adaptive swing analysis.
+        Supports variable durations (40-day, 80-day, 120-day).
         """
-        if len(df) < 80:
+        if len(df) < 50:
+            return {"is_pattern": False, "pivot": 0.0, "confidence": 0.0, "confirmed": False}
+            
+        highs, lows = self._find_swings(df, window=5)
+        if len(highs) < 2 or len(lows) < 1:
             return {"is_pattern": False, "pivot": 0.0, "confidence": 0.0, "confirmed": False}
             
         closes = df['close'].values
-        highs = df['high'].values
-        lows = df['low'].values
+        high_vals = df['high'].values
+        low_vals = df['low'].values
         
-        # Look at the last 80 days
-        sub_highs = highs[-80:]
-        sub_closes = closes[-80:]
+        best_pattern = None
+        best_confidence = 0.0
         
-        # 1. Find the left lip (local high in first 30 days)
-        left_lip_idx = int(np.argmax(sub_highs[:30]))
-        left_lip = float(sub_highs[left_lip_idx])
+        # Look for pattern in the last 120 days
+        cutoff_idx = len(df) - 120
+        recent_highs = [h for h in highs if h["idx"] >= cutoff_idx]
         
-        # 2. Find the cup bottom (local low in days 25 to 55)
-        cup_bottom_idx = 25 + int(np.argmin(sub_closes[25:55]))
-        cup_bottom = float(sub_closes[cup_bottom_idx])
-        
-        # 3. Find the right lip (local high in days 50 to 70)
-        right_lip_idx = 50 + int(np.argmax(sub_highs[50:70]))
-        right_lip = float(sub_highs[right_lip_idx])
-        
-        # 4. Handle (days 65 to today)
-        handle_closes = sub_closes[right_lip_idx:]
-        if len(handle_closes) == 0:
-            handle_closes = sub_closes[-5:]
-        handle_min = float(np.min(handle_closes))
-        
-        # Validate Cup & Handle geometry
-        cup_depth = ((left_lip - cup_bottom) / left_lip) * 100.0
-        lip_diff = (abs(left_lip - right_lip) / left_lip) * 100.0
-        handle_pullback = ((right_lip - handle_min) / right_lip) * 100.0
-        
-        # Conditions:
-        # Cup depth should be 15% to 50%
-        # Right lip and left lip should be within 15% of each other
-        # Handle pullback should be 5% to 20%
-        is_cup = (15.0 <= cup_depth <= 50.0) and (lip_diff <= 15.0)
-        is_handle = (2.0 <= handle_pullback <= 20.0)
-        
-        # Scoring Confidence
-        confidence = 0.0
-        if is_cup:
-            confidence += 40.0
-            # Scale based on lip symmetry
-            confidence += max(0.0, 20.0 - lip_diff * 1.5)
-        if is_handle:
-            confidence += 30.0
-            # Scale based on handle size (too deep is bad, tight is good)
-            confidence += max(0.0, 10.0 - abs(handle_pullback - 8.0))
+        # Try all pairs of recent swing highs as Left and Right Lips
+        for idx_l, left in enumerate(recent_highs):
+            for right in recent_highs[idx_l + 1:]:
+                # Distance in bars
+                duration = right["idx"] - left["idx"]
+                if duration < 20 or duration > 90:
+                    continue
+                    
+                # The Left and Right Lip prices
+                left_price = left["price"]
+                right_price = right["price"]
+                
+                # Lips should be at a similar level (within 15%)
+                lip_diff = (abs(left_price - right_price) / max(left_price, right_price)) * 100.0
+                if lip_diff > 15.0:
+                    continue
+                    
+                # Find the lowest low (cup bottom) between left and right lip
+                cup_range_lows = low_vals[left["idx"]:right["idx"]]
+                if len(cup_range_lows) == 0:
+                    continue
+                cup_bottom = float(np.min(cup_range_lows))
+                
+                # Cup depth should be 10% to 50%
+                avg_lip = (left_price + right_price) / 2.0
+                cup_depth = ((avg_lip - cup_bottom) / avg_lip) * 100.0
+                if cup_depth < 10.0 or cup_depth > 50.0:
+                    continue
+                    
+                # Handle starts after right lip
+                handle_closes = closes[right["idx"]:]
+                if len(handle_closes) < 3:
+                    continue
+                
+                # Handle pullback parameters
+                handle_min = float(np.min(handle_closes))
+                handle_pullback = ((right_price - handle_min) / right_price) * 100.0
+                
+                # Handle shouldn't exceed cup bottom, and pullback should be 2% to 20%
+                if handle_min <= cup_bottom or handle_pullback < 2.0 or handle_pullback > 20.0:
+                    continue
+                    
+                # Scoring Confidence (0-100)
+                confidence = 30.0 # Base for matching geometry
+                
+                # Symmetry score (Left vs Right Lip)
+                confidence += max(0.0, 25.0 - lip_diff * 1.6)
+                
+                # Handle quality (tighter pullback is better)
+                confidence += max(0.0, 25.0 - abs(handle_pullback - 8.0) * 1.5)
+                
+                # Trend quality (cup should be U-shaped, check that bottom is in the middle third)
+                bottom_rel_idx = (np.argmin(low_vals[left["idx"]:right["idx"]]) / duration)
+                if 0.25 <= bottom_rel_idx <= 0.75:
+                    confidence += 20.0
+                    
+                if confidence > best_confidence:
+                    best_confidence = confidence
+                    current_close = float(closes[-1])
+                    confirmed = (current_close > right_price)
+                    
+                    best_pattern = {
+                        "is_pattern": confidence >= 50.0,
+                        "pivot": right_price,
+                        "cup_depth_pct": cup_depth,
+                        "handle_depth_pct": handle_pullback,
+                        "confidence_score": confidence,
+                        "breakout_confirmed": confirmed
+                    }
+                    
+        if best_pattern:
+            return best_pattern
             
-        pivot = right_lip
-        current_close = float(closes[-1])
-        confirmed = (current_close > pivot)
-        
-        return {
-            "is_pattern": (is_cup and is_handle and confidence >= 50.0),
-            "pivot": pivot,
-            "cup_depth_pct": cup_depth,
-            "handle_depth_pct": handle_pullback,
-            "confidence_score": confidence,
-            "breakout_confirmed": confirmed
-        }
+        return {"is_pattern": False, "pivot": 0.0, "confidence": 0.0, "confirmed": False}
 
     def _detect_double_bottom(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        Detect Double Bottom formation.
-        Returns first bottom, second bottom, pivot, pattern age, and confidence.
+        Detect Double Bottom formation using local minima and neckline peak analysis.
         """
-        if len(df) < 60:
+        if len(df) < 40:
             return {"is_pattern": False, "pivot": 0.0, "confidence": 0.0}
             
-        lows = df['low'].values
-        highs = df['high'].values
-        closes = df['close'].values
-        
-        # Scan last 60 days
-        sub_lows = lows[-60:]
-        
-        # Bottom 1: lowest in first 25 days
-        b1_idx = int(np.argmin(sub_lows[:25]))
-        b1_price = float(sub_lows[b1_idx])
-        
-        # Bottom 2: lowest in last 25 days
-        b2_idx = 35 + int(np.argmin(sub_lows[35:]))
-        b2_price = float(sub_lows[b2_idx])
-        
-        # Mid peak (highest high between b1 and b2)
-        mid_highs = highs[b1_idx:b2_idx]
-        if len(mid_highs) == 0:
-            mid_highs = highs[-30:-10]
-        pivot = float(np.max(mid_highs))
-        
-        # Math checks:
-        # Bottoms are at a similar level (within 4%)
-        bottom_diff = (abs(b1_price - b2_price) / b1_price) * 100.0
-        # Peak is significantly higher than bottoms (at least 7%)
-        peak_depth = ((pivot - min(b1_price, b2_price)) / min(b1_price, b2_price)) * 100.0
-        
-        is_double_bottom = (bottom_diff <= 4.0) and (peak_depth >= 7.0) and (b2_idx - b1_idx >= 15)
-        
-        # Confidence Score (0-100)
-        confidence = 0.0
-        if is_double_bottom:
-            confidence += 40.0
-            confidence += max(0.0, 30.0 - bottom_diff * 7.5) # bottoms close together
-            confidence += max(0.0, 30.0 - abs(peak_depth - 15.0) * 1.5) # nice rounded cup in middle
+        highs, lows = self._find_swings(df, window=5)
+        if len(lows) < 2:
+            return {"is_pattern": False, "pivot": 0.0, "confidence": 0.0}
             
-        age = 60 - b1_idx
+        closes = df['close'].values
+        high_vals = df['high'].values
         
-        return {
-            "is_pattern": (is_double_bottom and confidence >= 50.0),
-            "first_bottom": b1_price,
-            "second_bottom": b2_price,
-            "pivot": pivot,
-            "pattern_age_days": age,
-            "confidence_score": confidence
-        }
+        best_pattern = None
+        best_confidence = 0.0
+        
+        # Look for swing lows in the last 90 days
+        cutoff_idx = len(df) - 90
+        recent_lows = [l for l in lows if l["idx"] >= cutoff_idx]
+        
+        for idx_l, b1 in enumerate(recent_lows):
+            for b2 in recent_lows[idx_l + 1:]:
+                duration = b2["idx"] - b1["idx"]
+                if duration < 10 or duration > 60:
+                    continue
+                    
+                b1_price = b1["price"]
+                b2_price = b2["price"]
+                
+                # Bottoms at a similar level (within 4% tolerance bands)
+                bottom_diff = (abs(b1_price - b2_price) / max(b1_price, b2_price)) * 100.0
+                if bottom_diff > 4.0:
+                    continue
+                    
+                # Neckline pivot (highest high between the two bottoms)
+                mid_highs = high_vals[b1["idx"]:b2["idx"]]
+                if len(mid_highs) == 0:
+                    continue
+                pivot = float(np.max(mid_highs))
+                
+                # Peak must be significantly higher than bottoms (at least 7%)
+                min_bottom = min(b1_price, b2_price)
+                peak_depth = ((pivot - min_bottom) / min_bottom) * 100.0
+                if peak_depth < 7.0:
+                    continue
+                    
+                # Calculate confidence score
+                confidence = 40.0
+                confidence += max(0.0, 30.0 - bottom_diff * 7.5) # closer bottoms = higher score
+                confidence += max(0.0, 30.0 - abs(peak_depth - 15.0) * 1.5) # balanced valley depth
+                
+                if confidence > best_confidence:
+                    best_confidence = confidence
+                    age = len(df) - b1["idx"]
+                    
+                    best_pattern = {
+                        "is_pattern": confidence >= 50.0,
+                        "first_bottom": b1_price,
+                        "second_bottom": b2_price,
+                        "pivot": pivot,
+                        "pattern_age_days": age,
+                        "confidence_score": confidence
+                    }
+                    
+        if best_pattern:
+            return best_pattern
+            
+        return {"is_pattern": False, "pivot": 0.0, "confidence": 0.0}
+
 
     def _detect_flat_base(self, df: pd.DataFrame) -> Dict[str, Any]:
         """

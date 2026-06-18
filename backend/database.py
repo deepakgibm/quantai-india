@@ -55,6 +55,58 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+async def verify_database_health():
+    """
+    Perform a complete database health check:
+    - Ping (write engine)
+    - Ping (read engine)
+    - Write test
+    - Read test
+    - Transaction test
+    Fails (raises exception) if database is unavailable or behaving incorrectly.
+    """
+    import logging
+    from sqlalchemy import text
+    logger = logging.getLogger(__name__)
+    logger.info("Performing database health check (Ping, Read, Write, Transaction)...")
+    
+    # 1. Ping write engine
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error(f"Database write engine ping failed: {e}")
+        raise RuntimeError(f"Database write engine ping failed: {e}")
+
+    # 2. Ping read engine
+    try:
+        async with read_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error(f"Database read engine ping failed: {e}")
+        raise RuntimeError(f"Database read engine ping failed: {e}")
+
+    # 3. Write, Read, and Transaction test
+    try:
+        async with engine.connect() as conn:
+            trans = await conn.begin()
+            try:
+                await conn.execute(text("CREATE TEMP TABLE db_health_check_test (id SERIAL PRIMARY KEY, val VARCHAR(50))"))
+                await conn.execute(text("INSERT INTO db_health_check_test (val) VALUES ('quantai_ok')"))
+                res = await conn.execute(text("SELECT val FROM db_health_check_test"))
+                val = res.scalar()
+                if val != 'quantai_ok':
+                    raise ValueError(f"Value read back '{val}' did not match written 'quantai_ok'")
+                await trans.rollback()
+            except Exception as e:
+                await trans.rollback()
+                raise e
+    except Exception as e:
+        logger.error(f"Database write/read/transaction verification failed: {e}")
+        raise RuntimeError(f"Database write/read/transaction verification failed: {e}")
+        
+    logger.info("Database health check completed successfully.")
+
 async def get_db():
     """Dependency for write sessions (Primary)."""
     async with AsyncSessionLocal() as session:

@@ -190,10 +190,10 @@ def _ema(data: List[float], period: int) -> float:
 
 
 def _rsi(closes: List[float], period: int = 14) -> float:
-    """Relative Strength Index."""
+    """Relative Strength Index with Wilder's Smoothing."""
     if len(closes) < period + 1:
         return 50.0
-    
+
     gains = []
     losses = []
     
@@ -201,22 +201,25 @@ def _rsi(closes: List[float], period: int = 14) -> float:
         change = closes[i] - closes[i-1]
         if change > 0:
             gains.append(change)
-            losses.append(0)
+            losses.append(0.0)
         else:
-            gains.append(0)
+            gains.append(0.0)
             losses.append(abs(change))
+            
+    # Calculate first average gain and loss (SMA for the first 'period' elements)
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
     
-    if len(gains) < period:
-        return 50.0
-    
-    avg_gain = sum(gains[-period:]) / period
-    avg_loss = sum(losses[-period:]) / period
-    
-    if avg_loss == 0:
-        return 100.0
-    
+    # Calculate Wilder's smoothed average for subsequent elements
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        
+    if avg_loss == 0.0:
+        return 100.0 if avg_gain > 0.0 else 50.0
+        
     rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
+    return 100.0 - (100.0 / (1.0 + rs))
 
 
 def _get_momentum_bucket(change_pct: float) -> str:

@@ -18,6 +18,9 @@ def test_refresh():
         # Let's try to find a valid token from another request in logs? No.
         # I'll temporarily disable auth AGAIN but more thoroughly or use a mock user.
         print("This test requires authentication. I will check logs instead after user refresh.")
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     test_refresh()
+

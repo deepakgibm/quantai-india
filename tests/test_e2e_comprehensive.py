@@ -546,6 +546,29 @@ class TestQuantWorkspace:
         assert r.status_code != 500, f"Unexpected 500: {r.text[:200]}"
         print(f"  ✓ Missing strategy_id uses default correctly ({r.status_code})")
 
+    def test_quant_batch_execution(self):
+        payload = {
+            "symbols": ["RELIANCE", "TCS"],
+            "timeframe": "1D",
+            "strategy_id": "ma_crossover",
+            "start_date": "2023-01-01",
+            "end_date": "2024-01-01",
+            "initial_capital": 100000,
+            "risk_mode": "percent_capital",
+            "risk_percent": 2.0,
+            "execution_type": "vectorized",
+            "strategy_params": {"fast_period": 20, "slow_period": 50},
+        }
+        r = post("/api/v1/quant/run", payload)
+        assert_ok(r, "quant_batch_backtest")
+        data = r.json()
+        assert "batch_results" in data
+        assert "RELIANCE" in data["batch_results"]
+        assert "TCS" in data["batch_results"]
+        assert data["batch_results"]["RELIANCE"]["success"] is True
+        assert data["batch_results"]["TCS"]["success"] is True
+        print("  ✓ Batch backtest execution verified successfully")
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # 8. OPTION FLOW ANALYTICS

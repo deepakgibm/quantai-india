@@ -22,25 +22,36 @@ def create_error_response(
     status_code: int,
     code: str,
     message: str,
-    details: Optional[List[Dict[str, Any]]] = None
+    details: Optional[Any] = None,
+    service: str = "quantai-backend"
 ) -> JSONResponse:
     """
-    Creates a standardized JSON error response.
+    Creates a standardized JSON error response with the requested structured schema:
+    {
+        "success": false,
+        "service": "...",
+        "error_code": "...",
+        "message": "...",
+        "details": "..."
+    }
     """
-    try:
-        from core.observability.correlation import get_correlation_id
-        request_id = get_correlation_id()
-    except ImportError:
-        request_id = None
+    details_str = ""
+    if details:
+        if isinstance(details, str):
+            details_str = details
+        else:
+            import json
+            try:
+                details_str = json.dumps(details)
+            except:
+                details_str = str(details)
 
     content = {
         "success": False,
-        "error": {
-            "code": code,
-            "message": message,
-            "request_id": request_id,  # Include correlation ID for debugging
-            "details": details or []
-        }
+        "service": service,
+        "error_code": code,
+        "message": message,
+        "details": details_str
     }
     return JSONResponse(status_code=status_code, content=content)
 
@@ -51,7 +62,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """
     details = []
     for error in exc.errors():
-        # Clean up location
         loc = error.get("loc", [])
         field_name = " -> ".join([str(x) for x in loc]) if loc else "unknown"
         
@@ -68,6 +78,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         message="Request validation failed",
         details=details
     )
+
 class APIError(Exception):
     """Base class for API errors."""
     def __init__(self, code: str, message: str, status_code: int = 400, details: Any = None):
@@ -97,11 +108,13 @@ async def api_error_handler(request: Request, exc: APIError):
 async def generic_exception_handler(request: Request, exc: Exception):
     """Fallback handler for unhandled exceptions."""
     import logging
+    import traceback
     logger = logging.getLogger(__name__)
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    tb = traceback.format_exc()
+    logger.error(f"Unhandled exception: {exc}\n{tb}")
     return create_error_response(
         status_code=500,
         code="INTERNAL_SERVER_ERROR",
         message="An unexpected error occurred. Please contact support.",
-        details=[{"error": str(exc)}] # Only for dev/debugging, maybe remove details in prod
+        details=tb
     )

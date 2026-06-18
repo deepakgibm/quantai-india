@@ -76,28 +76,42 @@ class Nifty100DailyUpdater:
                 print(f"  No new data for {symbol}")
                 return
 
-            inserted = 0
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+            import pandas as pd
+
+            dialect_name = session.bind.dialect.name
+            insert_fn = pg_insert if dialect_name == "postgresql" else sqlite_insert
+
+            values_list = []
             for _, row in df.iterrows():
-                record = Nifty100Daily(
-                    symbol=symbol,
-                    timestamp=row['timestamp'],
-                    open=row['open'],
-                    high=row['high'],
-                    low=row['low'],
-                    close=row['close'],
-                    volume=row['volume'],
-                    source="upstox"
-                )
-                try:
-                    session.add(record)
-                    await session.flush()
-                    inserted += 1
-                except IntegrityError:
-                    await session.rollback()
+                ts = row['timestamp']
+                if hasattr(ts, "to_pydatetime"):
+                    ts = ts.to_pydatetime()
+                if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
+                    ts = ts.replace(tzinfo=None)
+                
+                values_list.append({
+                    "symbol": symbol,
+                    "timestamp": ts,
+                    "open": float(row['open']),
+                    "high": float(row['high']),
+                    "low": float(row['low']),
+                    "close": float(row['close']),
+                    "volume": int(row['volume']),
+                    "source": "upstox"
+                })
+
+            inserted = 0
+            if values_list:
+                stmt = insert_fn(Nifty100Daily).values(values_list)
+                stmt = stmt.on_conflict_do_nothing(index_elements=['symbol', 'timestamp'])
+                res = await session.execute(stmt)
+                await session.commit()
+                inserted = res.rowcount if res.rowcount is not None and res.rowcount >= 0 else len(values_list)
             
-            await session.commit()
             if inserted > 0:
-                print(f"  ✓ {symbol}: Added {inserted} new records")
+                print(f"  ✓ {symbol}: Added/processed {inserted} records")
                 self.stats["updated"] += 1
                 self.stats["records_inserted"] += inserted
             else:

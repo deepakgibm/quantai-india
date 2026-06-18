@@ -18,6 +18,8 @@ celery_app = Celery(
         "tasks.backtest_tasks",
         "tasks.institutional_tasks",
         "tasks.bot_tasks",
+        "tasks.scanner_tasks",
+        "tasks.hp_scanner_tasks",
     ],
 )
 

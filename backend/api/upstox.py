@@ -7,7 +7,12 @@ from schemas import UpstoxAuthResponse, UpstoxCallback, UpstoxTokenResponse
 from utils.auth import get_current_user
 from config import settings
 
-router = APIRouter()
+from utils.rate_limit import rate_limit
+
+router = APIRouter(
+    tags=["Upstox Integrations"],
+    dependencies=[Depends(rate_limit(60, 60, "upstox"))]
+)
 
 @router.get("/status")
 async def get_upstox_status():

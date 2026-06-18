@@ -68,30 +68,44 @@ class HistoricalLoader:
             if df is None or df.empty:
                 return 0
 
-            inserted_count = 0
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+            dialect_name = session.bind.dialect.name
+            insert_fn = pg_insert if dialect_name == "postgresql" else sqlite_insert
+
+            values_list = []
             for _, row in df.iterrows():
-                stock_candle = StockCandle(
-                    instrument_id=instrument_id,
-                    candle_ts=row["timestamp"].replace(tzinfo=None) if hasattr(row["timestamp"], "replace") else row["timestamp"],
-                    open=float(row["open"]),
-                    high=float(row["high"]),
-                    low=float(row["low"]),
-                    close=float(row["close"]),
-                    volume=int(row["volume"]),
-                    timeframe=1440,  # 1day
-                )
-                try:
-                    session.add(stock_candle)
-                    await session.flush()
-                    inserted_count += 1
-                except IntegrityError:
-                    await session.rollback()
-                    self.stats["skipped"] += 1
-                    continue
+                ts = row["timestamp"]
+                if hasattr(ts, "to_pydatetime"):
+                    ts = ts.to_pydatetime()
+                if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
+                    ts = ts.replace(tzinfo=None)
+                elif hasattr(ts, "replace"):
+                    ts = ts.replace(tzinfo=None)
+                
+                values_list.append({
+                    "instrument_id": instrument_id,
+                    "candle_ts": ts,
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": int(row["volume"]),
+                    "timeframe": 1440
+                })
+
+            inserted_count = 0
+            if values_list:
+                stmt = insert_fn(StockCandle).values(values_list)
+                stmt = stmt.on_conflict_do_nothing(index_elements=['instrument_id', 'timeframe', 'candle_ts'])
+                res = await session.execute(stmt)
+                await session.commit()
+                inserted_count = res.rowcount if res.rowcount is not None and res.rowcount >= 0 else len(values_list)
 
             self.stats["inserted"] += inserted_count
             self.stats["total_records"] += len(df)
-            print(f"  [OK] {symbol}: Inserted {inserted_count}/{len(df)} records")
+            print(f"  [OK] {symbol}: Inserted/processed {inserted_count}/{len(df)} records")
             return inserted_count
         except Exception as e:
             print(f"  [X] {symbol}: Error - {e}")

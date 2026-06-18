@@ -25,15 +25,19 @@ from core.quant_engine.adapters.legacy_adapter import LegacyStrategyAdapter
 from core.backtest.strategies_impl import StrategyRegistry as CoreStrategyRegistry
 from experiment_lab.registry import StrategyRegistry as LabStrategyRegistry, STRATEGY_CATALOG
 
+from utils.rate_limit import rate_limit
+
 router = APIRouter(
-    tags=["Unified Quant Workspace"]
+    tags=["Unified Quant Workspace"],
+    dependencies=[Depends(rate_limit(120, 60, "quant_workspace"))]
 )
 
 
 # ==================== Request/Response Models ====================
 
 class QuantRunRequest(BaseModel):
-    symbol: str = Field(..., description="Stock symbol (e.g. RELIANCE)")
+    symbol: Optional[str] = Field(None, description="Stock symbol (e.g. RELIANCE)")
+    symbols: Optional[List[str]] = Field(None, description="List of stock symbols for batch backtesting")
     timeframe: str = Field("1D", description="Timeframe: 5m, 15m, 1H, 1D")
     strategy_id: Optional[str] = Field(None, description="Legacy standard strategy name or Experiment Lab integer ID")
     start_date: str = Field(None, description="Start date (YYYY-MM-DD)")
@@ -133,12 +137,13 @@ async def run_quant_backtest(
 ):
     """
     Run backtest on Unified Quant Engine (Layer 1 Vectorized or Layer 2 Event-Driven).
+    Supports single symbol execution (compatible with legacy format) or batch symbols execution.
     """
     # 1. Resolve strategy
     strat_id = request.strategy_id or "ma_crossover"
     strategy = resolve_unified_strategy(strat_id, request.strategy_params)
 
-    # 2. Load historical market data
+    # 2. Set dates
     end_date = request.end_date or datetime.now().strftime("%Y-%m-%d")
     start_date = request.start_date or (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
@@ -146,13 +151,76 @@ async def run_quant_backtest(
     if request.initial_capital <= 0:
         raise HTTPException(status_code=422, detail="initial_capital must be greater than 0.")
 
+    # 3. Batch symbols execution if symbols is provided
+    if request.symbols and len(request.symbols) > 0:
+        results = {}
+        data_engine = get_market_data_engine()
+        for sym in request.symbols:
+            try:
+                df = data_engine.load_candles(sym, request.timeframe, start_date, end_date)
+                if df.empty:
+                    results[sym] = {"success": False, "error": f"No historical candles found for symbol: {sym}"}
+                    continue
+
+                if request.execution_type == "vectorized":
+                    engine = VectorizedExecutionEngine(request.initial_capital)
+                    result = engine.run(strategy, df)
+                else:
+                    engine = EventDrivenExecutionEngine(request.initial_capital)
+                    result = engine.run(
+                        strategy=strategy,
+                        df=df,
+                        risk_pct=request.risk_percent,
+                        risk_mode=request.risk_mode
+                    )
+
+                # Re-format output timestamps for Recharts compatibility
+                recharts_equity = []
+                for i, eq in enumerate(result["equity_curve"]):
+                    if i < len(df):
+                        try:
+                            ts_raw = df["timestamp"].iloc[i]
+                            ts = pd.Timestamp(ts_raw).date().isoformat()
+                        except Exception:
+                            ts = str(i)
+                        recharts_equity.append({"date": ts, "equity": round(float(eq), 2)})
+
+                result["equity_curve_recharts"] = recharts_equity
+                # Ensure trades have JSON-serializable timestamps
+                for t in result.get("trades", []):
+                    for k in ("entry_time", "exit_time"):
+                        if t.get(k) is not None:
+                            try:
+                                t[k] = str(pd.Timestamp(t[k]))
+                            except Exception:
+                                t[k] = str(t[k])
+
+                results[sym] = {
+                    "success": True,
+                    "metrics": result
+                }
+            except Exception as e:
+                results[sym] = {"success": False, "error": str(e)}
+
+        return {
+            "success": True,
+            "symbols": request.symbols,
+            "timeframe": request.timeframe,
+            "strategy": strat_id,
+            "execution_type": request.execution_type,
+            "batch_results": results
+        }
+
+    # 4. Fallback to single symbol execution
+    if not request.symbol:
+        raise HTTPException(status_code=400, detail="Either symbol or symbols must be provided.")
+
     data_engine = get_market_data_engine()
     df = data_engine.load_candles(request.symbol, request.timeframe, start_date, end_date)
 
     if df.empty:
         raise HTTPException(status_code=404, detail=f"No historical candles found for symbol: {request.symbol}")
 
-    # 3. Run execution engine
     try:
         if request.execution_type == "vectorized":
             engine = VectorizedExecutionEngine(request.initial_capital)
@@ -165,19 +233,18 @@ async def run_quant_backtest(
                 risk_pct=request.risk_percent,
                 risk_mode=request.risk_mode
             )
-            
+
         # Re-format output timestamps for Recharts compatibility
         recharts_equity = []
         for i, eq in enumerate(result["equity_curve"]):
             if i < len(df):
                 try:
                     ts_raw = df["timestamp"].iloc[i]
-                    # Safely convert any timestamp type (numpy.datetime64, pd.Timestamp, str)
                     ts = pd.Timestamp(ts_raw).date().isoformat()
                 except Exception:
                     ts = str(i)
                 recharts_equity.append({"date": ts, "equity": round(float(eq), 2)})
-                
+
         result["equity_curve_recharts"] = recharts_equity
         # Ensure trades have JSON-serializable timestamps
         for t in result.get("trades", []):

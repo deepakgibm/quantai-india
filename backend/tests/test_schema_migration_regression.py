@@ -78,7 +78,8 @@ def auth_token(api_client):
             json={
                 "email": "test@quantai.com",
                 "password": "test123",
-                "name": "Test User"
+                "username": "testuser",
+                "full_name": "Test User"
             },
             timeout=REQUEST_TIMEOUT
         )
@@ -565,7 +566,7 @@ class TestSchemaRegression:
         timeframes = data.get("timeframes", {})
         
         # Should have converted numeric minute keys to readable format
-        valid_keys = {"1d", "1h", "30m", "15m", "5m", "1440m", "60m"}
+        valid_keys = {"1d", "1h", "30m", "15m", "5m", "3m", "1m", "1440m", "60m"}
         for key in timeframes.keys():
             # Accept both formats during transition
             assert any(v in key for v in valid_keys) or key.isdigit(), \
@@ -655,6 +656,28 @@ class TestPerformance:
             "< 100ms",
             ""
         )
+
+    def test_prometheus_metrics(self, api_client):
+        """Root /metrics endpoint should expose Prometheus telemetry."""
+        start = time.time()
+        response = api_client.get(
+            f"{BASE_URL}/metrics",
+            timeout=REQUEST_TIMEOUT
+        )
+        elapsed_ms = (time.time() - start) * 1000
+        
+        assert response.status_code == 200
+        # Check that it returns Prometheus formatted metrics
+        assert b"quantai_" in response.content or b"process_" in response.content or b"python_" in response.content or b"http_" in response.content
+        
+        test_results.add(
+            "Telemetry: /metrics",
+            "PASS",
+            elapsed_ms,
+            "Exposes Prometheus metrics",
+            ""
+        )
+
 
 
 # =============================================================================

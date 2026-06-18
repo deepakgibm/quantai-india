@@ -31,6 +31,13 @@ import {
 } from 'recharts';
 import { apiGet, apiPost, apiRequest, API_URL, getAuthHeaders } from '../services/api';
 import { Page } from '../types';
+import {
+  useWatchlistQuery,
+  useWatchlistPerformanceQuery,
+  useWatchlistAnalyticsQuery,
+  useAddWatchlistItemMutation,
+  useRemoveWatchlistItemMutation
+} from '../hooks/useApi';
 
 interface WatchlistItem {
   id: number;
@@ -78,14 +85,40 @@ interface WatchlistProps {
 const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
   // Config & State
   const [virtualInvestment, setVirtualInvestment] = useState<number>(10000);
-  const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([]);
-  const [performance, setPerformance] = useState<PerformanceData | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  
-  // Loading & Error States
-  const [loading, setLoading] = useState<boolean>(true);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // React Query Hooks
+  const {
+    data: watchlistItems = [],
+    isLoading: watchlistLoading,
+    isFetching: watchlistFetching,
+    error: watchlistError,
+    refetch: refetchWatchlist
+  } = useWatchlistQuery();
+
+  const {
+    data: performance,
+    isLoading: perfLoading,
+    isFetching: perfFetching,
+    error: perfError,
+    refetch: refetchPerf
+  } = useWatchlistPerformanceQuery(virtualInvestment);
+
+  const {
+    data: analytics,
+    isLoading: analyticsLoading,
+    isFetching: analyticsFetching,
+    error: analyticsError,
+    refetch: refetchAnalytics
+  } = useWatchlistAnalyticsQuery(virtualInvestment);
+
+  const addMutation = useAddWatchlistItemMutation();
+  const removeMutation = useRemoveWatchlistItemMutation();
+
+  const loading = watchlistLoading || perfLoading || analyticsLoading;
+  const refreshing = watchlistFetching || perfFetching || analyticsFetching;
+  const error = (watchlistError || perfError || analyticsError)
+    ? ((watchlistError?.message || perfError?.message || analyticsError?.message || 'Sync Error') as string)
+    : null;
 
   // Add Item Form State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -93,43 +126,18 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
   const [searching, setSearching] = useState<boolean>(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [customPrice, setCustomPrice] = useState<string>('');
-  const [adding, setAdding] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Fetch all Watchlist data
+  const adding = addMutation.isPending;
+
+  // Fetch all Watchlist data (manual trigger alias)
   const fetchData = async (isSilent: boolean = false) => {
-    if (!isSilent) setLoading(true);
-    else setRefreshing(true);
-    setError(null);
-
-    try {
-      // 1. Fetch Watchlist items
-      const itemsRes = await apiGet<WatchlistItem[]>('/api/watchlist');
-      if (itemsRes.success) {
-        setWatchlistItems(itemsRes.data);
-      } else {
-        throw new Error(itemsRes.error.message || 'Failed to fetch watchlist symbols.');
-      }
-
-      // 2. Fetch Performance & Analytics (pass virtualInvestment)
-      const perfRes = await apiGet<PerformanceData>(`/api/watchlist/performance?virtualInvestment=${virtualInvestment}`);
-      const analyticsRes = await apiGet<AnalyticsData>(`/api/watchlist/analytics?virtualInvestment=${virtualInvestment}`);
-      
-      if (perfRes.success) setPerformance(perfRes.data);
-      if (analyticsRes.success) setAnalytics(analyticsRes.data);
-
-    } catch (e: any) {
-      setError(e.message || 'Error communicating with backend watchlist service.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    await Promise.all([
+      refetchWatchlist(),
+      refetchPerf(),
+      refetchAnalytics()
+    ]);
   };
-
-  // Trigger fetch on load & whenever virtualInvestment changes
-  useEffect(() => {
-    fetchData();
-  }, [virtualInvestment]);
 
   // Handle Search input change
   useEffect(() => {
@@ -159,7 +167,6 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
     e.preventDefault();
     if (!selectedSymbol) return;
     
-    setAdding(true);
     setFormError(null);
 
     try {
@@ -168,22 +175,15 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
         payload.watchlist_price = parseFloat(customPrice);
       }
 
-      const res = await apiPost<WatchlistItem>('/api/watchlist', payload);
-      if (res.success) {
-        // Reset form
-        setSearchQuery('');
-        setSelectedSymbol('');
-        setCustomPrice('');
-        setSearchResults([]);
-        // Refresh dashboard
-        fetchData(true);
-      } else {
-        setFormError(res.error.message || 'Symbol already added or invalid.');
-      }
+      await addMutation.mutateAsync(payload);
+      
+      // Reset form
+      setSearchQuery('');
+      setSelectedSymbol('');
+      setCustomPrice('');
+      setSearchResults([]);
     } catch (err: any) {
       setFormError(err.message || 'Error adding symbol to watchlist.');
-    } finally {
-      setAdding(false);
     }
   };
 
@@ -192,16 +192,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
     if (!window.confirm(`Are you sure you want to remove ${symbol} from your watchlist?`)) return;
 
     try {
-      // Using generic apiRequest for DELETE
-      const res = await apiRequest<{ status: string }>(
-        `${API_URL}/api/watchlist/${symbol}`,
-        { method: 'DELETE', headers: getAuthHeaders() }
-      );
-      if (res.success) {
-        fetchData(true);
-      } else {
-        alert(res.error.message || 'Failed to remove stock.');
-      }
+      await removeMutation.mutateAsync(symbol);
     } catch (e: any) {
       alert(e.message || 'Error occurred while deleting.');
     }

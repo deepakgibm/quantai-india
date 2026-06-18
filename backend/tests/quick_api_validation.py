@@ -110,7 +110,7 @@ def main():
         (f"{BASE_URL}/api/scanner/timeframes", "Scanner Timeframes"),
         (f"{BASE_URL}/api/scanner/momentum", "Scanner Momentum"),
         (f"{BASE_URL}/api/scanner/week52-breakouts", "Week52 Breakouts"),
-        (f"{BASE_URL}/api/quant-bot/symbols", "QuantBot Symbols"),
+        (f"{BASE_URL}/api/bot/scheduler-status", "Bot Scheduler Status"),
     ]
     
     print(f"\n[2] Testing {len(endpoints)} API endpoints...")

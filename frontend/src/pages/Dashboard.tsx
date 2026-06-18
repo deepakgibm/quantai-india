@@ -22,6 +22,132 @@ interface DashboardProps {
    onNavigate: (page: Page) => void;
 }
 
+const MarketOverviewWidget: React.FC = memo(() => {
+   const [indices, setIndices] = useState([
+      { name: 'NIFTY 50', value: 0, change: 0, percent: 0, loading: true },
+      { name: 'BANK NIFTY', value: 0, change: 0, percent: 0, loading: true },
+      { name: 'INDIA VIX', value: 0, change: 0, percent: 0, loading: true },
+   ]);
+
+   const { isConnected, indices: wsIndices } = useMarketDataStream();
+
+   useEffect(() => {
+      if (wsIndices.length > 0) {
+         setIndices(prev => {
+            return wsIndices.map(wsIdx => {
+               if (!wsIdx.value && prev) {
+                  const existing = prev.find(p => p.name === wsIdx.name);
+                  return existing || wsIdx;
+               }
+               return wsIdx;
+            });
+         });
+      }
+   }, [wsIndices]);
+
+   useEffect(() => {
+      let pollInterval: NodeJS.Timeout | null = null;
+      const fetchIndices = async () => {
+         if (isConnected) return;
+         try {
+            const response = await api.getMarketIndices();
+            if (response && Array.isArray(response)) {
+               setIndices(prev => {
+                  return response.map((newIdx: any) => {
+                     const existing = prev.find(p => p.name === newIdx.name);
+                     if (!newIdx.value || newIdx.value === 0) {
+                        return existing || newIdx;
+                     }
+                     return newIdx;
+                  });
+               });
+            }
+         } catch (e) {
+            console.error('Failed to poll indices in widget:', e);
+         }
+      };
+
+      if (!isConnected) {
+         fetchIndices();
+         pollInterval = setInterval(fetchIndices, 10000);
+      }
+      return () => {
+         if (pollInterval) clearInterval(pollInterval);
+      };
+   }, [isConnected]);
+
+   return (
+      <div className="col-span-1 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
+         {/* Header */}
+         <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+               <h3 className="font-bold text-slate-800 dark:text-white tracking-wide">Market Overview</h3>
+            </div>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+               {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+         </div>
+
+         {/* Index Cards */}
+         <div className="space-y-3 flex-1">
+            {indices.map((idx) => {
+               const isPositive = idx.percent >= 0;
+               const isVIX = idx.name === 'INDIA VIX';
+
+               return (
+                  <div
+                     key={idx.name}
+                     className="relative overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/30 p-4 hover:border-slate-200 dark:hover:border-slate-600/50 hover:shadow-sm transition-all cursor-pointer group"
+                  >
+                     <div className={`absolute left-0 top-0 bottom-0 w-1 ${isVIX
+                        ? 'bg-amber-500'
+                        : isPositive
+                           ? 'bg-green-500'
+                           : 'bg-red-500'
+                        }`}></div>
+
+                     <div className="flex items-center justify-between pl-3">
+                        <div>
+                           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider mb-1">
+                              {idx.name}
+                           </p>
+                           {idx.value === 0 ? (
+                              <div className="h-6 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                           ) : (
+                              <p className="text-xl font-bold text-slate-900 dark:text-white font-mono">
+                                 {idx.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                              </p>
+                           )}
+                        </div>
+
+                        <div className="text-right">
+                           {idx.value !== 0 && (
+                              <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg ${isVIX
+                                 ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                 : isPositive
+                                    ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400'
+                                    : 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400'
+                                 }`}>
+                                 {!isVIX && (
+                                    <span className="text-xs">
+                                       {isPositive ? '▲' : '▼'}
+                                    </span>
+                                 )}
+                                 <span className="text-sm font-bold font-mono">
+                                    {isPositive ? '+' : ''}{idx.percent.toFixed(2)}%
+                                 </span>
+                              </div>
+                           )}
+                        </div>
+                     </div>
+                  </div>
+               );
+            })}
+         </div>
+      </div>
+   );
+});
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
    const { selectedSymbol, selectedDays } = useGlobalSymbol();
@@ -212,70 +338,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       { id: '9', name: 'S/R Bounces', description: 'Detects price bouncing off key support/resistance levels', active: false, performance: null },
    ]);
 
-   const [indices, setIndices] = useState([
-      { name: 'NIFTY 50', value: 0, change: 0, percent: 0, loading: true },
-      { name: 'BANK NIFTY', value: 0, change: 0, percent: 0, loading: true },
-      { name: 'INDIA VIX', value: 0, change: 0, percent: 0, loading: true },
-   ]);
-
-
-   // Custom hook for WebSocket management
-   const { isConnected, indices: wsIndices } = useMarketDataStream();
-
-   // Merge WS data with local state for robust fallback
-   useEffect(() => {
-      if (wsIndices.length > 0) {
-         setIndices(prev => {
-            // Priority: WS Data > Existing State
-            return wsIndices.map(wsIdx => {
-               // If WS sends 0, try to keep existing legitimate value
-               if (!wsIdx.value && prev) {
-                  const existing = prev.find(p => p.name === wsIdx.name);
-                  return existing || wsIdx;
-               }
-               return wsIdx;
-            });
-         });
-      }
-   }, [wsIndices]);
-
-   // Fallback Polling using API (Only runs if WS is disconnected)
-   useEffect(() => {
-      let pollInterval: NodeJS.Timeout | null = null;
-
-      const fetchIndices = async () => {
-         // Don't fetch if WS is connected and healthy
-         if (isConnected) return;
-
-         try {
-            const response = await api.getMarketIndices();
-            if (response && Array.isArray(response)) {
-               setIndices(prev => {
-                  return response.map((newIdx: any) => {
-                     const existing = prev.find(p => p.name === newIdx.name);
-                     if (!newIdx.value || newIdx.value === 0) {
-                        return existing || newIdx;
-                     }
-                     return newIdx;
-                  });
-               });
-            }
-         } catch (e) {
-            console.error('Failed to poll indices:', e);
-         }
-      };
-
-      // Initial fetch if not connected
-      if (!isConnected) {
-         fetchIndices();
-         // Poll every 10 seconds
-         pollInterval = setInterval(fetchIndices, 10000);
-      }
-
-      return () => {
-         if (pollInterval) clearInterval(pollInterval);
-      };
-   }, [isConnected]); // Re-run effect when connection status changes
+   // indices state and custom WebSockets polling moved to memoized sub-component MarketOverviewWidget
 
    // Fetch engine performance once at startup
    useEffect(() => {
@@ -779,76 +842,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
 
             {/* Market Overview - Premium Light Design */}
-            <div className="col-span-1 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
-               {/* Header */}
-               <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-2">
-                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                     <h3 className="font-bold text-slate-800 dark:text-white tracking-wide">Market Overview</h3>
-                  </div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                     {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-               </div>
-
-               {/* Index Cards */}
-               <div className="space-y-3 flex-1">
-                  {indices.map((idx) => {
-                     const isPositive = idx.percent >= 0;
-                     const isVIX = idx.name === 'INDIA VIX';
-
-                     return (
-                        <div
-                           key={idx.name}
-                           className="relative overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/30 p-4 hover:border-slate-200 dark:hover:border-slate-600/50 hover:shadow-sm transition-all cursor-pointer group"
-                        >
-                           {/* Accent bar */}
-                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${isVIX
-                              ? 'bg-amber-500'
-                              : isPositive
-                                 ? 'bg-green-500'
-                                 : 'bg-red-500'
-                              }`}></div>
-
-                           <div className="flex items-center justify-between pl-3">
-                              <div>
-                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider mb-1">
-                                    {idx.name}
-                                 </p>
-                                 {idx.value === 0 ? (
-                                    <div className="h-6 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
-                                 ) : (
-                                    <p className="text-xl font-bold text-slate-900 dark:text-white font-mono">
-                                       {idx.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                                    </p>
-                                 )}
-                              </div>
-
-                              <div className="text-right">
-                                 {idx.value !== 0 && (
-                                    <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg ${isVIX
-                                       ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                                       : isPositive
-                                          ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400'
-                                          : 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400'
-                                       }`}>
-                                       {!isVIX && (
-                                          <span className="text-xs">
-                                             {isPositive ? '▲' : '▼'}
-                                          </span>
-                                       )}
-                                       <span className="text-sm font-bold font-mono">
-                                          {isPositive ? '+' : ''}{idx.percent.toFixed(2)}%
-                                       </span>
-                                    </div>
-                                 )}
-                              </div>
-                           </div>
-                        </div>
-                     );
-                  })}
-               </div>
-            </div>
+            {/* Market Overview - Premium Light Design */}
+            <MarketOverviewWidget />
 
 
          </div>
