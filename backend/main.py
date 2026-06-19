@@ -99,6 +99,11 @@ from api.saas_router import router as saas_router
 from api.watchlist import router as watchlist_router
 from api.metrics import router as metrics_router
 from api.system import router as system_router
+from api.v1.quant_workspace import router as quant_workspace_router
+from api.algorithms import router as algorithms_router
+from api.orders import router as orders_router
+from api.risk import router as risk_router
+from api.settings import router as settings_router
 
 
 # 6. Unified API Registration (Flattened for Reliability)
@@ -110,6 +115,7 @@ app.include_router(scanner_router, prefix="/api/scanner", tags=["Standard Scanne
 app.include_router(trading_router, prefix="/api/trading", tags=["Trading Operations"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Performance Analytics"])
 app.include_router(ai_router, prefix="/api/ai", tags=["AI Engine"])
+app.include_router(quant_workspace_router, prefix="/api/quant", tags=["Quant Workspace"])
 app.include_router(upstox_router, prefix="/api/upstox", tags=["Upstox Broker"])
 app.include_router(engine_router, prefix="/api/engines", tags=["Engine Management"])
 app.include_router(bot_router, prefix="/api/bot", tags=["Signal Bot"])
@@ -124,8 +130,12 @@ app.include_router(sector_analysis_router, prefix="/api/sector-analysis", tags=[
 app.include_router(volume_profile_router, prefix="/api/volume-profile", tags=["Volume Profile"])
 app.include_router(saas_router, prefix="/api/saas", tags=["SaaS Enterprise"])
 app.include_router(watchlist_router, prefix="/api/watchlist", tags=["Watchlist"])
-app.include_router(metrics_router, prefix="/api/metrics", tags=["Metrics"])
+app.include_router(metrics_router, prefix="/api/metrics", tags=["Metrics & Metadata"])
 app.include_router(system_router, prefix="/api/system", tags=["System Diagnostics"])
+app.include_router(algorithms_router, prefix="/api/algorithms", tags=["Algorithms"])
+app.include_router(orders_router, prefix="/api/orders", tags=["Orders"])
+app.include_router(risk_router, prefix="/api/risk", tags=["Risk Settings"])
+app.include_router(settings_router, prefix="/api/settings", tags=["User Settings"])
 
 
 from api.v1 import router as v1_router

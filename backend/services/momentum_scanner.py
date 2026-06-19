@@ -166,41 +166,96 @@ class MomentumScanner:
         
         # 5. Scoring Vectorized
         # ROC Score (40%)
-        # >5 -> 100, >2 -> 80, >0 -> 60, else 30
         roc_score = np.select(
-            [latest_df['roc_10'] > 5, latest_df['roc_10'] > 2, latest_df['roc_10'] > 0],
-            [100, 80, 60],
-            default=30
+            [
+                latest_df['roc_10'] > 5.0,
+                latest_df['roc_10'] > 2.0,
+                (latest_df['roc_10'] >= -1.0) & (latest_df['roc_10'] <= 2.0),
+                latest_df['roc_10'] >= -3.0
+            ],
+            [100, 80, 50, 35],
+            default=10
         )
         
         # MFI Score (30%)
-        # 50 < mfi < 80 -> 90 (Strong)
-        # mfi >= 80 -> 50 (Overbought)
-        # else -> 40
         mfi = latest_df['mfi']
         mfi_score = np.select(
-            [(mfi > 50) & (mfi < 80), mfi >= 80],
-            [90, 50],
-            default=40
+            [
+                (mfi > 50) & (mfi < 80),
+                (mfi >= 35) & (mfi <= 50),
+                (mfi >= 20) & (mfi < 35),
+                mfi < 20
+            ],
+            [90, 50, 35, 10],
+            default=40  # overbought
         )
         
         # Trend Score (30%)
-        # roc10 > 0 and roc20 > 0 -> 90
-        # roc10 > 0 -> 60
-        # else 30
         trend_score = np.select(
-            [(latest_df['roc_10'] > 0) & (latest_df['roc_20'] > 0), latest_df['roc_10'] > 0],
-            [90, 60],
-            default=30
+            [
+                (latest_df['roc_10'] > 0) & (latest_df['roc_20'] > 0),
+                (latest_df['roc_10'] > 0) | (latest_df['roc_20'] > 0),
+                (latest_df['roc_10'] < 0) & (latest_df['roc_20'] < 0),
+                (latest_df['roc_10'] < 0) | (latest_df['roc_20'] < 0)
+            ],
+            [90, 70, 10, 35],
+            default=50
         )
         
         # Total Weighted Score
         total_score = (roc_score * 0.4) + (mfi_score * 0.3) + (trend_score * 0.3)
         latest_df['score'] = total_score
         
-        # Filter & Sort
-        # Filter & Sort - Get top stocks regardless of threshold to ensure data
-        momentum_stocks = latest_df.sort_values('score', ascending=False).head(limit)
+        # Balanced Selection: ensure all 5 buckets are represented
+        sb_df = latest_df[latest_df['score'] >= 80].sort_values('score', ascending=False)
+        mb_df = latest_df[(latest_df['score'] >= 60) & (latest_df['score'] < 80)].sort_values('score', ascending=False)
+        neut_df = latest_df[(latest_df['score'] >= 40) & (latest_df['score'] < 60)].copy()
+        neut_df['dist_to_50'] = (neut_df['score'] - 50).abs()
+        neut_df = neut_df.sort_values('dist_to_50', ascending=True)
+        mbe_df = latest_df[(latest_df['score'] >= 30) & (latest_df['score'] < 40)].sort_values('score', ascending=True)
+        sbe_df = latest_df[latest_df['score'] < 30].sort_values('score', ascending=True)
+        
+        # We will keep track of how many we select from each bucket dataframe
+        dfs = {
+            "STRONG_BULLISH": sb_df,
+            "MODERATE_BULLISH": mb_df,
+            "NEUTRAL": neut_df,
+            "MODERATE_BEARISH": mbe_df,
+            "STRONG_BEARISH": sbe_df
+        }
+        
+        selected_dfs = {k: pd.DataFrame() for k in dfs}
+        
+        # Round-robin selection to distribute up to 'limit'
+        remaining_limit = limit
+        active_buckets = list(dfs.keys())
+        
+        while remaining_limit > 0 and active_buckets:
+            alloc = max(1, remaining_limit // len(active_buckets))
+            next_active = []
+            
+            for b in active_buckets:
+                df = dfs[b]
+                current_selected = selected_dfs[b]
+                current_len = len(current_selected)
+                available = len(df) - current_len
+                
+                if available > 0:
+                    take = min(alloc, available, remaining_limit)
+                    chunk = df.iloc[current_len : current_len + take]
+                    selected_dfs[b] = pd.concat([selected_dfs[b], chunk])
+                    remaining_limit -= len(chunk)
+                    
+                    if len(selected_dfs[b]) < len(df) and remaining_limit > 0:
+                        next_active.append(b)
+            
+            if len(active_buckets) == len(next_active) and alloc == 0:
+                break
+                
+            active_buckets = next_active
+            
+        momentum_stocks = pd.concat(selected_dfs.values())
+        momentum_stocks = momentum_stocks.sort_values('score', ascending=False)
         momentum_stocks = momentum_stocks.fillna(0)
         
         t3 = time.time()

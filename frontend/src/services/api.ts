@@ -1005,6 +1005,12 @@ export const api = {
     throw res.error;
   },
 
+  getOptionFlowChart: async (symbol: string, interval: string, lookbackDays: number = 90) => {
+    const res = await apiGet<any>(`/api/option-flow/${symbol}/chart?interval=${interval}&lookback_days=${lookbackDays}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
   getOptionFlowExpiries: async (symbol: string, bypassCache: boolean = false) => {
     let url = `/api/option-flow/${symbol}/expiries`;
     if (bypassCache) {

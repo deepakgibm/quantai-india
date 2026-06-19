@@ -98,7 +98,13 @@ const Week52Breakout: React.FC = () => {
             return;
         }
 
-        const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws`;
+        const getWsUrl = () => {
+            const baseUrl = API_URL || window.location.origin;
+            const proto = baseUrl.startsWith('https') ? 'wss' : 'ws';
+            const host = baseUrl.replace(/^https?:\/\//, '');
+            return `${proto}://${host}/api/scanner/ws`;
+        };
+        const wsUrl = getWsUrl();
         console.log(`Connecting to Breakouts WS: ${wsUrl}`);
 
         try {

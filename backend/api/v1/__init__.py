@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from .quant_workspace import router as quant_workspace_router
 from .walk_forward import router as walk_forward_router
 from .institutional_scanner import router as institutional_scanner_router
+from .experiment_lab import router as experiment_lab_router
 
 # Standard Routers
 from api.auth import router as auth_router
@@ -31,8 +32,10 @@ router = APIRouter()
 
 # v1 Specific Routers
 router.include_router(quant_workspace_router, prefix="/quant")
+router.include_router(quant_workspace_router, prefix="/backtest")
 router.include_router(walk_forward_router, prefix="/walk-forward")
 router.include_router(institutional_scanner_router, prefix="/institutional-scanner")
+router.include_router(experiment_lab_router, prefix="/experiment-lab")
 
 # Mounted standard routers under /api/v1
 router.include_router(health_router, prefix="/health", tags=["Health"])

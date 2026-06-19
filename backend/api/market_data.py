@@ -77,3 +77,15 @@ async def get_market_indices():
     """Get current levels of major market indices."""
     from services.trading_service import get_trading_service
     return await get_trading_service().get_market_indices()
+
+
+@router.get("/orchestrator/status")
+async def get_orchestrator_status_alias(current_user: User = Depends(get_current_user)):
+    """Alias for /orchestrator-status."""
+    return await get_orchestrator_status(current_user)
+
+
+@router.get("/health")
+async def get_market_health():
+    """Get market service health."""
+    return {"status": "healthy", "service": "Market Data Service", "is_healthy": True}

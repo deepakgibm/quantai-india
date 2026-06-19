@@ -1142,72 +1142,281 @@ def detect_smart_money_activity(strikes_list: List[Dict[str, Any]], spot_price: 
     activities = sorted(activities, key=lambda x: severity_order.get(x["severity"], 2))
     return activities[:10]
 
+async def resolve_instrument_key(symbol: str, db: AsyncSession) -> Optional[str]:
+    """Resolves index or equity symbol to its Upstox instrument key."""
+    # 1. Map index symbol first
+    mapped = map_symbol_to_instrument_key(symbol)
+    if mapped:
+        return mapped
+        
+    # 2. Map equity symbol from instrument_master
+    try:
+        query = text("""
+            SELECT instrument_key
+            FROM instrument_master
+            WHERE symbol = :symbol AND is_active = TRUE
+            LIMIT 1
+        """)
+        res = await db.execute(query, {"symbol": symbol})
+        row = res.fetchone()
+        if row:
+            return row[0]
+    except Exception as e:
+        logger.error(f"Error querying instrument_master for symbol {symbol}: {e}")
+
+    # 3. Fallbacks
+    if "NSE_INDEX" in symbol:
+        return symbol
+    return f"NSE_EQ|{symbol}"
+
+def validate_and_sanitize_candles(df: pd.DataFrame, interval: str) -> pd.DataFrame:
+    """
+    Validates and sanitizes OHLCV candles:
+    - Null values filtering
+    - Duplicate timestamp drop
+    - Future timestamp filtering
+    - Chronological sorting
+    - Market hours validation (for 5m intraday)
+    - Logs rejected records.
+    """
+    if df.empty:
+        return df
+        
+    initial_count = len(df)
+    required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
+    for col in required_cols:
+        if col not in df.columns:
+            logger.error(f"Candle validation failed: missing required column {col}")
+            return pd.DataFrame()
+            
+    # Drop rows with nulls in key fields
+    null_mask = df[required_cols].isnull().any(axis=1)
+    if null_mask.any():
+        rejected_nulls = df[null_mask]
+        logger.warning(f"Rejected {len(rejected_nulls)} candles due to null values: {rejected_nulls['timestamp'].tolist()}")
+        df = df.dropna(subset=required_cols).copy()
+        
+    if df.empty:
+        return df
+        
+    # Ensure types
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    for col in ["open", "high", "low", "close", "volume"]:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+    coerce_null_mask = df[required_cols].isnull().any(axis=1)
+    if coerce_null_mask.any():
+        rejected_coerce = df[coerce_null_mask]
+        logger.warning(f"Rejected {len(rejected_coerce)} candles due to numeric conversion failure: {rejected_coerce['timestamp'].tolist()}")
+        df = df.dropna(subset=required_cols).copy()
+        
+    if df.empty:
+        return df
+    
+    # Sort chronologically
+    df = df.sort_values("timestamp").reset_index(drop=True)
+    
+    # Drop duplicate timestamps
+    dup_mask = df.duplicated(subset=["timestamp"], keep="first")
+    if dup_mask.any():
+        rejected_dups = df[dup_mask]
+        logger.warning(f"Rejected {len(rejected_dups)} duplicate candles: {rejected_dups['timestamp'].tolist()}")
+        df = df.drop_duplicates(subset=["timestamp"], keep="first")
+    
+    # Filter out future timestamps
+    tz = df["timestamp"].dt.tz
+    if tz is not None:
+        now = datetime.now(tz)
+    else:
+        now = datetime.now()
+        
+    future_mask = df["timestamp"] > now
+    if future_mask.any():
+        rejected_future = df[future_mask]
+        logger.warning(f"Rejected {len(rejected_future)} future candles: {rejected_future['timestamp'].tolist()}")
+        df = df[~future_mask]
+    
+    # Filter market hours for intraday (not daily)
+    if interval not in ("1d", "day"):
+        m_start = datetime.strptime("09:15", "%H:%M").time()
+        m_end = datetime.strptime("15:30", "%H:%M").time()
+        
+        # Check market hours
+        within_hours = df["timestamp"].apply(lambda t: m_start <= t.time() <= m_end)
+        if (~within_hours).any():
+            rejected_hours = df[~within_hours]
+            logger.warning(f"Rejected {len(rejected_hours)} candles outside market hours (09:15-15:30): {rejected_hours['timestamp'].tolist()}")
+            df = df[within_hours]
+            
+    final_count = len(df)
+    logger.info(f"Candle validation summary: initial={initial_count}, final={final_count}, rejected={initial_count - final_count}")
+    return df.reset_index(drop=True)
+
+async def load_historical_chart_data(
+    client, symbol: str, instrument_key: str, to_date: datetime, lookback_days: int, interval: str
+) -> pd.DataFrame:
+    """
+    Attempts to load historical candle data from Upstox.
+    Tries requested lookback_days first, and dynamically falls back to smaller ranges
+    on empty responses to guarantee maximum available history is fetched.
+    """
+    actual_lookback = lookback_days if lookback_days > 0 else 90
+    from_date = to_date - timedelta(days=actual_lookback)
+    
+    logger.info(f"[Chart Loader] Attempting to fetch {actual_lookback} days for {symbol} (interval={interval})")
+    df = await client.get_historical_data(
+        symbol=symbol,
+        instrument_key=instrument_key,
+        from_date=from_date,
+        to_date=to_date,
+        interval=interval
+    )
+    if not df.empty:
+        return df
+        
+    # Fallback 1: 30 days
+    if actual_lookback > 30:
+        logger.warning(f"[Chart Loader] Empty response for {actual_lookback} days. Falling back to 30 days for {symbol}")
+        from_date_30 = to_date - timedelta(days=30)
+        df = await client.get_historical_data(
+            symbol=symbol,
+            instrument_key=instrument_key,
+            from_date=from_date_30,
+            to_date=to_date,
+            interval=interval
+        )
+        if not df.empty:
+            return df
+            
+    # Fallback 2: 10 days
+    if actual_lookback > 10:
+        logger.warning(f"[Chart Loader] Empty response for fallback range. Falling back to 10 days for {symbol}")
+        from_date_10 = to_date - timedelta(days=10)
+        df = await client.get_historical_data(
+            symbol=symbol,
+            instrument_key=instrument_key,
+            from_date=from_date_10,
+            to_date=to_date,
+            interval=interval
+        )
+        if not df.empty:
+            return df
+            
+    return pd.DataFrame()
+
 @router.get("/{symbol}/chart")
 async def get_option_flow_chart(
     symbol: str,
     interval: str = Query("1d"),
-    lookback_days: int = Query(60),
+    lookback_days: int = Query(90),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_read_db)
 ):
     """
     Get price candlestick and advanced indicator data for Option Flow terminal charting.
+    Fetches real Upstox Analytics API data, computes indicators, and caches.
     """
     symbol = symbol.upper().strip()
+    interval_clean = interval.lower().strip()
     
+    # Map input interval parameter to Upstox compatible format
+    if interval_clean in ("1d", "day"):
+        upstox_interval = "day"
+    elif interval_clean in ("30m", "30minute"):
+        upstox_interval = "30minute"
+    else:
+        upstox_interval = "1minute"
+    
+    # 1. Cache lookup
+    cache_key = f"option_flow:chart:{symbol}:{interval_clean}:{lookback_days}"
+    from services.dragonfly_client import get_cache
+    cache = get_cache()
+    if cache.is_available():
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                import json
+                return json.loads(cached_data)
+        except Exception as ce:
+            logger.warning(f"Cache read error in option flow chart: {ce}")
+            
+    # 2. Resolve instrument key
+    instrument_key = await resolve_instrument_key(symbol, db)
+    if not instrument_key:
+        raise HTTPException(status_code=400, detail="Unable to resolve symbol to instrument key")
+        
+    # 3. Fetch from Upstox API
     try:
+        from services.upstox_client import get_upstox_client
+        client = get_upstox_client()
+        
+        to_date = datetime.now()
+        df = await load_historical_chart_data(
+            client=client,
+            symbol=symbol,
+            instrument_key=instrument_key,
+            to_date=to_date,
+            lookback_days=lookback_days,
+            interval=upstox_interval
+        )
+        
+        if df.empty:
+            raise HTTPException(status_code=404, detail="No candle data returned from Upstox API")
+            
+        # Resample 1minute candles to 5minute or 15minute if interval is 5m or 15m
+        if interval_clean in ("5m", "5minute", "15m", "15minute"):
+            resample_rule = "5min" if ("5m" in interval_clean or "5minute" in interval_clean) else "15min"
+            
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df = df.sort_values("timestamp")
+            df = df.set_index("timestamp")
+            
+            resampled = df.resample(resample_rule, closed="left", label="left").agg({
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum"
+            }).dropna()
+            
+            resampled = resampled.reset_index()
+            resampled["symbol"] = symbol
+            df = resampled[["symbol", "timestamp", "open", "high", "low", "close", "volume"]]
+            
+        # 4. Validate and Sanitize data quality
+        df = validate_and_sanitize_candles(df, interval_clean)
+        if df.empty or len(df) < 5:  # Require minimum history to avoid errors
+            raise HTTPException(status_code=400, detail="Data validation failed: insufficient valid candle count returned")
+            
+        # 5. Compute indicators using IndicatorComputer
         from services.indicator_compute_service import get_indicator_service
         service = get_indicator_service()
         
-        df = service.get_ohlcv_data(symbol, interval=interval, days=lookback_days)
-        if df.empty:
-            # Generate clean fallback candles if DB is empty
-            import random
-            now = datetime.now()
-            rows = []
-            base_price = 2500.0 if "RELIANCE" in symbol else 22000.0 if "NIFTY" in symbol else 1000.0
-            for i in range(lookback_days, 0, -1):
-                ts = now - timedelta(days=i)
-                change = random.uniform(-0.02, 0.025)
-                open_val = base_price
-                close_val = base_price * (1 + change)
-                high_val = max(open_val, close_val) * (1 + random.uniform(0, 0.01))
-                low_val = min(open_val, close_val) * (1 - random.uniform(0, 0.01))
-                vol_val = random.randint(100000, 5000000)
-                
-                rows.append({
-                    "timestamp": ts,
-                    "open": round(open_val, 2),
-                    "high": round(high_val, 2),
-                    "low": round(low_val, 2),
-                    "close": round(close_val, 2),
-                    "volume": vol_val
-                })
-                base_price = close_val
-                
-            df = pd.DataFrame(rows)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            
+        # Make sure df length is enough for full indicators; if slightly below 30, use fallback indicator computation
         indicators_df = service._computer.compute_all_indicators(df)
         if indicators_df.empty:
+            # Fallback computations if length is short (e.g. initial start)
             indicators_df = df.copy()
             indicators_df['ema_20'] = indicators_df['close'].ewm(span=20, adjust=False).mean()
             indicators_df['ema_50'] = indicators_df['close'].ewm(span=50, adjust=False).mean()
             indicators_df['vwap'] = indicators_df['close']
             
+        # 6. Recalculate support & resistance zones
         closes = indicators_df['close'].values
         pivots_support = []
         pivots_resistance = []
         
-        for i in range(5, len(closes) - 5):
-            if closes[i] == min(closes[i-5:i+6]):
+        # Scan for pivot points
+        for i in range(2, len(closes) - 2):
+            if closes[i] == min(closes[i-2:i+3]):
                 pivots_support.append(float(closes[i]))
-            if closes[i] == max(closes[i-5:i+6]):
+            if closes[i] == max(closes[i-2:i+3]):
                 pivots_resistance.append(float(closes[i]))
                 
         support_zones = sorted(list(set(pivots_support)))[-3:] if pivots_support else [float(closes[-1]*0.95)]
         resistance_zones = sorted(list(set(pivots_resistance)))[:3] if pivots_resistance else [float(closes[-1]*1.05)]
         
+        # 7. Volume profile bins
         min_p = float(df['close'].min())
         max_p = float(df['close'].max())
         price_step = (max_p - min_p) / 10 if max_p > min_p else 1.0
@@ -1222,6 +1431,7 @@ async def get_option_flow_chart(
                 "volume": bin_vol
             })
             
+        # 8. High-volume smart money zones
         avg_volume = df['volume'].mean()
         high_vol_df = df[df['volume'] > 1.8 * avg_volume]
         smart_money_zones = []
@@ -1232,17 +1442,21 @@ async def get_option_flow_chart(
                 "timestamp": row['timestamp'].isoformat() + "Z"
             })
             
+        # 9. Breakout markers
         breakout_markers = []
         for idx, row in df.iterrows():
             close_val = float(row['close'])
             vol_val = float(row['volume'])
+            
+            # Format time correctly for Lightweight Charts marker (Unix timestamp for intraday, string for daily)
+            marker_time = row['timestamp'].strftime("%Y-%m-%d") if interval_clean in ("1d", "day") else int(row['timestamp'].timestamp())
             
             if vol_val > 2.0 * avg_volume and idx > 0:
                 prev_close = float(df.loc[idx - 1, 'close'])
                 ret = (close_val - prev_close) / prev_close
                 if ret > 0.015:
                     breakout_markers.append({
-                        "time": row['timestamp'].strftime("%Y-%m-%d"),
+                        "time": marker_time,
                         "position": "belowBar",
                         "color": "#10b981",
                         "shape": "arrowUp",
@@ -1250,17 +1464,19 @@ async def get_option_flow_chart(
                     })
                 elif ret < -0.015:
                     breakout_markers.append({
-                        "time": row['timestamp'].strftime("%Y-%m-%d"),
+                        "time": marker_time,
                         "position": "aboveBar",
                         "color": "#ef4444",
                         "shape": "arrowDown",
                         "text": "BEAR BREAKDOWN"
                     })
                     
+        # 10. Format chart candle response list
         chart_candles = []
         for _, row in indicators_df.iterrows():
+            time_val = row['timestamp'].strftime("%Y-%m-%d") if interval_clean in ("1d", "day") else int(row['timestamp'].timestamp())
             chart_candles.append({
-                "time": row['timestamp'].strftime("%Y-%m-%d"),
+                "time": time_val,
                 "open": float(row['open']),
                 "high": float(row['high']),
                 "low": float(row['low']),
@@ -1271,11 +1487,23 @@ async def get_option_flow_chart(
                 "vwap": float(row.get('vwap', row['close'])) if not pd.isna(row.get('vwap')) else float(row['close'])
             })
             
-        return {
+        earliest_ts = df["timestamp"].min()
+        latest_ts = df["timestamp"].max()
+        to_date_naive = to_date.replace(tzinfo=None)
+        earliest_ts_naive = earliest_ts.replace(tzinfo=None) if not pd.isna(earliest_ts) else to_date_naive
+        available_days = (to_date_naive - earliest_ts_naive).days if not df.empty else 0
+        from_date_str = earliest_ts.strftime("%Y-%m-%d") if not df.empty else ""
+        to_date_str = latest_ts.strftime("%Y-%m-%d") if not df.empty else ""
+
+        response_payload = {
             "success": True,
             "data": {
                 "symbol": symbol,
                 "interval": interval,
+                "available_history_days": available_days,
+                "candle_count": len(chart_candles),
+                "from_date": from_date_str,
+                "to_date": to_date_str,
                 "candles": chart_candles,
                 "support_zones": support_zones,
                 "resistance_zones": resistance_zones,
@@ -1284,9 +1512,22 @@ async def get_option_flow_chart(
                 "breakout_markers": breakout_markers
             }
         }
+        
+        # 11. Write cache
+        if cache.is_available():
+            try:
+                import json
+                cache.set(cache_key, json.dumps(response_payload), ex=300)
+            except Exception as ce:
+                logger.warning(f"Cache write error in option flow chart: {ce}")
+                
+        return response_payload
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error generating chart indicators for {symbol}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Upstox data unavailable or calculation error for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail=f"Upstox data unavailable: {str(e)}")
 
 @router.get("/{symbol}/expiries")
 async def get_option_expiries(

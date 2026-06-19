@@ -175,7 +175,13 @@ const MomentAlert: React.FC = () => {
         }
 
         setConnectionMode('WS');
-        const wsUrl = `${API_URL.replace('http', 'ws')}/api/scanner/ws`;
+        const getWsUrl = () => {
+            const baseUrl = API_URL || window.location.origin;
+            const proto = baseUrl.startsWith('https') ? 'wss' : 'ws';
+            const host = baseUrl.replace(/^https?:\/\//, '');
+            return `${proto}://${host}/api/scanner/ws`;
+        };
+        const wsUrl = getWsUrl();
         console.log(`Connecting to Market WS: ${wsUrl}`);
         
         try {
@@ -328,6 +334,39 @@ const MomentAlert: React.FC = () => {
                     <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
                     {isRefreshing ? 'Refreshing...' : 'Refresh'}
                 </button>
+            </div>
+
+            {/* Diagnostic Stats Bar */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700/60 rounded-2xl p-4 shadow-lg flex flex-wrap items-center justify-around gap-4 text-center">
+                <div>
+                    <span className="block text-xs font-black uppercase text-slate-400">Total Ticks</span>
+                    <span className="text-xl font-extrabold text-slate-800 dark:text-white">{ticks.length}</span>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+                <div>
+                    <span className="block text-xs font-black uppercase text-emerald-500">Strong Bullish</span>
+                    <span className="text-xl font-extrabold text-emerald-500">{getBucketStocks('STRONG_BULLISH').length}</span>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+                <div>
+                    <span className="block text-xs font-black uppercase text-teal-500">Moderate Bullish</span>
+                    <span className="text-xl font-extrabold text-teal-500">{getBucketStocks('MODERATE_BULLISH').length}</span>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+                <div>
+                    <span className="block text-xs font-black uppercase text-slate-500">Neutral</span>
+                    <span className="text-xl font-extrabold text-slate-500">{getBucketStocks('NEUTRAL').length}</span>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+                <div>
+                    <span className="block text-xs font-black uppercase text-orange-500">Moderate Bearish</span>
+                    <span className="text-xl font-extrabold text-orange-500">{getBucketStocks('MODERATE_BEARISH').length}</span>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+                <div>
+                    <span className="block text-xs font-black uppercase text-rose-500">Strong Bearish</span>
+                    <span className="text-xl font-extrabold text-rose-500">{getBucketStocks('STRONG_BEARISH').length}</span>
+                </div>
             </div>
 
             {/* Momentum Pulse Buckets */}

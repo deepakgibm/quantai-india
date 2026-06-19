@@ -48,10 +48,11 @@ def create_error_response(
 
     content = {
         "success": False,
-        "service": service,
+        "error": message,
         "error_code": code,
         "message": message,
-        "details": details_str
+        "details": details_str,
+        "service": service
     }
     return JSONResponse(status_code=status_code, content=content)
 

@@ -48,6 +48,11 @@ async def get_momentum_scanner(current_user: User = Depends(get_current_user)):
     from services.momentum_scanner import MomentumScanner
     return await ai_service.run_scanner(MomentumScanner, "Momentum Scanner", "momentum")
 
+@router.get("/momentum")
+async def get_momentum_scanner_alias(current_user: User = Depends(get_current_user)):
+    """Intraday Momentum Scanner alias."""
+    return await get_momentum_scanner(current_user)
+
 @router.get("/mean-reversion")
 async def get_mean_reversion(current_user: User = Depends(get_current_user)):
     """Mean Reversion Scanner."""
@@ -71,6 +76,11 @@ async def get_vwap_scanner(current_user: User = Depends(get_current_user)):
     """VWAP Scanner."""
     from services.vwap_scanner import VWAPScanner
     return await ai_service.run_scanner(VWAPScanner, "VWAP Scanner", "vwap")
+
+@router.get("/vwap")
+async def get_vwap_scanner_alias(current_user: User = Depends(get_current_user)):
+    """VWAP Scanner alias."""
+    return await get_vwap_scanner(current_user)
 
 @router.get("/sr-bounce")
 async def get_sr_bounce(current_user: User = Depends(get_current_user)):

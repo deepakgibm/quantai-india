@@ -216,27 +216,15 @@ class UpstoxClient:
         logger.error("UpstoxClient: Token refresh failed. Analytics Token may be expired.")
         return False
     
-    async def get_historical_data(
+    async def _get_historical_data_single(
         self,
         symbol: str,
         instrument_key: str,
         from_date: datetime,
         to_date: datetime,
-        interval: str = "1minute"
+        interval: str
     ) -> pd.DataFrame:
-        """
-        Fetch historical OHLCV data from Upstox.
-        
-        Args:
-            symbol: Stock symbol (e.g., "RELIANCE")
-            instrument_key: Upstox instrument key (e.g., "NSE_EQ|INE002A01018")
-            from_date: Start date
-            to_date: End date
-            interval: Candle interval (1minute, 5minute, day, etc.)
-            
-        Returns:
-            DataFrame with columns: timestamp, open, high, low, close, volume
-        """
+        """Fetch historical data for a single date range chunk (<= 30 days)."""
         await self.rate_limiter.acquire()
         
         # Upstox API endpoint for historical data
@@ -263,8 +251,72 @@ class UpstoxClient:
             return df[["symbol", "timestamp", "open", "high", "low", "close", "volume"]]
             
         except Exception as e:
-            logger.error(f"Error fetching historical data for {symbol}: {e}")
+            logger.error(f"Error fetching historical data for {symbol} in chunk: {e}")
             return pd.DataFrame()
+
+    async def get_historical_data(
+        self,
+        symbol: str,
+        instrument_key: str,
+        from_date: datetime,
+        to_date: datetime,
+        interval: str = "1minute"
+    ) -> pd.DataFrame:
+        """
+        Fetch historical OHLCV data from Upstox. Supporting automatic chunking/pagination
+        for short intervals like 1minute to avoid Upstox 30-day range limits.
+        
+        Args:
+            symbol: Stock symbol (e.g., "RELIANCE")
+            instrument_key: Upstox instrument key (e.g., "NSE_EQ|INE002A01018")
+            from_date: Start date
+            to_date: End date
+            interval: Candle interval (1minute, 30minute, day, etc.)
+            
+        Returns:
+            DataFrame with columns: timestamp, open, high, low, close, volume
+        """
+        from datetime import timedelta
+        
+        max_chunk_days = 30
+        is_sub_day = interval in ("1minute", "30minute")
+        
+        if is_sub_day and (to_date - from_date).days > max_chunk_days:
+            chunks = []
+            current_to = to_date
+            while current_to > from_date:
+                current_from = max(from_date, current_to - timedelta(days=max_chunk_days))
+                chunks.append((current_from, current_to))
+                current_to = current_from - timedelta(days=1)
+                
+            all_dfs = []
+            # Fetch in order from oldest to newest chunk to preserve correct alignment/ordering
+            for chunk_from, chunk_to in reversed(chunks):
+                chunk_df = await self._get_historical_data_single(
+                    symbol=symbol,
+                    instrument_key=instrument_key,
+                    from_date=chunk_from,
+                    to_date=chunk_to,
+                    interval=interval
+                )
+                if not chunk_df.empty:
+                    all_dfs.append(chunk_df)
+                    
+            if not all_dfs:
+                return pd.DataFrame()
+                
+            combined_df = pd.concat(all_dfs, ignore_index=True)
+            combined_df = combined_df.drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+            return combined_df
+            
+        # Standard single request
+        return await self._get_historical_data_single(
+            symbol=symbol,
+            instrument_key=instrument_key,
+            from_date=from_date,
+            to_date=to_date,
+            interval=interval
+        )
     
     async def get_live_quotes(self, instrument_keys: List[str]) -> Dict[str, Dict]:
         """

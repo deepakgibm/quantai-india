@@ -22,10 +22,10 @@ function Test-Endpoint {
     
     try {
         if ($Method -eq "GET") {
-            $response = Invoke-WebRequest -Uri $url -Method $Method -TimeoutSec $TimeoutSec -ErrorAction Stop
+            $response = Invoke-WebRequest -Uri $url -Method $Method -TimeoutSec $TimeoutSec -UseBasicParsing -ErrorAction Stop
         } else {
             $jsonBody = $Body | ConvertTo-Json
-            $response = Invoke-WebRequest -Uri $url -Method $Method -Body $jsonBody -ContentType "application/json" -TimeoutSec $TimeoutSec -ErrorAction Stop
+            $response = Invoke-WebRequest -Uri $url -Method $Method -Body $jsonBody -ContentType "application/json" -TimeoutSec $TimeoutSec -UseBasicParsing -ErrorAction Stop
         }
         
         $endTime = Get-Date

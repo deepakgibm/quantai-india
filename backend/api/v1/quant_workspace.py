@@ -10,6 +10,8 @@ import pandas as pd
 
 from utils.auth import get_current_user
 from models import User
+from database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Core quant engine components
 from core.quant_engine.market_data.historical import get_market_data_engine
@@ -402,3 +404,355 @@ async def list_unified_strategies(current_user: User = Depends(get_current_user)
         "lab_strategies": lab_list,
         "total_count": len(core_list) + len(lab_list)
     }
+
+
+@router.get("/strategies/list")
+async def list_backtest_strategies(current_user: User = Depends(get_current_user)):
+    """
+    Get all backtest strategies categorized with details (matching the test requirements).
+    """
+    try:
+        categories_dict = {}
+        all_metadata = CoreStrategyRegistry.list_all()
+        
+        tier_mapping = {
+            "rsi_mean_reversion": "tier_1",
+            "bollinger_reversion": "tier_1",
+            "zscore_reversion": "tier_1",
+            "orb": "tier_1",
+            "volume_breakout": "tier_1",
+            "atr_expansion": "tier_1",
+            
+            "ma_crossover": "tier_2",
+            "supertrend": "tier_2",
+            "adx_trend": "tier_2",
+            "donchian_breakout": "tier_2",
+            "macd_crossover": "tier_2",
+            "stochastic_oscillator": "tier_2",
+            "price_momentum": "tier_2",
+            "rsi_macd_confluence": "tier_2",
+            
+            "vwap_pullback": "tier_3",
+            "vwap_trend": "tier_3",
+            "atr_volatility_breakout": "tier_3",
+        }
+        
+        for s in all_metadata:
+            cat = s.category
+            if cat not in categories_dict:
+                if cat in ["Mean Reversion", "Breakout & Volatility", "Mean Reversion & Classic Breakouts"]:
+                    tier = "tier_1"
+                elif cat in ["Trend & Momentum", "Momentum & Trend Confirmation"]:
+                    tier = "tier_2"
+                else:
+                    tier = "tier_3"
+                
+                categories_dict[cat] = {
+                    "category_name": cat,
+                    "strategies": [],
+                    "tier": tier
+                }
+            
+            params_formatted = {}
+            for param_name, param_info in s.parameters.items():
+                params_formatted[param_name] = {
+                    "type": param_info.get("type", "float"),
+                    "default": param_info.get("default"),
+                    "min": float(param_info.get("min")) if param_info.get("min") is not None else None,
+                    "max": float(param_info.get("max")) if param_info.get("max") is not None else None,
+                    "description": param_info.get("description", "")
+                }
+                
+            categories_dict[cat]["strategies"].append({
+                "name": s.name,
+                "display_name": s.display_name,
+                "category": cat,
+                "description": s.description,
+                "parameters": params_formatted,
+                "time_horizon": s.time_horizon,
+                "tier": tier_mapping.get(s.name, categories_dict[cat]["tier"]),
+                "is_implemented": True
+            })
+            
+        return {
+            "total_strategies": len(all_metadata),
+            "categories": list(categories_dict.values())
+        }
+    except Exception as e:
+        logger.error(f"Error fetching strategy list: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching strategy list: {str(e)}")
+
+
+@router.get("/strategies/by-tier")
+async def list_strategies_by_tier(current_user: User = Depends(get_current_user)):
+    """
+    Get strategies grouped by tier.
+    """
+    try:
+        all_metadata = CoreStrategyRegistry.list_all()
+        
+        tier_mapping = {
+            "rsi_mean_reversion": "tier_1",
+            "bollinger_reversion": "tier_1",
+            "zscore_reversion": "tier_1",
+            "orb": "tier_1",
+            "volume_breakout": "tier_1",
+            "atr_expansion": "tier_1",
+            
+            "ma_crossover": "tier_2",
+            "supertrend": "tier_2",
+            "adx_trend": "tier_2",
+            "donchian_breakout": "tier_2",
+            "macd_crossover": "tier_2",
+            "stochastic_oscillator": "tier_2",
+            "price_momentum": "tier_2",
+            "rsi_macd_confluence": "tier_2",
+            
+            "vwap_pullback": "tier_3",
+            "vwap_trend": "tier_3",
+            "atr_volatility_breakout": "tier_3",
+        }
+        
+        tiers = {
+            "tier_1": {
+                "name": "Tier 1: Mean Reversion & Classic Breakouts",
+                "categories": {}
+            },
+            "tier_2": {
+                "name": "Tier 2: Momentum & Trend Confirmation",
+                "categories": {}
+            },
+            "tier_3": {
+                "name": "Tier 3: Advanced & Structural",
+                "categories": {}
+            }
+        }
+        
+        for s in all_metadata:
+            cat = s.category
+            
+            if cat in ["Mean Reversion", "Breakout & Volatility", "Mean Reversion & Classic Breakouts"]:
+                default_tier = "tier_1"
+            elif cat in ["Trend & Momentum", "Momentum & Trend Confirmation"]:
+                default_tier = "tier_2"
+            else:
+                default_tier = "tier_3"
+                
+            s_tier = tier_mapping.get(s.name, default_tier)
+            tier_data = tiers.get(s_tier, tiers["tier_3"])
+            
+            if cat not in tier_data["categories"]:
+                tier_data["categories"][cat] = {
+                    "category_name": cat,
+                    "strategies": [],
+                    "tier": s_tier
+                }
+                
+            params_formatted = {}
+            for param_name, param_info in s.parameters.items():
+                params_formatted[param_name] = {
+                    "type": param_info.get("type", "float"),
+                    "default": param_info.get("default"),
+                    "min": float(param_info.get("min")) if param_info.get("min") is not None else None,
+                    "max": float(param_info.get("max")) if param_info.get("max") is not None else None,
+                    "description": param_info.get("description", "")
+                }
+                
+            tier_data["categories"][cat]["strategies"].append({
+                "name": s.name,
+                "display_name": s.display_name,
+                "category": cat,
+                "description": s.description,
+                "parameters": params_formatted,
+                "time_horizon": s.time_horizon,
+                "tier": s_tier,
+                "is_implemented": True
+            })
+            
+        for t_key in tiers:
+            tiers[t_key]["categories"] = list(tiers[t_key]["categories"].values())
+            
+        return tiers
+    except Exception as e:
+        logger.error(f"Error fetching strategies by tier: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching strategies by tier: {str(e)}")
+
+
+@router.get("/strategies/search")
+async def search_backtest_strategies(
+    query: str = Query(..., description="Search query string"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Search backtest strategies.
+    """
+    query_lower = query.lower()
+    all_metadata = CoreStrategyRegistry.list_all()
+    results = []
+    
+    tier_mapping = {
+        "rsi_mean_reversion": "tier_1",
+        "bollinger_reversion": "tier_1",
+        "zscore_reversion": "tier_1",
+        "orb": "tier_1",
+        "volume_breakout": "tier_1",
+        "atr_expansion": "tier_1",
+        
+        "ma_crossover": "tier_2",
+        "supertrend": "tier_2",
+        "adx_trend": "tier_2",
+        "donchian_breakout": "tier_2",
+        "macd_crossover": "tier_2",
+        "stochastic_oscillator": "tier_2",
+        "price_momentum": "tier_2",
+        "rsi_macd_confluence": "tier_2",
+        
+        "vwap_pullback": "tier_3",
+        "vwap_trend": "tier_3",
+        "atr_volatility_breakout": "tier_3",
+    }
+    
+    for s in all_metadata:
+        score = 0
+        if query_lower in s.name.lower():
+            score += 10
+        if query_lower in s.display_name.lower():
+            score += 15
+        if query_lower in s.category.lower():
+            score += 5
+        if query_lower in s.description.lower():
+            score += 3
+            
+        if score > 0:
+            cat = s.category
+            if cat in ["Mean Reversion", "Breakout & Volatility", "Mean Reversion & Classic Breakouts"]:
+                tier = "tier_1"
+            elif cat in ["Trend & Momentum", "Momentum & Trend Confirmation"]:
+                tier = "tier_2"
+            else:
+                tier = "tier_3"
+                
+            results.append({
+                "name": s.name,
+                "display_name": s.display_name,
+                "category": cat,
+                "tier": tier_mapping.get(s.name, tier),
+                "description": s.description,
+                "relevance_score": score,
+                "is_implemented": True
+            })
+            
+    results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)
+    
+    return {
+        "query": query,
+        "total_matches": len(results),
+        "results": results
+    }
+
+
+@router.get("/strategies/{strategy_name}")
+async def get_backtest_strategy_details(
+    strategy_name: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed parameters and info for a specific backtest strategy.
+    """
+    s = CoreStrategyRegistry.get(strategy_name)
+    if not s:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Strategy '{strategy_name}' not found. Use /api/v1/backtest/strategies/list to see available strategies."
+        )
+        
+    metadata = s.metadata
+    
+    tier_mapping = {
+        "rsi_mean_reversion": "tier_1",
+        "bollinger_reversion": "tier_1",
+        "zscore_reversion": "tier_1",
+        "orb": "tier_1",
+        "volume_breakout": "tier_1",
+        "atr_expansion": "tier_1",
+        
+        "ma_crossover": "tier_2",
+        "supertrend": "tier_2",
+        "adx_trend": "tier_2",
+        "donchian_breakout": "tier_2",
+        "macd_crossover": "tier_2",
+        "stochastic_oscillator": "tier_2",
+        "price_momentum": "tier_2",
+        "rsi_macd_confluence": "tier_2",
+        
+        "vwap_pullback": "tier_3",
+        "vwap_trend": "tier_3",
+        "atr_volatility_breakout": "tier_3",
+    }
+    
+    cat = metadata.category
+    if cat in ["Mean Reversion", "Breakout & Volatility", "Mean Reversion & Classic Breakouts"]:
+        tier = "tier_1"
+    elif cat in ["Trend & Momentum", "Momentum & Trend Confirmation"]:
+        tier = "tier_2"
+    else:
+        tier = "tier_3"
+        
+    params_formatted = {}
+    for param_name, param_info in metadata.parameters.items():
+        params_formatted[param_name] = {
+            "type": param_info.get("type", "float"),
+            "default": param_info.get("default"),
+            "min": float(param_info.get("min")) if param_info.get("min") is not None else None,
+            "max": float(param_info.get("max")) if param_info.get("max") is not None else None,
+            "description": param_info.get("description", "")
+        }
+        
+    return {
+        "name": metadata.name,
+        "display_name": metadata.display_name,
+        "category": cat,
+        "description": metadata.description,
+        "parameters": params_formatted,
+        "time_horizon": metadata.time_horizon,
+        "tier": tier_mapping.get(metadata.name, tier),
+        "is_implemented": True
+    }
+
+
+@router.get("/symbols")
+async def list_quant_symbols(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get list of available symbols for quant backtesting.
+    """
+    try:
+        from sqlalchemy.future import select
+        from models_alpha import InstrumentMaster
+        
+        stmt = select(InstrumentMaster.symbol).where(InstrumentMaster.is_active == True).distinct()
+        res = await db.execute(stmt)
+        symbols = list(res.scalars().all())
+        if not symbols:
+            symbols = [
+                "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", 
+                "SBIN", "BHARTIARTL", "ITC", "LTIM", "HINDUNILVR",
+                "AXISBANK", "LT", "BAJFINANCE", "KOTAKBANK", "MARUTI"
+            ]
+        return {
+            "status": "success",
+            "symbols": sorted(symbols),
+            "count": len(symbols)
+        }
+    except Exception as e:
+        logger.warning(f"Failed to fetch symbols in quant workspace: {e}")
+        return {
+            "status": "success",
+            "symbols": [
+                "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", 
+                "SBIN", "BHARTIARTL", "ITC", "LTIM", "HINDUNILVR"
+            ],
+            "count": 10
+        }

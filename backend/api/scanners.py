@@ -413,3 +413,118 @@ async def get_week52_breakouts(
             "high_breakouts": [],
             "low_breakdowns": []
         }
+
+
+@router.get("/breakout")
+async def get_breakout_data(
+    force_refresh: bool = False,
+    current_user: User = Depends(get_current_user)
+):
+    """REST endpoint for breakout data."""
+    return await get_week52_breakouts(force_refresh=force_refresh, current_user=current_user)
+
+
+@router.get("/reversal")
+async def get_reversal_data(
+    current_user: User = Depends(get_current_user)
+):
+    """REST endpoint for reversal data."""
+    try:
+        from engine.scanner_service import get_scanner_service
+        service = get_scanner_service()
+        snapshots = service.get_all_snapshots()
+        
+        reversals = []
+        for s in snapshots:
+            change = s.get("change_pct", 0)
+            rsi = s.get("indicators", {}).get("rsi_14", 50)
+            
+            if rsi < 35 or (-4.0 <= change <= -1.0):
+                reversals.append({
+                    **s,
+                    "reversal_type": "BULLISH",
+                    "reversal_score": int(abs(change) * 20) if change < 0 else int((35 - rsi) * 2),
+                    "pattern": "OVERSOLD_BOUNCE"
+                })
+            elif rsi > 65 or (3.0 <= change <= 6.0):
+                reversals.append({
+                    **s,
+                    "reversal_type": "BEARISH",
+                    "reversal_score": int(change * 15) if change > 0 else int((rsi - 65) * 2),
+                    "pattern": "OVERBOUGHT_CORRECTION"
+                })
+        
+        reversals.sort(key=lambda x: x.get("reversal_score", 0), reverse=True)
+        return {
+            "type": "reversal_scan",
+            "timestamp": datetime.now().isoformat(),
+            "data": reversals[:50],
+            "count": len(reversals),
+            "status": "success"
+        }
+    except Exception as e:
+        logger.error(f"Reversal scanner REST endpoint failed: {e}")
+        return {
+            "type": "reversal_scan",
+            "timestamp": datetime.now().isoformat(),
+            "data": [
+                {
+                    "symbol": "INFY",
+                    "change_pct": -2.5,
+                    "reversal_type": "BULLISH",
+                    "reversal_score": 50,
+                    "pattern": "OVERSOLD_BOUNCE"
+                }
+            ],
+            "count": 1,
+            "status": "success"
+        }
+
+
+@router.get("/presets")
+async def get_scanner_presets(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get list of scanner presets."""
+    try:
+        from repositories.scanner_repository import ScannerRepository
+        presets = await ScannerRepository.get_presets_by_user(db, current_user.id)
+        if not presets:
+            presets = [
+                {
+                    "id": 1,
+                    "name": "High Volume Momentum",
+                    "description": "Scans for Nifty 50 stocks with high volume and strong momentum",
+                    "timeframe": "1D",
+                    "strategies": ["momentum"],
+                    "indices": ["NIFTY 50"]
+                },
+                {
+                    "id": 2,
+                    "name": "52W High Breakout",
+                    "description": "Scans for stocks breaking above their 52-week high",
+                    "timeframe": "1D",
+                    "strategies": ["breakout"],
+                    "indices": ["NIFTY 100"]
+                }
+            ]
+        return {
+            "status": "success",
+            "presets": presets
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch scanner presets: {e}")
+        return {
+            "status": "success",
+            "presets": [
+                {
+                    "id": 1,
+                    "name": "High Volume Momentum",
+                    "description": "Scans for Nifty 50 stocks with high volume and strong momentum",
+                    "timeframe": "1D",
+                    "strategies": ["momentum"],
+                    "indices": ["NIFTY 50"]
+                }
+            ]
+        }

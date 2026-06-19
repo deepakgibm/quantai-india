@@ -97,20 +97,29 @@ class ScreenerService:
                     logger.debug(f"[{i+1}/{total}] {symbol}: No price data, skipping")
                     continue
 
-                # 3b. Financial data: Try yfinance first, fallback to DB
-                fin_data = self.fin_fetcher.fetch_financials(symbol)
+                # 3b. Financial data: Try DB first, check freshness, only call yfinance as a last resort
+                fin_data = await self._get_financials_from_db(symbol)
                 
-                if not fin_data.get("data_available"):
-                    logger.info(f"[{i+1}/{total}] {symbol}: yfinance failed ({fin_data.get('error')}), checking DB...")
-                    db_fin = await self._get_financials_from_db(symbol)
-                    if db_fin:
-                        fin_data = db_fin
-                        logger.info(f"[{i+1}/{total}] {symbol}: Successfully recovered financial data from DB")
+                is_fresh = False
+                if fin_data and fin_data.get("updated_at"):
+                    age = datetime.now() - fin_data["updated_at"].replace(tzinfo=None)
+                    if age.days < 30:
+                        is_fresh = True
+                
+                # Fetch from yfinance only if not fresh and skip_financials is False
+                if not is_fresh and not skip_financials:
+                    logger.info(f"[{i+1}/{total}] {symbol}: Financials not fresh or missing in DB, fetching from yfinance...")
+                    yf_data = self.fin_fetcher.fetch_financials(symbol)
+                    if yf_data and yf_data.get("data_available"):
+                        fin_data = yf_data
+                        await self._persist_financials(symbol, fin_data)
+                        logger.info(f"[{i+1}/{total}] {symbol}: Successfully fetched and cached fresh financials from yfinance")
                     else:
-                        logger.warning(f"[{i+1}/{total}] {symbol}: No data in DB either, using defaults")
-                else:
-                    # If fresh data fetched, persist it to DB for future fallbacks
-                    await self._persist_financials(symbol, fin_data)
+                        logger.warning(f"[{i+1}/{total}] {symbol}: yfinance failed ({yf_data.get('error') if yf_data else 'No data'})")
+                
+                if not fin_data:
+                    # Fallback to empty default data
+                    fin_data = {"data_available": False}
 
                 # 3c. Holdings history (from DB if available)
                 holdings_history = await self._get_holdings_history(symbol)

@@ -1,0 +1,313 @@
+﻿====================================================================================================
+  QUANTAI INDIA - COMPREHENSIVE E2E API TEST REPORT
+====================================================================================================
+Generated: 2026-06-19 22:51:47
+Base URL: http://localhost:8000
+
++--------------------------------------------------+
+|  OVERALL STATISTICS                              |
++--------------------------------------------------+
+|  Total Tests:            43                      |
+|  Passed:                 43                       |
+|  Failed:                  0                       |
+|  Success Rate:         100%                      |
+|  Avg Response Time:       0ms                    |
++--------------------------------------------------+
+
+====================================================================================================
+  MODULE-WISE BREAKDOWN
+====================================================================================================
+
+Module                Total   Passed   Failed       Rate
+--------------------------------------------------------------
+                         43       43        0      100% [OK]
+
+====================================================================================================
+  PASSED TESTS (43)
+====================================================================================================
+
+[PASSED] GET /
+  Module: Core
+  Description: Root endpoint
+  Status Code: 200 (Expected: 200)
+  Response Time: 48ms
+
+[PASSED] GET /health
+  Module: Core
+  Description: Health check
+  Status Code: 200 (Expected: 200)
+  Response Time: 34ms
+
+[PASSED] GET /api/trading/health
+  Module: Trading
+  Description: Trading health check
+  Status Code: 200 (Expected: 200)
+  Response Time: 24ms
+
+[PASSED] GET /api/trading/market-indices
+  Module: Trading
+  Description: Market indices
+  Status Code: 200 (Expected: 200)
+  Response Time: 245ms
+
+[PASSED] GET /api/trading/instruments
+  Module: Trading
+  Description: Trading instruments
+  Status Code: 200 (Expected: 200)
+  Response Time: 27ms
+
+[PASSED] GET /api/upstox/status
+  Module: Upstox
+  Description: Upstox connection status
+  Status Code: 200 (Expected: 200)
+  Response Time: 29ms
+
+[PASSED] GET /api/scanner/strategies
+  Module: Scanner
+  Description: Scanner strategies
+  Status Code: 200 (Expected: 200)
+  Response Time: 25ms
+
+[PASSED] GET /api/scanner/indices
+  Module: Scanner
+  Description: Available indices
+  Status Code: 200 (Expected: 200)
+  Response Time: 34ms
+
+[PASSED] GET /api/scanner/timeframes
+  Module: Scanner
+  Description: Available timeframes
+  Status Code: 200 (Expected: 200)
+  Response Time: 38ms
+
+[PASSED] GET /api/scanner/momentum
+  Module: Scanner
+  Description: Momentum scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 436ms
+
+[PASSED] GET /api/scanner/breakout
+  Module: Scanner
+  Description: Breakout scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 71ms
+
+[PASSED] GET /api/scanner/reversal
+  Module: Scanner
+  Description: Reversal scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 36ms
+
+[PASSED] GET /api/scanner/presets
+  Module: Scanner
+  Description: Scanner presets
+  Status Code: 200 (Expected: 200)
+  Response Time: 36ms
+
+[PASSED] GET /api/ai/strategies
+  Module: AI
+  Description: AI strategies list
+  Status Code: 200 (Expected: 200)
+  Response Time: 30ms
+
+[PASSED] GET /api/ai/trend-finder
+  Module: AI
+  Description: Trend Finder AI
+  Status Code: 200 (Expected: 200)
+  Response Time: 34ms
+
+[PASSED] GET /api/ai/breakout-detector
+  Module: AI
+  Description: Breakout Detector
+  Status Code: 200 (Expected: 200)
+  Response Time: 1404ms
+
+[PASSED] GET /api/ai/top5-picks
+  Module: AI
+  Description: Top 5 stock picks
+  Status Code: 200 (Expected: 200)
+  Response Time: 977ms
+
+[PASSED] GET /api/ai/momentum
+  Module: AI
+  Description: Momentum scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 458ms
+
+[PASSED] GET /api/ai/mean-reversion
+  Module: AI
+  Description: Mean reversion scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 236ms
+
+[PASSED] GET /api/ai/gap-scanner
+  Module: AI
+  Description: Gap scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 12038ms
+
+[PASSED] GET /api/ai/relative-strength
+  Module: AI
+  Description: Relative strength
+  Status Code: 200 (Expected: 200)
+  Response Time: 30ms
+
+[PASSED] GET /api/ai/vwap
+  Module: AI
+  Description: VWAP scanner
+  Status Code: 200 (Expected: 200)
+  Response Time: 8657ms
+
+[PASSED] GET /api/ai/sr-bounce
+  Module: AI
+  Description: Support/Resistance bounce
+  Status Code: 200 (Expected: 200)
+  Response Time: 8654ms
+
+[PASSED] GET /api/ai/market-analysis
+  Module: AI
+  Description: Market analysis
+  Status Code: 200 (Expected: 200)
+  Response Time: 36ms
+
+[PASSED] GET /api/quant/strategies
+  Module: Quant
+  Description: Quant strategies
+  Status Code: 200 (Expected: 200)
+  Response Time: 74ms
+
+[PASSED] GET /api/quant/symbols
+  Module: Quant
+  Description: Available symbols
+  Status Code: 200 (Expected: 200)
+  Response Time: 69ms
+
+[PASSED] GET /api/v1/walk-forward/strategies
+  Module: WalkForward
+  Description: WF strategies
+  Status Code: 200 (Expected: 200)
+  Response Time: 52ms
+
+[PASSED] GET /api/v1/walk-forward/presets
+  Module: WalkForward
+  Description: WF presets
+  Status Code: 200 (Expected: 200)
+  Response Time: 36ms
+
+[PASSED] GET /api/v1/experiment-lab/strategies
+  Module: ExperimentLab
+  Description: Lab strategies
+  Status Code: 200 (Expected: 200)
+  Response Time: 38ms
+
+[PASSED] GET /api/v1/experiment-lab/symbols
+  Module: ExperimentLab
+  Description: Lab symbols
+  Status Code: 200 (Expected: 200)
+  Response Time: 71ms
+
+[PASSED] GET /api/v1/backtest/strategies/list
+  Module: BacktestStrategies
+  Description: Backtest strategy list
+  Status Code: 200 (Expected: 200)
+  Response Time: 65ms
+
+[PASSED] GET /api/market/orchestrator/status
+  Module: Market
+  Description: Orchestrator status
+  Status Code: 200 (Expected: 200)
+  Response Time: 31ms
+
+[PASSED] GET /api/market/health
+  Module: Market
+  Description: Market health
+  Status Code: 200 (Expected: 200)
+  Response Time: 22ms
+
+[PASSED] GET /api/market/top-movers
+  Module: Market
+  Description: Top movers
+  Status Code: 200 (Expected: 200)
+  Response Time: 24ms
+
+[PASSED] GET /api/market/heatmap
+  Module: Market
+  Description: Sector heatmap
+  Status Code: 200 (Expected: 200)
+  Response Time: 33ms
+
+[PASSED] GET /api/heatmap/sectors
+  Module: Heatmap
+  Description: Sector heatmap data
+  Status Code: 200 (Expected: 200)
+  Response Time: 46ms
+
+[PASSED] GET /api/engines/performance
+  Module: Engines
+  Description: Engine performance metrics
+  Status Code: 200 (Expected: 200)
+  Response Time: 36ms
+
+[PASSED] GET /api/analytics/overview
+  Module: Analytics
+  Description: Analytics overview
+  Status Code: 200 (Expected: 200)
+  Response Time: 38ms
+
+[PASSED] GET /api/analytics/momentum/top
+  Module: Analytics
+  Description: Top momentum stocks
+  Status Code: 200 (Expected: 200)
+  Response Time: 291ms
+
+[PASSED] GET /api/algorithms
+  Module: Algorithms
+  Description: List algorithms
+  Status Code: 200 (Expected: 200)
+  Response Time: 48ms
+
+[PASSED] GET /api/orders
+  Module: Orders
+  Description: List orders
+  Status Code: 200 (Expected: 200)
+  Response Time: 47ms
+
+[PASSED] GET /api/risk/
+  Module: Risk
+  Description: Risk settings
+  Status Code: 200 (Expected: 200)
+  Response Time: 30ms
+
+[PASSED] GET /api/settings
+  Module: Settings
+  Description: User settings
+  Status Code: 200 (Expected: 200)
+  Response Time: 24ms
+
+====================================================================================================
+  PERFORMANCE ANALYSIS
+====================================================================================================
+
+Top 10 Slowest Endpoints:
+------------------------------------------------------------
+  1. /api/v1/experiment-lab/strategies                  38ms
+  2. /api/v1/walk-forward/presets                       36ms
+  3. /api/v1/experiment-lab/symbols                     71ms
+  4. /api/market/orchestrator/status                    31ms
+  5. /api/v1/backtest/strategies/list                   65ms
+  6. /api/ai/market-analysis                            36ms
+  7. /api/ai/sr-bounce                                8654ms
+  8. /api/quant/strategies                              74ms
+  9. /api/v1/walk-forward/strategies                    52ms
+  10. /api/quant/symbols                                 69ms
+
+====================================================================================================
+  RECOMMENDATIONS
+====================================================================================================
+
+Excellent! API is in great shape with 100% success rate.
+
+====================================================================================================
+  END OF REPORT
+====================================================================================================
+

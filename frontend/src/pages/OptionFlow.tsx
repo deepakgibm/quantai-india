@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, 
   BarChart2, List, ShieldAlert, Award, Layers, AlertTriangle, 
-  Gauge, Zap, Clock, Activity, Target, ShieldCheck, Flame
+  Gauge, Zap, Clock, Activity, Target, ShieldCheck, Flame, Info
 } from 'lucide-react';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
 import { api } from '../services/api';
@@ -12,7 +12,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area 
 } from 'recharts';
-import { createChart, ColorType, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+import { createChart, ColorType, ISeriesApi, UTCTimestamp, CrosshairMode } from 'lightweight-charts';
 import { isFOSymbol } from '../utils/fnoUtils';
 
 
@@ -163,7 +163,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   const [activeTab, setActiveTab] = useState<'chain' | 'heatmap' | 'blocks' | 'summary'>('chain');
   const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
   const [dataSource, setDataSource] = useState<string>('upstox');
-  const [chartTimeframe, setChartTimeframe] = useState<'1d' | '15m'>('1d');
+  const [chartTimeframe, setChartTimeframe] = useState<'1d' | '5m' | '15m' | '30m'>('1d');
   
   // Advanced Chart State
   const [chartData, setChartData] = useState<AdvancedChartData | null>(null);
@@ -171,8 +171,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const lightweightChartRef = useRef<any>(null);
+  const candlestickSeriesRef = useRef<any>(null);
+  const ema20SeriesRef = useRef<any>(null);
+  const ema50SeriesRef = useRef<any>(null);
+  const vwapSeriesRef = useRef<any>(null);
+  const chartMarkersRef = useRef<any[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const chartCacheRef = useRef<Record<string, AdvancedChartData>>({});
   const maxRetries = 2;
 
   // Fetch Broker Connection Status
@@ -300,29 +306,25 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   };
 
   // Fetch Advanced Chart Overlay Data
-  const fetchChartData = async (symbol: string, timeframe: '1d' | '15m') => {
+  const fetchChartData = async (symbol: string, timeframe: '1d' | '5m' | '15m' | '30m') => {
     const clean = symbol.toUpperCase().replace("NSE:", "").trim();
     if (!isFOSymbol(clean)) {
       setChartLoading(false);
       return;
     }
+    
+    const cacheKey = `${symbol}:${timeframe}:90`;
+    if (chartCacheRef.current[cacheKey]) {
+      setChartData(chartCacheRef.current[cacheKey]);
+      return;
+    }
+    
     setChartLoading(true);
     try {
-      // Call endpoint /api/option-flow/{symbol}/chart
-      const url = `/api/option-flow/${symbol}/chart?interval=${timeframe}&lookback_days=${timeframe === '1d' ? 60 : 5}`;
-      const res = await api.getOptionFlow(symbol, '', '', false); // Placeholder fallback client call
-      // Actually fetch the endpoint directly
-      const realResponse = await fetch(`${api.getUpstoxStatus ? '/api' : 'http://localhost:8000/api'}/option-flow/${symbol}/chart?interval=${timeframe}&lookback_days=${timeframe === '1d' ? 60 : 5}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      if (realResponse.ok) {
-        const payload = await realResponse.json();
-        if (payload.success && payload.data) {
-          setChartData(payload.data);
-        }
+      const data = await api.getOptionFlowChart(symbol, timeframe, 90);
+      if (data) {
+        chartCacheRef.current[cacheKey] = data;
+        setChartData(data);
       }
     } catch (err) {
       console.warn('[OptionFlow] Failed to fetch advanced chart overlays:', err);
@@ -374,10 +376,68 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       fetchChartData(selectedSymbol, chartTimeframe);
     }
 
+    const fetchIncrementalChartData = async () => {
+      if (!lightweightChartRef.current || !candlestickSeriesRef.current) return;
+      try {
+        const data = await api.getOptionFlowChart(selectedSymbol, chartTimeframe, 2);
+        if (data && data.candles && data.candles.length > 0) {
+          data.candles.forEach((c: any) => {
+            if (candlestickSeriesRef.current) {
+              candlestickSeriesRef.current.update({
+                time: c.time,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close
+              });
+            }
+            if (ema20SeriesRef.current) ema20SeriesRef.current.update({ time: c.time, value: c.ema_20 });
+            if (ema50SeriesRef.current) ema50SeriesRef.current.update({ time: c.time, value: c.ema_50 });
+            if (vwapSeriesRef.current) vwapSeriesRef.current.update({ time: c.time, value: c.vwap });
+          });
+
+          if (data.breakout_markers && data.breakout_markers.length > 0 && candlestickSeriesRef.current) {
+            const existingMarkersMap = new Map(chartMarkersRef.current.map(m => [m.time, m]));
+            data.breakout_markers.forEach((m: any) => {
+              existingMarkersMap.set(m.time, m);
+            });
+            const mergedMarkers = Array.from(existingMarkersMap.values()).sort((a, b) => {
+              const tA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime();
+              const tB = typeof b.time === 'number' ? b.time : new Date(b.time).getTime();
+              return tA - tB;
+            });
+            candlestickSeriesRef.current.setMarkers(mergedMarkers);
+            chartMarkersRef.current = mergedMarkers;
+          }
+
+          setChartData(prev => {
+            if (!prev) return null;
+            const existingCandlesMap = new Map(prev.candles.map(c => [c.time, c]));
+            data.candles.forEach((c: any) => {
+              existingCandlesMap.set(c.time, c);
+            });
+            const mergedCandles = Array.from(existingCandlesMap.values()).sort((a, b) => {
+              const tA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime();
+              const tB = typeof b.time === 'number' ? b.time : new Date(b.time).getTime();
+              return tA - tB;
+            });
+            return {
+              ...prev,
+              candle_count: mergedCandles.length,
+              candles: mergedCandles
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[OptionFlow] Failed to fetch incremental chart updates:', err);
+      }
+    };
+
     const interval = setInterval(() => {
       if (selectedExpiry && !isNonFno) {
         fetchOptionFlow(selectedSymbol, selectedExpiry, true);
         checkBrokerStatus();
+        fetchIncrementalChartData();
       }
     }, 15000);
 
@@ -393,16 +453,29 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   }, [selectedSymbol, selectedExpiry, isNonFno, chartTimeframe]);
 
   // =========================================================================
-  // TradingView Lightweight Chart Setup
+  // TradingView Lightweight Chart Setup & Lifecycle
   // =========================================================================
+  
+  // 1. Reset/Destroy Chart on Symbol or Timeframe change
   useEffect(() => {
-    if (!chartContainerRef.current || !chartData || chartData.candles.length === 0) return;
-
-    // Clean up previous chart if exists
     if (lightweightChartRef.current) {
       lightweightChartRef.current.remove();
       lightweightChartRef.current = null;
+      candlestickSeriesRef.current = null;
+      ema20SeriesRef.current = null;
+      ema50SeriesRef.current = null;
+      vwapSeriesRef.current = null;
+      chartMarkersRef.current = [];
     }
+    setChartData(null);
+  }, [selectedSymbol, chartTimeframe]);
+
+  // 2. Initialize and draw chart when chartData arrives
+  useEffect(() => {
+    if (!chartContainerRef.current || !chartData || chartData.candles.length === 0) return;
+
+    // If chart already initialized, skip full recreation (incremental updates handle live data)
+    if (lightweightChartRef.current) return;
 
     const container = chartContainerRef.current;
     
@@ -417,6 +490,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       grid: {
         vertLines: { color: '#1e293b' },
         horzLines: { color: '#1e293b' },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+      },
+      rightPriceScale: {
+        visible: true,
+        borderColor: '#1e293b',
       },
       timeScale: {
         borderColor: '#1e293b',
@@ -435,8 +515,9 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       wickUpColor: '#10b981',
       wickDownColor: '#ef4444',
     });
+    candlestickSeriesRef.current = candlestickSeries;
 
-    // Format candle series data
+    // Populate candle data
     const candlesData = chartData.candles.map(c => ({
       time: c.time,
       open: c.open,
@@ -452,6 +533,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       lineWidth: 1,
       title: 'EMA 20'
     });
+    ema20SeriesRef.current = ema20Series;
     ema20Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_20 })));
 
     // EMA 50 Overlays (Blue)
@@ -460,6 +542,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       lineWidth: 1,
       title: 'EMA 50'
     });
+    ema50SeriesRef.current = ema50Series;
     ema50Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_50 })));
 
     // VWAP Overlay (Purple)
@@ -468,29 +551,36 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       lineWidth: 1,
       title: 'VWAP'
     });
+    vwapSeriesRef.current = vwapSeries;
     vwapSeries.setData(chartData.candles.map(c => ({ time: c.time, value: c.vwap })));
 
     // Set markers for breakouts/breakdowns
     if (chartData.breakout_markers && chartData.breakout_markers.length > 0) {
       candlestickSeries.setMarkers(chartData.breakout_markers);
+      chartMarkersRef.current = chartData.breakout_markers;
     }
 
     // Auto-fit contents
     chart.timeScale().fitContent();
 
-    // Handle Resize
+    // Handle Resize with requestAnimationFrame debounce
+    let resizeAnimationFrameId: number;
     const handleResize = () => {
-      if (lightweightChartRef.current) {
-        lightweightChartRef.current.applyOptions({ width: container.clientWidth });
+      if (resizeAnimationFrameId) {
+        cancelAnimationFrame(resizeAnimationFrameId);
       }
+      resizeAnimationFrameId = requestAnimationFrame(() => {
+        if (lightweightChartRef.current) {
+          lightweightChartRef.current.applyOptions({ width: container.clientWidth });
+        }
+      });
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (lightweightChartRef.current) {
-        lightweightChartRef.current.remove();
-        lightweightChartRef.current = null;
+      if (resizeAnimationFrameId) {
+        cancelAnimationFrame(resizeAnimationFrameId);
       }
     };
   }, [chartData]);
@@ -881,23 +971,48 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  <BarChart2 size={14} className="text-purple-400" /> Interactive Technical Chart (Lightweight Charts)
+                  <BarChart2 size={14} className="text-purple-400" /> {
+                    chartTimeframe === '5m' ? '5 Minute Chart (3 Months)' :
+                    chartTimeframe === '15m' ? '15 Minute Chart (3 Months)' :
+                    chartTimeframe === '30m' ? '30 Minute Chart (3 Months)' :
+                    'Daily Chart (3 Months)'
+                  }
+                  {chartData && (
+                    <span className="group relative inline-block cursor-pointer ml-1.5 align-middle">
+                      <Info size={12} className="text-slate-500 hover:text-slate-300" />
+                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block bg-slate-950/95 border border-slate-800 text-slate-350 text-[10px] p-2.5 rounded-lg shadow-xl font-mono whitespace-nowrap z-50 pointer-events-none transition-all">
+                        <span className="block text-purple-400 font-bold border-b border-slate-800/80 pb-1 mb-1">
+                          History Loaded:
+                        </span>
+                        <span className="block text-slate-100 font-bold mb-2">
+                          {chartData.available_history_days || 90} Days
+                        </span>
+                        <span className="block text-purple-400 font-bold border-b border-slate-800/80 pb-1 mb-1">
+                          Candles:
+                        </span>
+                        <span className="block text-slate-100 font-bold">
+                          {chartData.candle_count || 0}
+                        </span>
+                      </span>
+                    </span>
+                  )}
                 </h3>
                 <p className="text-[10px] text-slate-500 font-semibold mt-0.5">VWAP, EMA 20/50, Support/Resistance & Accumulation Zones</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setChartTimeframe('15m')}
-                  className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border-0 ${chartTimeframe === '15m' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
-                >
-                  Intraday (15m)
-                </button>
-                <button 
-                  onClick={() => setChartTimeframe('1d')}
-                  className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border-0 ${chartTimeframe === '1d' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
-                >
-                  Daily (1D)
-                </button>
+              <div className="flex items-center gap-1 bg-slate-950/40 p-1 rounded-lg border border-slate-800/80">
+                {(['5m', '15m', '30m', '1d'] as const).map((tf) => (
+                  <button
+                    key={tf}
+                    onClick={() => setChartTimeframe(tf)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer border-0 ${
+                      chartTimeframe === tf
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                        : 'bg-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tf === '1d' ? '1D' : tf}
+                  </button>
+                ))}
               </div>
             </div>
             

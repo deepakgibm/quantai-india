@@ -361,3 +361,30 @@ async def get_heatmap(
     except Exception as e:
         logger.error(f"Error in Heatmap API: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sectors")
+async def get_heatmap_sectors(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_read_db)
+):
+    """
+    Get list of unique sectors.
+    """
+    try:
+        sql = text("""
+            SELECT DISTINCT sector 
+            FROM instrument_master 
+            WHERE is_active = TRUE AND sector IS NOT NULL
+            ORDER BY sector
+        """)
+        result = await db.execute(sql)
+        rows = result.fetchall()
+        sectors = [r.sector for r in rows if r.sector]
+        return {
+            "status": "success",
+            "data": sectors
+        }
+    except Exception as e:
+        logger.error(f"Error in Heatmap Sectors API: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
