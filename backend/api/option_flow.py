@@ -1442,8 +1442,24 @@ async def get_option_flow_chart(
                 "timestamp": row['timestamp'].isoformat() + "Z"
             })
             
+        # Ensure df is properly indexed numerically to prevent loc errors
+        df = df.reset_index(drop=True)
+        
+        # Define timeframe-specific return thresholds
+        if interval_clean in ("1m", "1minute", "5m", "5minute"):
+            ret_threshold = 0.003  # 0.3%
+        elif interval_clean in ("15m", "15minute"):
+            ret_threshold = 0.006  # 0.6%
+        elif interval_clean in ("30m", "30minute"):
+            ret_threshold = 0.009  # 0.9%
+        else:
+            ret_threshold = 0.015  # 1.5% for daily
+
         # 9. Breakout markers
         breakout_markers = []
+        last_marker_idx = -100
+        MIN_MARKER_DISTANCE = 5
+        
         for idx, row in df.iterrows():
             close_val = float(row['close'])
             vol_val = float(row['volume'])
@@ -1454,22 +1470,32 @@ async def get_option_flow_chart(
             if vol_val > 2.0 * avg_volume and idx > 0:
                 prev_close = float(df.loc[idx - 1, 'close'])
                 ret = (close_val - prev_close) / prev_close
-                if ret > 0.015:
-                    breakout_markers.append({
-                        "time": marker_time,
-                        "position": "belowBar",
-                        "color": "#10b981",
-                        "shape": "arrowUp",
-                        "text": "BULL BREAKOUT"
-                    })
-                elif ret < -0.015:
-                    breakout_markers.append({
-                        "time": marker_time,
-                        "position": "aboveBar",
-                        "color": "#ef4444",
-                        "shape": "arrowDown",
-                        "text": "BEAR BREAKDOWN"
-                    })
+                if ret > ret_threshold:
+                    if idx - last_marker_idx >= MIN_MARKER_DISTANCE:
+                        breakout_markers.append({
+                            "time": marker_time,
+                            "position": "belowBar",
+                            "color": "#10b981",
+                            "shape": "arrowUp",
+                            "text": "BUY",
+                            "type": "bull_breakout",
+                            "price": close_val,
+                            "date": row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+                        })
+                        last_marker_idx = idx
+                elif ret < -ret_threshold:
+                    if idx - last_marker_idx >= MIN_MARKER_DISTANCE:
+                        breakout_markers.append({
+                            "time": marker_time,
+                            "position": "aboveBar",
+                            "color": "#ef4444",
+                            "shape": "arrowDown",
+                            "text": "SELL",
+                            "type": "bear_breakdown",
+                            "price": close_val,
+                            "date": row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+                        })
+                        last_marker_idx = idx
                     
         # 10. Format chart candle response list
         chart_candles = []
