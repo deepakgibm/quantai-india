@@ -5,12 +5,32 @@ export const useWatchlistQuery = () => {
   return useQuery({
     queryKey: ['watchlist'],
     queryFn: async () => {
-      const res = await apiGet<any[]>('/api/watchlist');
-      if (!res.success) {
-        throw new Error(res.error?.message || 'Failed to fetch watchlist');
+      console.log("Loading Watchlist Portfolio...");
+      console.log("Calling watchlist sync API...");
+      try {
+        const res = await apiGet<any[]>('/api/watchlist');
+        if (!res.success) {
+          throw new Error(res.error?.message || 'Failed to fetch watchlist');
+        }
+        console.log("Watchlist API Response:", res);
+        const data = res.data || [];
+        localStorage.setItem('watchlist_cache', JSON.stringify(data));
+        localStorage.setItem('watchlist_cache_time', Date.now().toString());
+        return data;
+      } catch (err: any) {
+        console.error("Watchlist Sync Error:", err);
+        console.error("Status:", err?.response?.status);
+        console.error("Response:", err?.response?.data);
+        const cached = localStorage.getItem('watchlist_cache');
+        if (cached) {
+          console.warn('Watchlist API failed, returning cached data:', err);
+          return JSON.parse(cached);
+        }
+        throw err;
       }
-      return res.data || [];
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 };
 
@@ -18,12 +38,24 @@ export const useWatchlistPerformanceQuery = (virtualInvestment: number) => {
   return useQuery({
     queryKey: ['watchlist-performance', virtualInvestment],
     queryFn: async () => {
-      const res = await apiGet<any>(`/api/watchlist/performance?virtualInvestment=${virtualInvestment}`);
-      if (!res.success) {
-        throw new Error(res.error?.message || 'Failed to fetch performance');
+      try {
+        const res = await apiGet<any>(`/api/watchlist/performance?virtualInvestment=${virtualInvestment}`);
+        if (!res.success) {
+          throw new Error(res.error?.message || 'Failed to fetch performance');
+        }
+        localStorage.setItem(`watchlist_perf_cache_${virtualInvestment}`, JSON.stringify(res.data));
+        return res.data;
+      } catch (err) {
+        const cached = localStorage.getItem(`watchlist_perf_cache_${virtualInvestment}`);
+        if (cached) {
+          console.warn('Watchlist performance API failed, returning cached data:', err);
+          return JSON.parse(cached);
+        }
+        throw err;
       }
-      return res.data;
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 };
 
@@ -31,12 +63,24 @@ export const useWatchlistAnalyticsQuery = (virtualInvestment: number) => {
   return useQuery({
     queryKey: ['watchlist-analytics', virtualInvestment],
     queryFn: async () => {
-      const res = await apiGet<any>(`/api/watchlist/analytics?virtualInvestment=${virtualInvestment}`);
-      if (!res.success) {
-        throw new Error(res.error?.message || 'Failed to fetch analytics');
+      try {
+        const res = await apiGet<any>(`/api/watchlist/analytics?virtualInvestment=${virtualInvestment}`);
+        if (!res.success) {
+          throw new Error(res.error?.message || 'Failed to fetch analytics');
+        }
+        localStorage.setItem(`watchlist_analytics_cache_${virtualInvestment}`, JSON.stringify(res.data));
+        return res.data;
+      } catch (err) {
+        const cached = localStorage.getItem(`watchlist_analytics_cache_${virtualInvestment}`);
+        if (cached) {
+          console.warn('Watchlist analytics API failed, returning cached data:', err);
+          return JSON.parse(cached);
+        }
+        throw err;
       }
-      return res.data;
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 };
 

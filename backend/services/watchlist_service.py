@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from models import WatchlistItem, User
 from schemas import WatchlistItemCreate, WatchlistItemResponse
@@ -146,9 +147,10 @@ class WatchlistService:
                         ltp = float(quote.get("last_price", 0))
                         if ltp > 0:
                             item.current_price = ltp
-                            item.change_amount = ltp - item.watchlist_price
-                            if item.watchlist_price > 0:
-                                item.change_percent = (item.change_amount / item.watchlist_price) * 100
+                            wp = item.watchlist_price or 0.0
+                            item.change_amount = ltp - wp
+                            if wp > 0:
+                                item.change_percent = (item.change_amount / wp) * 100
                             else:
                                 item.change_percent = 0.0
                             item.last_updated = datetime.utcnow()
@@ -208,7 +210,7 @@ class WatchlistService:
         winners = 0
 
         for item in items:
-            p_entry = item.watchlist_price
+            p_entry = item.watchlist_price or 0.0
             p_curr = item.current_price or p_entry
             
             if p_entry <= 0:
@@ -268,7 +270,7 @@ class WatchlistService:
 
         for item in items:
             days = WatchlistService.get_days_tracked(item.added_at)
-            p_entry = item.watchlist_price
+            p_entry = item.watchlist_price or 0.0
             p_curr = item.current_price or p_entry
             
             if p_entry <= 0:
@@ -302,10 +304,8 @@ class WatchlistService:
 
         # Accurate counts for winners/neutral/losers
         total_items = len(items)
-        winners_count = sum(1 for item in items if (item.current_price - item.watchlist_price) / item.watchlist_price * 100 >= 2.0)
-        losers_count = sum(1 for item in items if (item.current_price - item.watchlist_price) / item.watchlist_price * 100 <= -2.0)
-        neutral_count = total_items - winners_count - losers_count
-        accuracy = (sum(1 for item in items if item.current_price > item.watchlist_price) / total_items) * 100
+        valid_items = [i for i in items if i.watchlist_price and i.watchlist_price > 0]
+        accuracy = (sum(1 for item in valid_items if (item.current_price or 0.0) > item.watchlist_price) / len(valid_items)) * 100 if valid_items else 0.0
 
         best_pick_payload = {
             "symbol": best_item.symbol,
@@ -417,7 +417,7 @@ class WatchlistService:
                 continue
 
             for item in active_items:
-                p_entry = item.watchlist_price
+                p_entry = item.watchlist_price or 0.0
                 if p_entry <= 0:
                     continue
 

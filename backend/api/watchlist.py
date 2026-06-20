@@ -58,7 +58,7 @@ async def get_watchlist(
             )
         return response_items
     except Exception as e:
-        logger.error(f"Error in get_watchlist API: {e}")
+        logger.error(f"Error in get_watchlist API: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch watchlist: {str(e)}"
@@ -153,7 +153,7 @@ async def get_watchlist_performance(
             accuracy_percent=perf["accuracy_percent"]
         )
     except Exception as e:
-        logger.error(f"Error in get_watchlist_performance API: {e}")
+        logger.error(f"Error in get_watchlist_performance API: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to calculate performance: {str(e)}"
@@ -180,7 +180,7 @@ async def get_watchlist_analytics(
             roi_over_time_chart=analytics["roi_over_time_chart"]
         )
     except Exception as e:
-        logger.error(f"Error in get_watchlist_analytics API: {e}")
+        logger.error(f"Error in get_watchlist_analytics API: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to compile analytics: {str(e)}"

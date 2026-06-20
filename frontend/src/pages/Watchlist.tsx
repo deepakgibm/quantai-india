@@ -114,7 +114,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
   const addMutation = useAddWatchlistItemMutation();
   const removeMutation = useRemoveWatchlistItemMutation();
 
-  const loading = watchlistLoading || perfLoading || analyticsLoading;
+  const initialLoading = (watchlistLoading && watchlistItems.length === 0) || (perfLoading && !performance) || (analyticsLoading && !analytics);
   const refreshing = watchlistFetching || perfFetching || analyticsFetching;
   const error = (watchlistError || perfError || analyticsError)
     ? ((watchlistError?.message || perfError?.message || analyticsError?.message || 'Sync Error') as string)
@@ -214,7 +214,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
     );
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 size={40} className="text-brand-500 animate-spin mb-4" />
@@ -223,24 +223,27 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-16 max-w-md mx-auto">
-        <AlertCircle size={48} className="text-rose-500 mx-auto mb-4" />
-        <h2 className="text-lg font-bold mb-2">Watchlist Sync Error</h2>
-        <p className="text-slate-400 text-sm mb-6">{error}</p>
-        <button 
-          onClick={() => fetchData()} 
-          className="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-brand-500/20 transition-all"
-        >
-          Retry Connection
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <AlertCircle size={20} className="shrink-0" />
+            <p className="text-sm font-medium">
+              <span className="font-bold mr-1">Sync Warning:</span>
+              {error}. Displaying cached offline data.
+            </p>
+          </div>
+          <button 
+            onClick={() => fetchData()}
+            disabled={refreshing}
+            className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+          >
+            {refreshing ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
