@@ -98,6 +98,31 @@ const getColorForValue = (value: number, mode: string) => {
   }
 };
 
+// Normalize granular industries to major Indian sectors (~15-25)
+const normalizeSector = (industryName: string): string => {
+  if (!industryName) return 'Other';
+  const lower = industryName.toLowerCase();
+  
+  if (lower.includes('bank') || lower.includes('finance') || lower.includes('nbfc') || lower.includes('insurance') || lower.includes('broking')) return 'Financial Services';
+  if (lower.includes('software') || lower.includes('it -') || lower.includes('it service') || lower.includes('technology') || lower.includes('computers')) return 'Information Technology';
+  if (lower.includes('auto') || lower.includes('vehicle') || lower.includes('tyre') || lower.includes('tractor')) return 'Automobile & Ancillaries';
+  if (lower.includes('pharma') || lower.includes('health') || lower.includes('hospital') || lower.includes('medical')) return 'Healthcare & Pharma';
+  if (lower.includes('fmcg') || lower.includes('consumer') || lower.includes('food') || lower.includes('beverage') || lower.includes('brewery')) return 'FMCG';
+  if (lower.includes('metal') || lower.includes('steel') || lower.includes('aluminum') || lower.includes('mining') || lower.includes('copper')) return 'Metals & Mining';
+  if (lower.includes('oil') || lower.includes('gas') || lower.includes('energy') || lower.includes('petro') || lower.includes('power')) return 'Energy & Power';
+  if (lower.includes('telecom') || lower.includes('communication')) return 'Telecommunications';
+  if (lower.includes('construct') || lower.includes('infra') || lower.includes('cement') || lower.includes('real estate') || lower.includes('realty')) return 'Infrastructure & Realty';
+  if (lower.includes('chemical') || lower.includes('fertilizer') || lower.includes('pesticide')) return 'Chemicals';
+  if (lower.includes('capital goods') || lower.includes('engineering') || lower.includes('machinery')) return 'Capital Goods';
+  if (lower.includes('textile') || lower.includes('garment') || lower.includes('apparel')) return 'Textiles';
+  if (lower.includes('media') || lower.includes('entertainment') || lower.includes('broadcasting')) return 'Media & Entertainment';
+  if (lower.includes('travel') || lower.includes('hotel') || lower.includes('tourism') || lower.includes('hospitality') || lower.includes('aviation')) return 'Travel & Hospitality';
+  if (lower.includes('retail') || lower.includes('ecommerce')) return 'Retail';
+  if (lower.includes('logistics') || lower.includes('transport') || lower.includes('shipping')) return 'Logistics';
+
+  return 'Miscellaneous';
+};
+
 export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({ onNavigate, isWidget = false }) => {
   const { setSelectedSymbol } = useGlobalSymbol();
   const [heatmapData, setHeatmapData] = useState<any>(null);
@@ -153,10 +178,38 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
       const data = await api.getHeatmapData(activeMode, activeTimeframe);
       
       const stocks = data?.sectors ? data.sectors.flatMap((s: any) => s.stocks || []) : [];
-      const sectorData = data?.sectors || [];
-      const groupedSectors = data?.sectors || [];
       const sectorMetrics = data?.market_summary || {};
+      
+      // Normalize and Group Sectors
+      const rawSectors = data?.sectors || [];
+      const groupedMap = new Map<string, any>();
+      
+      rawSectors.forEach((s: any) => {
+        const normName = normalizeSector(s.name);
+        if (!groupedMap.has(normName)) {
+          groupedMap.set(normName, {
+            name: normName,
+            total_market_cap: 0,
+            avg_value: 0,
+            stocks: []
+          });
+        }
+        
+        const group = groupedMap.get(normName);
+        group.total_market_cap += s.total_market_cap || 0;
+        group.stocks.push(...(s.stocks || []));
+      });
+      
+      // Compute weighted averages for color intensity (avg_value)
+      const groupedSectors = Array.from(groupedMap.values()).map(g => {
+        if (g.stocks.length > 0 && g.total_market_cap > 0) {
+          g.avg_value = g.stocks.reduce((acc: number, st: any) => acc + ((st.value || 0) * (st.market_cap || 0)), 0) / g.total_market_cap;
+        }
+        return g;
+      });
+
       const response = data;
+      const sectorData = groupedSectors;
 
       console.log("Nifty 500 Stocks Loaded:", stocks.length);
       console.log("Sector Data:", sectorData);
@@ -165,7 +218,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
       console.log("API Response:", response);
 
       if (data && data.status === 'success') {
-        setHeatmapData(data);
+        setHeatmapData({ ...data, sectors: groupedSectors });
         setLastRefreshTime(new Date().toLocaleTimeString());
       } else {
         setError('Failed to compute market heatmap hierarchy.');

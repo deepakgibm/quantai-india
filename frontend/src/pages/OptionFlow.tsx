@@ -264,8 +264,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       
       if (response && response.success && response.data) {
         setData(response.data);
-        console.log("Relative Strength API Response", response.data.market_correlation);
-        console.log("Heatmap Classification", response.data.strikes);
+        console.log("Relative Strength API Response", JSON.stringify(response.data.market_correlation, null, 2));
+        // console.log("Heatmap Classification", response.data.strikes); // REMOVED to avoid confusion
         setError(null);
         setDataSource(response.status === 'stale' || response.source === 'stale_cache' ? 'stale_cache' : response.source || 'upstox');
         setLastUpdated(new Date().toLocaleTimeString());
@@ -322,7 +322,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     
     setChartLoading(true);
     try {
-      const response = await api.getOptionFlowChart(symbol, timeframe, 90);
+      const response = await api.getOptionFlowChart(clean, timeframe, 90);
       // Handle double-nested data payload structure if API returns {success: true, data: {...}}
       const chartPayload = response?.data && response?.success ? response.data : response;
       
@@ -383,7 +383,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     const fetchIncrementalChartData = async () => {
       if (!lightweightChartRef.current || !candlestickSeriesRef.current) return;
       try {
-        const response = await api.getOptionFlowChart(selectedSymbol, chartTimeframe, 2);
+        const response = await api.getOptionFlowChart(clean, chartTimeframe, 2);
         const chartPayload = response?.data && response?.success ? response.data : response;
 
         if (chartPayload && chartPayload.candles && chartPayload.candles.length > 0) {
@@ -612,7 +612,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
     // EMA 20 Overlays (Yellow)
     const ema20Series = chart.addLineSeries({
-      color: '#eab308',
+      color: '#F59E0B',
       lineWidth: 1,
       title: 'EMA 20'
     });
@@ -644,7 +644,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
     // VWAP Overlay (Purple)
     const vwapSeries = chart.addLineSeries({
-      color: '#a855f7',
+      color: '#8B5CF6',
       lineWidth: 1,
       title: 'VWAP'
     });
@@ -663,7 +663,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       chartData.support_zones.forEach(price => {
         candlestickSeries.createPriceLine({
           price: price,
-          color: '#10b98188',
+          color: '#10B981',
           lineWidth: 1,
           lineStyle: 2,
           axisLabelVisible: true,
@@ -676,7 +676,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       chartData.resistance_zones.forEach(price => {
         candlestickSeries.createPriceLine({
           price: price,
-          color: '#ef444488',
+          color: '#EF4444',
           lineWidth: 1,
           lineStyle: 2,
           axisLabelVisible: true,
@@ -877,7 +877,25 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
   const isDataEmpty = !data || !data.strikes || data.strikes.length === 0;
 
-  if (isDataEmpty) {
+  if (isDataEmpty && !loading) {
+    let emptyTitle = "No Option Chain Data Available";
+    let emptyMessage = (
+      <>
+        The Upstox API returned no option chain strikes for <span className="text-white font-bold">{selectedSymbol}</span>.
+      </>
+    );
+
+    if (!selectedExpiry && expiries.length === 0) {
+      emptyTitle = "No Expiry Found";
+      emptyMessage = <>No active expiry available for <span className="text-white font-bold">{selectedSymbol}</span>.</>;
+    } else if (data?.status === 'error') {
+      emptyTitle = "API Error";
+      emptyMessage = <>Failed to retrieve option chain from Upstox API for <span className="text-white font-bold">{selectedSymbol}</span>.</>;
+    } else if (data?.strikes?.length === 0) {
+      emptyTitle = "Empty Data";
+      emptyMessage = <>No strikes returned by exchange for <span className="text-white font-bold">{selectedSymbol}</span> at expiry {selectedExpiry}.</>;
+    }
+
     return (
       <div className="space-y-6">
         {!isWidget && (
@@ -896,10 +914,10 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
             <Layers size={24} />
           </div>
           <h3 className="font-display font-bold text-base text-slate-200 mb-2">
-            No Option Chain Data Available
+            {emptyTitle}
           </h3>
           <p className="text-xs text-slate-400 max-w-md text-center mb-2 font-medium leading-relaxed font-sans">
-            The Upstox API returned no option chain strikes for <span className="text-white font-bold">{selectedSymbol}</span>.
+            {emptyMessage}
           </p>
           <button
             onClick={handleRetry}
@@ -930,6 +948,37 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
   return (
     <div className="space-y-6 text-slate-100 font-sans selection:bg-emerald-500/30">
+      {/* Diagnostic Panel */}
+      <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl text-[11px] font-mono text-slate-300 backdrop-blur-md">
+        <div className="flex items-center gap-2 border-r border-slate-700/50 pr-4">
+          <span className="text-indigo-400 font-bold">DIAGNOSTIC</span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+          <span className="text-slate-500">Symbol:</span>
+          <span className="text-white font-bold">{data.symbol}</span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+          <span className="text-slate-500">Expiry:</span>
+          <span className="text-white font-bold">{data.expiry}</span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+          <span className="text-slate-500">API Status:</span>
+          <span className="text-emerald-400 font-bold">{data.status}</span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+          <span className="text-slate-500">Strike Count:</span>
+          <span className="text-white font-bold">{data.strikes?.length || 0}</span>
+        </div>
+        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+          <span className="text-slate-500">CE Records:</span>
+          <span className="text-white font-bold">{data.strikes?.filter((s: any) => s.call.oi > 0 || s.call.volume > 0).length || 0}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-500">PE Records:</span>
+          <span className="text-white font-bold">{data.strikes?.filter((s: any) => s.put.oi > 0 || s.put.volume > 0).length || 0}</span>
+        </div>
+      </div>
+
       {/* Stale Cache Banner */}
       {isStaleData && (
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-950/20 text-amber-300 backdrop-blur-md">
@@ -1285,8 +1334,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
           {/* Smart Money & Anomalies activity tracker */}
           <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
-            <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
-              <Award size={14} className="text-purple-400" /> Smart Money Activity
+            <h3 className="font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5" style={{ color: '#FFFFFF' }}>
+              <Award size={14} style={{ color: '#FFFFFF' }} /> SMART MONEY ACTIVITY
             </h3>
             <div className="space-y-3 max-h-[290px] overflow-y-auto pr-1">
               {data.smart_money_activity && data.smart_money_activity.length > 0 ? (
@@ -1294,26 +1343,28 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                   <div 
                     key={idx} 
                     className={`p-3 rounded-xl border flex flex-col justify-between text-[11px] font-semibold transition-all hover:bg-slate-850/40 ${
-                      act.severity === 'High' ? 'bg-red-950/15 border-red-500/20 text-red-300' :
-                      act.severity === 'Medium' ? 'bg-amber-950/15 border-amber-500/20 text-amber-300' :
-                      'bg-slate-950/40 border-slate-800 text-slate-300'
+                      act.severity === 'High' ? 'bg-red-950/15 border-red-500/20' :
+                      act.severity === 'Medium' ? 'bg-amber-950/15 border-amber-500/20' :
+                      'bg-slate-950/40 border-slate-800'
                     }`}
                   >
-                    <div className="flex justify-between items-center border-b border-slate-800/60 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-[10px]">
-                      <span className="flex items-center gap-1">
-                        <Flame size={12} className={act.severity === 'High' ? 'text-red-500 animate-pulse' : 'text-amber-500'} />
+                    <div className="flex justify-between items-center border-b border-slate-800/60 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-[10px]" style={{ color: '#FFFFFF' }}>
+                      <span className="flex items-center gap-1" style={{ color: '#FFFFFF' }}>
+                        <Flame size={12} className={act.severity === 'High' ? 'animate-pulse' : ''} style={{ color: '#FFFFFF' }} />
                         {act.type}
                       </span>
-                      <span>Strike {act.strike_price}</span>
+                      <span style={{ color: '#FFFFFF' }}>Strike {act.strike_price}</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
+                    <p className="text-[10px] leading-relaxed font-mono" style={{ color: '#FFFFFF' }}>
                       {act.reason}
                     </p>
                   </div>
                 ))
               ) : (
-                <div className="text-slate-500 text-center py-12 text-xs font-semibold">
-                  No unusual smart money patterns detected currently.
+                <div style={{ padding: '3rem 0', textAlign: 'center' }}>
+                  <p style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold', margin: 0, opacity: 1 }} className="text-white">
+                    No unusual smart money patterns detected currently.
+                  </p>
                 </div>
               )}
             </div>
@@ -1398,69 +1449,76 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                     <th className="px-4 py-2.5">Buildup</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850/50 font-mono text-[11px]">
-                  {data.strikes.map((s) => {
-                    const isAtm = s.strike_price === atmStrike;
-                    const rowBg = isAtm 
-                      ? 'bg-purple-950/15 hover:bg-purple-950/20 border-y border-purple-500/20' 
-                      : 'hover:bg-slate-800/25';
-                    
-                    const ceBuildup = s.call.buildup;
-                    const peBuildup = s.put.buildup;
+                <tbody className="divide-y divide-slate-850/50 font-mono text-[14px]">
+                  {(() => {
+                    const maxCallOi = Math.max(...data.strikes.map(s => s.call.oi));
+                    const maxPutOi = Math.max(...data.strikes.map(s => s.put.oi));
+                    return data.strikes.map((s, idx) => {
+                      const isAtm = s.strike_price === atmStrike;
+                      const isHighestCallOi = s.call.oi === maxCallOi && maxCallOi > 0;
+                      const isHighestPutOi = s.put.oi === maxPutOi && maxPutOi > 0;
+                      
+                      const rowBg = isAtm 
+                        ? 'bg-[rgba(59,130,246,0.15)] border-l-4 border-l-[#3B82F6] hover:bg-[#334155]' 
+                        : idx % 2 === 0 ? 'bg-[#1E293B] hover:bg-[#334155]' : 'bg-[#263244] hover:bg-[#334155]';
+                      
+                      const ceBuildup = s.call.buildup;
+                      const peBuildup = s.put.buildup;
 
-                    const ceBuildupBadge = 
-                      ceBuildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/10' :
-                      ceBuildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400 border border-red-500/10' :
-                      ceBuildup === 'Long Unwinding' ? 'bg-amber-950/40 text-amber-400 border border-amber-500/10' :
-                      ceBuildup === 'Short Covering' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/10' : 'text-slate-500';
+                      const ceBuildupBadge = 
+                        ceBuildup === 'Long Build-Up' ? 'text-term-bullish' :
+                        ceBuildup === 'Short Build-Up' ? 'text-term-bearish' :
+                        ceBuildup === 'Long Unwinding' ? 'text-term-neutral' :
+                        ceBuildup === 'Short Covering' ? 'text-term-info' : 'text-slate-500';
 
-                    const peBuildupBadge = 
-                      peBuildup === 'Long Build-Up' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/10' :
-                      peBuildup === 'Short Build-Up' ? 'bg-red-950/40 text-red-400 border border-red-500/10' :
-                      peBuildup === 'Long Unwinding' ? 'bg-amber-950/40 text-amber-400 border border-amber-500/10' :
-                      peBuildup === 'Short Covering' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/10' : 'text-slate-500';
+                      const peBuildupBadge = 
+                        peBuildup === 'Long Build-Up' ? 'text-term-bullish' :
+                        peBuildup === 'Short Build-Up' ? 'text-term-bearish' :
+                        peBuildup === 'Long Unwinding' ? 'text-term-neutral' :
+                        peBuildup === 'Short Covering' ? 'text-term-info' : 'text-slate-500';
 
-                    return (
-                      <tr key={s.strike_price} className={`${rowBg} transition-colors`}>
-                        {/* CALLS */}
-                        <td className="px-4 py-2">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${ceBuildupBadge}`}>
-                            {ceBuildup}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-slate-300">{s.call.oi.toLocaleString()}</td>
-                        <td className={`px-4 py-2 font-bold ${s.call.oi_change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {s.call.oi_change >= 0 ? '+' : ''}{s.call.oi_change.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 text-slate-400">{s.call.volume.toLocaleString()}</td>
-                        <td className="px-4 py-2 text-slate-400">{s.call.iv.toFixed(1)}%</td>
-                        <td className="px-4 py-2 font-semibold text-emerald-400 border-r border-slate-800/60">
-                          ₹{s.call.ltp.toFixed(2)}
-                        </td>
-                        
-                        {/* STRIKE */}
-                        <td className={`px-4 py-2 text-center font-bold border-r border-slate-800/60 text-slate-100 ${isAtm ? 'text-purple-400 bg-purple-950/10' : ''}`}>
-                          {s.strike_price.toFixed(1)}
-                        </td>
-                        
-                        {/* PUTS */}
-                        <td className="px-4 py-2 font-semibold text-emerald-400">
-                          ₹{s.put.ltp.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-2 text-slate-400">{s.put.iv.toFixed(1)}%</td>
-                        <td className="px-4 py-2 text-slate-400">{s.put.volume.toLocaleString()}</td>
-                        <td className={`px-4 py-2 font-bold ${s.put.oi_change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {s.put.oi_change >= 0 ? '+' : ''}{s.put.oi_change.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 text-slate-300">{s.put.oi.toLocaleString()}</td>
-                        <td className="px-4 py-2">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${peBuildupBadge}`}>
-                            {peBuildup}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      return (
+                        <tr key={s.strike_price} className={`${rowBg} transition-colors h-[42px]`}>
+                          {/* CALLS */}
+                          <td className="px-4 py-2">
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${ceBuildupBadge}`}>
+                              {ceBuildup}
+                            </span>
+                          </td>
+                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestCallOi ? 'bg-[rgba(16,185,129,0.15)] font-bold text-term-bullish' : ''}`}>{s.call.oi.toLocaleString()}</td>
+                          <td className={`px-4 py-2 font-bold ${s.call.oi_change >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
+                            {s.call.oi_change >= 0 ? '+' : ''}{s.call.oi_change.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 text-term-text-muted">{s.call.volume.toLocaleString()}</td>
+                          <td className="px-4 py-2 text-term-text-muted">{s.call.iv.toFixed(1)}%</td>
+                          <td className="px-4 py-2 font-semibold text-term-bullish border-r border-slate-800/60">
+                            ₹{s.call.ltp.toFixed(2)}
+                          </td>
+                          
+                          {/* STRIKE */}
+                          <td className={`px-4 py-2 text-center font-bold border-r border-slate-800/60 ${isAtm ? 'text-term-info bg-[rgba(59,130,246,0.1)]' : 'text-term-text-primary'}`}>
+                            {s.strike_price.toFixed(1)}
+                          </td>
+                          
+                          {/* PUTS */}
+                          <td className="px-4 py-2 font-semibold text-term-bullish">
+                            ₹{s.put.ltp.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2 text-term-text-muted">{s.put.iv.toFixed(1)}%</td>
+                          <td className="px-4 py-2 text-term-text-muted">{s.put.volume.toLocaleString()}</td>
+                          <td className={`px-4 py-2 font-bold ${s.put.oi_change >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
+                            {s.put.oi_change >= 0 ? '+' : ''}{s.put.oi_change.toLocaleString()}
+                          </td>
+                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestPutOi ? 'bg-[rgba(239,68,68,0.15)] font-bold text-term-bearish' : ''}`}>{s.put.oi.toLocaleString()}</td>
+                          <td className="px-4 py-2">
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${peBuildupBadge}`}>
+                              {peBuildup}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>

@@ -129,8 +129,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
                     transition-all duration-200 group font-medium text-sm
                     ${isActive
-                      ? 'bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 shadow-sm ring-1 ring-brand-200 dark:ring-brand-800'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
+                      ? 'bg-term-bg-tertiary text-term-info border-l-[3px] border-term-info rounded-l-none'
+                      : 'text-term-text-secondary hover:bg-[#1F2937] hover:text-term-text-primary'
                     }
                   `}
                 >
@@ -138,8 +138,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     size={17}
                     strokeWidth={isActive ? 2.5 : 2}
                     className={`shrink-0 ${isActive
-                      ? 'text-brand-600 dark:text-brand-400'
-                      : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300'
+                      ? 'text-term-info'
+                      : 'text-slate-500 group-hover:text-term-text-primary'
                     }`}
                   />
                   <span className="flex-1 truncate">{item.label}</span>

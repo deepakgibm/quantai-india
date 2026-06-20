@@ -723,7 +723,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {/* Subscription Status Card */}
             <div
                onClick={() => onNavigate(Page.SUBSCRIPTION)}
-               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-brand-500"
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:bg-[#334155] transition-all border-l-[3px] border-l-term-info"
             >
                <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Subscription</span>
@@ -738,7 +738,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {/* Portfolio Health Card */}
             <div
                onClick={() => onNavigate(Page.PORTFOLIO_INTELLIGENCE)}
-               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-emerald-500"
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:bg-[#334155] transition-all border-l-[3px] border-l-term-bullish"
             >
                <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Portfolio Health</span>
@@ -753,7 +753,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {/* Signal Accuracy Card */}
             <div
                onClick={() => onNavigate(Page.SIGNAL_CENTER)}
-               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-purple-500"
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:bg-[#334155] transition-all border-l-[3px] border-l-term-accent"
             >
                <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Signal Win Rate</span>
@@ -768,7 +768,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {/* Risk Exposure Card */}
             <div
                onClick={() => onNavigate(Page.PORTFOLIO_INTELLIGENCE)}
-               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-amber-500"
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:bg-[#334155] transition-all border-l-[3px] border-l-term-neutral"
             >
                <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Risk Profile</span>
@@ -783,7 +783,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {/* Watchlist Portfolio Card */}
             <div
                onClick={() => onNavigate(Page.WATCHLIST)}
-               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-indigo-500"
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:bg-[#334155] transition-all border-l-[3px] border-l-term-info"
             >
                <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Watchlist Portfolio</span>
@@ -803,7 +803,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {/* Top Opportunities Card */}
             <div
                onClick={() => onNavigate(Page.SIGNAL_CENTER)}
-               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all border-l-4 border-l-rose-500"
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:bg-[#334155] transition-all border-l-[3px] border-l-term-bearish"
             >
                <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Top Opportunities</span>
@@ -821,7 +821,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
             {/* AI Market Summary Card */}
             <div
-               className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md transition-all border-l-4 border-l-indigo-500"
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] transition-all border-l-[3px] border-l-term-info"
             >
                <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">AI Copilot Market Summary</span>

@@ -21,6 +21,23 @@ module.exports = {
                     900: '#0c4a6e',
                 },
                 upstox: '#5d3d90',
+                term: {
+                    bg: {
+                        primary: '#0F172A',
+                        secondary: '#111827',
+                        tertiary: '#1E293B',
+                    },
+                    text: {
+                        primary: '#F8FAFC',
+                        secondary: '#CBD5E1',
+                        muted: '#94A3B8',
+                    },
+                    bullish: '#10B981',
+                    bearish: '#EF4444',
+                    neutral: '#F59E0B',
+                    info: '#3B82F6',
+                    accent: '#8B5CF6',
+                }
             }
         }
     },

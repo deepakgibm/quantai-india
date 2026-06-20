@@ -73,6 +73,16 @@ export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) =>
                     ...prev,
                     connectionTime: now.toISOString()
                 }));
+
+                // Setup Heartbeat Ping
+                const pingInterval = setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                    }
+                }, 30000);
+                
+                // Store ping interval to clear it on close
+                (ws as any).pingInterval = pingInterval;
             };
 
             ws.onmessage = (event) => {
@@ -108,6 +118,9 @@ export const useMarketDataStream = (options: UseMarketDataStreamOptions = {}) =>
             ws.onclose = (event) => {
                 console.log('Market WS Closed');
                 setIsConnected(false);
+                if ((ws as any).pingInterval) {
+                    clearInterval((ws as any).pingInterval);
+                }
                 wsRef.current = null;
 
                 let reason = `Code: ${event.code}`;

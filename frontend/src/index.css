@@ -17,14 +17,14 @@
 
 /* Root variables */
 :root {
-  --color-primary: #0ea5e9;
-  --color-primary-dark: #0284c7;
+  --color-primary: #3b82f6;
+  --color-primary-dark: #2563eb;
   --color-success: #10b981;
   --color-danger: #ef4444;
   --color-warning: #f59e0b;
   --color-background: #0f172a;
   --color-surface: #1e293b;
-  --color-text: #e2e8f0;
+  --color-text: #f8fafc;
 }
 
 /* Base */
@@ -38,6 +38,8 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-background);
+  color: var(--color-text);
 }
 
 /* Utility classes */

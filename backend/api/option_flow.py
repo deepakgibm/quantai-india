@@ -884,12 +884,14 @@ async def get_option_flow(
             "data": response_data,
             "last_refresh": datetime.utcnow().isoformat() + "Z"
         }
-        if cache.is_available():
+        if cache.is_available() and len(strikes_list) > 0:
             try:
                 cache.set(cache_key, cache_wrapper, ttl=86400) # 24 hours
                 cache.set(f"{cache_key}:fallback", cache_wrapper, ttl=604800) # 7 days
             except Exception as ce:
                 logger.warning(f"Cache write error in option flow: {ce}")
+        elif len(strikes_list) == 0:
+            logger.warning(f"[Option Flow] Not caching response for {symbol} because strikes_list is empty. This prevents persisting transient failures or invalid expiries.")
                 
         return {
             "success": True,
@@ -1596,7 +1598,11 @@ async def get_option_expiries(
             """)
             symbol_res = await db.execute(symbol_query, {"symbol": symbol})
             symbol_row = symbol_res.fetchone()
-            instrument_key = symbol_row.instrument_key if symbol_row else f"NSE_INDEX|{symbol}"
+            if symbol_row:
+                instrument_key = symbol_row.instrument_key
+            else:
+                mapped_k = map_symbol_to_instrument_key(symbol)
+                instrument_key = mapped_k if mapped_k else f"NSE_INDEX|{symbol}"
             
             client = get_upstox_client()
             response = await client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key})
