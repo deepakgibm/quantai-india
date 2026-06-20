@@ -725,10 +725,12 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                 Compounded portfolio growth over time starting from the oldest watchlist symbol entry date.
               </p>
             </div>
-            <div className="px-3 py-1 bg-brand-500/10 text-brand-500 text-[10px] font-black uppercase tracking-wider rounded-lg border border-brand-500/20 font-mono">
-              Net: {analytics.roi_over_time_chart[analytics.roi_over_time_chart.length - 1].roi_percent >= 0 ? '+' : ''}
-              {analytics.roi_over_time_chart[analytics.roi_over_time_chart.length - 1].roi_percent.toFixed(2)}%
-            </div>
+            {analytics.roi_over_time_chart && analytics.roi_over_time_chart.length > 0 && (
+              <div className="px-3 py-1 bg-brand-500/10 text-brand-500 text-[10px] font-black uppercase tracking-wider rounded-lg border border-brand-500/20 font-mono">
+                Net: {analytics.roi_over_time_chart[analytics.roi_over_time_chart.length - 1].roi_percent >= 0 ? '+' : ''}
+                {analytics.roi_over_time_chart[analytics.roi_over_time_chart.length - 1].roi_percent.toFixed(2)}%
+              </div>
+            )}
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">

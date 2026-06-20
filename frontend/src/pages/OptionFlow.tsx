@@ -159,6 +159,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isNonFno, setIsNonFno] = useState(false);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'chain' | 'heatmap' | 'blocks' | 'summary'>('chain');
   const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
@@ -321,10 +322,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     
     setChartLoading(true);
     try {
-      const data = await api.getOptionFlowChart(symbol, timeframe, 90);
-      if (data) {
-        chartCacheRef.current[cacheKey] = data;
-        setChartData(data);
+      const response = await api.getOptionFlowChart(symbol, timeframe, 90);
+      // Handle double-nested data payload structure if API returns {success: true, data: {...}}
+      const chartPayload = response?.data && response?.success ? response.data : response;
+      
+      if (chartPayload) {
+        chartCacheRef.current[cacheKey] = chartPayload;
+        setChartData(chartPayload);
       }
     } catch (err) {
       console.warn('[OptionFlow] Failed to fetch advanced chart overlays:', err);
@@ -379,27 +383,53 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     const fetchIncrementalChartData = async () => {
       if (!lightweightChartRef.current || !candlestickSeriesRef.current) return;
       try {
-        const data = await api.getOptionFlowChart(selectedSymbol, chartTimeframe, 2);
-        if (data && data.candles && data.candles.length > 0) {
-          data.candles.forEach((c: any) => {
+        const response = await api.getOptionFlowChart(selectedSymbol, chartTimeframe, 2);
+        const chartPayload = response?.data && response?.success ? response.data : response;
+
+        if (chartPayload && chartPayload.candles && chartPayload.candles.length > 0) {
+          // 1. Update Existing Candlestick Series Instantly
+          chartPayload.candles.forEach((c: any) => {
             if (candlestickSeriesRef.current) {
+              let t = c.time;
+              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+              
               candlestickSeriesRef.current.update({
-                time: c.time,
+                time: t as UTCTimestamp,
                 open: c.open,
                 high: c.high,
                 low: c.low,
                 close: c.close
               });
             }
-            if (ema20SeriesRef.current) ema20SeriesRef.current.update({ time: c.time, value: c.ema_20 });
-            if (ema50SeriesRef.current) ema50SeriesRef.current.update({ time: c.time, value: c.ema_50 });
-            if (vwapSeriesRef.current) vwapSeriesRef.current.update({ time: c.time, value: c.vwap });
+            if (ema20SeriesRef.current && c.ema_20 !== undefined) {
+              let t = c.time;
+              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+              ema20SeriesRef.current.update({ time: t as UTCTimestamp, value: c.ema_20 });
+            }
+            if (ema50SeriesRef.current && c.ema_50 !== undefined) {
+              let t = c.time;
+              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+              ema50SeriesRef.current.update({ time: t as UTCTimestamp, value: c.ema_50 });
+            }
+            if (vwapSeriesRef.current && c.vwap !== undefined) {
+              let t = c.time;
+              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+              vwapSeriesRef.current.update({ time: t as UTCTimestamp, value: c.vwap });
+            }
           });
 
-          if (data.breakout_markers && data.breakout_markers.length > 0 && candlestickSeriesRef.current) {
+          // 2. Update Breakout Markers
+          if (chartPayload.breakout_markers && chartPayload.breakout_markers.length > 0 && candlestickSeriesRef.current) {
             const existingMarkersMap = new Map(chartMarkersRef.current.map(m => [m.time, m]));
-            data.breakout_markers.forEach((m: any) => {
-              existingMarkersMap.set(m.time, m);
+            chartPayload.breakout_markers.forEach((m: any) => {
+              let t = m.time;
+              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+              existingMarkersMap.set(t, { ...m, time: t });
             });
             const mergedMarkers = Array.from(existingMarkersMap.values()).sort((a, b) => {
               const tA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime();
@@ -412,9 +442,12 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
           setChartData(prev => {
             if (!prev) return null;
-            const existingCandlesMap = new Map(prev.candles.map(c => [c.time, c]));
-            data.candles.forEach((c: any) => {
-              existingCandlesMap.set(c.time, c);
+            const existingCandlesMap = new Map((prev.candles || []).map(c => [c.time, c]));
+            chartPayload.candles.forEach((c: any) => {
+              let t = c.time;
+              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+              existingCandlesMap.set(t, { ...c, time: t });
             });
             const mergedCandles = Array.from(existingCandlesMap.values()).sort((a, b) => {
               const tA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime();
@@ -459,7 +492,11 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   // 1. Reset/Destroy Chart on Symbol or Timeframe change
   useEffect(() => {
     if (lightweightChartRef.current) {
-      lightweightChartRef.current.remove();
+      try {
+        lightweightChartRef.current.remove();
+      } catch (e) {
+        console.warn('Error removing chart:', e);
+      }
       lightweightChartRef.current = null;
       candlestickSeriesRef.current = null;
       ema20SeriesRef.current = null;
@@ -468,20 +505,27 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       chartMarkersRef.current = [];
     }
     setChartData(null);
+    setChartError(null);
   }, [selectedSymbol, chartTimeframe]);
 
   // 2. Initialize and draw chart when chartData arrives
   useEffect(() => {
-    if (!chartContainerRef.current || !chartData || chartData.candles.length === 0) return;
+    if (!chartContainerRef.current || !chartData || !chartData.candles || chartData.candles.length === 0) {
+      return;
+    }
 
     // If chart already initialized, skip full recreation (incremental updates handle live data)
-    if (lightweightChartRef.current) return;
+    if (lightweightChartRef.current) {
+      return;
+    }
 
     const container = chartContainerRef.current;
+    console.log(`[Chart Init] Creating chart. Container clientWidth: ${container.clientWidth}, height: 320`);
     
     // Create Chart Instance
-    const chart = createChart(container, {
-      width: container.clientWidth,
+    try {
+      const chart = createChart(container, {
+      width: container.clientWidth || 800,
       height: 320,
       layout: {
         background: { type: ColorType.Solid, color: '#090d16' },
@@ -518,14 +562,53 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     candlestickSeriesRef.current = candlestickSeries;
 
     // Populate candle data
-    const candlesData = chartData.candles.map(c => ({
-      time: c.time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close
-    }));
-    candlestickSeries.setData(candlesData);
+    const candlesData = (chartData.candles || [])
+      .filter((c: any) => c && c.time && c.open != null && c.high != null && c.low != null && c.close != null && !isNaN(c.close))
+      .map((c: any) => {
+        let t = c.time;
+        // Strict timestamp conversion logic as requested
+        if (typeof t === 'string' && t.includes('T')) {
+          t = Math.floor(new Date(t).getTime() / 1000);
+        } else if (typeof t === 'number' && t > 10000000000) {
+          t = Math.floor(t / 1000);
+        }
+        return {
+          time: t,
+          open: Number(c.open),
+          high: Number(c.high),
+          low: Number(c.low),
+          close: Number(c.close)
+        };
+      });
+    
+    console.log(`[Chart Init] Adding ${candlesData.length} candles to series. First candle:`, candlesData[0]);
+    
+    try {
+      candlestickSeries.setData(candlesData);
+      console.log('[Chart Init] Successfully set candlestick data');
+    } catch (e) {
+      console.error('[Chart Init] Error setting candlestick data:', e);
+    }
+
+    // Volume Series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: { type: 'volume' },
+      priceScaleId: '',
+      scaleMargins: { top: 0.8, bottom: 0 },
+    });
+    volumeSeries.setData((chartData.candles || [])
+      .filter((c: any) => c && c.time && c.volume != null && !isNaN(c.volume))
+      .map((c: any) => {
+        let t = c.time;
+        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+        return {
+          time: t,
+          value: Number(c.volume),
+          color: Number(c.close) >= Number(c.open) ? '#10b98155' : '#ef444455'
+        };
+      }));
 
     // EMA 20 Overlays (Yellow)
     const ema20Series = chart.addLineSeries({
@@ -534,7 +617,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       title: 'EMA 20'
     });
     ema20SeriesRef.current = ema20Series;
-    ema20Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_20 })));
+    ema20Series.setData((chartData.candles || [])
+      .filter((c: any) => c && c.time && c.ema_20 != null && !isNaN(c.ema_20))
+      .map((c: any) => {
+        let t = c.time;
+        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+        return { time: t, value: Number(c.ema_20) };
+      }));
 
     // EMA 50 Overlays (Blue)
     const ema50Series = chart.addLineSeries({
@@ -543,7 +633,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       title: 'EMA 50'
     });
     ema50SeriesRef.current = ema50Series;
-    ema50Series.setData(chartData.candles.map(c => ({ time: c.time, value: c.ema_50 })));
+    ema50Series.setData((chartData.candles || [])
+      .filter((c: any) => c && c.time && c.ema_50 != null && !isNaN(c.ema_50))
+      .map((c: any) => {
+        let t = c.time;
+        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+        return { time: t, value: Number(c.ema_50) };
+      }));
 
     // VWAP Overlay (Purple)
     const vwapSeries = chart.addLineSeries({
@@ -552,38 +649,96 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       title: 'VWAP'
     });
     vwapSeriesRef.current = vwapSeries;
-    vwapSeries.setData(chartData.candles.map(c => ({ time: c.time, value: c.vwap })));
+    vwapSeries.setData((chartData.candles || [])
+      .filter((c: any) => c && c.time && c.vwap != null && !isNaN(c.vwap))
+      .map((c: any) => {
+        let t = c.time;
+        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+        return { time: t, value: Number(c.vwap) };
+      }));
+
+    // Support & Resistance Zones
+    if (chartData.support_zones && chartData.support_zones.length > 0) {
+      chartData.support_zones.forEach(price => {
+        candlestickSeries.createPriceLine({
+          price: price,
+          color: '#10b98188',
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: 'Support',
+        });
+      });
+    }
+
+    if (chartData.resistance_zones && chartData.resistance_zones.length > 0) {
+      chartData.resistance_zones.forEach(price => {
+        candlestickSeries.createPriceLine({
+          price: price,
+          color: '#ef444488',
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: 'Resistance',
+        });
+      });
+    }
 
     // Set markers for breakouts/breakdowns
     if (chartData.breakout_markers && chartData.breakout_markers.length > 0) {
-      candlestickSeries.setMarkers(chartData.breakout_markers);
-      chartMarkersRef.current = chartData.breakout_markers;
+      try {
+        const validMarkers = chartData.breakout_markers.map((m: any) => {
+          let t = m.time;
+          if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+          else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+          return { ...m, time: t };
+        });
+        
+        console.log(`[Chart Init] Setting ${validMarkers.length} markers`);
+        candlestickSeries.setMarkers(validMarkers);
+        chartMarkersRef.current = validMarkers;
+      } catch (e) {
+        console.error('[Chart Init] Error setting markers:', e);
+      }
     }
 
     // Auto-fit contents
-    chart.timeScale().fitContent();
+    try {
+      chart.timeScale().fitContent();
+      console.log('[Chart Init] Successfully fitted content');
+    } catch (e) {
+      console.error('[Chart Init] Error fitting content:', e);
+    }
 
-    // Handle Resize with requestAnimationFrame debounce
-    let resizeAnimationFrameId: number;
+    // Handle Resize
     const handleResize = () => {
-      if (resizeAnimationFrameId) {
-        cancelAnimationFrame(resizeAnimationFrameId);
+      if (lightweightChartRef.current && container.clientWidth > 0) {
+        lightweightChartRef.current.applyOptions({ width: container.clientWidth });
       }
-      resizeAnimationFrameId = requestAnimationFrame(() => {
-        if (lightweightChartRef.current) {
-          lightweightChartRef.current.applyOptions({ width: container.clientWidth });
-        }
-      });
     };
     window.addEventListener('resize', handleResize);
 
+    // Store resize listener in ref so we can remove it on unmount
+    (container as any)._resizeHandler = handleResize;
+
+    } catch (e: any) {
+      console.error('[Chart Init] Fatal error during chart creation:', e);
+      setChartError(e.message || e.toString());
+    }
+  }, [chartData]); // Note: No cleanup function returned here to prevent destruction on data updates. Cleanup is in useEffect #1.
+
+  // 3. Global cleanup on unmount
+  useEffect(() => {
     return () => {
-      window.removeEventListener('resize', handleResize);
-      if (resizeAnimationFrameId) {
-        cancelAnimationFrame(resizeAnimationFrameId);
+      if (chartContainerRef.current && (chartContainerRef.current as any)._resizeHandler) {
+        window.removeEventListener('resize', (chartContainerRef.current as any)._resizeHandler);
+      }
+      if (lightweightChartRef.current) {
+        try { lightweightChartRef.current.remove(); } catch (e) {}
       }
     };
-  }, [chartData]);
+  }, []);
 
   const handleRetry = () => {
     setLoading(true);
@@ -1016,13 +1171,19 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
               </div>
             </div>
             
-            <div className="relative min-h-[320px] bg-slate-950/40 rounded-xl overflow-hidden border border-slate-850">
+            <div className="relative h-[320px] min-h-[320px] bg-slate-950/40 rounded-xl overflow-hidden border border-slate-850">
               {chartLoading && (
                 <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-10 text-xs text-purple-400 font-bold gap-2">
                   <RefreshCw className="animate-spin" size={14} /> Loading Advanced Overlays...
                 </div>
               )}
-              <div ref={chartContainerRef} className="w-full"></div>
+              {chartError && (
+                <div className="absolute inset-0 bg-red-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 p-6 text-center border border-red-500/50 rounded-xl">
+                  <span className="text-red-400 font-bold mb-2">Chart Render Error</span>
+                  <p className="text-xs text-red-200/80 whitespace-pre-wrap break-all">{chartError}</p>
+                </div>
+              )}
+              <div ref={chartContainerRef} className="w-full h-full min-h-[320px]"></div>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mt-3 text-[10px] font-semibold text-slate-500">
@@ -1043,7 +1204,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
               </h3>
               <div className="h-[180px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.pcr_trend}>
+                  <AreaChart data={data.pcr_trend || []}>
                     <defs>
                       <linearGradient id="pcrGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
@@ -1067,7 +1228,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
               </h3>
               <div className="h-[180px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.premium_flow_history}>
+                  <AreaChart data={data.premium_flow_history || []}>
                     <defs>
                       <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
@@ -1095,7 +1256,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
             </h3>
             <div className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={strikesChartData} layout="vertical">
+                <BarChart data={strikesChartData || []} layout="vertical">
                   <CartesianGrid stroke="#1e293b" horizontal={false} />
                   <XAxis type="number" stroke="#475569" fontSize={9} />
                   <YAxis dataKey="strike" type="category" stroke="#475569" fontSize={9} width={45} />

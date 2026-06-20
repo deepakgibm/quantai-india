@@ -191,8 +191,13 @@ class IndicatorComputeService:
         
         session = self._Session()
         try:
-            cutoff = datetime.now() - timedelta(days=days)
             tf_minutes = TimeframeMapper.to_minutes(interval)
+            
+            # Determine the maximum candle timestamp in the database for the given timeframe
+            max_ts_query = text("SELECT MAX(candle_ts) FROM stock_candle WHERE timeframe = :tf_minutes")
+            max_ts = session.execute(max_ts_query, {"tf_minutes": tf_minutes}).scalar()
+            base_time = max_ts if max_ts else datetime.now()
+            cutoff = base_time - timedelta(days=days)
             
             query = text("""
                 SELECT sc.candle_ts as timestamp, sc.open, sc.high, sc.low, sc.close, sc.volume
@@ -330,7 +335,14 @@ class IndicatorComputeService:
         from sqlalchemy import text
         
         tf_minutes = TimeframeMapper.to_minutes(interval)
-        cutoff = datetime.now() - timedelta(days=lookback_days)
+        
+        # Determine the maximum candle timestamp in the database for the given timeframe
+        with self._engine.connect() as conn:
+            max_ts_query = text("SELECT MAX(candle_ts) FROM stock_candle WHERE timeframe = :tf_minutes")
+            max_ts = conn.execute(max_ts_query, {"tf_minutes": tf_minutes}).scalar()
+            
+        base_time = max_ts if max_ts else datetime.now()
+        cutoff = base_time - timedelta(days=lookback_days)
         
         # 1. Bulk Fetch Data
         query = text("""

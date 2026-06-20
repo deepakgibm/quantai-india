@@ -538,7 +538,7 @@ const BotTab: React.FC = () => {
               <ArrowUpCircle size={18} className="text-emerald-400" />
               <h3 className="font-semibold text-slate-200">BUY Signals</h3>
               <span className="ml-auto text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-semibold">
-                {result.buy_signals.length}
+                {result.buy_signals?.length || 0}
               </span>
             </div>
             <SignalTable signals={result.buy_signals} type="BUY" />
@@ -550,7 +550,7 @@ const BotTab: React.FC = () => {
               <ArrowDownCircle size={18} className="text-red-400" />
               <h3 className="font-semibold text-slate-200">SELL Signals</h3>
               <span className="ml-auto text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-semibold">
-                {result.sell_signals.length}
+                {result.sell_signals?.length || 0}
               </span>
             </div>
             <SignalTable signals={result.sell_signals} type="SELL" />

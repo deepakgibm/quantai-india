@@ -302,7 +302,7 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
   }
 
   // Error boundary State
-  if (error || !data || data.sectors.length === 0) {
+  if (error || !data || !data.sectors || data.sectors.length === 0) {
     return (
       <div className="p-6">
         <ErrorCard 

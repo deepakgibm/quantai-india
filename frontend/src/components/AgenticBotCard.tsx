@@ -125,7 +125,7 @@ const AgenticBotCard: React.FC = () => {
                   </div>
                 </div>
 
-                {stock.negative_news.length > 0 && (
+                {stock.negative_news && stock.negative_news.length > 0 && (
                   <div className="mt-3 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded border border-red-100 dark:border-red-900/30">
                     <strong>Risk Alert:</strong> {stock.negative_news[0]}
                   </div>
