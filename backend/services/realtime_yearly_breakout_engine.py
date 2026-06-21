@@ -82,14 +82,21 @@ class RealTimeYearlyBreakoutEngine:
                 # Query max high and min low for last 365 days AND latest close
                 # Use a CTE to get the latest price efficiently
                 query = text("""
-                    WITH stats AS (
+                    WITH max_ts AS (
+                        SELECT MAX(candle_ts) as max_candle_ts 
+                        FROM stock_candle 
+                        WHERE timeframe = 1440
+                    ),
+                    stats AS (
                         SELECT 
                             mk.symbol, 
                             MAX(sch.high) as year_high, 
                             MIN(sch.low) as year_low
                         FROM stock_candle sch
                         JOIN instrument_master mk ON sch.instrument_id = mk.instrument_id
-                        WHERE sch.candle_ts > NOW() - INTERVAL '365 days'
+                        CROSS JOIN max_ts
+                        WHERE sch.candle_ts > max_ts.max_candle_ts - INTERVAL '365 days'
+                          AND sch.timeframe = 1440
                         GROUP BY mk.symbol
                     ),
                     latest AS (
@@ -99,6 +106,7 @@ class RealTimeYearlyBreakoutEngine:
                             sch.candle_ts
                         FROM stock_candle sch
                         JOIN instrument_master mk ON sch.instrument_id = mk.instrument_id
+                        WHERE sch.timeframe = 1440
                         ORDER BY mk.symbol, sch.candle_ts DESC
                     )
                     SELECT 

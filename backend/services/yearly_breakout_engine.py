@@ -183,13 +183,13 @@ class YearlyBreakoutEngine:
     async def run_scanner(self, timeout: float = 30.0):
         """
         Run breakout detection for all Nifty 500 stocks.
-        Supports execution budget and partial results.
+        Uses database-driven historical data for speed and reliability.
         """
         import time
         t_start = time.time()
-        logger.info(f"Starting Yearly Breakout Scanner with {timeout}s budget...")
+        logger.info("Starting Database-driven Yearly Breakout Scanner...")
         
-        # Clear existing cache to ensure we don't serve stale data if the scan takes a while
+        # Clear existing cache
         cache = get_cache_manager()
         cache.delete(self.cache_key)
         
@@ -197,48 +197,150 @@ class YearlyBreakoutEngine:
         if not symbols:
             logger.error("No symbols found for scanning.")
             return
-
+            
+        symbols_info = {s["symbol"]: s for s in symbols}
+        
+        from database import get_db_session_context
+        from sqlalchemy import text
+        
+        query = text("""
+            WITH max_ts AS (
+                SELECT MAX(candle_ts) as max_candle_ts 
+                FROM stock_candle 
+                WHERE timeframe = 1440
+            ),
+            ordered_candles AS (
+                SELECT 
+                    mk.symbol,
+                    mk.instrument_key,
+                    sch.candle_ts,
+                    sch.close,
+                    sch.high,
+                    sch.low,
+                    sch.volume,
+                    LAG(sch.close, 1) OVER (PARTITION BY mk.symbol ORDER BY sch.candle_ts ASC) as prev_close,
+                    ROW_NUMBER() OVER (PARTITION BY mk.symbol ORDER BY sch.candle_ts DESC) as rn
+                FROM stock_candle sch
+                JOIN instrument_master mk ON sch.instrument_id = mk.instrument_id
+                CROSS JOIN max_ts
+                WHERE sch.timeframe = 1440
+                  AND sch.candle_ts >= max_ts.max_candle_ts - INTERVAL '400 days'
+            ),
+            stats AS (
+                SELECT 
+                    symbol,
+                    MAX(high) as year_high,
+                    MIN(low) as year_low,
+                    AVG(volume) as avg_volume,
+                    MAX(CASE WHEN rn > 1 THEN high END) as prev_year_high
+                FROM ordered_candles
+                CROSS JOIN max_ts
+                WHERE candle_ts > max_ts.max_candle_ts - INTERVAL '365 days'
+                GROUP BY symbol
+            ),
+            latest AS (
+                SELECT 
+                    symbol,
+                    instrument_key,
+                    close as last_price,
+                    prev_close,
+                    volume as last_volume,
+                    candle_ts
+                FROM ordered_candles
+                WHERE rn = 1
+            )
+            SELECT 
+                s.symbol,
+                s.year_high,
+                s.year_low,
+                s.prev_year_high,
+                s.avg_volume,
+                l.last_price,
+                l.prev_close,
+                l.last_volume,
+                l.candle_ts,
+                l.instrument_key
+            FROM stats s
+            JOIN latest l ON s.symbol = l.symbol
+        """)
+        
+        try:
+            async with get_db_session_context() as session:
+                db_res = await session.execute(query)
+                rows = db_res.fetchall()
+        except Exception as e:
+            logger.error(f"Failed to query breakout candles from database: {e}")
+            return
+            
         results = []
-        # Process in batches to respect rate limits
-        batch_size = 10
-        for i in range(0, len(symbols), batch_size):
-            # Check remaining budget
-            if time.time() - t_start > timeout - 1.0: # 1s buffer
-                logger.warning(f"YearlyBreakoutEngine: Timeout reached. Returning partial results ({len(results)} signals).")
-                break
-                
-            batch = symbols[i:i + batch_size]
-            tasks = [self.process_stock(s) for s in batch]
-            batch_results = await asyncio.gather(*tasks)
+        for r in rows:
+            symbol = r.symbol
+            instrument_key = r.instrument_key
             
-            # Enrich batch with LIVE prices for absolute accuracy before caching
-            valid_batch_results = [res.dict() for res in batch_results if res]
-            if valid_batch_results:
-                from services.live_price_enricher import enrich_scanner_results
-                enriched_batch = await enrich_scanner_results(valid_batch_results)
-                
-                # Recalculate breakout_pct based on enriched price if it changed
-                for res in enriched_batch:
-                    current_price = res.get("current_price", 0)
-                    if current_price > 0:
-                        if res.get("breakout_type") == "Breakout":
-                            # Use high_52w from engine if available,不然 from res
-                            high = res.get("yearly_high", 0)
-                            if high > 0:
-                                res["breakout_pct"] = round(((current_price - high) / high) * 100, 2)
-                        elif res.get("breakout_type") == "Yearly Low":
-                            low = res.get("yearly_low", 0)
-                            if low > 0:
-                                res["breakout_pct"] = round(((current_price - low) / low) * 100, 2)
-                    
-                results.extend(enriched_batch)
+            # Map industry from self.get_nifty500_symbols() info
+            symbol_data = symbols_info.get(symbol, {})
+            industry = symbol_data.get("industry", "N/A")
             
-            await asyncio.sleep(0.1)
-
+            high_52w = float(r.year_high) if r.year_high else 0
+            low_52w = float(r.year_low) if r.year_low else 0
+            prev_high_52w = float(r.prev_year_high) if r.prev_year_high else high_52w
+            ltp = float(r.last_price) if r.last_price else 0
+            prev_close = float(r.prev_close) if r.prev_close else ltp
+            volume = float(r.last_volume) if r.last_volume else 0
+            avg_volume = float(r.avg_volume) if r.avg_volume else 0
+            
+            volume_ratio = volume / avg_volume if avg_volume > 0 else 0
+            
+            bucket_type = "NONE"
+            breakout_pct = 0.0
+            
+            # 1. 52-Week Breakout (current close > previous 52W high and volume_ratio >= 1.5)
+            if prev_high_52w > 0 and ltp > prev_high_52w and volume_ratio >= self.volume_threshold:
+                bucket_type = "Breakout"
+                breakout_pct = ((ltp - prev_high_52w) / prev_high_52w) * 100
+            
+            # 2. Yearly High (Near High)
+            elif high_52w > 0 and ltp >= high_52w * 0.98 and ltp <= high_52w:
+                bucket_type = "Yearly High"
+                breakout_pct = ((ltp - high_52w) / high_52w) * 100
+                
+            # 3. Yearly Low (Near Low)
+            elif low_52w > 0 and ltp <= low_52w * 1.02:
+                bucket_type = "Yearly Low"
+                breakout_pct = ((ltp - low_52w) / low_52w) * 100
+                
+            if bucket_type == "NONE":
+                continue
+                
+            # Volume Strength Label
+            if volume_ratio >= 2.0:
+                volume_strength = "Strong"
+            elif volume_ratio >= 1.0:
+                volume_strength = "Normal"
+            else:
+                volume_strength = "Weak"
+                
+            change_pct = round(((ltp - prev_close) / prev_close) * 100, 2) if prev_close > 0 else 0.0
+            
+            stock_data = {
+                "symbol": symbol,
+                "instrument_key": instrument_key,
+                "current_price": round(ltp, 2),
+                "yearly_high": round(high_52w, 2),
+                "yearly_low": round(low_52w, 2),
+                "breakout_type": bucket_type,
+                "breakout_pct": round(breakout_pct, 2),
+                "volume_ratio": round(volume_ratio, 2),
+                "volume_strength": volume_strength,
+                "change_pct": change_pct,
+                "industry": industry,
+                "timestamp": datetime.now().isoformat()
+            }
+            results.append(stock_data)
+            
         if results:
-            cache = get_cache_manager()
             cache.set(self.cache_key, results, ttl=3600)
-            logger.info(f"Yearly Breakout Scan complete. Found {len(results)} stocks.")
+            logger.info(f"Yearly Breakout Scan complete. Found {len(results)} stocks in {time.time() - t_start:.2f}s.")
         else:
             logger.warning("No breakout results found.")
 

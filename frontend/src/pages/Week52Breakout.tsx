@@ -77,6 +77,14 @@ const Week52Breakout: React.FC = () => {
         };
     }, []);
 
+    useEffect(() => {
+        console.log("Breakout State Updated:", highBreakouts);
+    }, [highBreakouts]);
+
+    useEffect(() => {
+        console.log("Breakdown State Updated:", lowBreakdowns);
+    }, [lowBreakdowns]);
+
     const cleanupConnections = () => {
         if (ws.current) {
             ws.current.onclose = null;
@@ -178,6 +186,7 @@ const Week52Breakout: React.FC = () => {
             });
             if (response.ok) {
                 const data = await response.json();
+                console.log("52W Breakout API Response:", data);
 
                 // Extra safety: Filter out any rows with missing critical data
                 const highs = Array.isArray(data.high_breakouts) ? data.high_breakouts : [];
@@ -190,12 +199,17 @@ const Week52Breakout: React.FC = () => {
                     s.symbol && s.industry && s.industry !== 'N/A'
                 );
 
+                console.log("Breakout Data:", validHighs);
+                console.log("Breakdown Data:", validLows);
+                console.log("Breakout Data Length:", validHighs.length);
+                console.log("Breakdown Data Length:", validLows.length);
+
                 setHighBreakouts(validHighs);
                 setLowBreakdowns(validLows);
                 setLastRefresh(new Date().toLocaleTimeString());
             }
-        } catch (error) {
-            console.error('Error fetching 52-week breakouts:', error);
+        } catch (error: any) {
+            console.error("52W Breakout Error:", error.response?.data || error.message || error);
         } finally {
             setLoading(false);
         }

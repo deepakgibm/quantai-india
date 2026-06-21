@@ -310,41 +310,9 @@ async def get_week52_breakouts(
         
         # If cache is empty or force refresh, run the scanner
         if not results or force_refresh:
-            logger.info("week52-breakouts: Cache empty or refresh requested, checking environment...")
-            # If cache is completely empty, return quick mock data to prevent gateway timeout
-            if not results:
-                logger.info("week52-breakouts: Returning mock seed data to keep response under 100ms")
-                results = [
-                    {
-                        "symbol": "RELIANCE",
-                        "current_price": 2450.5,
-                        "yearly_high": 2500.0,
-                        "yearly_low": 2000.0,
-                        "breakout_type": "Yearly High",
-                        "breakout_pct": -1.98,
-                        "volume_ratio": 1.2,
-                        "volume_strength": "Normal",
-                        "change_pct": 0.5,
-                        "industry": "Oil & Gas",
-                        "timestamp": datetime.now().isoformat()
-                    },
-                    {
-                        "symbol": "TCS",
-                        "current_price": 3400.0,
-                        "yearly_high": 3500.0,
-                        "yearly_low": 3000.0,
-                        "breakout_type": "Yearly High",
-                        "breakout_pct": -2.86,
-                        "volume_ratio": 1.5,
-                        "volume_strength": "Normal",
-                        "change_pct": 1.2,
-                        "industry": "IT",
-                        "timestamp": datetime.now().isoformat()
-                    }
-                ]
-            else:
-                await engine.run_scanner(timeout=15.0)
-                results = await engine.get_cached_results()
+            logger.info("week52-breakouts: Cache empty or refresh requested, running scanner...")
+            await engine.run_scanner(timeout=15.0)
+            results = await engine.get_cached_results()
         
         # Map to frontend structure
         mapped_results = []
@@ -361,19 +329,24 @@ async def get_week52_breakouts(
             # Calculate breakout_pct for frontend (positive for high, negative for low)
             breakout_pct = res.get("breakout_pct", 0)
             if breakout_type in ["52W_HIGH", "Yearly High"]:
-                breakout_pct = abs(breakout_pct)  # Ensure positive for highs
+                breakout_pct = abs(breakout_pct)  # Enforce positive for highs
             elif breakout_type in ["52W_LOW", "Yearly Low"]:
-                breakout_pct = -abs(breakout_pct) if breakout_pct > 0 else breakout_pct  # Negative for lows
+                breakout_pct = -abs(breakout_pct) if breakout_pct > 0 else breakout_pct  # Enforce negative for lows
 
             mapped_results.append({
                 "symbol": res.get("symbol"),
                 "ltp": res.get("current_price"),
+                "current_price": res.get("current_price"), # ALIAS
                 "high_52w": res.get("yearly_high"),
+                "fifty_two_week_high": res.get("yearly_high"), # ALIAS
                 "low_52w": res.get("yearly_low"),
+                "fifty_two_week_low": res.get("yearly_low"), # ALIAS
                 "prev_close": res.get("current_price"), 
                 "change_pct": res.get("change_pct", 0),
                 "breakout_type": breakout_type,
                 "breakout_pct": round(breakout_pct, 2),
+                "breakout_percentage": round(breakout_pct, 2), # ALIAS
+                "breakdown_percentage": round(breakout_pct, 2), # ALIAS
                 "volume_ratio": res.get("volume_ratio", 1.0),
                 "volume_strength": res.get("volume_strength", "Normal"),
                 "industry": res.get("industry", "N/A"),
@@ -397,7 +370,9 @@ async def get_week52_breakouts(
             "timestamp": datetime.now().isoformat(),
             "data": mapped_results,
             "high_breakouts": high_breakouts,
+            "yearly_high_breakouts": high_breakouts, # ALIAS
             "low_breakdowns": low_breakdowns,
+            "yearly_low_breakdowns": low_breakdowns, # ALIAS
             "summary": {
                 "total_results": len(mapped_results),
                 "total_high_breakouts": len(high_breakouts),
@@ -411,7 +386,9 @@ async def get_week52_breakouts(
             "status": "error",
             "message": str(e),
             "high_breakouts": [],
-            "low_breakdowns": []
+            "yearly_high_breakouts": [],
+            "low_breakdowns": [],
+            "yearly_low_breakdowns": []
         }
 
 
