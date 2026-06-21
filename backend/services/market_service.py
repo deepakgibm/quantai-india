@@ -9,10 +9,10 @@ from utils.market_fallback import fetch_live_indices_yfinance
 logger = logging.getLogger(__name__)
 
 class MarketService:
-    async def get_nifty100_top_movers(self, limit: int = 10) -> Dict[str, Any]:
+    async def get_nifty100_top_movers(self, limit: int = 10, bypass_cache: bool = False) -> Dict[str, Any]:
         """Get top gainers and losers from Nifty 100."""
         service = get_nifty100_ranking_service()
-        rankings = await service.get_rankings()
+        rankings = await service.get_rankings(bypass_cache=bypass_cache)
         
         # Rankings structure contains 'gainers', 'losers', 'as_of', 'source', 'is_market_open', 'cache_metadata'
         # We ensure compatibility with the frontend's expected keys

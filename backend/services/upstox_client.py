@@ -358,11 +358,23 @@ class UpstoxClient:
                     # Resolve to the requested key if possible
                     final_key = requested_keys_map.get(key, key)
                     
-                    prev_close = quote_data.get("previous_close") or quote_data.get("ohlc", {}).get("close")
                     ltp = quote_data.get("last_price", 0)
-                    
                     net_change = quote_data.get("net_change", 0)
                     change_pct = quote_data.get("percentage_change", 0)
+                    
+                    # Calculate previous close accurately:
+                    # 1. Try "previous_close" from API response
+                    # 2. Try to derive from ltp and net_change: prev_close = ltp - net_change
+                    # 3. Fallback to ohlc close
+                    prev_close = quote_data.get("previous_close")
+                    if not prev_close or prev_close == 0:
+                        if net_change is not None:
+                            try:
+                                prev_close = float(ltp) - float(net_change)
+                            except Exception:
+                                pass
+                        if not prev_close or prev_close == 0:
+                            prev_close = quote_data.get("ohlc", {}).get("close", 0)
                     
                     if not change_pct and prev_close and prev_close > 0:
                         change_pct = ((ltp - prev_close) / prev_close) * 100
@@ -424,16 +436,20 @@ class UpstoxClient:
                 
                 ltp = quote_data.get("last_price", 0)
                 ohlc = quote_data.get("ohlc", {})
+                net_change = quote_data.get("net_change", 0)
+                change_pct = quote_data.get("percentage_change", 0)
                 
                 # Get previous close - try multiple sources
                 prev_close = quote_data.get("previous_close")
                 if not prev_close or prev_close == 0:
-                    # Fallback to OHLC close (previous day's closing price)
-                    prev_close = ohlc.get("close", 0)
-                
-                # Get net_change and percentage_change from API
-                net_change = quote_data.get("net_change", 0)
-                change_pct = quote_data.get("percentage_change", 0)
+                    if net_change is not None:
+                        try:
+                            prev_close = float(ltp) - float(net_change)
+                        except Exception:
+                            pass
+                    if not prev_close or prev_close == 0:
+                        # Fallback to OHLC close (previous day's closing price)
+                        prev_close = ohlc.get("close", 0)
                 
                 # If percentage_change is missing/zero but we have net_change, calculate it
                 if (not change_pct or change_pct == 0) and net_change and prev_close and prev_close > 0:

@@ -165,7 +165,7 @@ class Nifty100RankingService:
         self._mode = "IDLE"
         logger.info("Nifty100RankingService stopped")
     
-    async def get_rankings(self) -> Dict[str, Any]:
+    async def get_rankings(self, bypass_cache: bool = False) -> Dict[str, Any]:
         """
         Get current Top Gainers/Losers.
         
@@ -185,16 +185,17 @@ class Nifty100RankingService:
         is_open = self._market_hours.is_market_open()
         
         # 1. Try our own cache first (short TTL ensures freshness)
-        try:
-            cached = self._cache.get(cache_key)
-            if cached:
-                elapsed_ms = (time.perf_counter() - start_time) * 1000
-                logger.info(f"CACHE HIT: {cache_key} in {elapsed_ms:.2f}ms")
-                return cached
-        except Exception as e:
-            logger.warning(f"Cache read error: {e}")
+        if not bypass_cache:
+            try:
+                cached = self._cache.get(cache_key)
+                if cached:
+                    elapsed_ms = (time.perf_counter() - start_time) * 1000
+                    logger.info(f"CACHE HIT: {cache_key} in {elapsed_ms:.2f}ms")
+                    return cached
+            except Exception as e:
+                logger.warning(f"Cache read error: {e}")
         
-        logger.info(f"CACHE MISS: {cache_key}, fetching live data")
+        logger.info(f"CACHE MISS (bypass={bypass_cache}): {cache_key}, fetching live data")
         
         # 2. Compute from UpstoxPriceResolver bulk fetch
         try:
@@ -497,14 +498,12 @@ class Nifty100RankingService:
             })
         
         # Sort for gainers (descending) and losers (ascending)
-        # Filter again to ensure we don't show 0.0 in top movers if possible
-        actual_movers = [s for s in valid_stocks if abs(s["change_pct"]) > 0.001]
+        # Filter to ensure we only include positive changes in gainers and negative changes in losers
+        gainers_source = [s for s in valid_stocks if s["change_pct"] > 0.0]
+        losers_source = [s for s in valid_stocks if s["change_pct"] < 0.0]
         
-        # If we have enough actual movers, use them. Otherwise use all valid ones.
-        source_list = actual_movers if len(actual_movers) >= 5 else valid_stocks
-        
-        gainers = sorted(source_list, key=lambda x: x["change_pct"], reverse=True)[:10]
-        losers = sorted(source_list, key=lambda x: x["change_pct"])[:10]
+        gainers = sorted(gainers_source, key=lambda x: x["change_pct"], reverse=True)[:10]
+        losers = sorted(losers_source, key=lambda x: x["change_pct"])[:10]
         
         # Diagnostics
         missing_prev = [s["symbol"] for s in valid_stocks if s["prev_close"] <= 0]
@@ -594,8 +593,12 @@ class Nifty100RankingService:
                 logger.warning(f"Failed to parse snapshot timestamp: {te}")
         
         # Sort for gainers (descending) and losers (ascending)
-        gainers = sorted(valid_stocks, key=lambda x: x["change_pct"], reverse=True)[:5]
-        losers = sorted(valid_stocks, key=lambda x: x["change_pct"])[:5]
+        # Filter to ensure we only include positive changes in gainers and negative changes in losers
+        gainers_source = [s for s in valid_stocks if s["change_pct"] > 0.0]
+        losers_source = [s for s in valid_stocks if s["change_pct"] < 0.0]
+        
+        gainers = sorted(gainers_source, key=lambda x: x["change_pct"], reverse=True)[:5]
+        losers = sorted(losers_source, key=lambda x: x["change_pct"])[:5]
         
         is_open = self._market_hours.is_market_open()
         
@@ -702,8 +705,12 @@ class Nifty100RankingService:
                 })
             
             # Sort for gainers and losers
-            gainers = sorted(valid_stocks, key=lambda x: x["change_pct"], reverse=True)[:5]
-            losers = sorted(valid_stocks, key=lambda x: x["change_pct"])[:5]
+            # Filter to ensure we only include positive changes in gainers and negative changes in losers
+            gainers_source = [s for s in valid_stocks if s["change_pct"] > 0.0]
+            losers_source = [s for s in valid_stocks if s["change_pct"] < 0.0]
+            
+            gainers = sorted(gainers_source, key=lambda x: x["change_pct"], reverse=True)[:5]
+            losers = sorted(losers_source, key=lambda x: x["change_pct"])[:5]
             
             is_open = self._market_hours.is_market_open()
             

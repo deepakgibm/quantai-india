@@ -3,10 +3,10 @@ import asyncio
 import json
 
 async def main():
-    url = "http://localhost:8000/api/market/nifty100/top-movers"
+    url = "http://localhost:8000/api/market/nifty100/top-movers?refresh=true"
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=10)
+            response = await client.get(url, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 print("Top Movers Data Fetch Successful")

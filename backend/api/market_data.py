@@ -36,11 +36,11 @@ async def get_market_status():
         return {"status": "unknown"}
 
 @router.get("/nifty100/top-movers")
-async def get_nifty100_top_movers():
+async def get_nifty100_top_movers(refresh: bool = False):
     """(Frontend Compat) Alias for default Top Movers."""
     try:
         from services.market_service import get_market_service
-        return await get_market_service().get_nifty100_top_movers()
+        return await get_market_service().get_nifty100_top_movers(bypass_cache=refresh)
     except Exception as e:
         logger.error(f"Top movers fetch failed: {e}")
         return {
@@ -53,9 +53,9 @@ async def get_nifty100_top_movers():
         }
 
 @router.get("/top-movers")
-async def get_top_movers(limit: int = 5):
+async def get_top_movers(limit: int = 5, refresh: bool = False):
     """Get top gainers and losers from NIFTY 100."""
-    return await market_service.get_nifty100_top_movers(limit)
+    return await market_service.get_nifty100_top_movers(limit, bypass_cache=refresh)
 
 @router.get("/global-context")
 async def get_global_context():

@@ -45,13 +45,13 @@ const TopMoversCard: React.FC<TopMoversCardProps> = ({ onSymbolClick }) => {
     const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const fetchTopMovers = async () => {
+    const fetchTopMovers = async (isForce = false) => {
         setIsRefreshing(true);
 
         try {
             // Use centralized API service instead of manual relative fetch
             // This ensures API_URL is used correctly (avoiding Nginx proxy issues)
-            const result = await api.getGainersLosers();
+            const result = await api.getGainersLosers(isForce);
 
             if (!result) {
                 throw new Error('Failed to fetch gainers/losers from API');
@@ -115,10 +115,10 @@ const TopMoversCard: React.FC<TopMoversCardProps> = ({ onSymbolClick }) => {
     };
 
     useEffect(() => {
-        fetchTopMovers();
+        fetchTopMovers(false);
 
         // Auto-refresh every 60 seconds
-        const interval = setInterval(fetchTopMovers, 60000);
+        const interval = setInterval(() => fetchTopMovers(false), 60000);
         return () => clearInterval(interval);
     }, []);
 
@@ -284,6 +284,20 @@ const TopMoversCard: React.FC<TopMoversCardProps> = ({ onSymbolClick }) => {
         );
     }
 
+    // Debug table logs before rendering (Step 7)
+    const allStocks = data ? [...(data.gainers || []), ...(data.losers || [])] : [];
+    if (allStocks.length > 0) {
+        console.table(
+            allStocks.map(x => ({
+                symbol: x.symbol,
+                ltp: x.ltp,
+                prevClose: x.prev_close,
+                change: x.ltp - x.prev_close,
+                changePercent: x.change_pct
+            }))
+        );
+    }
+
     return (
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
             {/* Header with status */}
@@ -302,7 +316,7 @@ const TopMoversCard: React.FC<TopMoversCardProps> = ({ onSymbolClick }) => {
                         </span>
                     )}
                     <button
-                        onClick={fetchTopMovers}
+                        onClick={() => fetchTopMovers(true)}
                         disabled={isRefreshing}
                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
                         title="Refresh"

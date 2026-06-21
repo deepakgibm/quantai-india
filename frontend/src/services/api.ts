@@ -590,8 +590,9 @@ export const api = {
   },
 
 
-  getGainersLosers: async () => {
-    const res = await apiGet<any>('/api/market/top-movers');
+  getGainersLosers: async (refresh?: boolean) => {
+    const url = refresh ? '/api/market/top-movers?refresh=true' : '/api/market/top-movers';
+    const res = await apiGet<any>(url);
     if (res.success) return res.data;
     console.warn("Failed to fetch gainers/losers:", res.error.message);
     return null;
