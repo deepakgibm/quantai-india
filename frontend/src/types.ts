@@ -38,6 +38,7 @@ export enum Page {
   WATCHLIST = 'watchlist',
   INSTITUTIONAL_SCANNER = 'institutional_scanner',
   INSTITUTIONAL_STOCK_DETAIL = 'institutional_stock_detail',
+  PRICE_DIAGNOSTICS = 'PRICE_DIAGNOSTICS',
 }
 
 export interface Stock {

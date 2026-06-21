@@ -272,6 +272,17 @@ class YearlyBreakoutEngine:
             logger.error(f"Failed to query breakout candles from database: {e}")
             return
             
+        # Bulk resolve live prices using UpstoxPriceResolver
+        symbols_list = [r.symbol for r in rows]
+        from services.upstox_price_resolver import get_upstox_price_resolver
+        resolver = get_upstox_price_resolver()
+        live_prices = {}
+        try:
+            live_prices = await resolver.get_prices_bulk(symbols_list)
+            logger.info(f"Yearly Breakout: Bulk resolved prices for {len(live_prices)}/{len(symbols_list)} symbols.")
+        except Exception as e:
+            logger.error(f"Yearly Breakout: Bulk price resolution failed: {e}")
+
         results = []
         for r in rows:
             symbol = r.symbol
@@ -284,8 +295,20 @@ class YearlyBreakoutEngine:
             high_52w = float(r.year_high) if r.year_high else 0
             low_52w = float(r.year_low) if r.year_low else 0
             prev_high_52w = float(r.prev_year_high) if r.prev_year_high else high_52w
-            ltp = float(r.last_price) if r.last_price else 0
-            prev_close = float(r.prev_close) if r.prev_close else ltp
+            
+            # Fetch live price from resolver
+            price_data = live_prices.get(symbol)
+            if price_data and price_data.get("price", 0) > 0:
+                ltp = float(price_data["price"])
+                prev_close = float(price_data.get("prev_close") or r.prev_close or ltp)
+                price_source = price_data.get("price_source", "UNKNOWN")
+                source_timestamp = price_data.get("timestamp") or datetime.now().isoformat()
+            else:
+                ltp = float(r.last_price) if r.last_price else 0
+                prev_close = float(r.prev_close) if r.prev_close else ltp
+                price_source = "DB_EOD"
+                source_timestamp = r.candle_ts.isoformat() if r.candle_ts else datetime.now().isoformat()
+            
             volume = float(r.last_volume) if r.last_volume else 0
             avg_volume = float(r.avg_volume) if r.avg_volume else 0
             
@@ -334,12 +357,14 @@ class YearlyBreakoutEngine:
                 "volume_strength": volume_strength,
                 "change_pct": change_pct,
                 "industry": industry,
+                "price_source": price_source,
+                "source_timestamp": source_timestamp,
                 "timestamp": datetime.now().isoformat()
             }
             results.append(stock_data)
             
         if results:
-            cache.set(self.cache_key, results, ttl=3600)
+            cache.set(self.cache_key, results, ttl=300)
             logger.info(f"Yearly Breakout Scan complete. Found {len(results)} stocks in {time.time() - t_start:.2f}s.")
         else:
             logger.warning("No breakout results found.")

@@ -8,8 +8,8 @@ from sqlalchemy import text
 
 from models import WatchlistItem, User
 from schemas import WatchlistItemCreate, WatchlistItemResponse
-from services.upstox_client import UpstoxClient
 from repositories.watchlist_repository import WatchlistRepository
+from services.upstox_price_resolver import get_upstox_price_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +42,13 @@ class WatchlistService:
 
         # Fallback price recovery
         if not watchlist_price or watchlist_price <= 0:
-            upstox = UpstoxClient()
-            # Attempt 1: Fetch live quote LTP
+            # Attempt 1: Fetch live quote LTP using UpstoxPriceResolver
             try:
-                quote = await upstox.get_live_quote(instrument_key, symbol)
-                if quote and quote.get("last_price") and quote["last_price"] > 0:
-                    watchlist_price = float(quote["last_price"])
-                    logger.info(f"Resolved live price for {symbol}: {watchlist_price}")
+                resolver = get_upstox_price_resolver()
+                price_res = await resolver.get_price(symbol)
+                if price_res and price_res.get("price", 0) > 0:
+                    watchlist_price = float(price_res["price"])
+                    logger.info(f"Resolved live price for {symbol} via Resolver: {watchlist_price}")
             except Exception as e:
                 logger.warning(f"Failed to fetch live quote for {symbol} on watchlist addition: {e}")
 
@@ -127,37 +127,31 @@ class WatchlistService:
         if not items:
             return []
 
-        # Batch resolve instrument_keys
+        # Batch resolve prices via UpstoxPriceResolver
         symbols = [item.symbol for item in items]
-        keys_map = await WatchlistRepository.get_instrument_keys_map(db, symbols)
-
-        # Build list of keys to fetch from Upstox
-        instrument_keys = [keys_map[item.symbol] for item in items if item.symbol in keys_map]
         
-        if instrument_keys:
-            upstox = UpstoxClient()
+        if symbols:
+            resolver = get_upstox_price_resolver()
             try:
-                quotes = await upstox.get_live_quotes(instrument_keys)
+                prices_map = await resolver.get_prices_bulk(symbols)
                 
-                # Update items with live quote data
+                # Update items with live quote data from resolver
                 for item in items:
-                    key = keys_map.get(item.symbol)
-                    if key and key in quotes:
-                        quote = quotes[key]
-                        ltp = float(quote.get("last_price", 0))
-                        if ltp > 0:
-                            item.current_price = ltp
-                            wp = item.watchlist_price or 0.0
-                            item.change_amount = ltp - wp
-                            if wp > 0:
-                                item.change_percent = (item.change_amount / wp) * 100
-                            else:
-                                item.change_percent = 0.0
-                            item.last_updated = datetime.utcnow()
+                    p_data = prices_map.get(item.symbol.upper())
+                    if p_data and p_data.get("price", 0) > 0:
+                        ltp = float(p_data["price"])
+                        item.current_price = ltp
+                        wp = item.watchlist_price or 0.0
+                        item.change_amount = ltp - wp
+                        if wp > 0:
+                            item.change_percent = (item.change_amount / wp) * 100
+                        else:
+                            item.change_percent = 0.0
+                        item.last_updated = datetime.utcnow()
                 
                 await db.commit()
             except Exception as e:
-                logger.error(f"Failed to update watchlist live prices in batch: {e}")
+                logger.error(f"Failed to update watchlist live prices in batch via resolver: {e}")
 
         return items
 

@@ -350,6 +350,8 @@ async def get_week52_breakouts(
                 "volume_ratio": res.get("volume_ratio", 1.0),
                 "volume_strength": res.get("volume_strength", "Normal"),
                 "industry": res.get("industry", "N/A"),
+                "price_source": res.get("price_source", "DB_EOD"),
+                "source_timestamp": res.get("source_timestamp", res.get("timestamp")),
                 "timestamp": res.get("timestamp")
             })
 

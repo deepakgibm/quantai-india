@@ -30,6 +30,7 @@ import Affiliate from './pages/Affiliate';
 import Watchlist from './pages/Watchlist';
 import InstitutionalScanner from './pages/InstitutionalScanner';
 import InstitutionalStockDetail from './pages/InstitutionalStockDetail';
+import PriceDiagnosticPanel from './pages/PriceDiagnosticPanel';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -166,6 +167,9 @@ const ProtectedRoute: React.FC<{ element: React.ReactNode; activePage: Page }> =
     else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
       path = `/institutional-scanner/${symbol.toUpperCase()}`;
     }
+    else if (page === Page.PRICE_DIAGNOSTICS) {
+      path = '/diagnostics';
+    }
     navigate(path);
   };
 
@@ -246,6 +250,9 @@ const AppRoutes: React.FC = () => {
     else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
       path = `/institutional-scanner/${symbol.toUpperCase()}`;
     }
+    else if (page === Page.PRICE_DIAGNOSTICS) {
+      path = '/diagnostics';
+    }
     navigate(path);
   };
 
@@ -296,6 +303,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/watchlist" element={<ProtectedRoute activePage={Page.WATCHLIST} element={<Watchlist onNavigate={handleNavigate} />} />} />
       <Route path="/institutional-scanner" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_SCANNER} element={<InstitutionalScanner onNavigate={handleNavigate} />} />} />
       <Route path="/institutional-scanner/:symbol" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_STOCK_DETAIL} element={<InstitutionalStockDetailWrapper />} />} />
+      <Route path="/diagnostics" element={<ProtectedRoute activePage={Page.PRICE_DIAGNOSTICS} element={<PriceDiagnosticPanel />} />} />
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />

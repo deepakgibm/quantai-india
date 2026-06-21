@@ -71,6 +71,7 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.PORTFOLIO_INTELLIGENCE, icon: Briefcase,     label: 'Portfolio Intel' },
       { page: Page.SMC_ANALYSIS,         icon: Compass,         label: 'SMC Analysis' },
       { page: Page.PATTERN_LAB,          icon: BookOpen,        label: 'Pattern Lab' },
+      { page: Page.PRICE_DIAGNOSTICS,    icon: ShieldAlert,     label: 'Price Diagnostics' },
     ],
   },
   {

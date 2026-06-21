@@ -174,35 +174,30 @@ async def get_positions(current_user: User = Depends(get_current_user)):
 
 @router.get("/market-quote/{symbol}")
 async def get_market_quote(symbol: str, current_user: User = Depends(get_current_user)):
-    if not current_user.is_upstox_connected:
+    try:
+        from services.upstox_price_resolver import get_upstox_price_resolver
+        resolver = get_upstox_price_resolver()
+        price_data = await resolver.get_price(symbol)
+        
+        # Format response to match the expected Upstox structure for client compatibility
         return {
-            "status": "not_connected",
+            "status": "success",
+            "data": {
+                f"NSE_EQ:{symbol.upper()}": {
+                    "last_price": price_data.get("price", 0.0),
+                    "close_price": price_data.get("prev_close", 0.0),
+                    "previous_close": price_data.get("prev_close", 0.0),
+                    "volume": price_data.get("volume", 0),
+                    "timestamp": price_data.get("timestamp"),
+                    "price_source": price_data.get("price_source")
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to resolve market quote for {symbol}: {e}")
+        return {
+            "status": "error",
             "symbol": symbol,
-            "message": "Upstox broker is not connected. Please login via /api/upstox/auth-url.",
+            "message": f"Failed to fetch market quote: {str(e)}",
             "data": None
         }
-    
-    headers = {
-        "Authorization": f"Bearer {current_user.upstox_access_token}",
-        "Accept": "application/json"
-    }
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(f"https://api.upstox.com/v2/market-quote/ltp?symbol={symbol}", headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            return {
-                "status": "error",
-                "symbol": symbol,
-                "message": f"Failed to fetch market quote: {e.response.text}",
-                "data": None
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "symbol": symbol,
-                "message": f"Failed to fetch market quote: {str(e)}",
-                "data": None
-            }

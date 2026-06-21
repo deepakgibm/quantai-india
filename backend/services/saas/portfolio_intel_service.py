@@ -45,7 +45,7 @@ class PortfolioIntelService:
         # Fallback to Mock holdings if user has none
         holdings = []
         if not db_holdings:
-            holdings = MOCK_HOLDINGS
+            holdings = MOCK_HOLDINGS.copy()
         else:
             for h in db_holdings:
                 holdings.append({
@@ -55,6 +55,21 @@ class PortfolioIntelService:
                     "current_price": h.current_price or h.avg_price
                 })
                 
+        # Enrich holdings with live prices resolved by UpstoxPriceResolver
+        if holdings:
+            try:
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
+                symbols = [h["symbol"] for h in holdings]
+                prices_map = await resolver.get_prices_bulk(symbols)
+                for h in holdings:
+                    sym = h["symbol"].upper()
+                    p_data = prices_map.get(sym)
+                    if p_data and p_data.get("price", 0) > 0:
+                        h["current_price"] = p_data["price"]
+            except Exception as e:
+                logger.error(f"Failed to enrich holdings with live prices in portfolio intel: {e}")
+
         # 2. Calculate values and sector weightage
         total_investment = 0.0
         total_current_value = 0.0

@@ -215,6 +215,20 @@ async def get_rankings(
         result = await db.execute(text(query), params)
         stocks = [_safe_row_dict(row) for row in result.mappings()]
 
+        if stocks:
+            try:
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
+                symbols = [s["symbol"] for s in stocks]
+                live_prices = await resolver.get_prices_bulk(symbols)
+                for s in stocks:
+                    sym = s["symbol"].upper()
+                    p_data = live_prices.get(sym)
+                    if p_data and p_data.get("price", 0) > 0:
+                        s["cmp"] = p_data["price"]
+            except Exception as le:
+                logger.warning(f"Screener rankings: live price resolution failed: {le}")
+
         # Get available sectors for filter dropdown
         sectors_result = await db.execute(text("""
             SELECT DISTINCT sector FROM screener_stock_score
@@ -260,6 +274,20 @@ async def get_conviction_list(
 
         stocks = [_safe_row_dict(row) for row in result.mappings()]
 
+        if stocks:
+            try:
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
+                symbols = [s["symbol"] for s in stocks]
+                live_prices = await resolver.get_prices_bulk(symbols)
+                for s in stocks:
+                    sym = s["symbol"].upper()
+                    p_data = live_prices.get(sym)
+                    if p_data and p_data.get("price", 0) > 0:
+                        s["cmp"] = p_data["price"]
+            except Exception as le:
+                logger.warning(f"Screener conviction list: live price resolution failed: {le}")
+
         # Score distribution
         score_dist = {"extreme": 0, "very_high": 0, "high": 0, "moderate": 0}
         for s in stocks:
@@ -300,6 +328,20 @@ async def get_avoid_list(
 
         stocks = [_safe_row_dict(row) for row in result.mappings()]
 
+        if stocks:
+            try:
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
+                symbols = [s["symbol"] for s in stocks]
+                live_prices = await resolver.get_prices_bulk(symbols)
+                for s in stocks:
+                    sym = s["symbol"].upper()
+                    p_data = live_prices.get(sym)
+                    if p_data and p_data.get("price", 0) > 0:
+                        s["cmp"] = p_data["price"]
+            except Exception as le:
+                logger.warning(f"Screener avoid list: live price resolution failed: {le}")
+
         return {
             "status": "success",
             "data": stocks,
@@ -334,6 +376,15 @@ async def get_stock_detail(
             raise HTTPException(status_code=404, detail=f"No scoring data for {symbol} on {target_date}")
 
         stock_data = _safe_row_dict(row._mapping)
+
+        try:
+            from services.upstox_price_resolver import get_upstox_price_resolver
+            resolver = get_upstox_price_resolver()
+            p_data = await resolver.get_price(symbol)
+            if p_data and p_data.get("price", 0) > 0:
+                stock_data["cmp"] = p_data["price"]
+        except Exception as le:
+            logger.warning(f"Screener stock detail: live price resolution failed: {le}")
 
         # Get conviction entry if exists
         conv_result = await db.execute(text("""

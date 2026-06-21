@@ -303,6 +303,22 @@ const Week52Breakout: React.FC = () => {
         );
     };
 
+    const isStale = useMemo(() => {
+        const now = new Date();
+        const fifteenMinsMs = 15 * 60 * 1000;
+        
+        const checkStaleness = (stocks: Week52BreakoutStock[]) => {
+            return stocks.some(s => {
+                const ts = (s as any).source_timestamp;
+                if (!ts) return false;
+                const diff = now.getTime() - new Date(ts).getTime();
+                return diff > fifteenMinsMs;
+            });
+        };
+        
+        return checkStaleness(highBreakouts) || checkStaleness(lowBreakdowns);
+    }, [highBreakouts, lowBreakdowns]);
+
     return (
         <div className="flex flex-col h-full gap-8 p-2 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header section */}
@@ -355,6 +371,17 @@ const Week52Breakout: React.FC = () => {
                     </button>
                 </div>
             </header>
+
+            {/* Freshness Warning Banner */}
+            {isStale && (
+                <div className="flex items-center gap-3 px-6 py-4 bg-amber-500/10 border border-amber-500/30 rounded-3xl text-amber-600 dark:text-amber-400 font-bold text-sm animate-bounce">
+                    <span className="flex h-3 w-3 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                    </span>
+                    <span>Warning: Some stock data is older than 15 minutes. Click Refresh to get the latest live prices.</span>
+                </div>
+            )}
 
             {/* Search Results Info */}
             {searchQuery && (
@@ -436,73 +463,90 @@ const Week52Breakout: React.FC = () => {
                                 </span>
                             </div>
                         ) : (
-                            filteredHighBreakouts.map((stock) => (
-                                <div key={stock.symbol} className="group relative bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-[32px] p-6 transition-all hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-1">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-emerald-500 transition-colors">
-                                                    {stock.symbol}
-                                                </h3>
-                                                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${stock.breakout_type === 'Breakout'
-                                                    ? 'bg-indigo-500 text-white'
-                                                    : 'bg-emerald-500/10 text-emerald-600'
-                                                    }`}>
-                                                    {stock.breakout_type}
+                            filteredHighBreakouts.map((stock) => {
+                                console.log("Rendering High Breakout Stock:", {
+                                    symbol: stock.symbol,
+                                    currentPrice: stock.ltp,
+                                    previousClose: (stock as any).prev_close || stock.ltp,
+                                    high52Week: stock.high_52w,
+                                    low52Week: stock.low_52w,
+                                    breakoutPercent: stock.breakout_pct,
+                                    sourceTimestamp: (stock as any).source_timestamp || stock.timestamp
+                                });
+                                return (
+                                    <div key={stock.symbol} className="group relative bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-[32px] p-6 transition-all hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-1">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-emerald-500 transition-colors">
+                                                        {stock.symbol}
+                                                    </h3>
+                                                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${stock.breakout_type === 'Breakout'
+                                                        ? 'bg-indigo-500 text-white'
+                                                        : 'bg-emerald-500/10 text-emerald-600'
+                                                        }`}>
+                                                        {stock.breakout_type}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {stock.industry}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <PriceWithSource
+                                                    price={stock.ltp}
+                                                    source={(stock as any).price_source}
+                                                    className="justify-end text-xl"
+                                                />
+                                                <div className={`text-sm font-black ${stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                    {stock.change_pct >= 0 ? '↑' : '↓'} {Math.abs(stock.change_pct).toFixed(2)}%
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-6">
+                                            <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">52W High</span>
+                                                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 leading-none">
+                                                    ₹{stock.high_52w.toLocaleString()}
                                                 </span>
                                             </div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {stock.industry}
-                                            </p>
+                                            <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Breakout %</span>
+                                                <span className="text-sm font-black text-blue-600 dark:text-blue-400 leading-none">
+                                                    {stock.breakout_pct > 0 ? '+' : ''}{stock.breakout_pct.toFixed(2)}%
+                                                </span>
+                                            </div>
+                                            <div className="p-4 bg-purple-500/5 rounded-2xl border border-purple-500/10">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Vol Ratio</span>
+                                                <span className="text-sm font-black text-purple-600 dark:text-purple-400 leading-none">
+                                                    {stock.volume_ratio.toFixed(2)}x
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <PriceWithSource
-                                                price={stock.ltp}
-                                                source={(stock as any).price_source}
-                                                className="justify-end text-xl"
-                                            />
-                                            <div className={`text-sm font-black ${stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                {stock.change_pct >= 0 ? '↑' : '↓'} {Math.abs(stock.change_pct).toFixed(2)}%
+
+                                        <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50 flex flex-col gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-2 h-2 rounded-full animate-pulse ${stock.volume_strength === 'Strong' ? 'bg-emerald-500' :
+                                                        stock.volume_strength === 'Normal' ? 'bg-blue-500' : 'bg-slate-400'
+                                                        }`} />
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                        {stock.volume_strength} Volume Support
+                                                    </span>
+                                                </div>
+                                                <button className="text-slate-400 hover:text-emerald-500 transition-colors">
+                                                    <ArrowRight size={20} />
+                                                </button>
+                                            </div>
+                                            <div className="flex flex-wrap justify-between text-[9px] font-semibold text-slate-400/80 border-t border-dashed border-slate-100 dark:border-slate-700/30 pt-2 mt-2">
+                                                <span>Source: <strong className="text-slate-500">{(stock as any).price_source || 'DB_EOD'}</strong></span>
+                                                <span>Data Time: <strong className="text-slate-500">{new Date((stock as any).source_timestamp || stock.timestamp).toLocaleTimeString()}</strong></span>
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="grid grid-cols-3 gap-6">
-                                        <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">52W High</span>
-                                            <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 leading-none">
-                                                ₹{stock.high_52w.toLocaleString()}
-                                            </span>
-                                        </div>
-                                        <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Breakout %</span>
-                                            <span className="text-sm font-black text-blue-600 dark:text-blue-400 leading-none">
-                                                {stock.breakout_pct > 0 ? '+' : ''}{stock.breakout_pct.toFixed(2)}%
-                                            </span>
-                                        </div>
-                                        <div className="p-4 bg-purple-500/5 rounded-2xl border border-purple-500/10">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Vol Ratio</span>
-                                            <span className="text-sm font-black text-purple-600 dark:text-purple-400 leading-none">
-                                                {stock.volume_ratio.toFixed(2)}x
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-2 h-2 rounded-full animate-pulse ${stock.volume_strength === 'Strong' ? 'bg-emerald-500' :
-                                                stock.volume_strength === 'Normal' ? 'bg-blue-500' : 'bg-slate-400'
-                                                }`} />
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                {stock.volume_strength} Volume Support
-                                            </span>
-                                        </div>
-                                        <button className="text-slate-400 hover:text-emerald-500 transition-colors">
-                                            <ArrowRight size={20} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </section>
@@ -573,67 +617,86 @@ const Week52Breakout: React.FC = () => {
                                 </span>
                             </div>
                         ) : (
-                            filteredLowBreakdowns.map((stock) => (
-                                <div key={stock.symbol} className="group relative bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-[32px] p-6 transition-all hover:shadow-2xl hover:shadow-rose-500/10 hover:-translate-y-1">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-rose-500 transition-colors">
-                                                    {stock.symbol}
-                                                </h3>
-                                                <span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                                                    {stock.breakout_type}
+                            filteredLowBreakdowns.map((stock) => {
+                                console.log("Rendering Low Breakdown Stock:", {
+                                    symbol: stock.symbol,
+                                    currentPrice: stock.ltp,
+                                    previousClose: (stock as any).prev_close || stock.ltp,
+                                    high52Week: stock.high_52w,
+                                    low52Week: stock.low_52w,
+                                    breakoutPercent: stock.breakout_pct,
+                                    sourceTimestamp: (stock as any).source_timestamp || stock.timestamp
+                                });
+                                return (
+                                    <div key={stock.symbol} className="group relative bg-white dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-[32px] p-6 transition-all hover:shadow-2xl hover:shadow-rose-500/10 hover:-translate-y-1">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase group-hover:text-rose-500 transition-colors">
+                                                        {stock.symbol}
+                                                    </h3>
+                                                    <span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                                        {stock.breakout_type}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {stock.industry}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <PriceWithSource
+                                                    price={stock.ltp}
+                                                    source={(stock as any).price_source}
+                                                    className="justify-end text-xl"
+                                                />
+                                                <div className={`text-sm font-black ${stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                    {stock.change_pct >= 0 ? '↑' : '↓'} {Math.abs(stock.change_pct).toFixed(2)}%
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-6">
+                                            <div className="p-4 bg-rose-500/5 rounded-2xl border border-rose-500/10">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">52W Low</span>
+                                                <span className="text-sm font-black text-rose-600 dark:text-rose-400 leading-none">
+                                                    ₹{stock.low_52w.toLocaleString()}
                                                 </span>
                                             </div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {stock.industry}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-2xl font-black text-slate-900 dark:text-white">
-                                                ₹{stock.ltp.toLocaleString()}
+                                            <div className="p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Gap to Low %</span>
+                                                <span className="text-sm font-black text-orange-600 dark:text-orange-400 leading-none">
+                                                    {stock.breakout_pct > 0 ? '+' : ''}{stock.breakout_pct.toFixed(2)}%
+                                                </span>
                                             </div>
-                                            <div className={`text-sm font-black ${stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                {stock.change_pct >= 0 ? '↑' : '↓'} {Math.abs(stock.change_pct).toFixed(2)}%
+                                            <div className="p-4 bg-purple-500/5 rounded-2xl border border-purple-500/10">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Vol Ratio</span>
+                                                <span className="text-sm font-black text-purple-600 dark:text-purple-400 leading-none">
+                                                    {stock.volume_ratio.toFixed(2)}x
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50 flex flex-col gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-2 h-2 rounded-full animate-pulse ${stock.volume_ratio >= 1.5 ? 'bg-rose-500' : 'bg-slate-400'
+                                                        }`} />
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                        {stock.volume_ratio >= 1.5 ? 'Heavy Selling Pressure' : 'Normal Volume'}
+                                                    </span>
+                                                </div>
+                                                <button className="text-slate-400 hover:text-rose-500 transition-colors">
+                                                    <ArrowRight size={20} />
+                                                </button>
+                                            </div>
+                                            <div className="flex flex-wrap justify-between text-[9px] font-semibold text-slate-400/80 border-t border-dashed border-slate-100 dark:border-slate-700/30 pt-2 mt-2">
+                                                <span>Source: <strong className="text-slate-500">{(stock as any).price_source || 'DB_EOD'}</strong></span>
+                                                <span>Data Time: <strong className="text-slate-500">{new Date((stock as any).source_timestamp || stock.timestamp).toLocaleTimeString()}</strong></span>
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="grid grid-cols-3 gap-6">
-                                        <div className="p-4 bg-rose-500/5 rounded-2xl border border-rose-500/10">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">52W Low</span>
-                                            <span className="text-sm font-black text-rose-600 dark:text-rose-400 leading-none">
-                                                ₹{stock.low_52w.toLocaleString()}
-                                            </span>
-                                        </div>
-                                        <div className="p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Gap to Low %</span>
-                                            <span className="text-sm font-black text-orange-600 dark:text-orange-400 leading-none">
-                                                {stock.breakout_pct > 0 ? '+' : ''}{stock.breakout_pct.toFixed(2)}%
-                                            </span>
-                                        </div>
-                                        <div className="p-4 bg-purple-500/5 rounded-2xl border border-purple-500/10">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Vol Ratio</span>
-                                            <span className="text-sm font-black text-purple-600 dark:text-purple-400 leading-none">
-                                                {stock.volume_ratio.toFixed(2)}x
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-2 h-2 rounded-full animate-pulse ${stock.volume_ratio >= 1.5 ? 'bg-rose-500' : 'bg-slate-400'
-                                                }`} />
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                {stock.volume_ratio >= 1.5 ? 'Heavy Selling Pressure' : 'Normal Volume'}
-                                            </span>
-                                        </div>
-                                        <button className="text-slate-400 hover:text-rose-500 transition-colors">
-                                            <ArrowRight size={20} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </section>

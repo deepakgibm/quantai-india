@@ -304,6 +304,21 @@ async def get_sector_analysis(
             symbol_data[sym]["volumes"].append(int(r.volume))
             symbol_data[sym]["candle_ts"].append(r.candle_ts)
 
+        # Enrich latest closes with live prices from UpstoxPriceResolver for 1D timeframes
+        if timeframe == "1D" and symbol_data:
+            try:
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
+                symbols = list(symbol_data.keys())
+                live_prices = await resolver.get_prices_bulk(symbols)
+                for sym, p_data in live_prices.items():
+                    if sym in symbol_data and p_data and p_data.get("price", 0) > 0:
+                        # Override the latest close price in the closes list
+                        if symbol_data[sym]["closes"]:
+                            symbol_data[sym]["closes"][-1] = p_data["price"]
+            except Exception as e:
+                logger.error(f"Failed to enrich sector analysis with live prices: {e}")
+
         # 1. Calculate Technicals & Returns for each stock
         stocks_list = []
         for sym, s_info in symbol_data.items():

@@ -30,6 +30,7 @@ import {
   CartesianGrid 
 } from 'recharts';
 import { apiGet, apiPost, apiRequest, API_URL, getAuthHeaders } from '../services/api';
+import { MarketDataService, MarketQuote } from '../services/marketDataService';
 import { Page } from '../types';
 import {
   useWatchlistQuery,
@@ -81,6 +82,101 @@ interface SearchResult {
 interface WatchlistProps {
   onNavigate?: (page: Page) => void;
 }
+
+interface WatchlistRowProps {
+  item: WatchlistItem;
+  virtualInvestment: number;
+  onRemove: (symbol: string) => void;
+  renderStatusBadge: (status: string) => React.ReactNode;
+}
+
+const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, onRemove, renderStatusBadge }) => {
+  const [livePrice, setLivePrice] = useState<number>(item.current_price || item.watchlist_price);
+  const [priceSource, setPriceSource] = useState<string>('DB');
+  const [isStale, setIsStale] = useState<boolean>(false);
+
+  useEffect(() => {
+    const unsubscribe = MarketDataService.subscribe(item.symbol, (quote: MarketQuote) => {
+      if (quote.ltp > 0) {
+        setLivePrice(quote.ltp);
+        setPriceSource(quote.isLive ? 'WS' : 'CACHED');
+        setIsStale(MarketDataService.isPriceStale(quote.timestamp));
+      }
+    });
+
+    return () => unsubscribe();
+  }, [item.symbol]);
+
+  const returnVal = (virtualInvestment / item.watchlist_price) * (livePrice || item.watchlist_price) - virtualInvestment;
+  const changePercent = item.watchlist_price > 0 ? ((livePrice - item.watchlist_price) / item.watchlist_price) * 100 : 0;
+
+  const getStatus = (pct: number) => {
+    if (pct >= 10.0) return "Strong Winner";
+    if (pct >= 2.0) return "Winner";
+    if (pct <= -10.0) return "Strong Loser";
+    if (pct <= -2.0) return "Loser";
+    return "Neutral";
+  };
+
+  return (
+    <tr className="hover:bg-slate-50/30 dark:hover:bg-slate-900/20 transition-colors">
+      <td className="px-5 py-4">
+        <div>
+          <strong className="text-slate-800 dark:text-white block font-display">{item.symbol}</strong>
+          <span className="text-[10px] text-slate-400 block truncate max-w-[150px]" title={item.company_name}>
+            {item.company_name}
+          </span>
+        </div>
+      </td>
+      <td className="px-5 py-4 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
+        ₹{item.watchlist_price.toFixed(2)}
+      </td>
+      <td className="px-5 py-4 text-right font-mono font-black text-slate-800 dark:text-white">
+        <div className="flex flex-col items-end">
+          <span>₹{livePrice.toFixed(2)}</span>
+          <span className={`text-[8px] px-1 rounded font-bold uppercase mt-0.5 ${
+            isStale 
+              ? 'bg-rose-500/10 text-rose-500 animate-pulse'
+              : priceSource === 'WS'
+                ? 'bg-emerald-500/10 text-emerald-500'
+                : 'bg-slate-100 dark:bg-slate-900 text-slate-400'
+          }`}>
+            {isStale ? 'Stale' : priceSource}
+          </span>
+        </div>
+      </td>
+      <td className={`px-5 py-4 text-right font-mono font-bold ${
+        changePercent >= 0 ? 'text-green-500' : 'text-rose-500'
+      }`}>
+        <div>
+          <span className="block">
+            {changePercent >= 0 ? '+' : ''}
+            {changePercent.toFixed(2)}%
+          </span>
+          <span className="text-[9px] text-slate-400 block mt-0.5 font-medium">
+            {returnVal >= 0 ? '₹+' : '₹'}
+            {returnVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </span>
+        </div>
+      </td>
+      <td className="px-5 py-4 text-center font-mono font-medium text-slate-500">
+        {item.days_tracked}
+      </td>
+      <td className="px-5 py-4 text-center">
+        {renderStatusBadge(getStatus(changePercent))}
+      </td>
+      <td className="px-5 py-4 text-center">
+        <button
+          onClick={() => onRemove(item.symbol)}
+          className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/5 rounded-lg transition-colors"
+          title="Delete Item"
+        >
+          <Trash2 size={13} />
+        </button>
+      </td>
+    </tr>
+  );
+};
 
 const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
   // Config & State
@@ -486,57 +582,15 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-xs">
-                    {watchlistItems.map((item) => {
-                      const returnVal = (virtualInvestment / item.watchlist_price) * (item.current_price || item.watchlist_price) - virtualInvestment;
-                      
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/20 transition-colors">
-                          <td className="px-5 py-4">
-                            <div>
-                              <strong className="text-slate-800 dark:text-white block font-display">{item.symbol}</strong>
-                              <span className="text-[10px] text-slate-400 block truncate max-w-[150px]" title={item.company_name}>
-                                {item.company_name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
-                            ₹{item.watchlist_price.toFixed(2)}
-                          </td>
-                          <td className="px-5 py-4 text-right font-mono font-black text-slate-800 dark:text-white">
-                            ₹{item.current_price ? item.current_price.toFixed(2) : '-'}
-                          </td>
-                          <td className={`px-5 py-4 text-right font-mono font-bold ${
-                            item.change_percent >= 0 ? 'text-green-500' : 'text-rose-500'
-                          }`}>
-                            <div>
-                              <span className="block">
-                                {item.change_percent >= 0 ? '+' : ''}
-                                {item.change_percent ? item.change_percent.toFixed(2) : '0.00'}%
-                              </span>
-                              <span className="text-[9px] text-slate-400 block mt-0.5 font-medium">
-                                {returnVal >= 0 ? '₹+' : '₹'}
-                                {returnVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-center font-mono font-medium text-slate-500">
-                            {item.days_tracked}
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            {renderStatusBadge(item.status)}
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <button
-                              onClick={() => handleRemoveItem(item.symbol)}
-                              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/5 rounded-lg transition-colors"
-                              title="Delete Item"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {watchlistItems.map((item) => (
+                      <WatchlistRow
+                        key={item.id}
+                        item={item}
+                        virtualInvestment={virtualInvestment}
+                        onRemove={handleRemoveItem}
+                        renderStatusBadge={renderStatusBadge}
+                      />
+                    ))}
                   </tbody>
                 </table>
               </div>

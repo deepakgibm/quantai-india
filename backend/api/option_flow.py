@@ -591,30 +591,18 @@ async def get_option_flow(
         spot_change = 0.0
         spot_change_pct = 0.0
         try:
-            mapped_key = map_symbol_to_instrument_key(symbol) or instrument_key
-            quotes_res = await client.get_live_quotes([mapped_key])
-            if quotes_res and mapped_key in quotes_res:
-                q = quotes_res[mapped_key]
-                spot_price = float(q.get("last_price", 0) or 0)
-                spot_change = float(q.get("net_change", 0) or 0)
-                spot_change_pct = float(q.get("change_percent", 0) or 0)
+            from services.upstox_price_resolver import get_upstox_price_resolver
+            resolver = get_upstox_price_resolver()
+            p_res = await resolver.get_price(symbol)
+            spot_price = p_res.get("price", 0.0)
+            spot_change_pct = p_res.get("change_pct", 0.0)
+            prev_close = p_res.get("prev_close", 0.0)
+            spot_change = spot_price - prev_close if prev_close > 0 else 0.0
         except Exception as qe:
-            logger.warning(f"Failed to fetch live spot quotes: {qe}")
+            logger.warning(f"Failed to fetch live spot price via resolver: {qe}")
 
         if spot_price <= 0.0:
             spot_price = atmStrike if atmStrike > 0 else (float(raw_strikes[len(raw_strikes)//2].get("strike_price", 0)) if raw_strikes else 0.0)
-            
-        if spot_price <= 0.0:
-            try:
-                from services.upstox_price_resolver import get_upstox_price_resolver
-                resolver = get_upstox_price_resolver()
-                p_res = await resolver.get_price(symbol)
-                spot_price = p_res.get("price", 0.0)
-                spot_change_pct = p_res.get("change_pct", 0.0)
-                prev_close = p_res.get("prev_close", 0.0)
-                spot_change = spot_price - prev_close if prev_close > 0 else 0.0
-            except Exception as e:
-                logger.warning(f"Failed to resolve spot price via resolver: {e}")
 
         # Calculate max chain open interest and volume first to scale confidence scores
         max_chain_oi = 1

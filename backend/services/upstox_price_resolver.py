@@ -246,6 +246,11 @@ class UpstoxPriceResolver:
         if change_pct == 0 and prev_close > 0:
             change_pct = round(((price - prev_close) / prev_close) * 100, 2)
             
+        logger.info(f"Symbol={symbol}")
+        logger.info(f"LTP={price}")
+        logger.info(f"Timestamp={ts.isoformat()}")
+        logger.info(f"Source=Upstox")
+            
         return {
             "symbol": symbol,
             "price": round(float(price or 0), 2),
