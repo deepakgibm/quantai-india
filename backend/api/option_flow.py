@@ -1335,7 +1335,7 @@ async def get_option_flow_chart(
     cache = get_cache()
     if cache.is_available():
         try:
-            cached_data = cache.get(cache_key)
+            cached_data = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
             if cached_data:
                 import json
                 return json.loads(cached_data)
@@ -1545,7 +1545,8 @@ async def get_option_flow_chart(
         if cache.is_available():
             try:
                 import json
-                cache.set(cache_key, json.dumps(response_payload), ex=300)
+                cache.set(cache_key, json.dumps(response_payload), ttl=300)
+                cache.set(f"{cache_key}:fallback", json.dumps(response_payload), ttl=604800) # 7 days fallback
             except Exception as ce:
                 logger.warning(f"Cache write error in option flow chart: {ce}")
                 
@@ -1555,6 +1556,19 @@ async def get_option_flow_chart(
         raise
     except Exception as e:
         logger.error(f"Upstox data unavailable or calculation error for {symbol}: {e}", exc_info=True)
+        # Try to fall back to cache/fallback cache
+        if cache.is_available():
+            try:
+                cached_data = cache.get(cache_key) or cache.get(f"{cache_key}:fallback")
+                if cached_data:
+                    import json
+                    logger.info(f"[Option Flow Chart] Serving fallback cache data for {symbol} due to Upstox failure: {e}")
+                    res = json.loads(cached_data)
+                    if "data" in res:
+                        res["source"] = "fallback_cache"
+                    return res
+            except Exception as ce:
+                logger.warning(f"Failed to load fallback cache: {ce}")
         raise HTTPException(status_code=503, detail=f"Upstox data unavailable: {str(e)}")
 
 @router.get("/{symbol}/expiries")

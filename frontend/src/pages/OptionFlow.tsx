@@ -316,11 +316,13 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     
     const cacheKey = `${symbol}:${timeframe}:90`;
     if (chartCacheRef.current[cacheKey]) {
+      setChartError(null);
       setChartData(chartCacheRef.current[cacheKey]);
       return;
     }
     
     setChartLoading(true);
+    setChartError(null);
     try {
       const response = await api.getOptionFlowChart(clean, timeframe, 90);
       // Handle double-nested data payload structure if API returns {success: true, data: {...}}
@@ -330,8 +332,9 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
         chartCacheRef.current[cacheKey] = chartPayload;
         setChartData(chartPayload);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[OptionFlow] Failed to fetch advanced chart overlays:', err);
+      setChartError(err?.message || 'Failed to connect to Option Flow Chart API.');
     } finally {
       setChartLoading(false);
     }
@@ -345,6 +348,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       setExpiries([]);
       setSelectedExpiry('');
       setError(null);
+      setChartError(null);
       
       const clean = selectedSymbol.toUpperCase().replace("NSE:", "").trim();
       const fnoValid = isFOSymbol(clean);
@@ -931,7 +935,10 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   }
 
   // Formatting helper
-  const formatPremium = (val: number) => {
+  const formatPremium = (val: number | null | undefined) => {
+    if (val === null || val === undefined || isNaN(val)) {
+      return '₹0.00';
+    }
     if (Math.abs(val) >= 10000000) {
       return `₹${(val / 10000000).toFixed(2)} Cr`;
     }
@@ -1451,19 +1458,19 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                 </thead>
                 <tbody className="divide-y divide-slate-850/50 font-mono text-[14px]">
                   {(() => {
-                    const maxCallOi = Math.max(...data.strikes.map(s => s.call.oi));
-                    const maxPutOi = Math.max(...data.strikes.map(s => s.put.oi));
+                    const maxCallOi = Math.max(...data.strikes.map(s => s.call?.oi ?? 0), 0);
+                    const maxPutOi = Math.max(...data.strikes.map(s => s.put?.oi ?? 0), 0);
                     return data.strikes.map((s, idx) => {
                       const isAtm = s.strike_price === atmStrike;
-                      const isHighestCallOi = s.call.oi === maxCallOi && maxCallOi > 0;
-                      const isHighestPutOi = s.put.oi === maxPutOi && maxPutOi > 0;
+                      const isHighestCallOi = (s.call?.oi ?? 0) === maxCallOi && maxCallOi > 0;
+                      const isHighestPutOi = (s.put?.oi ?? 0) === maxPutOi && maxPutOi > 0;
                       
                       const rowBg = isAtm 
                         ? 'bg-[rgba(59,130,246,0.15)] border-l-4 border-l-[#3B82F6] hover:bg-[#334155]' 
                         : idx % 2 === 0 ? 'bg-[#1E293B] hover:bg-[#334155]' : 'bg-[#263244] hover:bg-[#334155]';
                       
-                      const ceBuildup = s.call.buildup;
-                      const peBuildup = s.put.buildup;
+                      const ceBuildup = s.call?.buildup;
+                      const peBuildup = s.put?.buildup;
 
                       const ceBuildupBadge = 
                         ceBuildup === 'Long Build-Up' ? 'text-term-bullish' :
@@ -1485,14 +1492,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                               {ceBuildup}
                             </span>
                           </td>
-                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestCallOi ? 'bg-[rgba(16,185,129,0.15)] font-bold text-term-bullish' : ''}`}>{s.call.oi.toLocaleString()}</td>
-                          <td className={`px-4 py-2 font-bold ${s.call.oi_change >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
-                            {s.call.oi_change >= 0 ? '+' : ''}{s.call.oi_change.toLocaleString()}
+                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestCallOi ? 'bg-[rgba(16,185,129,0.15)] font-bold text-term-bullish' : ''}`}>{s.call?.oi?.toLocaleString() ?? '0'}</td>
+                          <td className={`px-4 py-2 font-bold ${(s.call?.oi_change ?? 0) >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
+                            {(s.call?.oi_change ?? 0) >= 0 ? '+' : ''}{s.call?.oi_change?.toLocaleString() ?? '0'}
                           </td>
-                          <td className="px-4 py-2 text-term-text-muted">{s.call.volume.toLocaleString()}</td>
-                          <td className="px-4 py-2 text-term-text-muted">{s.call.iv.toFixed(1)}%</td>
+                          <td className="px-4 py-2 text-term-text-muted">{s.call?.volume?.toLocaleString() ?? '0'}</td>
+                          <td className="px-4 py-2 text-term-text-muted">{(s.call?.iv ?? 0).toFixed(1)}%</td>
                           <td className="px-4 py-2 font-semibold text-term-bullish border-r border-slate-800/60">
-                            ₹{s.call.ltp.toFixed(2)}
+                            ₹{(s.call?.ltp ?? 0).toFixed(2)}
                           </td>
                           
                           {/* STRIKE */}
@@ -1502,14 +1509,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                           
                           {/* PUTS */}
                           <td className="px-4 py-2 font-semibold text-term-bullish">
-                            ₹{s.put.ltp.toFixed(2)}
+                            ₹{(s.put?.ltp ?? 0).toFixed(2)}
                           </td>
-                          <td className="px-4 py-2 text-term-text-muted">{s.put.iv.toFixed(1)}%</td>
-                          <td className="px-4 py-2 text-term-text-muted">{s.put.volume.toLocaleString()}</td>
-                          <td className={`px-4 py-2 font-bold ${s.put.oi_change >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
-                            {s.put.oi_change >= 0 ? '+' : ''}{s.put.oi_change.toLocaleString()}
+                          <td className="px-4 py-2 text-term-text-muted">{(s.put?.iv ?? 0).toFixed(1)}%</td>
+                          <td className="px-4 py-2 text-term-text-muted">{s.put?.volume?.toLocaleString() ?? '0'}</td>
+                          <td className={`px-4 py-2 font-bold ${(s.put?.oi_change ?? 0) >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
+                            {(s.put?.oi_change ?? 0) >= 0 ? '+' : ''}{s.put?.oi_change?.toLocaleString() ?? '0'}
                           </td>
-                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestPutOi ? 'bg-[rgba(239,68,68,0.15)] font-bold text-term-bearish' : ''}`}>{s.put.oi.toLocaleString()}</td>
+                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestPutOi ? 'bg-[rgba(239,68,68,0.15)] font-bold text-term-bearish' : ''}`}>{s.put?.oi?.toLocaleString() ?? '0'}</td>
                           <td className="px-4 py-2">
                             <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${peBuildupBadge}`}>
                               {peBuildup}
@@ -1568,8 +1575,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                           <div className="text-[9px] text-slate-500 font-semibold mt-0.5">
                             Conf: {s.call.confidence_score ?? 50}%
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-1">OI: {s.call.oi.toLocaleString()}</div>
-                          <div className="text-[10px] text-slate-400">GEX: ₹{(s.call.gex / 10000000).toFixed(1)} Cr</div>
+                          <div className="text-[10px] text-slate-400 mt-1">OI: {s.call?.oi?.toLocaleString() ?? '0'}</div>
+                          <div className="text-[10px] text-slate-400">GEX: ₹{((s.call?.gex ?? 0) / 10000000).toFixed(1)} Cr</div>
                         </div>
 
                         {/* Puts Column */}
@@ -1587,8 +1594,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                           <div className="text-[9px] text-slate-500 font-semibold mt-0.5">
                             Conf: {s.put.confidence_score ?? 50}%
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-1">OI: {s.put.oi.toLocaleString()}</div>
-                          <div className="text-[10px] text-slate-400">GEX: ₹{(s.put.gex / 10000000).toFixed(1)} Cr</div>
+                          <div className="text-[10px] text-slate-400 mt-1">OI: {s.put?.oi?.toLocaleString() ?? '0'}</div>
+                          <div className="text-[10px] text-slate-400">GEX: ₹{((s.put?.gex ?? 0) / 10000000).toFixed(1)} Cr</div>
                         </div>
                       </div>
                     </div>
@@ -1640,9 +1647,9 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                               </span>
                             </td>
                             <td className="py-2.5 text-right text-slate-200">₹{block.ltp.toFixed(2)}</td>
-                            <td className="py-2.5 text-right text-slate-400">{block.volume.toLocaleString()}</td>
+                            <td className="py-2.5 text-right text-slate-400">{block.volume?.toLocaleString() ?? '0'}</td>
                             <td className="py-2.5 text-right text-emerald-400 font-bold">{formatPremium(block.premium)}</td>
-                            <td className="py-2.5 text-right text-slate-300">{block.oi.toLocaleString()}</td>
+                            <td className="py-2.5 text-right text-slate-300">{block.oi?.toLocaleString() ?? '0'}</td>
                           </tr>
                         );
                       })}
