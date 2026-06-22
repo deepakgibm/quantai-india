@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -244,13 +245,16 @@ async def get_volatility_data(
         if is_fno:
             try:
                 client = get_upstox_client()
-                chain = await client.get_option_chain(instrument_key)
+                chain = await asyncio.wait_for(client.get_option_chain(instrument_key), timeout=5.0)
                 
                 expiry_date = ""
                 if chain and chain.get("expiry"):
                     expiry_date = chain["expiry"]
                 else:
-                    contracts_data = await client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key})
+                    contracts_data = await asyncio.wait_for(
+                        client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key}),
+                        timeout=5.0
+                    )
                     if contracts_data.get("status") == "success" and contracts_data.get("data"):
                         contracts = contracts_data["data"]
                         unique_expiries = sorted(list(set(c.get("expiry") for c in contracts if c.get("expiry"))))
@@ -259,7 +263,10 @@ async def get_volatility_data(
                 
                 if expiry_date:
                     params = {"instrument_key": instrument_key, "expiry_date": expiry_date}
-                    response = await client._make_request("GET", "/option/chain", params=params)
+                    response = await asyncio.wait_for(
+                        client._make_request("GET", "/option/chain", params=params),
+                        timeout=5.0
+                    )
                     if response.get("status") == "success" and response.get("data"):
                         strikes = response["data"]
                         # Find closest strike to latest price (ATM)
@@ -277,6 +284,8 @@ async def get_volatility_data(
                         if iv_list:
                             mean_iv = float(np.mean(iv_list))
                             current_iv = mean_iv * 100.0 if 0.0 < mean_iv < 1.0 else mean_iv
+            except asyncio.TimeoutError:
+                logger.debug(f"Upstox option chain timed out for {symbol}, using HV as IV fallback")
             except Exception as e:
                 logger.debug(f"Could not retrieve live IV from option chain for {symbol}: {e}")
         
@@ -341,11 +350,16 @@ async def get_volatility_data(
             if vix_row:
                 india_vix = float(vix_row.close)
             else:
-                # Try fetching live quote for India VIX index from Upstox
+                # Try fetching live quote for India VIX index from Upstox (5s timeout)
                 client = get_upstox_client()
-                vix_quote = await client.get_live_quote("NSE_INDEX|India VIX", "INDIA VIX")
+                vix_quote = await asyncio.wait_for(
+                    client.get_live_quote("NSE_INDEX|India VIX", "INDIA VIX"),
+                    timeout=5.0
+                )
                 if vix_quote and vix_quote.get("last_price"):
                     india_vix = float(vix_quote["last_price"])
+        except asyncio.TimeoutError:
+            logger.debug("India VIX fetch timed out, using fallback value")
         except Exception as vix_err:
             logger.debug(f"Failed to fetch India VIX: {vix_err}")
             

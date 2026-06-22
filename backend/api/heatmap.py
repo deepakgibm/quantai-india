@@ -208,7 +208,17 @@ async def get_heatmap(
         }
         target_rn = tf_map.get(timeframe, 2)
         
-        print(f"[SECTOR_ENGINE] Computing heatmap hierarchy for mode={mode}, timeframe={timeframe} (target_rn={target_rn})")
+        # Calculate cutoff date to prune partitions in stock_candle.
+        # Find the latest candle timestamp in the database first to handle static/historical data correctly.
+        max_ts_res = await db.execute(text("SELECT MAX(candle_ts) FROM stock_candle WHERE timeframe = 1440"))
+        max_ts = max_ts_res.scalar() or datetime.utcnow()
+        
+        # We need at least target_rn trading days, plus 25 days buffer to ensure 10-day momentum (rn=11) is available.
+        calendar_days = max(25, int(target_rn * 1.6) + 20)
+        from datetime import timedelta
+        cutoff_date = max_ts - timedelta(days=calendar_days)
+        
+        print(f"[SECTOR_ENGINE] Computing heatmap hierarchy for mode={mode}, timeframe={timeframe} (target_rn={target_rn}, calendar_days={calendar_days})")
         
         # SQL Query to fetch latest and timeframe-ago close prices, volume and market cap
         sql = text("""
@@ -221,7 +231,7 @@ async def get_heatmap(
                     ROW_NUMBER() OVER (PARTITION BY instrument_id ORDER BY candle_ts DESC) as rn,
                     COUNT(*) OVER (PARTITION BY instrument_id) as total_candles
                 FROM stock_candle
-                WHERE timeframe = 1440
+                WHERE timeframe = 1440 AND candle_ts >= :cutoff_date
             ),
             latest_candles AS (
                 SELECT instrument_id, close, volume, candle_ts FROM candle_ranks WHERE rn = 1
@@ -249,7 +259,7 @@ async def get_heatmap(
             WHERE im.is_active = TRUE
         """)
         
-        result = await db.execute(sql, {"target_rn": target_rn})
+        result = await db.execute(sql, {"target_rn": target_rn, "cutoff_date": cutoff_date})
         rows = result.fetchall()
         
         if not rows:

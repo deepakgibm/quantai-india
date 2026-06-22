@@ -197,7 +197,7 @@ class Nifty100RankingService:
         
         logger.info(f"CACHE MISS (bypass={bypass_cache}): {cache_key}, fetching live data")
         
-        # 2. Compute from UpstoxPriceResolver bulk fetch
+        # 2. Compute from UpstoxPriceResolver bulk fetch (8s timeout)
         try:
             from services.upstox_price_resolver import get_upstox_price_resolver
             resolver = get_upstox_price_resolver()
@@ -206,7 +206,7 @@ class Nifty100RankingService:
             # Expanded indices list
             indices = ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "NIFTY NEXT 50", "MIDCPNIFTY"]
             symbols_to_fetch = list(set([s.upper() for s in (nifty100_symbols + indices)]))
-            prices = await resolver.get_prices_bulk(symbols_to_fetch)
+            prices = await asyncio.wait_for(resolver.get_prices_bulk(symbols_to_fetch), timeout=8.0)
             
             if len(prices) >= 5:
                 # Format data for ranking computation
@@ -221,23 +221,27 @@ class Nifty100RankingService:
                     return asdict(result)
             
             logger.info(f"Resolver returned insufficient data ({len(prices)} symbols), moving to next strategy")
+        except asyncio.TimeoutError:
+            logger.warning("UpstoxPriceResolver bulk fetch timed out (8s), skipping to REST fallback")
         except Exception as e:
             logger.error(f"UpstoxPriceResolver bulk fetch failed: {e}")
         
-        # 3. PRIMARY: Try Upstox REST API first (fast-fail if token expired)
+        # 3. PRIMARY: Try Upstox REST API (8s timeout - circuit breaker fast-fails, no need for long wait)
         try:
-            result = await self._fetch_from_rest()
+            result = await asyncio.wait_for(self._fetch_from_rest(), timeout=8.0)
             if result and (result.gainers or result.losers):
                 await self._write_to_cache(result)
                 return asdict(result)
+        except asyncio.TimeoutError:
+            logger.warning("Upstox REST API timed out (8s), falling back to yfinance")
         except Exception as e:
             logger.warning(f"Upstox REST API failed: {e}")
         
-        # 4. SECONDARY: Fallback to yfinance (no API key required)
+        # 4. SECONDARY: Fallback to yfinance (25s timeout)
         try:
             logger.info("Fetching live prices from yfinance")
             from utils.market_fallback import fetch_top_movers_yfinance
-            yf_result = await fetch_top_movers_yfinance()
+            yf_result = await asyncio.wait_for(fetch_top_movers_yfinance(), timeout=8.0)
             if yf_result and not yf_result.get("error"):
                 if yf_result.get("gainers") or yf_result.get("losers"):
                     final_result = {
@@ -257,6 +261,8 @@ class Nifty100RankingService:
                     elapsed_ms = (time.perf_counter() - start_time) * 1000
                     logger.info(f"yfinance data fetched in {elapsed_ms:.2f}ms")
                     return final_result
+        except asyncio.TimeoutError:
+            logger.warning("yfinance top movers fetch timed out (25s)")
         except Exception as e:
             logger.warning(f"yfinance fetch failed: {e}")
         
@@ -276,7 +282,77 @@ class Nifty100RankingService:
         except Exception as e:
             logger.warning(f"HP Scanner cache fallback failed: {e}")
         
-        # 6. Return empty result with error
+        # 6. DB FINAL FALLBACK: Compute top movers from stock_candle (most recent EOD data)
+        try:
+            from database import AsyncSessionLocal
+            from sqlalchemy import text as sql_text
+            async with AsyncSessionLocal() as session:
+                db_result = await session.execute(sql_text("""
+                    WITH latest AS (
+                        SELECT sc.instrument_id,
+                               sc.close as latest_close,
+                               sc.volume,
+                               ROW_NUMBER() OVER (PARTITION BY sc.instrument_id ORDER BY sc.candle_ts DESC) as rn
+                        FROM stock_candle sc
+                        WHERE sc.timeframe = 1440
+                    ),
+                    prev AS (
+                        SELECT sc.instrument_id,
+                               sc.close as prev_close,
+                               ROW_NUMBER() OVER (PARTITION BY sc.instrument_id ORDER BY sc.candle_ts DESC) as rn
+                        FROM stock_candle sc
+                        WHERE sc.timeframe = 1440
+                    )
+                    SELECT im.symbol, l.latest_close, p.prev_close, l.volume
+                    FROM latest l
+                    JOIN prev p ON l.instrument_id = p.instrument_id AND p.rn = 2
+                    JOIN instrument_master im ON l.instrument_id = im.instrument_id
+                    WHERE l.rn = 1 AND p.prev_close > 0 AND l.latest_close > 0
+                      AND im.is_active = TRUE AND im.series = 'EQ'
+                    ORDER BY ((l.latest_close - p.prev_close) / p.prev_close) DESC
+                    LIMIT 200
+                """))
+                rows = db_result.fetchall()
+                
+                if rows and len(rows) >= 5:
+                    movers = []
+                    for row in rows:
+                        change_pct = ((float(row.latest_close) - float(row.prev_close)) / float(row.prev_close)) * 100
+                        movers.append({
+                            "symbol": row.symbol,
+                            "ltp": round(float(row.latest_close), 2),
+                            "change_pct": round(change_pct, 2),
+                            "prev_close": round(float(row.prev_close), 2),
+                            "volume": int(row.volume) if row.volume else 0,
+                            "day_high": round(float(row.latest_close), 2),
+                            "day_low": round(float(row.latest_close), 2),
+                            "segment": "EQUITY"
+                        })
+                    
+                    gainers = sorted([m for m in movers if m["change_pct"] > 0], key=lambda x: x["change_pct"], reverse=True)[:5]
+                    losers = sorted([m for m in movers if m["change_pct"] < 0], key=lambda x: x["change_pct"])[:5]
+                    
+                    db_result_dict = {
+                        "as_of": datetime.now().isoformat(),
+                        "trading_date": trading_date,
+                        "gainers": gainers,
+                        "losers": losers,
+                        "source": "database_eod",
+                        "is_market_open": is_open,
+                        "cache_metadata": {
+                            "cached_at": datetime.now().isoformat(),
+                            "ttl_seconds": 300,
+                            "is_stale": True,
+                            "warning": "Data is from last available EOD close prices"
+                        }
+                    }
+                    self._cache.set(cache_key, db_result_dict, ttl=300)
+                    logger.info(f"DB EOD fallback: returning {len(gainers)} gainers, {len(losers)} losers")
+                    return db_result_dict
+        except Exception as e:
+            logger.warning(f"DB EOD fallback failed: {e}")
+        
+        # 7. Return empty result with error
         return {
             "as_of": datetime.now().isoformat(),
             "trading_date": trading_date,

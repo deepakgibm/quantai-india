@@ -181,7 +181,7 @@ class TradingService:
             missing_keys = [key for name, key in INDEX_MAPPINGS if name not in results_map]
             if missing_keys:
                 client = get_upstox_client()
-                quotes = await client.get_live_quotes(missing_keys)
+                quotes = await asyncio.wait_for(client.get_live_quotes(missing_keys), timeout=3.5)
                 for name, key in INDEX_MAPPINGS:
                     if name not in results_map and key in quotes:
                         quote = quotes[key]
@@ -192,7 +192,7 @@ class TradingService:
 
         # 3. yFinance
         try:
-            yf_indices = await fetch_live_indices_yfinance()
+            yf_indices = await asyncio.wait_for(fetch_live_indices_yfinance(), timeout=3.0)
             if yf_indices:
                 for item in yf_indices:
                     if item.get("name") in needed_names and item.get("name") not in results_map:

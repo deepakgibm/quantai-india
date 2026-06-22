@@ -226,13 +226,22 @@ async def fetch_live_full_quotes(symbols: List[str], access_token: str = None) -
         logger.warning(f"No valid instrument keys found for symbols: {symbols[:10]}")
         return {}
 
-    logger.info(f"Enricher: Batching {len(mapped_keys)} keys for Upstox API")
+    logger.info(f"Enricher: Batching {len(mapped_keys)} keys for Upstox API in parallel")
+    tasks = []
+    batches = []
     for i in range(0, len(mapped_keys), batch_size):
         batch = mapped_keys[i:i + batch_size]
-        try:
-            res = await client.get_live_quotes(batch)
-            logger.info(f"Enricher: Received {len(res)} quotes from batch of {len(batch)}")
-            
+        batches.append(batch)
+        tasks.append(client.get_live_quotes(batch))
+        
+    try:
+        # Fetch all batches in parallel with a timeout of 3.5 seconds
+        batch_results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
+        for idx, res in enumerate(batch_results):
+            if isinstance(res, Exception):
+                logger.error(f"Upstox full quote batch index {idx} failed (size={len(batches[idx])}): {res}")
+                continue
+            logger.info(f"Enricher: Received {len(res)} quotes from batch index {idx}")
             for key, q in res.items():
                 symbol = key_to_symbol.get(key)
                 if symbol:
@@ -242,8 +251,9 @@ async def fetch_live_full_quotes(symbols: List[str], access_token: str = None) -
                         "volume": q.get("volume"),
                         "timestamp": q.get("timestamp")
                     }
-        except Exception as e:
-            logger.error(f"Upstox full quote batch failed: {e}")
+    except asyncio.TimeoutError:
+        logger.warning(f"Upstox batch fetch timed out after 3.5s for {len(mapped_keys)} keys")
+        
     return results
 
 async def _fetch_batch_ltp(symbols: List[str], access_token: str) -> Dict[str, float]:

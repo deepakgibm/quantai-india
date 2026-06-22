@@ -31,7 +31,7 @@ async def fetch_live_indices_yfinance() -> List[Dict[str, Any]]:
         try:
             data = await asyncio.wait_for(
                 asyncio.to_thread(yf.download, tickers_str, period="2d", interval="1m", progress=False, group_by='ticker', session=session),
-                timeout=15.0
+                timeout=2.5
             )
         except Exception as e:
             logger.warning(f"yfinance indices download failed/timed out: {e}")

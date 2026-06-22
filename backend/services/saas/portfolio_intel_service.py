@@ -55,18 +55,21 @@ class PortfolioIntelService:
                     "current_price": h.current_price or h.avg_price
                 })
                 
-        # Enrich holdings with live prices resolved by UpstoxPriceResolver
+        # Enrich holdings with live prices resolved by UpstoxPriceResolver (5s timeout)
         if holdings:
             try:
+                import asyncio
                 from services.upstox_price_resolver import get_upstox_price_resolver
                 resolver = get_upstox_price_resolver()
                 symbols = [h["symbol"] for h in holdings]
-                prices_map = await resolver.get_prices_bulk(symbols)
+                prices_map = await asyncio.wait_for(resolver.get_prices_bulk(symbols), timeout=5.0)
                 for h in holdings:
                     sym = h["symbol"].upper()
                     p_data = prices_map.get(sym)
                     if p_data and p_data.get("price", 0) > 0:
                         h["current_price"] = p_data["price"]
+            except asyncio.TimeoutError:
+                logger.warning("Live price enrichment timed out (5s), using stored prices for portfolio intel")
             except Exception as e:
                 logger.error(f"Failed to enrich holdings with live prices in portfolio intel: {e}")
 

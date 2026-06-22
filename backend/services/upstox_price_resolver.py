@@ -104,7 +104,7 @@ class UpstoxPriceResolver:
         try:
             from services.live_price_enricher import fetch_live_full_quotes
             logger.info(f"Resolver: Batch REST fetch for {len(pending_symbols)} symbols. Symbols: {pending_symbols[:10]}")
-            rest_data = await fetch_live_full_quotes(pending_symbols)
+            rest_data = await asyncio.wait_for(fetch_live_full_quotes(pending_symbols), timeout=4.0)
             logger.info(f"Resolver: Batch REST returned {len(rest_data)} symbols. Data keys: {list(rest_data.keys())[:10]}")
             
             still_pending = []

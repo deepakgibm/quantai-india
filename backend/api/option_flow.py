@@ -1335,24 +1335,64 @@ async def get_option_flow_chart(
     if not instrument_key:
         raise HTTPException(status_code=400, detail="Unable to resolve symbol to instrument key")
         
-    # 3. Fetch from Upstox API
+    # 3. Try DB-first (stock_candle table) before hitting Upstox
+    df = pd.DataFrame()
     try:
-        from services.upstox_client import get_upstox_client
-        client = get_upstox_client()
-        
-        to_date = datetime.now()
-        df = await load_historical_chart_data(
-            client=client,
-            symbol=symbol,
-            instrument_key=instrument_key,
-            to_date=to_date,
-            lookback_days=lookback_days,
-            interval=upstox_interval
+        instrument_id_row = await db.execute(
+            text("SELECT instrument_id FROM instrument_master WHERE symbol = :sym AND is_active = TRUE LIMIT 1"),
+            {"sym": symbol}
         )
-        
-        if df.empty:
-            raise HTTPException(status_code=404, detail="No candle data returned from Upstox API")
+        iid_row = instrument_id_row.fetchone()
+        if iid_row:
+            tf_db = 1440 if upstox_interval == "day" else (30 if upstox_interval == "30minute" else 1)
+            candle_limit = lookback_days * (1 if upstox_interval == "day" else 390)
+            db_candles = await db.execute(
+                text("""
+                    SELECT candle_ts, open, high, low, close, volume
+                    FROM stock_candle
+                    WHERE instrument_id = :iid AND timeframe = :tf
+                    ORDER BY candle_ts DESC
+                    LIMIT :lim
+                """),
+                {"iid": iid_row.instrument_id, "tf": tf_db, "lim": min(candle_limit, 5000)}
+            )
+            rows = db_candles.fetchall()
+            if rows and len(rows) >= 5:
+                df = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+                df["symbol"] = symbol
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
+                df = df.sort_values("timestamp").reset_index(drop=True)
+                logger.info(f"[OptionFlowChart] Serving {len(df)} candles for {symbol} from DB cache")
+    except Exception as db_err:
+        logger.warning(f"[OptionFlowChart] DB candle fetch failed for {symbol}: {db_err}")
+
+    # 4. Fetch from Upstox API (only if DB had insufficient data)
+    if df.empty:
+        try:
+            import asyncio as _asyncio
+            from services.upstox_client import get_upstox_client
+            client = get_upstox_client()
             
+            to_date = datetime.now()
+            df = await _asyncio.wait_for(
+                load_historical_chart_data(
+                    client=client,
+                    symbol=symbol,
+                    instrument_key=instrument_key,
+                    to_date=to_date,
+                    lookback_days=lookback_days,
+                    interval=upstox_interval
+                ),
+                timeout=15.0
+            )
+        except Exception as upstox_err:
+            logger.warning(f"[OptionFlowChart] Upstox API unavailable for {symbol}: {upstox_err}")
+    
+    if df.empty:
+        raise HTTPException(status_code=404, detail="No candle data returned from Upstox API")
+    
+    try:
+        to_date = datetime.now()
         # Resample 1minute candles to 5minute or 15minute if interval is 5m or 15m
         if interval_clean in ("5m", "5minute", "15m", "15minute"):
             resample_rule = "5min" if ("5m" in interval_clean or "5minute" in interval_clean) else "15min"

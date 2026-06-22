@@ -126,7 +126,7 @@ class UpstoxClient:
             self._cb = CircuitBreaker(
                 "UpstoxAPI", 
                 failure_threshold=5, 
-                recovery_timeout=60.0, 
+                recovery_timeout=30.0,  # Reduced from 60s: attempt recovery sooner
                 expected_exceptions=(self.UpstoxSystemFailure,)
             )
 

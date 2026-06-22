@@ -109,9 +109,16 @@ async def get_portfolio_intelligence(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    import asyncio
     try:
-        analysis = await PortfolioIntelService.analyze_portfolio(db, current_user.id)
+        analysis = await asyncio.wait_for(
+            PortfolioIntelService.analyze_portfolio(db, current_user.id),
+            timeout=10.0
+        )
         return {"status": "success", "analysis": analysis}
+    except asyncio.TimeoutError:
+        logger.error("Portfolio intelligence timed out (10s)")
+        raise HTTPException(status_code=504, detail="Portfolio analysis timed out. Please try again.")
     except Exception as e:
         logger.error(f"Portfolio intelligence failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
