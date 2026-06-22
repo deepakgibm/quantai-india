@@ -96,45 +96,78 @@ class ResearchAgent:
         print(f"🕵️ Research Agent: Analyzing {len(symbols)} stocks...")
         results = []
         
-        # Get instrument keys (mocking or fetching)
-        # For this implementation, we'll assume we can get keys or use a helper
-        # In a real scenario, we'd look up keys from the database or a file
-        nifty_symbols = await self.client.get_nifty_200_symbols()
-        symbol_map = {s: k for s, k in nifty_symbols}
+        # Get instrument keys from database first
+        symbol_map = {}
+        try:
+            from sqlalchemy import text
+            res = self.db.execute(text(
+                "SELECT symbol, instrument_key FROM instrument_master "
+                "WHERE is_active = TRUE AND exchange = 'NSE' AND series = 'EQ' "
+                "AND instrument_key IS NOT NULL"
+            ))
+            for row in res:
+                if row[0] and row[1]:
+                    symbol_map[row[0].strip()] = row[1].strip()
+        except Exception as e:
+            print(f"⚠️ Failed to load symbols from DB: {e}")
+
+        if not symbol_map:
+            nifty_symbols = await self.client.get_nifty_200_symbols()
+            symbol_map = {s: k for s, k in nifty_symbols}
         
         for symbol in symbols:
             if symbol not in symbol_map:
-                print(f"⚠️ Symbol {symbol} not found in Nifty 200 list. Skipping.")
+                print(f"⚠️ Symbol {symbol} not found in instrument list. Skipping.")
                 continue
                 
             key = symbol_map[symbol]
             
-            # 1. Fetch Market Data (Live Quote) - with fallback
-            quote = await self.client.get_live_quote(key, symbol)
+            # 1. Fetch Market Data (Live Quote) - with DB/cache first
+            quote = None
+            try:
+                from services.upstox_price_resolver import get_price_resolver
+                resolver = get_price_resolver()
+                res = await resolver.get_price(symbol)
+                if res and res.get("price"):
+                    quote = {
+                        "symbol": symbol,
+                        "timestamp": res.get("timestamp"),
+                        "open": res.get("open", 0.0),
+                        "high": res.get("high", 0.0),
+                        "low": res.get("low", 0.0),
+                        "close": res.get("close", 0.0),
+                        "last_price": res.get("price", 0.0),
+                        "volume": res.get("volume", 0),
+                    }
+            except Exception:
+                pass
+
             if not quote:
-                # Try database fallback
                 quote = self._get_fallback_quote_from_db(symbol)
-                if not quote:
-                    print(f"❌ No data available for {symbol} (API and DB both failed)")
-                    continue
+
+            if not quote:
+                quote = await self.client.get_live_quote(key, symbol)
+
+            if not quote:
+                print(f"❌ No data available for {symbol} (API and DB both failed)")
+                continue
                 
-            # 2. Fetch Historical Data (for Technicals) - with fallback
-            # Fetch last 100 days for daily indicators
+            # 2. Fetch Historical Data (for Technicals) - with DB first
+            # Fetch last 150 days for daily indicators
             to_date = datetime.now()
             from_date = to_date - timedelta(days=150)
             
-            hist_df = await self.client.get_historical_data(
-                symbol=symbol,
-                instrument_key=key,
-                from_date=from_date,
-                to_date=to_date,
-                interval="1day"
-            )
+            hist_df = self._get_historical_from_db(symbol, days=150)
             
-            # Fallback to database if API returns empty
             if hist_df.empty:
-                print(f"📊 Using database historical data for {symbol}")
-                hist_df = self._get_historical_from_db(symbol, days=150)
+                print(f"📡 Database empty. Calling Upstox API historical data for {symbol}")
+                hist_df = await self.client.get_historical_data(
+                    symbol=symbol,
+                    instrument_key=key,
+                    from_date=from_date,
+                    to_date=to_date,
+                    interval="1day"
+                )
             
             technicals = self._calculate_technicals(hist_df)
             ml_score = self._calculate_ml_score(technicals)

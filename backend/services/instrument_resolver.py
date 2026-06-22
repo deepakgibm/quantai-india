@@ -149,6 +149,34 @@ def resolve_instrument_id(
         conn.close()
 
 
+def resolve_instrument_info(
+    symbol: str,
+    series: str = 'EQ',
+    exchange: str = 'NSE'
+) -> Optional[InstrumentInfo]:
+    """Resolve symbol + series + exchange to full InstrumentInfo using cache."""
+    cache_key = f"sym:{symbol}:{series}:{exchange}"
+    cached = _get_cache(cache_key)
+    if cached is not None:
+        return cached
+        
+    try:
+        resolve_instrument_id(symbol, series, exchange)
+    except Exception:
+        pass
+    return _get_cache(cache_key)
+
+
+def resolve_instrument_key(
+    symbol: str,
+    series: str = 'EQ',
+    exchange: str = 'NSE'
+) -> Optional[str]:
+    """Resolve symbol + series + exchange to instrument_key using cache."""
+    info = resolve_instrument_info(symbol, series, exchange)
+    return info.instrument_key if info else None
+
+
 def resolve_by_instrument_key(instrument_key: str) -> Optional[int]:
     """
     Resolve instrument_key to instrument_id.

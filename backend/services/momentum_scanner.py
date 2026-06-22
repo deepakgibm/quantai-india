@@ -7,7 +7,7 @@ Optimized: Uses vectorized Pandas operations for <2s latency.
 import pandas as pd
 import numpy as np
 from typing import List, Dict
-from datetime import datetime, timedelta
+from datetime import datetime
 from database import SessionLocal
 import logging
 

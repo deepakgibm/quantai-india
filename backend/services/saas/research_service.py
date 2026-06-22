@@ -5,7 +5,6 @@ Research Center Report Ingestion and AI Generation Service
 import logging
 from sqlalchemy.future import select
 from models_saas import ResearchReport
-from database import AsyncSessionLocal
 from services.ai.provider import get_ai_provider
 from config import settings
 from datetime import datetime

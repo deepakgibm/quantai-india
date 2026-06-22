@@ -1,13 +1,11 @@
 import sys
 import os
 import unittest
-from datetime import date
 
 # Add backend to path
 sys.path.append(os.path.join(os.getcwd()))
 
 from core.risk.risk_manager import RiskManager, RiskConfig
-from core.backtest.executor import OrderSide
 
 class TestRiskEngine(unittest.TestCase):
     def setUp(self):

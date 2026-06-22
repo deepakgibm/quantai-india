@@ -3,7 +3,6 @@ Layer 2: High-Fidelity Event-Driven Execution Engine
 Runs stateful simulation sequentially bar-by-bar.
 """
 
-import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional
 import time

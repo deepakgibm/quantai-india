@@ -4,10 +4,8 @@ Centralized position sizing and stop loss calculations.
 """
 
 from typing import Optional, Dict, Any
-from enum import Enum
-from dataclasses import dataclass
 
-from core.risk.risk_manager import RiskManager, RiskConfig, RiskMode, PositionSizeResult
+from core.risk.risk_manager import RiskManager, RiskConfig, RiskMode
 
 
 class UnifiedRiskManager:

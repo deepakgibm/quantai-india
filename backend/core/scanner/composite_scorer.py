@@ -1,5 +1,4 @@
-import pandas as pd
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
 from sqlalchemy import text
 from database import SessionLocal

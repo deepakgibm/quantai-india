@@ -2,9 +2,8 @@ import logging
 import asyncio
 import random
 from datetime import datetime, date, timedelta
-from typing import List, Dict, Any
+from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from models import InstitutionalFlows
 from database import get_db

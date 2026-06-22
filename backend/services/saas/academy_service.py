@@ -6,8 +6,6 @@ import logging
 import uuid
 from sqlalchemy.future import select
 from models_saas import AcademyCourse, AcademyQuiz, AcademyProgress, AcademyCertificate
-from database import AsyncSessionLocal
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

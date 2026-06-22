@@ -1,10 +1,6 @@
 import httpx
 import asyncio
-import json
 import logging
-import time
-from datetime import datetime
-from typing import Dict, Any, List
 
 # Configuration targeting the internal Docker network if running inside, 
 # or localhost if running from the development host.

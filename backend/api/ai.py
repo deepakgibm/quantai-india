@@ -1,24 +1,14 @@
 from fastapi import APIRouter, Depends
 import logging
-from typing import Dict, Any
 from models import User
 from schemas import (
-    AIPromptRequest, AIPromptResponse, ScannerResponse, MarketAnalysisResponse
+    AIPromptRequest, AIPromptResponse, MarketAnalysisResponse
 )
 from utils.auth import get_current_user
 from services.ai_service import get_ai_service
 from config import settings
 
 # Detectors for scanner logic
-from services.trend_analyzer import TrendAnalyzer
-from services.breakout_detector import BreakoutDetector
-from services.top5_buysell import Top5BuySellEngine
-from services.mean_reversion_scanner import MeanReversionScanner
-from services.relative_strength_scanner import RelativeStrengthScanner
-from services.vwap_scanner import VWAPScanner
-from services.gap_scanner import GapScanner
-from services.momentum_scanner import MomentumScanner
-from services.sr_bounce_scanner import SRBounceScanner
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["AI Services"])

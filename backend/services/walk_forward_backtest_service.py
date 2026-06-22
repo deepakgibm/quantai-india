@@ -294,7 +294,6 @@ class WalkForwardBacktestService:
     async def _load_data(self, symbols: List[str], timeframe: str) -> pd.DataFrame:
         """Load historical data from Parquet Lake (optimized)."""
         from core.lake_dal import get_lake_dal
-        import polars as pl
         
         dal = get_lake_dal()
         all_dfs = []

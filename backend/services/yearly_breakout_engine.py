@@ -100,18 +100,23 @@ class YearlyBreakoutEngine:
             to_date = datetime.now()
             from_date = to_date - timedelta(days=375)
             
-            history = await self.upstox.get_historical_data(
-                symbol=symbol,
-                instrument_key=instrument_key,
-                from_date=from_date,
-                to_date=to_date,
-                interval="day"
+            from services.db_data_fetcher import DBDataFetcher
+            db_fetcher = DBDataFetcher()
+            
+            loop = asyncio.get_event_loop()
+            history = await loop.run_in_executor(
+                None,
+                db_fetcher.get_historical_data,
+                symbol,
+                "day",
+                from_date.strftime("%Y-%m-%d"),
+                to_date.strftime("%Y-%m-%d")
             )
             
-            if history.empty or len(history) < 200:
+            if history is None or history.empty:
                 return None
 
-            df = history.copy()
+            df = history.reset_index()
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             df = df.sort_values('timestamp')
             

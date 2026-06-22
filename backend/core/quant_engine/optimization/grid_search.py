@@ -4,12 +4,11 @@ Executes grid search sweeps across parameter configurations in parallel.
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import List, Dict, Any, Type, Tuple
+from typing import List, Dict, Any, Tuple
 import pandas as pd
 import time
 import logging
 
-from ..strategy.base import UnifiedStrategy
 from ..execution.vectorized import VectorizedExecutionEngine
 
 logger = logging.getLogger(__name__)

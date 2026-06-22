@@ -4,9 +4,6 @@ import logging
 import asyncio
 import polars as pl
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import create_async_engine
-from pathlib import Path
-from datetime import datetime
 
 # Add backend to path to import core/services
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

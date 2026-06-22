@@ -2,7 +2,6 @@ import sys
 import os
 import asyncio
 from datetime import datetime, timedelta
-import urllib.parse
 from sqlalchemy import text
 
 # Add parent directory of scripts to path

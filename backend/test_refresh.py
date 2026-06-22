@@ -1,7 +1,4 @@
 
-import requests
-import json
-import time
 
 URL = "http://localhost:8000/api/scanner/momentum?force_refresh=true"
 # We need an auth token if auth is enabled. Let's assume we can bypass it for local test if we are inside container or use a dummy token if we know the secret.

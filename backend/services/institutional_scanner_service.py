@@ -1,17 +1,14 @@
 import asyncio
 import logging
 import time
-import json
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
-from sqlalchemy import text, select, insert, update, delete
+from sqlalchemy import text, insert
 from sqlalchemy.orm import Session
 
 from database import get_db_session_context, SessionLocal
-from models_alpha import InstrumentMaster
-from models import FundamentalMetrics
 from models_institutional_scanner import (
     InstitutionalPattern,
     VcpScore,

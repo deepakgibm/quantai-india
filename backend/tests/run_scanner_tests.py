@@ -1,4 +1,3 @@
-import asyncio
 import sys
 import os
 import pandas as pd
@@ -12,7 +11,6 @@ sys.path.insert(0, backend_dir)
 
 from database import SessionLocal
 from services.institutional_scanner_service import get_institutional_scanner_service
-from models_institutional_scanner import VcpScore, TrendTemplateScore, RelativeStrengthRanking
 
 def get_dummy_data():
     np.random.seed(42)

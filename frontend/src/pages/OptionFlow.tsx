@@ -147,6 +147,82 @@ interface AdvancedChartData {
   breakout_markers: any[];
 }
 
+interface StrikeGridRowProps {
+  strike: any;
+  idx: number;
+  isAtm: boolean;
+  isHighestCallOi: boolean;
+  isHighestPutOi: boolean;
+}
+
+const StrikeGridRow: React.FC<StrikeGridRowProps> = React.memo(({
+  strike,
+  idx,
+  isAtm,
+  isHighestCallOi,
+  isHighestPutOi
+}) => {
+  const rowBg = isAtm 
+    ? 'bg-[rgba(59,130,246,0.15)] border-l-4 border-l-[#3B82F6] hover:bg-[#334155]' 
+    : idx % 2 === 0 ? 'bg-[#1E293B] hover:bg-[#334155]' : 'bg-[#263244] hover:bg-[#334155]';
+  
+  const ceBuildup = strike.call?.buildup;
+  const peBuildup = strike.put?.buildup;
+
+  const ceBuildupBadge = 
+    ceBuildup === 'Long Build-Up' ? 'text-term-bullish' :
+    ceBuildup === 'Short Build-Up' ? 'text-term-bearish' :
+    ceBuildup === 'Long Unwinding' ? 'text-term-neutral' :
+    ceBuildup === 'Short Covering' ? 'text-term-info' : 'text-slate-500';
+
+  const peBuildupBadge = 
+    peBuildup === 'Long Build-Up' ? 'text-term-bullish' :
+    peBuildup === 'Short Build-Up' ? 'text-term-bearish' :
+    peBuildup === 'Long Unwinding' ? 'text-term-neutral' :
+    peBuildup === 'Short Covering' ? 'text-term-info' : 'text-slate-500';
+
+  return (
+    <tr className={`${rowBg} transition-colors h-[42px]`}>
+      {/* CALLS */}
+      <td className="px-4 py-2">
+        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${ceBuildupBadge}`}>
+          {ceBuildup}
+        </span>
+      </td>
+      <td className={`px-4 py-2 text-term-text-secondary ${isHighestCallOi ? 'bg-[rgba(16,185,129,0.15)] font-bold text-term-bullish' : ''}`}>{strike.call?.oi?.toLocaleString() ?? '0'}</td>
+      <td className={`px-4 py-2 font-bold ${(strike.call?.oi_change ?? 0) >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
+        {(strike.call?.oi_change ?? 0) >= 0 ? '+' : ''}{strike.call?.oi_change?.toLocaleString() ?? '0'}
+      </td>
+      <td className="px-4 py-2 text-term-text-muted">{strike.call?.volume?.toLocaleString() ?? '0'}</td>
+      <td className="px-4 py-2 text-term-text-muted">{(strike.call?.iv ?? 0).toFixed(1)}%</td>
+      <td className="px-4 py-2 font-semibold text-term-bullish border-r border-slate-800/60">
+        ₹{(strike.call?.ltp ?? 0).toFixed(2)}
+      </td>
+      
+      {/* STRIKE */}
+      <td className={`px-4 py-2 text-center font-bold border-r border-slate-800/60 ${isAtm ? 'text-term-info bg-[rgba(59,130,246,0.1)]' : 'text-term-text-primary'}`}>
+        {strike.strike_price.toFixed(1)}
+      </td>
+      
+      {/* PUTS */}
+      <td className="px-4 py-2 font-semibold text-term-bullish">
+        ₹{(strike.put?.ltp ?? 0).toFixed(2)}
+      </td>
+      <td className="px-4 py-2 text-term-text-muted">{(strike.put?.iv ?? 0).toFixed(1)}%</td>
+      <td className="px-4 py-2 text-term-text-muted">{strike.put?.volume?.toLocaleString() ?? '0'}</td>
+      <td className={`px-4 py-2 font-bold ${(strike.put?.oi_change ?? 0) >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
+        {(strike.put?.oi_change ?? 0) >= 0 ? '+' : ''}{strike.put?.oi_change?.toLocaleString() ?? '0'}
+      </td>
+      <td className={`px-4 py-2 text-term-text-secondary ${isHighestPutOi ? 'bg-[rgba(239,68,68,0.15)] font-bold text-term-bearish' : ''}`}>{strike.put?.oi?.toLocaleString() ?? '0'}</td>
+      <td className="px-4 py-2">
+        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${peBuildupBadge}`}>
+          {peBuildup}
+        </span>
+      </td>
+    </tr>
+  );
+});
+
 interface OptionFlowProps {
   isWidget?: boolean;
 }
@@ -953,38 +1029,47 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   const bias = data.trade_signals?.directional_bias || 'Neutral';
   const confidence = data.trade_signals?.confidence || 'Medium';
 
+  const isDev = (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') || 
+                (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost');
+
   return (
     <div className="space-y-6 text-slate-100 font-sans selection:bg-emerald-500/30">
       {/* Diagnostic Panel */}
-      <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl text-[11px] font-mono text-slate-300 backdrop-blur-md">
-        <div className="flex items-center gap-2 border-r border-slate-700/50 pr-4">
-          <span className="text-indigo-400 font-bold">DIAGNOSTIC</span>
+      {isDev && (
+        <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl text-[11px] font-mono text-slate-300 backdrop-blur-md">
+          <div className="flex items-center gap-2 border-r border-slate-700/50 pr-4">
+            <span className="text-indigo-400 font-bold">DIAGNOSTIC</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+            <span className="text-slate-500">Symbol:</span>
+            <span className="text-white font-bold">{selectedSymbol}</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+            <span className="text-slate-500">Expiry:</span>
+            <span className="text-white font-bold">{selectedExpiry}</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+            <span className="text-slate-500">Instrument Key:</span>
+            <span className="text-white font-bold">{data?._diagnostics?.instrument_key || 'N/A'}</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+            <span className="text-slate-500">API Status:</span>
+            <span className="text-emerald-400 font-bold">{data?._diagnostics?.api_status || data?.status || 'N/A'}</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+            <span className="text-slate-500">Cache Status:</span>
+            <span className="text-white font-bold">{data?._diagnostics?.cache_status || dataSource || 'N/A'}</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
+            <span className="text-slate-500">Strike Count:</span>
+            <span className="text-white font-bold">{data.strikes?.length || 0}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500">Last Refresh:</span>
+            <span className="text-white font-bold">{data?._diagnostics?.last_refresh || lastUpdated || 'N/A'}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
-          <span className="text-slate-500">Symbol:</span>
-          <span className="text-white font-bold">{data.symbol}</span>
-        </div>
-        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
-          <span className="text-slate-500">Expiry:</span>
-          <span className="text-white font-bold">{data.expiry}</span>
-        </div>
-        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
-          <span className="text-slate-500">API Status:</span>
-          <span className="text-emerald-400 font-bold">{data.status}</span>
-        </div>
-        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
-          <span className="text-slate-500">Strike Count:</span>
-          <span className="text-white font-bold">{data.strikes?.length || 0}</span>
-        </div>
-        <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
-          <span className="text-slate-500">CE Records:</span>
-          <span className="text-white font-bold">{data.strikes?.filter((s: any) => s.call.oi > 0 || s.call.volume > 0).length || 0}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-slate-500">PE Records:</span>
-          <span className="text-white font-bold">{data.strikes?.filter((s: any) => s.put.oi > 0 || s.put.volume > 0).length || 0}</span>
-        </div>
-      </div>
+      )}
 
       {/* Stale Cache Banner */}
       {isStaleData && (
@@ -1465,64 +1550,15 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                       const isHighestCallOi = (s.call?.oi ?? 0) === maxCallOi && maxCallOi > 0;
                       const isHighestPutOi = (s.put?.oi ?? 0) === maxPutOi && maxPutOi > 0;
                       
-                      const rowBg = isAtm 
-                        ? 'bg-[rgba(59,130,246,0.15)] border-l-4 border-l-[#3B82F6] hover:bg-[#334155]' 
-                        : idx % 2 === 0 ? 'bg-[#1E293B] hover:bg-[#334155]' : 'bg-[#263244] hover:bg-[#334155]';
-                      
-                      const ceBuildup = s.call?.buildup;
-                      const peBuildup = s.put?.buildup;
-
-                      const ceBuildupBadge = 
-                        ceBuildup === 'Long Build-Up' ? 'text-term-bullish' :
-                        ceBuildup === 'Short Build-Up' ? 'text-term-bearish' :
-                        ceBuildup === 'Long Unwinding' ? 'text-term-neutral' :
-                        ceBuildup === 'Short Covering' ? 'text-term-info' : 'text-slate-500';
-
-                      const peBuildupBadge = 
-                        peBuildup === 'Long Build-Up' ? 'text-term-bullish' :
-                        peBuildup === 'Short Build-Up' ? 'text-term-bearish' :
-                        peBuildup === 'Long Unwinding' ? 'text-term-neutral' :
-                        peBuildup === 'Short Covering' ? 'text-term-info' : 'text-slate-500';
-
                       return (
-                        <tr key={s.strike_price} className={`${rowBg} transition-colors h-[42px]`}>
-                          {/* CALLS */}
-                          <td className="px-4 py-2">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${ceBuildupBadge}`}>
-                              {ceBuildup}
-                            </span>
-                          </td>
-                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestCallOi ? 'bg-[rgba(16,185,129,0.15)] font-bold text-term-bullish' : ''}`}>{s.call?.oi?.toLocaleString() ?? '0'}</td>
-                          <td className={`px-4 py-2 font-bold ${(s.call?.oi_change ?? 0) >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
-                            {(s.call?.oi_change ?? 0) >= 0 ? '+' : ''}{s.call?.oi_change?.toLocaleString() ?? '0'}
-                          </td>
-                          <td className="px-4 py-2 text-term-text-muted">{s.call?.volume?.toLocaleString() ?? '0'}</td>
-                          <td className="px-4 py-2 text-term-text-muted">{(s.call?.iv ?? 0).toFixed(1)}%</td>
-                          <td className="px-4 py-2 font-semibold text-term-bullish border-r border-slate-800/60">
-                            ₹{(s.call?.ltp ?? 0).toFixed(2)}
-                          </td>
-                          
-                          {/* STRIKE */}
-                          <td className={`px-4 py-2 text-center font-bold border-r border-slate-800/60 ${isAtm ? 'text-term-info bg-[rgba(59,130,246,0.1)]' : 'text-term-text-primary'}`}>
-                            {s.strike_price.toFixed(1)}
-                          </td>
-                          
-                          {/* PUTS */}
-                          <td className="px-4 py-2 font-semibold text-term-bullish">
-                            ₹{(s.put?.ltp ?? 0).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-2 text-term-text-muted">{(s.put?.iv ?? 0).toFixed(1)}%</td>
-                          <td className="px-4 py-2 text-term-text-muted">{s.put?.volume?.toLocaleString() ?? '0'}</td>
-                          <td className={`px-4 py-2 font-bold ${(s.put?.oi_change ?? 0) >= 0 ? 'text-term-bullish' : 'text-term-bearish'}`}>
-                            {(s.put?.oi_change ?? 0) >= 0 ? '+' : ''}{s.put?.oi_change?.toLocaleString() ?? '0'}
-                          </td>
-                          <td className={`px-4 py-2 text-term-text-secondary ${isHighestPutOi ? 'bg-[rgba(239,68,68,0.15)] font-bold text-term-bearish' : ''}`}>{s.put?.oi?.toLocaleString() ?? '0'}</td>
-                          <td className="px-4 py-2">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${peBuildupBadge}`}>
-                              {peBuildup}
-                            </span>
-                          </td>
-                        </tr>
+                        <StrikeGridRow
+                          key={s.strike_price}
+                          strike={s}
+                          idx={idx}
+                          isAtm={isAtm}
+                          isHighestCallOi={isHighestCallOi}
+                          isHighestPutOi={isHighestPutOi}
+                        />
                       );
                     });
                   })()}

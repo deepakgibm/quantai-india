@@ -2,7 +2,6 @@
 import os
 import polars as pl
 import psycopg2
-from datetime import datetime, timedelta
 import argparse
 import logging
 from pathlib import Path

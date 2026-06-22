@@ -1,6 +1,5 @@
 import asyncio
 from database import engine, Base
-import models
 
 async def sync_db():
     print("?? Synchronizing database schema with models...")

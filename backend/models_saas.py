@@ -8,10 +8,10 @@ Defines the persistent schema for:
 4. Affiliate Broker Center (Referral logs)
 """
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric, Index, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from database import Base, EncryptedString
+from database import Base
 
 class SaaSSubscription(Base):
     """

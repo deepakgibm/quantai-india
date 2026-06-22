@@ -1,13 +1,11 @@
 import logging
-import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from models import WatchlistItem, User
-from schemas import WatchlistItemCreate, WatchlistItemResponse
+from models import WatchlistItem
+from schemas import WatchlistItemCreate
 from repositories.watchlist_repository import WatchlistRepository
 from services.upstox_price_resolver import get_upstox_price_resolver
 
@@ -56,7 +54,7 @@ class WatchlistService:
             if not watchlist_price or watchlist_price <= 0:
                 try:
                     price_hist = await WatchlistService.get_historical_price_closest_to(
-                        instrument_key, symbol, added_at
+                        instrument_key, symbol, added_at, db
                     )
                     if price_hist and price_hist > 0:
                         watchlist_price = price_hist
@@ -88,33 +86,49 @@ class WatchlistService:
         return db_item
 
     @staticmethod
-    async def get_historical_price_closest_to(instrument_key: str, symbol: str, target_date: datetime) -> Optional[float]:
+    async def get_historical_price_closest_to(instrument_key: str, symbol: str, target_date: datetime, db: Optional[AsyncSession] = None) -> Optional[float]:
         """
-        Queries Upstox daily EOD candles for a 7-day window ending at target_date
+        Queries local database daily EOD candles for a 7-day window ending at target_date
         to find the EOD closing price closest to the target_date.
         """
-        upstox = UpstoxClient()
-        from_date = target_date - timedelta(days=7)
-        to_date = target_date
-        
-        df = await upstox.get_historical_data(
-            symbol=symbol,
-            instrument_key=instrument_key,
-            from_date=from_date,
-            to_date=to_date,
-            interval="day"
-        )
-        
-        if df.empty or "close" not in df.columns:
+        if db is None:
+            from database import AsyncSessionLocal
+            async with AsyncSessionLocal() as session:
+                return await WatchlistService.get_historical_price_closest_to(instrument_key, symbol, target_date, session)
+
+        from models_alpha import InstrumentMaster, StockCandle
+        from sqlalchemy import select
+
+        # 1. Resolve instrument_id
+        stmt = select(InstrumentMaster.instrument_id).where(InstrumentMaster.symbol == symbol.upper())
+        res = await db.execute(stmt)
+        instrument_id = res.scalar_one_or_none()
+
+        if not instrument_id:
+            logger.warning(f"WatchlistService: instrument {symbol} not found in DB")
             return None
-        
-        # Parse timestamp column and find row with minimum absolute time diff
-        df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
-        target_naive = target_date.replace(tzinfo=None)
-        df["time_diff"] = (df["timestamp"] - target_naive).abs()
-        closest_row = df.loc[df["time_diff"].idxmin()]
-        
-        return float(closest_row["close"])
+
+        # 2. Query stock_candle daily candles (timeframe=1440) in a 7-day window
+        from_date = target_date - timedelta(days=7)
+        stmt_candle = (
+            select(StockCandle.close, StockCandle.candle_ts)
+            .where(
+                StockCandle.instrument_id == instrument_id,
+                StockCandle.timeframe == 1440,
+                StockCandle.candle_ts >= from_date,
+                StockCandle.candle_ts <= target_date
+            )
+            .order_by(StockCandle.candle_ts.desc())
+        )
+        res_candle = await db.execute(stmt_candle)
+        rows = res_candle.all()
+
+        if not rows:
+            logger.warning(f"WatchlistService: No daily candles in DB for {symbol} between {from_date} and {target_date}")
+            return None
+
+        # The first row is the closest (latest daily candle in the window)
+        return float(rows[0][0])
 
     @staticmethod
     async def get_watchlist(db: AsyncSession, user_id: int) -> List[WatchlistItem]:

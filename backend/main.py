@@ -1,8 +1,6 @@
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-import logging
 import asyncio
 from datetime import datetime
 
@@ -10,7 +8,6 @@ from datetime import datetime
 # 1. Observability Configuration
 from core.observability.logging import configure_logging, get_logger
 from core.observability.middleware import setup_observability_middleware
-from core.observability.metrics import get_metrics
 
 configure_logging()
 logger = get_logger(__name__)
@@ -24,14 +21,6 @@ app = FastAPI(
 )
 
 # 2.5 Ensure Models are Registered
-import models
-import models_ml
-import models_alpha
-import models_indicators
-import models_bot
-import screener.models
-import models_saas
-import models_institutional_scanner
 
 
 # 3. CORS Configuration (env-driven, not hardcoded wildcard)
@@ -155,6 +144,12 @@ async def startup_event():
         await verify_database_health()
         await init_db()
         logger.info("?? Database schema verified/created.")
+        
+        # Warm instrument resolver cache in a background executor
+        from services.instrument_resolver import warm_cache
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, warm_cache, 2000)
+        logger.info("⚡ Instrument resolver cache pre-warmed.")
     except Exception as e:
         logger.critical(f"FATAL DATABASE ERROR DURING STARTUP: {e}", exc_info=True)
         import sys

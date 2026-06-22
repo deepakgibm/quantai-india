@@ -3,10 +3,8 @@ Walk-Forward Engine
 Implements In-Sample / Out-of-Sample rolling validation protocols.
 """
 
-import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Tuple, Type
-from datetime import date
+from typing import List, Dict, Any, Type
 
 from ..strategy.base import UnifiedStrategy
 from ..execution.vectorized import VectorizedExecutionEngine

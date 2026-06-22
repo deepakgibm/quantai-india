@@ -1,7 +1,6 @@
 import duckdb
 import os
 import time
-from pathlib import Path
 
 conn = duckdb.connect(':memory:')
 base_path = '/data/feature_store'

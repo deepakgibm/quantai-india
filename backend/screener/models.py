@@ -6,7 +6,7 @@ Production-grade SQLAlchemy models for the institutional stock analysis system.
 """
 
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Float, Boolean, DateTime,
+    Column, Integer, BigInteger, String, Float, DateTime,
     Text, JSON, Index, UniqueConstraint, Date, SmallInteger, Numeric
 )
 from datetime import datetime

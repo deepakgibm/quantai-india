@@ -3,13 +3,11 @@ import numpy as np
 import os
 import logging
 import time
-from datetime import datetime, date
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, List
 
 from .engine import BacktestConfig, BacktestMetrics, BacktestResult
 from .executor import Trade, OrderSide
-from core.duckdb_engine import engine as duckdb_engine
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +142,6 @@ class VectorizedBacktestEngine:
         )
         
         # 7. Build Result
-        import pandas as pd
         equity_curve_pd = df.select(["timestamp", "cum_ret"]).to_pandas()
         equity_curve_pd["equity"] = equity_curve_pd["cum_ret"] * self.config.initial_capital
         equity_curve_pd.set_index("timestamp", inplace=True)

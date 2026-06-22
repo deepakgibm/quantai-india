@@ -7,7 +7,7 @@ Uses real Upstox option chain API with simulated fallback.
 
 import logging
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from enum import Enum
 
@@ -124,26 +124,56 @@ class DerivativesService:
         1. Try real Upstox option chain API (if F&O stock)
         2. Fallback to simulated data if API fails or no F&O access
         """
-        # ── Try real Upstox option chain first ─────────────────
+        # ── Try reading from Dragonfly cache first ─────────────────
         if has_derivatives(symbol):
             try:
-                from services.upstox_client import get_upstox_client
-                client = get_upstox_client()
+                from services.dragonfly_client import get_cache
+                cache = get_cache()
+                import json
                 instrument_key = f"NSE_EQ|{symbol}"
-                chain = await client.get_option_chain(instrument_key)
+                cache_keys = [
+                    f"option_chain:{symbol}",
+                    f"option_chain:{instrument_key}"
+                ]
+                strikes = []
+                for key in cache_keys:
+                    cached_val = cache.get(key)
+                    if cached_val:
+                        if isinstance(cached_val, str):
+                            try:
+                                strikes = json.loads(cached_val)
+                            except Exception:
+                                strikes = cached_val
+                        else:
+                            strikes = cached_val
+                        if isinstance(strikes, dict) and "data" in strikes:
+                            strikes = strikes["data"]
+                        if strikes:
+                            break
 
-                if chain and chain.get("pcr") is not None:
-                    logger.info(f"PCR for {symbol}: {chain['pcr']:.4f} (Upstox live, {chain['num_strikes']} strikes)")
-                    return {
-                        "put_oi": chain["total_put_oi"],
-                        "call_oi": chain["total_call_oi"],
-                        "oi_change_pct": 0.0,  # Not available from chain snapshot
-                        "futures_oi": 0,
-                        "futures_oi_change_pct": 0.0,
-                        "source": "upstox",
-                    }
+                if strikes:
+                    total_put_oi = 0
+                    total_call_oi = 0
+                    for item in strikes:
+                        call = item.get("call_options") or {}
+                        put = item.get("put_options") or {}
+                        call_market = call.get("market_data") or {}
+                        put_market = put.get("market_data") or {}
+                        total_call_oi += int(call_market.get("oi", 0) or 0)
+                        total_put_oi += int(put_market.get("oi", 0) or 0)
+
+                    if total_call_oi > 0 or total_put_oi > 0:
+                        logger.info(f"PCR for {symbol}: {total_put_oi/max(1, total_call_oi):.4f} (Dragonfly cache, {len(strikes)} strikes)")
+                        return {
+                            "put_oi": total_put_oi,
+                            "call_oi": total_call_oi,
+                            "oi_change_pct": 0.0,
+                            "futures_oi": 0,
+                            "futures_oi_change_pct": 0.0,
+                            "source": "upstox",
+                        }
             except Exception as e:
-                logger.debug(f"Upstox option chain failed for {symbol}, using fallback: {e}")
+                logger.debug(f"Dragonfly option chain failed for {symbol}, using fallback: {e}")
 
         # ── Simulated fallback ─────────────────────────────────
         seed = hash(symbol) % 1000
@@ -179,6 +209,15 @@ class DerivativesService:
         if call_oi == 0:
             return 0.0
         return put_oi / call_oi
+        
+    @staticmethod
+    def calculate_iv(iv_raw: float) -> float:
+        """
+        Standardize raw IV percentage representation.
+        If the raw IV is a decimal fraction (e.g. 0.15), it returns 15.0.
+        Otherwise, returns it unchanged.
+        """
+        return iv_raw * 100.0 if 0.0 < iv_raw < 1.0 else iv_raw
     
     @staticmethod
     def classify_oi_change(price_up: bool, oi_up: bool) -> OIChangeType:

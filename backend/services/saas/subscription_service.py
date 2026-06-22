@@ -9,7 +9,6 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from models import User
 from models_saas import SaaSSubscription, SaaSInvoice, SaaSCoupon, SaaSReferral
-from database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 

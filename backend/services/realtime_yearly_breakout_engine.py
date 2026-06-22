@@ -7,12 +7,10 @@ Populates CacheKeys.breakout() for HP API.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, List
+from datetime import datetime
 
-from services.upstox_price_resolver import get_upstox_price_resolver
 from services.websocket_feed_manager import get_websocket_feed_manager
-from services.db_data_fetcher import get_db_data_fetcher
 from services.dragonfly_client import get_cache, CacheKeys
 from utils.symbol_utils import _symbol_manager
 

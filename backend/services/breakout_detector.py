@@ -6,7 +6,6 @@ Identifies stocks with volume-backed breakouts using optimized Pandas vectorizat
 import pandas as pd
 import numpy as np
 from typing import List, Dict
-from datetime import datetime, timedelta
 from database import SessionLocal
 import logging
 
@@ -90,33 +89,14 @@ class BreakoutDetector:
         # 2. Volume Averages
         df['vol_avg_20d'] = g['volume'].transform(lambda x: x.shift(1).rolling(window=20, min_periods=1).mean())
         
-        # 3. ATR (Approximate True Range)
-        # Standard approach for vectorized TR
-        df['prev_close'] = g['close'].shift(1)
+        from core.indicators import grouped_atr, grouped_rsi
         
-        h_l = df['high'] - df['low']
-        h_pc = (df['high'] - df['prev_close']).abs()
-        l_pc = (df['low'] - df['prev_close']).abs()
+        # 3. ATR (Average True Range)
+        df['atr_20d'] = grouped_atr(df, groupby_col='symbol', period=20, min_periods=1)
+        df['atr_5d'] = grouped_atr(df, groupby_col='symbol', period=5, min_periods=1)
         
-        df['tr'] = pd.concat([h_l, h_pc, l_pc], axis=1).max(axis=1)
-        
-        # Re-group to calculate rolling ATR
-        df['atr_20d'] = df.groupby('symbol')['tr'].transform(lambda x: x.rolling(window=20, min_periods=1).mean())
-        df['atr_5d'] = df.groupby('symbol')['tr'].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
-        
-        # Cleanup temp columns
-        df.drop(columns=['prev_close', 'tr'], inplace=True)
-        
-        # 4. RSI (Vectorized)
-        delta = df.groupby('symbol')['close'].diff()
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-        
-        avg_gain = df.groupby('symbol')['close'].transform(lambda x: x.diff().clip(lower=0).rolling(14).mean())
-        avg_loss = df.groupby('symbol')['close'].transform(lambda x: (-x.diff()).clip(lower=0).rolling(14).mean())
-        
-        rs = avg_gain / avg_loss
-        df['rsi'] = 100 - (100 / (1 + rs))
+        # 4. RSI (Relative Strength Index)
+        df['rsi'] = grouped_rsi(df, groupby_col='symbol', period=14)
         
         return df
 

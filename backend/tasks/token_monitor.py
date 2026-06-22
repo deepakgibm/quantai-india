@@ -2,7 +2,6 @@ import logging
 from celery_app import celery_app
 from database import SessionLocal
 from services.auth.token_manager import TokenManagerService
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

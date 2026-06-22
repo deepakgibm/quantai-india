@@ -4,7 +4,6 @@ Ensures that all values on the sector endpoints map cleanly to database values s
 """
 import sys
 from pathlib import Path
-import json
 import numpy as np
 
 # Add backend directory to python path

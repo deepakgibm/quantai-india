@@ -1,6 +1,6 @@
 import sys
 import os
-from datetime import date, datetime
+from datetime import date
 
 # Add backend to path
 sys.path.append(os.path.join(os.getcwd()))

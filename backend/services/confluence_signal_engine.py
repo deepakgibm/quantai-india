@@ -5,7 +5,6 @@ Institutional-grade confluence scoring combining Equity indicators and Options f
 """
 
 import logging
-import pandas as pd
 from typing import Dict, Any, List, Optional
 from data.fno_stocks import has_derivatives
 

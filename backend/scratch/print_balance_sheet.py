@@ -1,7 +1,6 @@
 import asyncio
 import sys
 import os
-import json
 
 # Add parent directory of scratch to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

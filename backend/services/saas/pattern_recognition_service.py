@@ -3,10 +3,8 @@ AI Chart Pattern Recognition Service
 """
 
 import logging
-import random
 from sqlalchemy.future import select
 from models_alpha import StockCandle, InstrumentMaster
-from database import AsyncSessionLocal
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)

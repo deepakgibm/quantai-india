@@ -5,8 +5,7 @@ Uses Dragonfly/Redis cache client and falls back to PostgreSQL (AsyncReadSession
 """
 
 import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from typing import Dict, List, Any
 from sqlalchemy import text
 from database import AsyncReadSessionLocal
 from services.dragonfly_client import get_cache

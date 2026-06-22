@@ -50,40 +50,21 @@ class UpstoxPriceResolver:
         Get high-precision LTP for a symbol with strict priority and resolution.
         """
         symbol = symbol.upper()
-        is_market_open = self.market_hours.is_market_open()
         
-        # 1. During Market Hours: Primary = WebSocket
-        if is_market_open:
-            # Proactively ensure feed is active for this symbol
-            try:
-                from services.websocket_feed_manager import get_websocket_feed_manager
-                feed_manager = get_websocket_feed_manager()
-                asyncio.create_task(feed_manager.ensure_active([symbol]))
-            except Exception as e:
-                logger.warning(f"Resolver: Failed to trigger WS feed for {symbol}: {e}")
-            
-            price_data = await self._get_ws_price(symbol)
-            if price_data:
-                return price_data
-            
-            # 2. Market Hours Fallback: REST API
-            price_data = await self._get_rest_price(symbol, is_fallback=True)
-            if price_data:
-                return price_data
-        
-        # 3. Outside Market Hours or Double Failure: REST or DB EOD
-        price_data = await self._get_rest_price(symbol, is_fallback=False)
+        # 1. Primary: WebSocket cache (Dragonfly)
+        price_data = await self._get_ws_price(symbol)
         if price_data:
             return price_data
             
+        # 2. Fallback: Database EOD
+        logger.info(f"Resolver: Cache miss for {symbol}. Falling back to DB EOD.")
         return await self._get_db_eod_price(symbol)
 
     async def get_prices_bulk(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
-        """Fetch prices for multiple symbols using optimized batch routing."""
+        """Fetch prices for multiple symbols using optimized batch routing (Cache/DB only, no REST)."""
         if not symbols: return {}
         symbols = [s.upper() for s in symbols]
         
-        is_market_open = self.market_hours.is_market_open()
         results: Dict[str, Dict[str, Any]] = {}
         
         # 1. Strategy: Resolve what we can from Cache (WS)
@@ -99,37 +80,13 @@ class UpstoxPriceResolver:
         
         if not pending_symbols:
             return results
-        
-        # 2. Strategy: Use a single batch REST call for remaining
+            
+        # 2. Strategy: DB Fallback for any remaining
         try:
-            from services.live_price_enricher import fetch_live_full_quotes
-            logger.info(f"Resolver: Batch REST fetch for {len(pending_symbols)} symbols. Symbols: {pending_symbols[:10]}")
-            rest_data = await asyncio.wait_for(fetch_live_full_quotes(pending_symbols), timeout=4.0)
-            logger.info(f"Resolver: Batch REST returned {len(rest_data)} symbols. Data keys: {list(rest_data.keys())[:10]}")
-            
-            still_pending = []
-            for s in pending_symbols:
-                data = rest_data.get(s)
-                if data and data.get("ltp"):
-                    source = PriceSource.UPSTOX_REST_FALLBACK if is_market_open else PriceSource.UPSTOX_REST
-                    results[s] = self._format_response(
-                        s, 
-                        data["ltp"], 
-                        source, 
-                        datetime.now(IST),
-                        prev_close=data.get("prev_close", 0.0)
-                    )
-                else:
-                    still_pending.append(s)
-                    
-            if not still_pending:
-                return results
-                
-            # 3. Strategy: DB Fallback for any remaining
             from services.live_price_enricher import get_database_movers_data
-            db_data = await get_database_movers_data(still_pending)
+            db_data = await get_database_movers_data(pending_symbols)
             
-            for s in still_pending:
+            for s in pending_symbols:
                 data = db_data.get(s)
                 if data and data.get("ltp"):
                     results[s] = self._format_response(
@@ -143,8 +100,7 @@ class UpstoxPriceResolver:
                     results[s] = self._format_response(s, 0.0, PriceSource.NONE, datetime.now(IST))
                     
         except Exception as e:
-            logger.error(f"Resolver: Bulk resolution error: {e}")
-            # Fallback to single-symbol db for safety
+            logger.error(f"Resolver: Bulk EOD resolution error: {e}")
             for s in pending_symbols:
                 if s not in results:
                     results[s] = await self._get_db_eod_price(s)
@@ -152,12 +108,18 @@ class UpstoxPriceResolver:
         return results
 
     async def _get_ws_price(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Resolve price from WebSocket cache (Redis or Local Memory)."""
-        # Priority 1: Dragonfly/Redis Cache
-        cache_key = f"qai:tick:{symbol}"
+        """Resolve price from WebSocket cache (Redis or Local Memory) with stale circuit breaker."""
+        import json
+        cache_key_new = f"price:{symbol}"
+        cache_key_legacy = f"qai:tick:{symbol}"
+        cached = None
+        
         try:
-            cached = await self.cache.get_async(cache_key)
-        except:
+            cached = await self.cache.get_async(cache_key_new)
+            if not cached:
+                cached = await self.cache.get_async(cache_key_legacy)
+        except Exception as e:
+            logger.error(f"Resolver: Cache lookup error: {e}")
             cached = None
         
         if not cached:
@@ -165,47 +127,45 @@ class UpstoxPriceResolver:
             cached = self._local_cache.get(symbol)
             
         if cached:
-            ltp = cached.get("ltp")
-            prev_close = cached.get("prev_close", 0)
-            change_pct = cached.get("change_pct", 0)
+            if isinstance(cached, str):
+                try:
+                    cached = json.loads(cached)
+                except:
+                    pass
+                    
+            ltp = cached.get("ltp") or cached.get("last_price") or cached.get("price")
+            prev_close = cached.get("prev_close") or cached.get("previous_close")
+            change_pct = cached.get("change_percent") or cached.get("change_pct") or 0.0
             ts_str = cached.get("timestamp")
+            
+            if not prev_close and ltp:
+                if change_pct != 0:
+                    prev_close = ltp / (1 + change_pct / 100)
+                else:
+                    prev_close = ltp
             
             if ltp and ts_str:
                 try:
-                    ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
-                    # Validation: Freshness Check (3 seconds)
-                    age = (datetime.now(pytz.UTC) - ts).total_seconds()
-                    if age <= self.STALENESS_THRESHOLD_MAX:
-                        source = PriceSource.UPSTOX_WS
-                        # Still warn if it exceeds the tighter WS threshold
-                        if age > self.STALENESS_THRESHOLD_WS:
-                            logger.warning(f"Resolver: WS tick for {symbol} is lagging ({age:.1f}s)")
-                        return self._format_response(symbol, ltp, source, ts, prev_close, change_pct)
+                    if isinstance(ts_str, (int, float)):
+                        ts = datetime.fromtimestamp(ts_str / 1000.0, pytz.UTC)
                     else:
-                        logger.error(f"Resolver: REJECTED {symbol} tick - stale ({age:.1f}s > {self.STALENESS_THRESHOLD_MAX}s)")
+                        ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                        
+                    age = (datetime.now(pytz.UTC) - ts).total_seconds()
+                    stale = age > 5.0
+                    
+                    if stale:
+                        logger.warning(f"Resolver: Tick for {symbol} is stale ({age:.1f}s > 5.0s). Marking data_stale=True.")
+                        
+                    return self._format_response(symbol, ltp, PriceSource.UPSTOX_WS, ts, prev_close, change_pct, stale=stale)
                 except Exception as e:
                     logger.warning(f"Resolver: Timestamp parse failed for {symbol}: {e}")
         
         return None
 
     async def _get_rest_price(self, symbol: str, is_fallback: bool = False) -> Optional[Dict[str, Any]]:
-        """Resolve price from Upstox REST API with full quote support."""
-        try:
-            from services.live_price_enricher import fetch_live_full_quotes
-            quotes = await fetch_live_full_quotes([symbol])
-            data = quotes.get(symbol)
-            
-            if data and data.get("ltp"):
-                source = PriceSource.UPSTOX_REST_FALLBACK if is_fallback else PriceSource.UPSTOX_REST
-                return self._format_response(
-                    symbol, 
-                    data["ltp"], 
-                    source, 
-                    datetime.now(IST),
-                    prev_close=data.get("prev_close", 0.0)
-                )
-        except Exception as e:
-            logger.error(f"Resolver: REST fetch failed for {symbol}: {e}")
+        """Stubbed - REST requests are completely blocked from user requests."""
+        logger.warning(f"Resolver: Blocked direct REST API fetch request for {symbol}.")
         return None
 
     async def _get_db_eod_price(self, symbol: str) -> Dict[str, Any]:
@@ -234,32 +194,32 @@ class UpstoxPriceResolver:
             "is_live": False,
             "price_source": PriceSource.NONE.value,
             "exchange": "NSE",
-            "timestamp": datetime.now(IST).isoformat()
+            "timestamp": datetime.now(IST).isoformat(),
+            "stale": True,
+            "data_stale": True
         }
 
-    def _format_response(self, symbol: str, price: float, source: PriceSource, ts: datetime, prev_close: float = 0.0, change_pct: float = 0.0) -> Dict[str, Any]:
+    def _format_response(self, symbol: str, price: float, source: PriceSource, ts: datetime, prev_close: float = 0.0, change_pct: float = 0.0, stale: bool = False) -> Dict[str, Any]:
         """Ensures the Price Consistency Contract structure."""
         if ts.tzinfo is None:
             ts = IST.localize(ts)
             
-        # If change_pct is 0 but we have prev_close, calculate it
         if change_pct == 0 and prev_close > 0:
             change_pct = round(((price - prev_close) / prev_close) * 100, 2)
             
-        logger.info(f"Symbol={symbol}")
-        logger.info(f"LTP={price}")
-        logger.info(f"Timestamp={ts.isoformat()}")
-        logger.info(f"Source=Upstox")
+        logger.info(f"Symbol={symbol} | LTP={price} | Source={source.value} | Stale={stale}")
             
         return {
             "symbol": symbol,
             "price": round(float(price or 0), 2),
             "prev_close": round(float(prev_close or 0), 2),
             "change_pct": round(float(change_pct or 0), 2),
-            "is_live": source.value in [PriceSource.UPSTOX_WS.value, PriceSource.UPSTOX_REST.value, PriceSource.UPSTOX_REST_FALLBACK.value],
+            "is_live": source.value == PriceSource.UPSTOX_WS.value and not stale,
             "price_source": source.value,
             "exchange": "NSE",
-            "timestamp": ts.isoformat()
+            "timestamp": ts.isoformat(),
+            "stale": stale,
+            "data_stale": stale
         }
 
     def update_local_cache(self, symbol: str, ltp: float, ts: datetime, prev_close: float = 0.0, change_pct: float = 0.0):

@@ -1,9 +1,7 @@
 import pytest
-import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, AsyncMock
 from datetime import datetime, timedelta
 from database import AsyncSessionLocal
-from models import WatchlistItem, User
 from schemas import WatchlistItemCreate
 from services.watchlist_service import WatchlistService
 from sqlalchemy import text
@@ -11,6 +9,14 @@ from sqlalchemy import text
 @pytest.fixture
 def anyio_backend():
     return 'asyncio'
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_db_engines():
+    yield
+    from database import engine, read_engine
+    await engine.dispose()
+    await read_engine.dispose()
 
 
 @pytest.mark.anyio
@@ -24,23 +30,17 @@ async def test_watchlist_complete_flow():
     """
     db = AsyncSessionLocal()
     
-    # 1. Resolve/Create a valid user for foreign key constraint compliance
-    res = await db.execute(text("SELECT id FROM users LIMIT 1"))
-    row = res.fetchone()
-    
-    if row:
-        user_id = row[0]
-        created_user = False
-    else:
-        # Create a temp user
-        await db.execute(text(
-            "INSERT INTO users (email, username, hashed_password, full_name, is_active) "
-            "VALUES ('test_watchlist@example.com', 'test_watchlist', 'hashed', 'Test Watchlist User', true)"
-        ))
-        await db.commit()
-        res = await db.execute(text("SELECT id FROM users WHERE username = 'test_watchlist'"))
-        user_id = res.fetchone()[0]
-        created_user = True
+    # 1. Create a dedicated temp user for this test to ensure clean state
+    email_unique = f"test_wl_{int(datetime.utcnow().timestamp())}@example.com"
+    username_unique = f"test_wl_{int(datetime.utcnow().timestamp())}"
+    await db.execute(text(
+        "INSERT INTO users (email, username, hashed_password, full_name, is_active) "
+        "VALUES (:email, :username, 'hashed', 'Test Watchlist User', true)"
+    ), {"email": email_unique, "username": username_unique})
+    await db.commit()
+    res = await db.execute(text("SELECT id FROM users WHERE username = :username"), {"username": username_unique})
+    user_id = res.fetchone()[0]
+    created_user = True
 
     # Ensure clean state for this symbol before test
     test_symbol = "TCS"
@@ -60,8 +60,17 @@ async def test_watchlist_complete_flow():
             "volume": 100000
         }
         
-        with patch('services.upstox_client.UpstoxClient.get_live_quote', new_callable=AsyncMock) as mock_get_quote:
-            mock_get_quote.return_value = mock_quote
+        with patch('services.upstox_price_resolver.UpstoxPriceResolver.get_price', new_callable=AsyncMock) as mock_get_price:
+            mock_get_price.return_value = {
+                "symbol": test_symbol,
+                "price": 3200.0,
+                "prev_close": 3150.0,
+                "change_pct": 1.58,
+                "is_live": True,
+                "price_source": "WS",
+                "exchange": "NSE",
+                "timestamp": datetime.utcnow().isoformat()
+            }
             
             item_in = WatchlistItemCreate(symbol=test_symbol, exchange="NSE")
             item = await WatchlistService.add_to_watchlist(db, user_id, item_in)
@@ -72,20 +81,23 @@ async def test_watchlist_complete_flow():
             assert item.current_price == 3200.0
 
         # 3. Test get_watchlist and batch live quotes update
-        async def mock_quotes_side_effect(keys):
+        async def mock_resolver_bulk_side_effect(symbols):
             return {
-                key: {
-                    "last_price": 3520.0,  # 10% gain
-                    "previous_close": 3200.0,
-                    "net_change": 320.0,
-                    "change_percent": 10.0,
-                    "volume": 200000
+                sym: {
+                    "symbol": sym,
+                    "price": 3520.0,  # 10% gain
+                    "prev_close": 3200.0,
+                    "change_pct": 10.0,
+                    "is_live": True,
+                    "price_source": "WS",
+                    "exchange": "NSE",
+                    "timestamp": datetime.utcnow().isoformat()
                 }
-                for key in keys
+                for sym in symbols
             }
         
-        with patch('services.upstox_client.UpstoxClient.get_live_quotes', new_callable=AsyncMock) as mock_batch_quotes:
-            mock_batch_quotes.side_effect = mock_quotes_side_effect
+        with patch('services.upstox_price_resolver.UpstoxPriceResolver.get_prices_bulk', new_callable=AsyncMock) as mock_bulk_prices:
+            mock_bulk_prices.side_effect = mock_resolver_bulk_side_effect
             
             watchlist = await WatchlistService.get_watchlist(db, user_id)
             assert len(watchlist) > 0
@@ -94,14 +106,13 @@ async def test_watchlist_complete_flow():
             assert tcs_item.current_price == 3520.0
             assert tcs_item.change_percent == 10.0
             assert tcs_item.change_amount == 320.0
-
-        # 4. Test performance metrics calculation
-        perf = await WatchlistService.get_watchlist_performance(db, user_id, virtual_investment=10000.0)
-        assert perf["total_invested"] > 0
-        assert perf["total_value"] > perf["total_invested"]
-        assert perf["total_pnl"] > 0
-        assert perf["pnl_percent"] == 10.0
-        assert perf["accuracy_percent"] == 100.0
+            # 4. Test performance metrics calculation
+            perf = await WatchlistService.get_watchlist_performance(db, user_id, virtual_investment=10000.0)
+            assert perf["total_invested"] > 0
+            assert perf["total_value"] > perf["total_invested"]
+            assert perf["total_pnl"] > 0
+            assert perf["pnl_percent"] == 10.0
+            assert perf["accuracy_percent"] == 100.0
 
         # 5. Test remove from watchlist
         deleted = await WatchlistService.remove_from_watchlist(db, user_id, test_symbol)
@@ -126,21 +137,48 @@ async def test_watchlist_complete_flow():
 @pytest.mark.anyio
 async def test_historical_price_fallback_recovery():
     """
-    Test fallback EOD close price recovery from Upstox historical daily candles.
+    Test fallback EOD close price recovery from local database daily candles.
     """
-    import pandas as pd
+    db = AsyncSessionLocal()
     
-    mock_df = pd.DataFrame([
-        {"timestamp": datetime.utcnow() - timedelta(days=2), "close": 150.0},
-        {"timestamp": datetime.utcnow() - timedelta(days=1), "close": 155.0},
-        {"timestamp": datetime.utcnow(), "close": 157.0}
-    ])
+    # Ensure clean state for test dummy symbol
+    test_symbol = "DUMMY"
+    await db.execute(text("DELETE FROM stock_candle WHERE instrument_id IN (SELECT instrument_id FROM instrument_master WHERE symbol = :sym)"), {"sym": test_symbol})
+    await db.execute(text("DELETE FROM instrument_master WHERE symbol = :sym"), {"sym": test_symbol})
+    await db.commit()
     
-    with patch('services.upstox_client.UpstoxClient.get_historical_data', new_callable=AsyncMock) as mock_hist:
-        mock_hist.return_value = mock_df
+    instrument_id = None
+    try:
+        # 1. Insert test instrument master
+        await db.execute(text(
+            "INSERT INTO instrument_master (instrument_key, symbol, series, exchange, company_name, sector, isin_code, is_active) "
+            "VALUES ('NSE_EQ|DUMMY', 'DUMMY', 'EQ', 'NSE', 'Dummy Company', 'Others', 'INE000000000', true)"
+        ))
+        await db.commit()
         
+        # Get instrument_id
+        res = await db.execute(text("SELECT instrument_id FROM instrument_master WHERE symbol = 'DUMMY'"))
+        instrument_id = res.fetchone()[0]
+        
+        # 2. Insert EOD stock candles (timeframe = 1440)
+        target_ts = datetime.utcnow()
+        await db.execute(text(
+            "INSERT INTO stock_candle (instrument_id, timeframe, candle_ts, open, high, low, close, volume) "
+            "VALUES (:iid, 1440, :ts, 150.0, 160.0, 140.0, 157.0, 100000)"
+        ), {"iid": instrument_id, "ts": target_ts - timedelta(days=1)})
+        await db.commit()
+        
+        # 3. Call method
         price = await WatchlistService.get_historical_price_closest_to(
-            "NSE_EQ|DUMMY", "DUMMY", datetime.utcnow()
+            "NSE_EQ|DUMMY", "DUMMY", target_ts, db
         )
         
         assert price == 157.0
+        
+    finally:
+        # Cleanup
+        if instrument_id is not None:
+            await db.execute(text("DELETE FROM stock_candle WHERE instrument_id = :iid"), {"iid": instrument_id})
+            await db.execute(text("DELETE FROM instrument_master WHERE instrument_id = :iid"), {"iid": instrument_id})
+            await db.commit()
+        await db.close()

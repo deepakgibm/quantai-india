@@ -4,7 +4,7 @@ from sqlalchemy import text
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
 
 from database import get_read_db
@@ -232,19 +232,16 @@ def calculate_volume_profile(df: pd.DataFrame, num_bins: int = 50) -> Dict[str, 
     }
 
 async def fetch_stock_data_and_calculate(symbol: str, lookback: int, db: AsyncSession) -> Dict[str, Any]:
-    # 1. Lookup symbol in instrument master
-    query = text("""
-        SELECT instrument_id, instrument_key, company_name, sector
-        FROM instrument_master
-        WHERE symbol = :symbol AND is_active = TRUE
-        LIMIT 1
-    """)
-    res = await db.execute(query, {"symbol": symbol.upper().strip()})
-    row = res.fetchone()
-    if not row:
+    # 1. Lookup symbol in instrument master using cached resolver
+    from services.instrument_resolver import resolve_instrument_info
+    info = resolve_instrument_info(symbol.upper().strip())
+    if not info or not info.is_active:
         raise HTTPException(status_code=404, detail=f"Stock symbol '{symbol}' not found or inactive.")
         
-    instrument_id, instrument_key, company_name, sector = row
+    instrument_id = info.instrument_id
+    instrument_key = info.instrument_key
+    company_name = info.company_name
+    sector = info.sector
     
     # 2. Fetch daily candles (fetch up to 360 to cover all timeframes)
     candles_query = text("""

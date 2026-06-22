@@ -15,7 +15,6 @@ from datetime import datetime
 import logging
 from sqlalchemy import text
 
-from config import settings
 from database import get_db_session_context
 from services.metadata_cache_service import get_metadata_cache_service
 from services.dragonfly_client import get_cache, CacheUnavailableError
@@ -236,13 +235,12 @@ async def get_data_freshness():
         async with get_db_session_context() as session:
             result = await session.execute(text("""
                 SELECT 
-                    sc.timeframe,
-                    COUNT(DISTINCT im.symbol) as symbols,
-                    MAX(sc.candle_ts) as latest
-                FROM stock_candle sc
-                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-                GROUP BY sc.timeframe
-                ORDER BY sc.timeframe
+                    timeframe,
+                    COUNT(DISTINCT instrument_id) as symbols,
+                    MAX(candle_ts) as latest
+                FROM stock_candle
+                GROUP BY timeframe
+                ORDER BY timeframe
             """))
             rows = result.fetchall()
         

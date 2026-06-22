@@ -6,9 +6,8 @@ Centralized historical market data engine using DuckDB, Polars, and SQLite/Postg
 import os
 import logging
 import pandas as pd
-import polars as pl
 import duckdb
-from typing import List, Optional, Union
+from typing import Optional, Union
 from pathlib import Path
 from datetime import datetime, date
 from config import settings

@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List
 from dataclasses import dataclass
-from sqlalchemy import create_engine, desc
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from config import settings

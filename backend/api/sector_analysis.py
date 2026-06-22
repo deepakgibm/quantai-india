@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
-import pandas as pd
 import numpy as np
-from typing import Dict, Any, List
+from typing import Any
 import logging
 from datetime import datetime
 

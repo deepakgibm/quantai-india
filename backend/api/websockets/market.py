@@ -2,7 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import asyncio
 import json
 import logging
-from typing import Dict, Set
+from typing import Dict
 
 from services.dragonfly_client import get_cache
 
@@ -23,7 +23,9 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections[websocket] = {
             "subscriptions": set(),
-            "sequence": 0
+            "sequence": 0,
+            "last_ping_id": None,
+            "last_pong_time": asyncio.get_event_loop().time()
         }
         logger.info(f"WebSocket Client connected: {websocket.client}")
         if not self.pubsub_task:
@@ -40,6 +42,13 @@ class ConnectionManager:
         action = message.get("action")
         symbols = message.get("symbols", [])
         
+        if action == "pong":
+            ping_id = message.get("id")
+            meta = self.active_connections.get(websocket)
+            if meta and meta.get("last_ping_id") == ping_id:
+                meta["last_pong_time"] = asyncio.get_event_loop().time()
+            return
+
         if not isinstance(symbols, list):
             return
 
@@ -54,33 +63,53 @@ class ConnectionManager:
             await websocket.send_json({"status": "unsubscribed", "symbols": list(self.active_connections[websocket]["subscriptions"])})
 
     async def broadcast(self, symbol: str, data: dict):
+        if not self.active_connections:
+            return
+            
+        # Pre-serialize the JSON payload once for efficiency
+        payload = {
+            "event": "market_tick",
+            "symbol": symbol,
+            "data": data,
+            "ts": data.get("timestamp")
+        }
+        serialized_payload = json.dumps(payload)
+        
         for connection, meta in list(self.active_connections.items()):
             if symbol in meta["subscriptions"]:
                 try:
-                    meta["sequence"] += 1
-                    await connection.send_json({
-                        "event": "market_tick",
-                        "symbol": symbol,
-                        "data": data,
-                        "seq": meta["sequence"],
-                        "ts": data.get("timestamp")
-                    })
+                    await connection.send_text(serialized_payload)
                 except Exception as e:
                     logger.error(f"Error broadcasting to client: {e}")
                     self.disconnect(connection)
                     
     def _start_heartbeat(self):
+        import uuid
         async def heartbeat_loop():
             while True:
                 try:
-                    await asyncio.sleep(5) # 5 second heartbeat
+                    await asyncio.sleep(15) # 15 second heartbeat
                     if not self.active_connections:
-                        # Continue sleeping but don't broadcast to empty set
                         continue
                         
-                    for connection in list(self.active_connections.keys()):
+                    now = asyncio.get_event_loop().time()
+                    for connection, meta in list(self.active_connections.items()):
+                        # If a client fails to pong within 20 seconds, terminate the connection.
+                        # (Connection starts with last_pong_time = connection time).
+                        if now - meta.get("last_pong_time", now) > 20:
+                            logger.warning(f"Closing zombie connection (no pong for >20s): {connection.client}")
+                            self.disconnect(connection)
+                            try:
+                                await connection.close()
+                            except Exception:
+                                pass
+                            continue
+                        
+                        # Send next ping
+                        ping_id = str(uuid.uuid4())
+                        meta["last_ping_id"] = ping_id
                         try:
-                            await connection.send_json({"type": "heartbeat", "ts": asyncio.get_event_loop().time()})
+                            await connection.send_json({"type": "ping", "id": ping_id})
                         except Exception:
                             self.disconnect(connection)
                 except Exception as e:

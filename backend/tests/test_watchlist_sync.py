@@ -1,12 +1,10 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from fastapi import HTTPException
 import httpx
 
 from services.watchlist_service import WatchlistService
 from services.upstox_client import UpstoxClient
 from models import WatchlistItem
-from database import AsyncSessionLocal
 from datetime import datetime
 
 @pytest.mark.asyncio
@@ -26,9 +24,9 @@ async def test_get_watchlist_upstox_timeout_fallback():
             mock_get_all.return_value = [mock_item]
             mock_get_keys.return_value = {"RELIANCE": "NSE_EQ|INE002A01018"}
             
-            # Mock UpstoxClient to throw timeout
-            with patch.object(UpstoxClient, 'get_live_quotes', new_callable=AsyncMock) as mock_live_quotes:
-                mock_live_quotes.side_effect = Exception("Connection Timeout")
+            # Mock UpstoxPriceResolver to throw timeout
+            with patch('services.upstox_price_resolver.UpstoxPriceResolver.get_prices_bulk', new_callable=AsyncMock) as mock_bulk_prices:
+                mock_bulk_prices.side_effect = Exception("Connection Timeout")
                 
                 # Should NOT raise an exception, but return the mock_item with old prices
                 items = await WatchlistService.get_watchlist(mock_db, 1)
@@ -36,7 +34,7 @@ async def test_get_watchlist_upstox_timeout_fallback():
                 assert len(items) == 1
                 assert items[0].symbol == "RELIANCE"
                 # Assert it swallowed the exception gracefully
-                assert mock_live_quotes.call_count == 1
+                assert mock_bulk_prices.call_count == 1
 
 @pytest.mark.asyncio
 async def test_upstox_client_401_token_refresh_attempt():

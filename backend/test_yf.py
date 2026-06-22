@@ -1,5 +1,4 @@
 import sys
-import os
 sys.path.append("/app")
 
 from screener.data.financial_data_fetcher import FinancialDataFetcher

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from models import User
 from utils.auth import get_current_user
 from services.dragonfly_client import get_cache, CacheKeys

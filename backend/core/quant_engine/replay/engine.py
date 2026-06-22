@@ -4,7 +4,7 @@ Implements sequential stepping and historical playback simulation.
 """
 
 import pandas as pd
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from ..strategy.base import UnifiedStrategy, SignalResult
 from ..portfolio.tracker import PortfolioTracker
 from ..risk.manager import UnifiedRiskManager

@@ -1,7 +1,6 @@
 from fastapi import Request, WebSocket, HTTPException, status
 from services.dragonfly_client import get_cache
 import logging
-from typing import Union
 
 logger = logging.getLogger(__name__)
 

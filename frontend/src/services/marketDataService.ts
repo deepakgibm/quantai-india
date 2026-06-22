@@ -69,6 +69,14 @@ class MarketDataServiceClass {
         try {
           const message = JSON.parse(event.data);
           
+          if (message.type === 'ping') {
+            this.sendWSMessage({
+              action: 'pong',
+              id: message.id
+            });
+            return;
+          }
+          
           if (message.event === 'market_tick' && message.data) {
             console.log("WebSocket Tick:", message);
             const symbol = message.symbol;

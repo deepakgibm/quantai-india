@@ -2,7 +2,6 @@
 import asyncio
 import logging
 import sys
-import json
 from pathlib import Path
 
 # Add backend directory to path

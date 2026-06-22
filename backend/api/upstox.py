@@ -9,21 +9,20 @@ from config import settings
 
 from utils.rate_limit import rate_limit
 
+from services.upstox_client import get_upstox_client_dependency, UpstoxClient
+
 router = APIRouter(
     tags=["Upstox Integrations"],
     dependencies=[Depends(rate_limit(60, 60, "upstox"))]
 )
 
 @router.get("/status")
-async def get_upstox_status():
+async def get_upstox_status(client: UpstoxClient = Depends(get_upstox_client_dependency)):
     """
     Get Upstox connection status.
     Returns connection state without requiring authentication.
     """
     try:
-        from services.upstox_client import get_upstox_client
-        client = get_upstox_client()
-        
         # Check if client has access token
         has_token = hasattr(client, 'access_token') and client.access_token is not None
         

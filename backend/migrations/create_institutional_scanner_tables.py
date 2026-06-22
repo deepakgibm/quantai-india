@@ -9,7 +9,6 @@ sys.path.insert(0, backend_dir)
 
 from config import settings
 from database import Base
-import models_institutional_scanner
 
 async def create_tables():
     print("Connecting to database at:", settings.DATABASE_URL)

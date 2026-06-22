@@ -3,7 +3,7 @@ Legacy Strategy Adapter
 Adapts standard backtest or experiment lab strategies to the new UnifiedStrategy protocol.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import pandas as pd
 
 from ..strategy.base import UnifiedStrategy, StrategyMetadata, SignalResult, SignalType

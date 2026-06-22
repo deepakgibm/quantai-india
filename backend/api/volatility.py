@@ -1,10 +1,9 @@
-import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
 from datetime import datetime, date
 
@@ -13,7 +12,6 @@ from models import User
 from utils.auth import get_current_user
 from services.cache import get_cache_manager
 from data.fno_stocks import has_derivatives
-from services.upstox_client import get_upstox_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Volatility"])
@@ -133,23 +131,17 @@ async def get_volatility_data(
                 logger.warning(f"Cache read error in volatility: {ce}")
         
         # 1. Verify symbol exists in instrument_master
-        symbol_query = text("""
-            SELECT instrument_id, instrument_key, company_name, sector, exchange
-            FROM instrument_master
-            WHERE symbol = :symbol AND is_active = TRUE
-            LIMIT 1
-        """)
-        symbol_res = await db.execute(symbol_query, {"symbol": symbol})
-        symbol_row = symbol_res.fetchone()
+        from services.instrument_resolver import resolve_instrument_info
+        info = resolve_instrument_info(symbol)
         
-        if not symbol_row:
+        if not info or not info.is_active:
             raise HTTPException(status_code=404, detail=f"Active stock symbol '{symbol}' not found.")
         
-        instrument_id = symbol_row.instrument_id
-        instrument_key = symbol_row.instrument_key
-        company_name = symbol_row.company_name
-        sector = symbol_row.sector
-        exchange = symbol_row.exchange
+        instrument_id = info.instrument_id
+        instrument_key = info.instrument_key
+        company_name = info.company_name
+        sector = info.sector
+        exchange = info.exchange
         
         # 2. Fetch last 280 daily candles from DB for calculations (needs 252 for 1 year + margin)
         candles_query = text("""
@@ -165,34 +157,9 @@ async def get_volatility_data(
         # Reverse to chronological order for calculations
         candles_rows = list(reversed(candles_rows))
         
-        # Fallback: if no DB candles, try fetching from Upstox API
+        # Fallback: if no DB candles, do NOT fetch from Upstox API (disabled)
         if len(candles_rows) < 10:
-            try:
-                client = get_upstox_client()
-                to_date = datetime.now()
-                from_date = to_date - pd.Timedelta(days=400) # get enough for 252 trading days
-                df_hist = await client.get_historical_data(
-                    symbol=symbol,
-                    instrument_key=instrument_key,
-                    from_date=from_date,
-                    to_date=to_date,
-                    interval="day"
-                )
-                if not df_hist.empty:
-                    candles_rows = []
-                    for _, row in df_hist.iterrows():
-                        candles_rows.append(
-                            type('Row', (object,), {
-                                'date': row['timestamp'].date(),
-                                'open': float(row['open']),
-                                'high': float(row['high']),
-                                'low': float(row['low']),
-                                'close': float(row['close']),
-                                'volume': int(row['volume'])
-                            })()
-                        )
-            except Exception as ue:
-                logger.warning(f"Failed to fetch historical candles from Upstox for {symbol}: {ue}")
+            logger.warning(f"Insufficient DB candles for {symbol} (count={len(candles_rows)}), Upstox REST API fallback disabled")
                 
         if len(candles_rows) < 5:
             # We don't have enough data
@@ -238,56 +205,53 @@ async def get_volatility_data(
             if len(valid_returns) > 1:
                 latest_hv = float(valid_returns.std() * np.sqrt(252) * 100)
         
-        # 4. Fetch Option Chain / IV from Upstox if F&O stock
+        # 4. Fetch Option Chain / IV from Dragonfly Cache if F&O stock
         current_iv = 0.0
         is_fno = has_derivatives(symbol)
         
         if is_fno:
             try:
-                client = get_upstox_client()
-                chain = await asyncio.wait_for(client.get_option_chain(instrument_key), timeout=5.0)
+                # Retrieve from cache instead of Upstox API
+                import json
+                cache_keys = [
+                    f"option_chain:{symbol}",
+                    f"option_chain:{instrument_key}"
+                ]
+                strikes = []
+                cache = get_cache_manager()
+                for key in cache_keys:
+                    cached_val = cache.get(key)
+                    if cached_val:
+                        if isinstance(cached_val, str):
+                            try:
+                                strikes = json.loads(cached_val)
+                            except Exception:
+                                strikes = cached_val
+                        else:
+                            strikes = cached_val
+                        if isinstance(strikes, dict) and "data" in strikes:
+                            strikes = strikes["data"]
+                        if strikes:
+                            break
                 
-                expiry_date = ""
-                if chain and chain.get("expiry"):
-                    expiry_date = chain["expiry"]
-                else:
-                    contracts_data = await asyncio.wait_for(
-                        client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key}),
-                        timeout=5.0
-                    )
-                    if contracts_data.get("status") == "success" and contracts_data.get("data"):
-                        contracts = contracts_data["data"]
-                        unique_expiries = sorted(list(set(c.get("expiry") for c in contracts if c.get("expiry"))))
-                        if unique_expiries:
-                            expiry_date = unique_expiries[0]
-                
-                if expiry_date:
-                    params = {"instrument_key": instrument_key, "expiry_date": expiry_date}
-                    response = await asyncio.wait_for(
-                        client._make_request("GET", "/option/chain", params=params),
-                        timeout=5.0
-                    )
-                    if response.get("status") == "success" and response.get("data"):
-                        strikes = response["data"]
-                        # Find closest strike to latest price (ATM)
-                        closest_strike = min(strikes, key=lambda s: abs(float(s.get("strike_price", 0)) - latest_price))
-                        call_opt = closest_strike.get("call_options") or {}
-                        put_opt = closest_strike.get("put_options") or {}
-                        call_market = call_opt.get("market_data") or {}
-                        put_market = put_opt.get("market_data") or {}
-                        call_greeks = call_opt.get("option_greeks") or {}
-                        put_greeks = put_opt.get("option_greeks") or {}
-                        
-                        call_iv = call_greeks.get("iv", 0) or call_market.get("iv", 0) or 0
-                        put_iv = put_greeks.get("iv", 0) or put_market.get("iv", 0) or 0
-                        iv_list = [v for v in [call_iv, put_iv] if v and v > 0]
-                        if iv_list:
-                            mean_iv = float(np.mean(iv_list))
-                            current_iv = mean_iv * 100.0 if 0.0 < mean_iv < 1.0 else mean_iv
-            except asyncio.TimeoutError:
-                logger.debug(f"Upstox option chain timed out for {symbol}, using HV as IV fallback")
+                if strikes:
+                    # Find closest strike to latest price (ATM)
+                    closest_strike = min(strikes, key=lambda s: abs(float(s.get("strike_price", 0)) - latest_price))
+                    call_opt = closest_strike.get("call_options") or {}
+                    put_opt = closest_strike.get("put_options") or {}
+                    call_market = call_opt.get("market_data") or {}
+                    put_market = put_opt.get("market_data") or {}
+                    call_greeks = call_opt.get("option_greeks") or {}
+                    put_greeks = put_opt.get("option_greeks") or {}
+                    
+                    call_iv = call_greeks.get("iv", 0) or call_market.get("iv", 0) or 0
+                    put_iv = put_greeks.get("iv", 0) or put_market.get("iv", 0) or 0
+                    iv_list = [v for v in [call_iv, put_iv] if v and v > 0]
+                    if iv_list:
+                        mean_iv = float(np.mean(iv_list))
+                        current_iv = mean_iv * 100.0 if 0.0 < mean_iv < 1.0 else mean_iv
             except Exception as e:
-                logger.debug(f"Could not retrieve live IV from option chain for {symbol}: {e}")
+                logger.debug(f"Could not retrieve IV from cached option chain for {symbol}: {e}")
         
         # If we couldn't get live IV, or it is non-F&O, we use Historical Volatility as the volatility metric
         if current_iv == 0.0:
@@ -336,30 +300,38 @@ async def get_volatility_data(
         # 7. Fetch India VIX (from index_master or live Upstox NIFTY VIX)
         india_vix = 15.0 # standard fallback
         try:
-            # Check database for VIX candle
-            vix_query = text("""
-                SELECT close
-                FROM stock_candle sc
-                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-                WHERE im.symbol = 'INDIA VIX' AND sc.timeframe = 1440
-                ORDER BY sc.candle_ts DESC
-                LIMIT 1
-            """)
-            vix_res = await db.execute(vix_query)
+            # Check database for VIX candle using cached instrument_id
+            from services.instrument_resolver import resolve_instrument_id
+            vix_iid = resolve_instrument_id("INDIA VIX", series="EQ", exchange="NSE")
+            if vix_iid:
+                vix_query = text("""
+                    SELECT close
+                    FROM stock_candle
+                    WHERE instrument_id = :iid AND timeframe = 1440
+                    ORDER BY candle_ts DESC
+                    LIMIT 1
+                """)
+                vix_res = await db.execute(vix_query, {"iid": vix_iid})
+            else:
+                vix_query = text("""
+                    SELECT close
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = 'INDIA VIX' AND sc.timeframe = 1440
+                    ORDER BY sc.candle_ts DESC
+                    LIMIT 1
+                """)
+                vix_res = await db.execute(vix_query)
             vix_row = vix_res.fetchone()
             if vix_row:
                 india_vix = float(vix_row.close)
             else:
-                # Try fetching live quote for India VIX index from Upstox (5s timeout)
-                client = get_upstox_client()
-                vix_quote = await asyncio.wait_for(
-                    client.get_live_quote("NSE_INDEX|India VIX", "INDIA VIX"),
-                    timeout=5.0
-                )
-                if vix_quote and vix_quote.get("last_price"):
-                    india_vix = float(vix_quote["last_price"])
-        except asyncio.TimeoutError:
-            logger.debug("India VIX fetch timed out, using fallback value")
+                # Try fetching resolved price for India VIX index via price resolver
+                from services.upstox_price_resolver import get_upstox_price_resolver
+                resolver = get_upstox_price_resolver()
+                p_res = await resolver.get_price("INDIA VIX")
+                if p_res and p_res.get("price"):
+                    india_vix = float(p_res["price"])
         except Exception as vix_err:
             logger.debug(f"Failed to fetch India VIX: {vix_err}")
             

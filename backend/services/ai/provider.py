@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 from config import settings
 from fastapi import HTTPException
 import json

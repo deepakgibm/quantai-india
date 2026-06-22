@@ -13,14 +13,13 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Tuple
-from sqlalchemy.exc import IntegrityError
 
 # Ensure project root is on PYTHONPATH for imports
 project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 
 from database import AsyncSessionLocal
-from models_alpha import StockCandle, ETLLog
+from models_alpha import StockCandle
 from services.upstox_client import get_upstox_client
 from services.instrument_resolver import resolve_instrument_id
 from config import settings

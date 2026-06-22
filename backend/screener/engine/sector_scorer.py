@@ -10,7 +10,7 @@ Score Range: 0-100
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 

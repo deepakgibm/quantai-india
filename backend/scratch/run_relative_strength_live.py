@@ -1,9 +1,7 @@
 import asyncio
-import os
 import sys
 import logging
 import traceback
-import numpy as np
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -14,7 +12,6 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from config import settings
-from api.option_flow import compute_relative_strength_analytics
 
 logging.basicConfig(level=logging.INFO)
 

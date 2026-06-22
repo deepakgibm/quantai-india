@@ -4,10 +4,9 @@ Defines the unified interface for both batch (vectorized) and event-driven backt
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from dataclasses import dataclass
 import pandas as pd
-import polars as pl
 from enum import Enum
 
 

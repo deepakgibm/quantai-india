@@ -1,6 +1,5 @@
 import polars as pl
 from abc import ABC, abstractmethod
-from typing import Dict, Any
 
 class BaseVectorizedStrategy(ABC):
     """

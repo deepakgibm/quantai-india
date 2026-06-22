@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from models import AuthToken, User
-from core.security import encrypt_token, decrypt_token
 
 logger = logging.getLogger(__name__)
 

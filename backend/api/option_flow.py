@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional, Tuple
 import logging
@@ -14,7 +13,6 @@ from models import User
 from utils.auth import get_current_user
 from services.cache import get_cache_manager
 from data.fno_stocks import has_derivatives, is_index
-from services.upstox_client import get_upstox_client
 from utils.symbol_utils import get_stock_sector
 
 logger = logging.getLogger(__name__)
@@ -235,26 +233,51 @@ async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> 
     try:
         cutoff = datetime.now() - timedelta(days=45)
         
+        # Resolve instrument IDs from cache
+        from services.instrument_resolver import resolve_instrument_id
+        stock_iid = resolve_instrument_id(symbol)
+        nifty_iid = resolve_instrument_id("NIFTY 50", series="EQ", exchange="NSE")
+        
         # Stock historical daily close candles
-        stock_query = text("""
-            SELECT sc.candle_ts as timestamp, sc.close
-            FROM stock_candle sc
-            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-            WHERE im.symbol = :symbol AND sc.timeframe = 1440 AND sc.candle_ts >= :cutoff
-            ORDER BY sc.candle_ts ASC
-        """)
-        stock_res = await db.execute(stock_query, {"symbol": symbol, "cutoff": cutoff})
+        if stock_iid:
+            stock_query = text("""
+                SELECT candle_ts as timestamp, close
+                FROM stock_candle
+                WHERE instrument_id = :iid AND timeframe = 1440 AND candle_ts >= :cutoff
+                ORDER BY candle_ts ASC
+            """)
+            stock_res = await db.execute(stock_query, {"iid": stock_iid, "cutoff": cutoff})
+        else:
+            stock_query = text("""
+                SELECT sc.candle_ts as timestamp, sc.close
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = :symbol AND sc.timeframe = 1440 AND sc.candle_ts >= :cutoff
+                ORDER BY sc.candle_ts ASC
+            """)
+            stock_res = await db.execute(stock_query, {"symbol": symbol, "cutoff": cutoff})
+            
         stock_rows = stock_res.fetchall()
         
         # Nifty 50 historical daily close candles
-        nifty_query = text("""
-            SELECT sc.candle_ts as timestamp, sc.close
-            FROM stock_candle sc
-            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-            WHERE im.symbol = 'NIFTY 50' AND sc.timeframe = 1440 AND sc.candle_ts >= :cutoff
-            ORDER BY sc.candle_ts ASC
-        """)
-        nifty_res = await db.execute(nifty_query, {"cutoff": cutoff})
+        if nifty_iid:
+            nifty_query = text("""
+                SELECT candle_ts as timestamp, close
+                FROM stock_candle
+                WHERE instrument_id = :iid AND timeframe = 1440 AND candle_ts >= :cutoff
+                ORDER BY candle_ts ASC
+            """)
+            nifty_res = await db.execute(nifty_query, {"iid": nifty_iid, "cutoff": cutoff})
+        else:
+            nifty_query = text("""
+                SELECT sc.candle_ts as timestamp, sc.close
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = 'NIFTY 50' AND sc.timeframe = 1440 AND sc.candle_ts >= :cutoff
+                ORDER BY sc.candle_ts ASC
+            """)
+            nifty_res = await db.execute(nifty_query, {"cutoff": cutoff})
+            
         nifty_rows = nifty_res.fetchall()
         
         if not stock_rows or not nifty_rows:
@@ -485,16 +508,10 @@ async def get_option_flow(
                 logger.warning(f"[Option Flow] Cache evaluation error for {symbol}: {ce}")
                 
         # Get instrument_key
-        symbol_query = text("""
-            SELECT instrument_key, exchange
-            FROM instrument_master
-            WHERE symbol = :symbol AND is_active = TRUE
-            LIMIT 1
-        """)
-        symbol_res = await db.execute(symbol_query, {"symbol": symbol})
-        symbol_row = symbol_res.fetchone()
+        from services.instrument_resolver import resolve_instrument_key as cached_resolve_instrument_key
+        instrument_key = cached_resolve_instrument_key(symbol)
         
-        if not symbol_row:
+        if not instrument_key:
             mapped_k = map_symbol_to_instrument_key(symbol)
             if mapped_k:
                 instrument_key = mapped_k
@@ -502,36 +519,157 @@ async def get_option_flow(
                 instrument_key = f"NSE_INDEX|{symbol}"
             else:
                 raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found in active master.")
-        else:
-            instrument_key = symbol_row.instrument_key
 
-        client = get_upstox_client()
-        params = {"instrument_key": instrument_key}
-        if expiry:
-            params["expiry_date"] = expiry
-            
-        # Call Upstox option chain API
+        # Fetch option chain from Dragonfly cache first
         raw_strikes = []
         api_failed = True
-        api_status = "unknown"
-        api_message = ""
+        api_status = "cache_only"
+        api_message = "Upstox REST API disabled"
         
         try:
-            response = await client._make_request("GET", "/option/chain", params=params)
-            api_status = response.get("status", "unknown")
-            api_message = response.get("message", "")
-            if response.get("status") == "success" and response.get("data"):
-                raw_strikes = response["data"]
-                api_failed = False
-            else:
-                logger.warning(
-                    f"[Option Flow] Upstox API returned no option data for {symbol}: "
-                    f"status={response.get('status')}, data_present={bool(response.get('data'))}"
-                )
-        except Exception as e:
-            logger.error(f"Option chain request failed for {symbol}: {e}")
-            api_message = str(e)
+            import json
+            # Try symbol and instrument_key variants with and without expiry
+            chain_cache_keys = []
+            if expiry:
+                chain_cache_keys.extend([
+                    f"option_chain:{symbol}:{expiry}",
+                    f"option_chain:{instrument_key}:{expiry}"
+                ])
+            chain_cache_keys.extend([
+                f"option_chain:{symbol}",
+                f"option_chain:{instrument_key}"
+            ])
             
+            for key in chain_cache_keys:
+                cached_chain = cache.get(key)
+                if cached_chain:
+                    if isinstance(cached_chain, str):
+                        try:
+                            raw_strikes = json.loads(cached_chain)
+                        except Exception:
+                            raw_strikes = cached_chain
+                    else:
+                        raw_strikes = cached_chain
+                    
+                    if isinstance(raw_strikes, dict) and "data" in raw_strikes:
+                        raw_strikes = raw_strikes["data"]
+                    
+                    if raw_strikes:
+                        logger.info(f"[Option Flow] Successfully retrieved option chain from cache key {key} ({len(raw_strikes)} strikes)")
+                        api_failed = False
+                        api_status = "success"
+                        break
+        except Exception as e:
+            logger.error(f"[Option Flow] Failed to read option chain from cache: {e}")
+
+        # If cache miss, fetch from Upstox REST API
+        if api_failed or not raw_strikes:
+            try:
+                from services.upstox_client import get_upstox_client
+                client = get_upstox_client()
+                logger.info(f"[Option Flow] Cache miss. Fetching live option chain from Upstox for {symbol} (expiry={expiry})")
+                
+                params = {"instrument_key": instrument_key}
+                if expiry:
+                    params["expiry_date"] = expiry
+                
+                api_res = await client._make_request("GET", "/option/chain", params=params)
+                if api_res and api_res.get("status") == "success" and api_res.get("data"):
+                    raw_strikes = api_res["data"]
+                    if raw_strikes:
+                        logger.info(f"[Option Flow] Successfully fetched live option chain from Upstox ({len(raw_strikes)} strikes)")
+                        api_failed = False
+                        api_status = "success"
+                        
+                        # Cache the successful result (prevent caching empty arrays/nulls)
+                        ttl = 60 if is_market_open() else 3600
+                        cache_key_to_set = f"option_chain:{symbol}:{expiry}" if expiry else f"option_chain:{symbol}"
+                        cache.set(cache_key_to_set, raw_strikes, ttl=ttl)
+                        logger.info(f"[Option Flow] Cached live option chain under key {cache_key_to_set} with TTL {ttl}s")
+                else:
+                    api_status = "error"
+                    api_message = f"Upstox returned empty data or error: {api_res}"
+                    logger.warning(f"[Option Flow] Upstox option/chain returned invalid response: {api_res}")
+            except Exception as e:
+                api_status = "error"
+                api_message = f"Upstox API call failed: {type(e).__name__}: {str(e)}"
+                logger.error(f"[Option Flow] Failed to fetch live option chain from Upstox: {e}", exc_info=True)
+
+        # Trigger AUTO RECOVERY if strikes are still empty (e.g. invalid expiry requested)
+        if api_failed or not raw_strikes:
+            logger.info(f"[Option Flow] Auto-recovery triggered for {symbol} (expiry={expiry})")
+            try:
+                # 1. Clear poisoned/stale cache
+                cache.delete(f"option_expiries:{symbol}")
+                if expiry:
+                    cache.delete(f"option_chain:{symbol}:{expiry}")
+                    cache.delete(f"option_chain:{instrument_key}:{expiry}")
+                
+                # 2. Refresh expiries from Upstox
+                expiries_res = await get_option_expiries(
+                    symbol=symbol,
+                    bypass_cache=True,
+                    current_user=current_user,
+                    db=db
+                )
+                
+                if expiries_res.get("success") and expiries_res.get("data", {}).get("expiries"):
+                    valid_expiries = expiries_res["data"]["expiries"]
+                    logger.info(f"[Option Flow] Auto-recovery resolved fresh expiries: {valid_expiries}")
+                    
+                    # 3. Pick nearest valid expiry if the current one is not valid
+                    if expiry not in valid_expiries:
+                        old_expiry = expiry
+                        expiry = valid_expiries[0]
+                        logger.info(f"[Option Flow] Auto-recovery: Swapped invalid expiry {old_expiry} for nearest valid expiry {expiry}")
+                        active_expiry = expiry
+                        cache_key = f"option_flow:{symbol}:{expiry}:{strike_range or 'all'}"
+                        
+                        # 4. Retry option chain fetch from cache with new expiry
+                        chain_cache_keys = [
+                            f"option_chain:{symbol}:{expiry}",
+                            f"option_chain:{instrument_key}:{expiry}"
+                        ]
+                        for key in chain_cache_keys:
+                            cached_chain = cache.get(key)
+                            if cached_chain:
+                                if isinstance(cached_chain, str):
+                                    try:
+                                        raw_strikes = json.loads(cached_chain)
+                                    except Exception:
+                                        raw_strikes = cached_chain
+                                else:
+                                    raw_strikes = cached_chain
+                                if isinstance(raw_strikes, dict) and "data" in raw_strikes:
+                                    raw_strikes = raw_strikes["data"]
+                                if raw_strikes:
+                                    logger.info(f"[Option Flow] Auto-recovery: Retrieved from cache key {key} ({len(raw_strikes)} strikes)")
+                                    api_failed = False
+                                    api_status = "success"
+                                    break
+                                    
+                        # 5. If cache miss, retry Upstox call with the new expiry
+                        if api_failed or not raw_strikes:
+                            from services.upstox_client import get_upstox_client
+                            client = get_upstox_client()
+                            logger.info(f"[Option Flow] Auto-recovery: Fetching live option chain from Upstox for {symbol} (expiry={expiry})")
+                            
+                            params = {"instrument_key": instrument_key, "expiry_date": expiry}
+                            api_res = await client._make_request("GET", "/option/chain", params=params)
+                            if api_res and api_res.get("status") == "success" and api_res.get("data"):
+                                raw_strikes = api_res["data"]
+                                if raw_strikes:
+                                    logger.info(f"[Option Flow] Auto-recovery: Successfully fetched live option chain from Upstox ({len(raw_strikes)} strikes)")
+                                    api_failed = False
+                                    api_status = "success"
+                                    
+                                    # Cache it
+                                    ttl = 60 if is_market_open() else 3600
+                                    cache_key_to_set = f"option_chain:{symbol}:{expiry}"
+                                    cache.set(cache_key_to_set, raw_strikes, ttl=ttl)
+            except Exception as recovery_err:
+                logger.error(f"[Option Flow] Auto-recovery process failed for {symbol}: {recovery_err}", exc_info=True)
+
         if api_failed:
             if not bypass_cache and cache.is_available():
                 try:
@@ -670,14 +808,15 @@ async def get_option_flow(
             call_gex = round(c_oi * c_ltp * 100.0, 2)
             put_gex = round(p_oi * p_ltp * 100.0, 2)
             
-            # Get IV from option_greeks or market_data
+            # Get IV from option_greeks or market_data using derivatives service helper
+            from services.derivatives_service import DerivativesService
             c_greeks = call.get("option_greeks") or {}
             c_iv_raw = float(c_greeks.get("iv", 0) or call_market.get("iv", 0) or 0)
-            c_iv = c_iv_raw * 100.0 if 0.0 < c_iv_raw < 1.0 else c_iv_raw
+            c_iv = DerivativesService.calculate_iv(c_iv_raw)
             
             p_greeks = put.get("option_greeks") or {}
             p_iv_raw = float(p_greeks.get("iv", 0) or put_market.get("iv", 0) or 0)
-            p_iv = p_iv_raw * 100.0 if 0.0 < p_iv_raw < 1.0 else p_iv_raw
+            p_iv = DerivativesService.calculate_iv(p_iv_raw)
 
             # Option Sentiment Classification
             call_sentiment, call_conf = classify_option_sentiment(
@@ -734,9 +873,10 @@ async def get_option_flow(
             
         strikes_list = sorted(strikes_list, key=lambda x: x["strike_price"])
         
-        # Calculations
-        pcr_oi = round(total_put_oi / total_call_oi, 2) if total_call_oi > 0 else 0.0
-        pcr_vol = round(total_put_vol / total_call_vol, 2) if total_call_vol > 0 else 0.0
+        # Calculations using derivatives service helper
+        from services.derivatives_service import DerivativesService
+        pcr_oi = round(DerivativesService.calculate_pcr(total_put_oi, total_call_oi), 2)
+        pcr_vol = round(DerivativesService.calculate_pcr(total_put_vol, total_call_vol), 2)
         net_flow = total_call_premium - total_put_premium
         buy_sell_ratio = round(total_call_premium / total_put_premium, 2) if total_put_premium > 0 else 1.0
         
@@ -1139,20 +1279,11 @@ async def resolve_instrument_key(symbol: str, db: AsyncSession) -> Optional[str]
     if mapped:
         return mapped
         
-    # 2. Map equity symbol from instrument_master
-    try:
-        query = text("""
-            SELECT instrument_key
-            FROM instrument_master
-            WHERE symbol = :symbol AND is_active = TRUE
-            LIMIT 1
-        """)
-        res = await db.execute(query, {"symbol": symbol})
-        row = res.fetchone()
-        if row:
-            return row[0]
-    except Exception as e:
-        logger.error(f"Error querying instrument_master for symbol {symbol}: {e}")
+    # 2. Map equity symbol using cached instrument resolver
+    from services.instrument_resolver import resolve_instrument_key as cached_resolve_instrument_key
+    ikey = cached_resolve_instrument_key(symbol)
+    if ikey:
+        return ikey
 
     # 3. Fallbacks
     if "NSE_INDEX" in symbol:
@@ -1338,12 +1469,9 @@ async def get_option_flow_chart(
     # 3. Try DB-first (stock_candle table) before hitting Upstox
     df = pd.DataFrame()
     try:
-        instrument_id_row = await db.execute(
-            text("SELECT instrument_id FROM instrument_master WHERE symbol = :sym AND is_active = TRUE LIMIT 1"),
-            {"sym": symbol}
-        )
-        iid_row = instrument_id_row.fetchone()
-        if iid_row:
+        from services.instrument_resolver import resolve_instrument_id
+        iid = resolve_instrument_id(symbol)
+        if iid:
             tf_db = 1440 if upstox_interval == "day" else (30 if upstox_interval == "30minute" else 1)
             candle_limit = lookback_days * (1 if upstox_interval == "day" else 390)
             db_candles = await db.execute(
@@ -1354,7 +1482,7 @@ async def get_option_flow_chart(
                     ORDER BY candle_ts DESC
                     LIMIT :lim
                 """),
-                {"iid": iid_row.instrument_id, "tf": tf_db, "lim": min(candle_limit, 5000)}
+                {"iid": iid, "tf": tf_db, "lim": min(candle_limit, 5000)}
             )
             rows = db_candles.fetchall()
             if rows and len(rows) >= 5:
@@ -1366,30 +1494,9 @@ async def get_option_flow_chart(
     except Exception as db_err:
         logger.warning(f"[OptionFlowChart] DB candle fetch failed for {symbol}: {db_err}")
 
-    # 4. Fetch from Upstox API (only if DB had insufficient data)
+    # 4. Fetch from Upstox API (disabled - reading from stock_candle exclusively)
     if df.empty:
-        try:
-            import asyncio as _asyncio
-            from services.upstox_client import get_upstox_client
-            client = get_upstox_client()
-            
-            to_date = datetime.now()
-            df = await _asyncio.wait_for(
-                load_historical_chart_data(
-                    client=client,
-                    symbol=symbol,
-                    instrument_key=instrument_key,
-                    to_date=to_date,
-                    lookback_days=lookback_days,
-                    interval=upstox_interval
-                ),
-                timeout=15.0
-            )
-        except Exception as upstox_err:
-            logger.warning(f"[OptionFlowChart] Upstox API unavailable for {symbol}: {upstox_err}")
-    
-    if df.empty:
-        raise HTTPException(status_code=404, detail="No candle data returned from Upstox API")
+        raise HTTPException(status_code=404, detail="No historical candle data found in database")
     
     try:
         to_date = datetime.now()
@@ -1632,41 +1739,38 @@ async def get_option_expiries(
                 
         expiries = []
         try:
-            symbol_query = text("""
-                SELECT instrument_key
-                FROM instrument_master
-                WHERE symbol = :symbol AND is_active = TRUE
-                LIMIT 1
-            """)
-            symbol_res = await db.execute(symbol_query, {"symbol": symbol})
-            symbol_row = symbol_res.fetchone()
-            if symbol_row:
-                instrument_key = symbol_row.instrument_key
-            else:
+            # 1. Get instrument_key
+            from services.instrument_resolver import resolve_instrument_key
+            instrument_key = resolve_instrument_key(symbol)
+            if not instrument_key:
                 mapped_k = map_symbol_to_instrument_key(symbol)
-                instrument_key = mapped_k if mapped_k else f"NSE_INDEX|{symbol}"
-            
+                if mapped_k:
+                    instrument_key = mapped_k
+                elif is_index(symbol):
+                    instrument_key = f"NSE_INDEX|{symbol}"
+                else:
+                    instrument_key = f"NSE_EQ|{symbol}"
+
+            # 2. Fetch contracts from Upstox API
+            from services.upstox_client import get_upstox_client
             client = get_upstox_client()
-            response = await client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key})
-            if response.get("status") == "success" and response.get("data"):
-                contracts = response["data"]
-                unique_expiries = set()
-                for item in contracts:
-                    if not item:
-                        continue
-                    exp = item.get("expiry")
-                    if exp:
-                        unique_expiries.add(exp)
-                expiries = sorted(list(unique_expiries))
-                logger.info(f"[Option Expiries] Found {len(expiries)} expiry dates for {symbol} from live API")
+            contracts_data = await client._make_request("GET", "/option/contract", params={"instrument_key": instrument_key})
+            if contracts_data.get("status") == "success" and contracts_data.get("data"):
+                contracts = contracts_data["data"]
+                unique_expiries = sorted(list(set(c.get("expiry") for c in contracts if c.get("expiry"))))
+                if unique_expiries:
+                    expiries = unique_expiries
+                    logger.info(f"Retrieved active contracts expiries from Upstox for {symbol}: {expiries}")
         except Exception as e:
-            logger.warning(f"[Option Expiries] Failed to fetch live expiries for {symbol}: {type(e).__name__}: {e}")
+            logger.warning(f"[Option Expiries] Failed to resolve expiries dynamically from Upstox API: {e}")
             
         if not expiries:
+            # Fallback to local calculations
             if is_index(symbol):
                 expiries = get_upcoming_thursdays()
             else:
                 expiries = get_monthly_expiries()
+            logger.info(f"Falling back to calculated expiries for {symbol}: {expiries}")
                 
         response_data = {
             "status": "success",

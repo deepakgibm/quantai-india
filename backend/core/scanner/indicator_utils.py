@@ -223,3 +223,53 @@ def volume_ratio(volume: pd.Series, period: int = 20) -> pd.Series:
 def price_momentum(close: pd.Series, period: int = 126) -> pd.Series:
     """Price momentum (rate of change)."""
     return (close / close.shift(period) - 1) * 100
+
+
+def grouped_atr(df: pd.DataFrame, groupby_col: str = 'symbol', period: int = 14, min_periods: int = 1) -> pd.Series:
+    """Calculate Average True Range on a grouped DataFrame."""
+    prev_close = df.groupby(groupby_col)['close'].shift(1)
+    h_l = df['high'] - df['low']
+    h_pc = (df['high'] - prev_close).abs()
+    l_pc = (df['low'] - prev_close).abs()
+    tr = pd.concat([h_l, h_pc, l_pc], axis=1).max(axis=1)
+    
+    df_temp = df.copy()
+    df_temp['tr_temp'] = tr
+    return df_temp.groupby(groupby_col)['tr_temp'].transform(
+        lambda x: x.rolling(window=period, min_periods=min_periods).mean()
+    )
+
+
+def grouped_rsi(df: pd.DataFrame, groupby_col: str = 'symbol', period: int = 14) -> pd.Series:
+    """Calculate Relative Strength Index on a grouped DataFrame using Wilder's EMA."""
+    delta = df.groupby(groupby_col)['close'].diff()
+    gain = delta.clip(lower=0)
+    loss = (-delta).clip(lower=0)
+    
+    df_temp = df.copy()
+    df_temp['gain_temp'] = gain
+    df_temp['loss_temp'] = loss
+    
+    avg_gain = df_temp.groupby(groupby_col)['gain_temp'].transform(
+        lambda x: x.ewm(com=period - 1, min_periods=period).mean()
+    )
+    avg_loss = df_temp.groupby(groupby_col)['loss_temp'].transform(
+        lambda x: x.ewm(com=period - 1, min_periods=period).mean()
+    )
+    
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def grouped_sma(df: pd.DataFrame, col: str, groupby_col: str = 'symbol', period: int = 20, min_periods: int = 1) -> pd.Series:
+    """Calculate Simple Moving Average on a grouped DataFrame."""
+    return df.groupby(groupby_col)[col].transform(
+        lambda x: x.rolling(window=period, min_periods=min_periods).mean()
+    )
+
+
+def grouped_ema(df: pd.DataFrame, col: str, groupby_col: str = 'symbol', period: int = 20) -> pd.Series:
+    """Calculate Exponential Moving Average on a grouped DataFrame."""
+    return df.groupby(groupby_col)[col].transform(
+        lambda x: x.ewm(span=period, adjust=False).mean()
+    )

@@ -3,24 +3,21 @@ Unified Scanner API Router
 Consolidates standard, HP (Cache-First), and AI scanners.
 """
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime
 import asyncio
 import logging
 import time
 
-from models import User, ScannerPreset
+from models import User
 from database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from utils.auth import get_current_user
-from services.dragonfly_client import get_cache, CacheKeys, cache_get
-from services.market_hours_service import get_market_hours_service
+from services.dragonfly_client import CacheKeys, cache_get
 from services.momentum_scanner import MomentumScanner
-from config import settings
 from utils.rate_limit import rate_limit
 
 logger = logging.getLogger(__name__)

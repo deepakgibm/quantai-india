@@ -1,6 +1,5 @@
-import os
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 from cryptography.fernet import Fernet
 from sqlalchemy.orm import Session
 from models import BrokerCredentials

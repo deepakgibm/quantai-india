@@ -6,7 +6,7 @@ managing snapshot fallback across all API endpoints.
 """
 
 from datetime import datetime, date, timedelta
-from typing import Optional, Any, Callable, TypeVar
+from typing import Optional, Any, Callable
 import logging
 
 import pytz

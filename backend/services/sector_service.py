@@ -12,14 +12,11 @@ Architecture:
 
 import asyncio
 import logging
-import os
-from datetime import datetime
 from typing import List, Dict, Any
 
 from services.dragonfly_client import get_cache
 from services.upstox_price_resolver import get_upstox_price_resolver
 from utils.symbol_utils import _symbol_manager
-from config import settings
 
 logger = logging.getLogger(__name__)
 

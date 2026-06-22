@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional
 
-from database import get_db, get_read_db
+from database import get_read_db
 from services.institutional_scanner_service import get_institutional_scanner_service
 from services.dragonfly_client import get_cache
 

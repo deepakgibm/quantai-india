@@ -331,7 +331,6 @@ class UpstoxClient:
         if not instrument_keys:
             return {}
             
-        import urllib.parse
         await self.rate_limiter.acquire()
         
         params = {"instrument_key": ",".join(instrument_keys)}
@@ -421,7 +420,6 @@ class UpstoxClient:
         Returns:
             Dict with quote data or None on failure
         """
-        import urllib.parse
         await self.rate_limiter.acquire()
         
         params = {"instrument_key": instrument_key}
@@ -500,7 +498,6 @@ class UpstoxClient:
         Returns:
             Dict with {total_call_oi, total_put_oi, pcr, num_strikes, expiry} or None on failure.
         """
-        import urllib.parse
         await self.rate_limiter.acquire()
 
         if not expiry_date:
@@ -740,3 +737,8 @@ def get_upstox_client(access_token: Optional[str] = None) -> UpstoxClient:
         _upstox_client = UpstoxClient(access_token)
     
     return _upstox_client
+
+
+def get_upstox_client_dependency() -> UpstoxClient:
+    """FastAPI Dependency injector provider for UpstoxClient singleton."""
+    return get_upstox_client()

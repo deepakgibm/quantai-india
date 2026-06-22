@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from datetime import datetime
 import httpx
@@ -7,7 +7,7 @@ import firebase_admin
 
 from database import AsyncSessionLocal
 from services.dragonfly_client import get_cache
-from services.upstox_client import get_upstox_client
+from services.upstox_client import get_upstox_client_dependency, UpstoxClient
 from config import settings
 from utils.rate_limit import rate_limit
 
@@ -18,18 +18,7 @@ router = APIRouter(
 )
 
 @router.get("/upstox-health")
-async def get_upstox_health():
-    """
-    Check Upstox connection and API reachability.
-    Response:
-    {
-      "status": "healthy",
-      "token_valid": true,
-      "api_reachable": true,
-      "last_checked": ""
-    }
-    """
-    client = get_upstox_client()
+async def get_upstox_health(client: UpstoxClient = Depends(get_upstox_client_dependency)):
     token_valid = False
     api_reachable = False
     
@@ -74,7 +63,7 @@ async def get_upstox_health():
     }
 
 @router.get("/health")
-async def get_system_health():
+async def get_system_health(client: UpstoxClient = Depends(get_upstox_client_dependency)):
     """
     Get unified system health monitor status.
     Return:
@@ -110,7 +99,6 @@ async def get_system_health():
     # 3. Upstox Check
     upstox_healthy = "healthy"
     try:
-        client = get_upstox_client()
         if not client.access_token:
             upstox_healthy = "unhealthy"
     except Exception:

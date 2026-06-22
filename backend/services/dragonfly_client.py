@@ -277,6 +277,29 @@ class CacheManager:
             logger.error(f"Async cache get error: {e}")
             return None
 
+    async def mget_async(self, keys: List[str]) -> List[Optional[Any]]:
+        """Async cache MGET - fetches multiple keys in a single roundtrip."""
+        if not REDIS_ASYNC_AVAILABLE:
+            return [self.get(key) for key in keys]
+        await self._ensure_async_connected()
+        if DEV_MODE and not self._is_connected_async:
+            return [_in_memory_cache.get(key) for key in keys]
+        try:
+            raw_vals = await self._async_client.mget(keys)
+            vals = []
+            for val in raw_vals:
+                if val is not None:
+                    self._hits += 1
+                    vals.append(self._deserialize(val))
+                else:
+                    self._misses += 1
+                    vals.append(None)
+            return vals
+        except Exception as e:
+            logger.error(f"Async cache mget error: {e}")
+            return [None] * len(keys)
+
+
     async def set_async(self, key: str, value: Any, ttl: int = TTLPolicy.INDICATOR) -> bool:
         """Async cache set - falls back to sync if async unavailable."""
         if not REDIS_ASYNC_AVAILABLE:

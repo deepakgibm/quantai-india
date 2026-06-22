@@ -1,6 +1,4 @@
 import sys
-import os
-import time
 import logging
 
 # Add backend to path

@@ -5,7 +5,6 @@ Signal Performance Tracker Service
 import logging
 from sqlalchemy.future import select
 from models_bot import BotSignalRecord
-from database import AsyncSessionLocal
 from datetime import datetime
 
 logger = logging.getLogger(__name__)

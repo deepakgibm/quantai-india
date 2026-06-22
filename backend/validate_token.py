@@ -3,7 +3,6 @@ import sys
 from database import SessionLocal
 from services.auth.token_manager import TokenManagerService
 from services.upstox_client import get_upstox_client
-from datetime import datetime, timedelta
 
 async def validate_token():
     token = sys.argv[1]

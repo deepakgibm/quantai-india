@@ -8,16 +8,13 @@ import logging
 import json
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Callable
+from typing import Dict, Optional
 
 from services.upstox_ws_manager import get_upstox_ws_manager, UpstoxWSManager
 from services.rest_data_fetcher import (
     get_rest_data_fetcher, 
-    RESTDataFetcher, 
-    MomentumTick, 
-    calculate_bucket
+    RESTDataFetcher
 )
-from services.upstox_client import get_upstox_client
 from services.db_data_fetcher import get_db_data_fetcher, DatabaseDataFetcher
 from services.market_data_service.publisher import publish_tick
 from utils.market_state import is_market_open

@@ -4,8 +4,7 @@ Portfolio Intelligence Analysis Service
 
 import logging
 from sqlalchemy.future import select
-from models import Holding, Position
-from models_saas import SaaSSubscription
+from models import Holding
 from services.ai.provider import get_ai_provider
 from config import settings
 

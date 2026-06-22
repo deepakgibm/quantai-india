@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 
 # Add project root to sys.path
 project_root = Path(__file__).resolve().parent.parent
@@ -78,7 +77,6 @@ class Nifty100DailyUpdater:
 
             from sqlalchemy.dialects.postgresql import insert as pg_insert
             from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-            import pandas as pd
 
             dialect_name = session.bind.dialect.name
             insert_fn = pg_insert if dialect_name == "postgresql" else sqlite_insert

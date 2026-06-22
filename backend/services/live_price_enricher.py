@@ -199,60 +199,44 @@ async def fetch_live_ltp(symbols: List[str], access_token: str = None) -> Dict[s
 async def fetch_live_full_quotes(symbols: List[str], access_token: str = None) -> Dict[str, Dict[str, Any]]:
     if not symbols: return {}
     
-    from services.upstox_client import get_upstox_client
-    client = get_upstox_client(access_token)
+    import json
+    from services.dragonfly_client import get_cache
+    cache = get_cache()
     
     results = {}
-    batch_size = 50
+    symbols = [s.upper() for s in symbols]
     
-    # Map symbols to keys
-    mapped_keys = []
-    key_to_symbol = {}
-    for s in symbols:
-        key = get_instrument_key(s)
-        if key:
-            mapped_keys.append(key)
-            key_to_symbol[key] = s
-            # Support EXCHANGE:SYMBOL format
-            if "|" in key:
-                exch = key.split("|")[0]
-                key_to_symbol[f"{exch}:{s}"] = s
-            key_to_symbol[f"NSE_EQ:{s}"] = s
-            key_to_symbol[f"BSE_EQ:{s}"] = s
-        else:
-            logger.warning(f"No instrument key mapping found for symbol: {s}")
-
-    if not mapped_keys:
-        logger.warning(f"No valid instrument keys found for symbols: {symbols[:10]}")
-        return {}
-
-    logger.info(f"Enricher: Batching {len(mapped_keys)} keys for Upstox API in parallel")
-    tasks = []
-    batches = []
-    for i in range(0, len(mapped_keys), batch_size):
-        batch = mapped_keys[i:i + batch_size]
-        batches.append(batch)
-        tasks.append(client.get_live_quotes(batch))
-        
+    # We will look up both price:{symbol} (new format) and qai:tick:{symbol} (legacy format)
+    keys_new = [f"price:{s}" for s in symbols]
+    keys_legacy = [f"qai:tick:{s}" for s in symbols]
+    
     try:
-        # Fetch all batches in parallel with a timeout of 3.5 seconds
-        batch_results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
-        for idx, res in enumerate(batch_results):
-            if isinstance(res, Exception):
-                logger.error(f"Upstox full quote batch index {idx} failed (size={len(batches[idx])}): {res}")
-                continue
-            logger.info(f"Enricher: Received {len(res)} quotes from batch index {idx}")
-            for key, q in res.items():
-                symbol = key_to_symbol.get(key)
-                if symbol:
-                    results[symbol] = {
-                        "ltp": q.get("last_price"),
-                        "prev_close": q.get("previous_close"),
-                        "volume": q.get("volume"),
-                        "timestamp": q.get("timestamp")
-                    }
-    except asyncio.TimeoutError:
-        logger.warning(f"Upstox batch fetch timed out after 3.5s for {len(mapped_keys)} keys")
+        cached_new = await cache.mget_async(keys_new)
+        cached_legacy = await cache.mget_async(keys_legacy)
+        
+        for idx, symbol in enumerate(symbols):
+            val = cached_new[idx] or cached_legacy[idx]
+            
+            if val:
+                if isinstance(val, str):
+                    try:
+                        val = json.loads(val)
+                    except:
+                        pass
+                
+                ltp = val.get("ltp") or val.get("last_price") or val.get("price")
+                prev_close = val.get("prev_close") or val.get("previous_close") or ltp
+                volume = val.get("volume") or 0
+                timestamp = val.get("timestamp")
+                
+                results[symbol] = {
+                    "ltp": float(ltp) if ltp else 0.0,
+                    "prev_close": float(prev_close) if prev_close else 0.0,
+                    "volume": int(volume) if volume else 0,
+                    "timestamp": timestamp
+                }
+    except Exception as e:
+        logger.error(f"Enricher: Failed to resolve batch live prices from cache: {e}")
         
     return results
 

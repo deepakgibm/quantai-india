@@ -17,7 +17,7 @@ import time
 from datetime import date, datetime
 from typing import Dict, List, Optional, Any
 
-from sqlalchemy import text, delete
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from screener.data.technical_aggregator import TechnicalAggregator

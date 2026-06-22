@@ -5,8 +5,7 @@ Optimized for parameter sweeps and quick scans.
 
 import numpy as np
 import pandas as pd
-import polars as pl
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 import time
 
 from ..strategy.base import UnifiedStrategy, SignalType

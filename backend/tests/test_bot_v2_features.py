@@ -1,9 +1,6 @@
 import pytest
-import asyncio
 from unittest.mock import MagicMock, patch
 from services.bot.bot_orchestrator import BotOrchestrator, BotRunResult
-from services.bot.data_collector import DataCollector
-from services.bot.analysis_engine import AnalysisEngine
 from services.derivatives_service import DerivativesService
 from database import SessionLocal
 from models_bot import BotRun, BotSignalRecord
@@ -69,10 +66,12 @@ async def test_pcr_source_tracking():
     """Test that DerivativesService correctly tracks upstox vs simulated source."""
     service = DerivativesService()
     
-    # Test case 1: Stock with derivatives (should try upstox)
-    with patch('services.upstox_client.UpstoxClient.get_option_chain') as mock_chain:
-        mock_chain.return_value = {"pcr": 1.1, "total_put_oi": 1100, "total_call_oi": 1000, "num_strikes": 20}
-        
+    # Test case 1: Stock with derivatives (should try dragonfly cache first)
+    mock_cache = MagicMock()
+    mock_cache.get.return_value = [
+        {"strike_price": 100, "call_options": {"market_data": {"oi": 1000}}, "put_options": {"market_data": {"oi": 1100}}}
+    ]
+    with patch('services.dragonfly_client.get_cache', return_value=mock_cache):
         data = await service.get_derivatives_data("RELIANCE", 1.0)
         assert data.data_source == "upstox"
         assert data.pcr == 1.1
@@ -82,9 +81,9 @@ async def test_pcr_source_tracking():
     assert data.has_derivatives is False
     
     # Test case 3: API failure (should fallback to simulated)
-    with patch('services.upstox_client.UpstoxClient.get_option_chain') as mock_chain:
-        mock_chain.side_effect = Exception("API Down")
-        
+    mock_cache_fail = MagicMock()
+    mock_cache_fail.get.side_effect = Exception("Cache down")
+    with patch('services.dragonfly_client.get_cache', return_value=mock_cache_fail):
         data = await service.get_derivatives_data("RELIANCE", 1.0)
         assert data.data_source == "simulated"
         assert data.pcr is not None

@@ -5,7 +5,6 @@ from typing import Dict, Any
 from services.dragonfly_client import get_cache
 from utils.json_utils import sanitize_for_json
 from services.live_price_enricher import enrich_scanner_results
-from config import settings
 
 logger = logging.getLogger(__name__)
 

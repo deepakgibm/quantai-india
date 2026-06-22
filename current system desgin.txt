@@ -1,0 +1,781 @@
+System Overview - QuantAI India
+
+QuantAI India is a production-grade, AI-powered professional trading, backtesting, and analytics platform designed specifically for the Indian stock market. It enables retail traders and quantitative analysts to build, test, and run Smart Beta Multi-Factor trading models, utilize technical scanners (like VCP, Darvas Box, and volume profile), trace institutional flows (FII/DII block deals), and stream live market data with advanced performance.
+
+Business Domain
+Geography: Indian stock markets (primarily National Stock Exchange - NSE).
+Domain: Quantitative trading, algorithmic scanners, portfolio intelligence, backtesting simulation, and Smart Beta factor investing.
+User Personas
+Retail Active Trader: Uses the web application to screen momentum stocks, track institutional block deals, review volatility indicators, and consult the AI-advisor for trading setups.
+Quantitative Analyst (Quant): Develops custom factor models, executes walk-forward optimizations, runs backtests across 20-year daily datasets, and tests machine learning strategies.
+SaaS Premium Subscriber: Enrolls in the Learning Academy (courses, quizzes) and accesses premium AI-generated research newsletters and portfolio intelligence recommendations.
+Main Features
+Real-Time Market Ingestion: Low-latency WebSocket integration with Upstox API using binary Protobuf streaming.
+Factor & Strategy Backtester: Bar-by-bar historical backtesting simulator supporting multi-factor strategies and walk-forward parameter optimization.
+Technical & Institutional Scanners: Heavy-duty algorithms scanning Nifty 500 stocks for volatility contraction patterns (VCP), Darvas Box breakouts, volume profiles, and FII block deals.
+AI-Powered Analytics: Conversational prompt interface utilizing the Google Gemini API to analyze market trends, scan stocks, and generate custom trade setups.
+SaaS Ecosystem: Integration of Razorpay subscriptions, affiliate broker commission tracking, and a built-in educational Learning Academy.
+Core Workflows
+1. Real-Time Market Data Flow
+Upstox WebSocket API ──(Protobuf)──> Ingestion Worker ──> DragonflyDB Cache ──(Pub/Sub)──> FastAPI WebSocket ──> React UI
+Ingestion Worker decodes the incoming Protobuf ticks from Upstox and updates the real-time cache in DragonflyDB.
+FastAPI servers receive ticks via Pub/Sub subscriptions and broadcast them to connected frontend clients via WebSockets.
+2. Signal Generation & Scanner Run
+PostgreSQL (Daily EOD/Indicators) ──> Scanner Workers ──> Factor Signals ──> PostgreSQL / Cache ──> API ──> UI Dashboard
+Daily EOD cron jobs run at 3:30 PM IST (after market close) to parse NSE data, calculate technical indicators (RSI, EMA, MACD, etc.), and persist them to precomputed_indicators.
+Active scanners query this data, group them by VCP contractions or breakout thresholds, and cache the results to DragonflyDB for instant UI rendering.
+3. Backtesting & ML Training Pipeline
+Web Dashboard ──(API request)──> Celery Queue ──> Celery Worker Pool ──> Backtest Engine ──> Result Cache ──> Web UI
+User submits a backtest configuration or requests model training.
+The FastAPI request handler delegates the task to the Celery broker (hosted on DragonflyDB) and returns a task ID.
+Background workers process the backtesting task bar-by-bar, save results in PostgreSQL, and set a completion status in Redis.
+The UI polls for the status and renders the finished equity curves.
+
+
+
+
+Technology Stack Analysis
+QuantAI India utilizes a modern, high-performance quantitative trading stack designed for low-latency market data processing and heavy backtesting compute.
+
+Frontend Stack
+Layer	Technology	Version	Purpose / Role
+Core Framework	React	^19.2.0	User interface structure and page components
+Build Tooling	Vite	^6.2.0	Fast development server and production builds
+Language	TypeScript	~5.8.2	Static type safety across components and APIs
+Styling	Tailwind CSS	^3.4.17	Premium modern utility-first CSS styling
+State Management	React Context + Query	^5.101.0	Global state (Auth, symbols) + server-cache state
+Data Fetching	Fetch API	Native	Promise-based request wrapper with custom retry/timeout
+Charts & Visuals	Recharts / Lightweight Charts	^3.4.1 / 4.1.1	Financial stock charts, equity curves, drawdown distribution
+Authentication	Firebase Client SDK	^12.7.0	SSO, Google/Email authentication
+Backend Stack
+Layer	Technology	Version	Purpose / Role
+API Framework	FastAPI	^0.110.0	High-performance ASGI web framework, automatic OpenAPI
+Task Queue	Celery	^5.3.0	Distributed asynchronous task queue for backtesting
+Web Server	Uvicorn	^0.28.0	ASGI server implementation, running multi-workers
+Database ORM	SQLAlchemy	^2.0.0	Database schema mapping and connection pooling
+Async Driver	asyncpg	^0.29.0	Low-level asynchronous database driver for Postgres
+Data Analysis	Pandas / Numpy	^2.2.0	Dataframe manipulation and numerical vector math
+Local Analytics	DuckDB	^0.10.0	In-memory vectorized DB for local feature store queries
+HTTP Client	HTTPX	^0.27.0	Asynchronous HTTP client for external API requests
+AI Integration	Google GenAI SDK	^1.30.0	Large language model prompts (Gemini API)
+Cache & Database Stack
+Component	Technology	Version	Purpose / Role
+Primary Database	PostgreSQL	16	Relational storage for users, orders, settings, and metrics
+Connection Pooler	PgBouncer	1.21	Connection pooling to avoid DB connection exhaustion
+In-Memory Cache	DragonflyDB	latest	Redis-compatible cache & broker (up to 25x faster than Redis)
+Data Warehouse	Parquet	Columnar	Local file-based Hive-partitioned warehouse for ticks
+Infrastructure & Observability
+Service	Technology	Version	Purpose / Role
+Containerization	Docker / Compose	v2	Consistent container deployment and service isolation
+Proxy / Gateway	Nginx	1.25	Reverse proxy, static file server, and SSL/TLS routing
+Metrics Collect	Prometheus	latest	Time-series scraper collecting system and API metrics
+Visualization	Grafana	latest	Dashboard visualization for API latencies, CPU, and Redis keys
+Redis Metrics	Redis-exporter	latest	Exporter bridging Dragonfly stats into Prometheus
+
+
+Frontend Architecture
+The QuantAI India frontend is a Single Page Application (SPA) built using React, TypeScript, and Vite, styled with Tailwind CSS, and optimized for real-time financial dashboards.
+
+Routing & Layout Structure
+The entry point of the app is 
+App.tsx
+ which wraps the application in QueryClientProvider (TanStack Query) and GlobalSymbolProvider.
+
+Routing is handled via react-router-dom with a ProtectedRoute component wrapping authenticated pages.
+
+Mobile Menu: Mobile devices use a toggleable hamburger button triggering a slide-out drawer sidebar.
+Sidebar Layout: Contains navigation icons, user profile info, subscription tier display, and dark/light mode toggle.
+Full-Bleed Layouts: Pages like the QuantWorkspace or ExperimentLab use a full-width/height flex canvas to accommodate dense charts and backtesting logs.
+Page Inventory & Routes
+Route	Page Component	Key Functionality	API Endpoints Called
+/	LandingPage	Public marketing, core features list, call to action	None
+/login / /signup	Login / Signup	User authentication forms	/api/auth/firebase-login, /api/auth/signup
+/dashboard	Dashboard	Real-time P&L, capital usage stats, indices, top gainers	/api/trading/stats, /api/trading/market-indices, /api/trading/top-gainers
+/ai-prompt	AIPrompt	Chat canvas for conversational Gemini queries	/api/ai/prompt
+/scanner	Scanner	Real-time scanners (Momentum, Mean Reversion, Gap, etc.)	/api/scanner/active
+/sector-heatmap	SectorHeatmapPage	Treemap sector performance relative-strength weights	/api/heatmap?mode={mode}&timeframe={tf}
+/sector-analysis	SectorAnalysisPage	Sector trends, relative strength tables	/api/sector-analysis
+/volume-profile	VolumeProfilePage	POC, Value Area High/Low histogram overlays	/api/volume-profile?symbol={s}
+/volatility	VolatilityDashboard	Option VIX spreads, IV rank charts	/api/volatility/stats
+/option-flow	OptionFlow	Options sweeps, block trades filter table	/api/option-flow/sweeps
+/quant-workspace	QuantWorkspace	Code editor workspace, backtesting & bot runner tab	/api/workspace/files, /api/backtest/run
+/watchlist	Watchlist	User custom symbols list with live P&L	/api/watchlist
+/institutional	InstitutionalScanner	NSE Bulk/Block deal FII footprint scan	/api/institutional/flows
+/diagnostics	PriceDiagnosticPanel	Cache status check and data staleness checks	/api/system/health, /api/upstox/status
+State Management Architecture
+
+┌────────────────────────────────────────────────────────┐
+│                      Global Providers                  │
+│  ┌───────────────────────┐   ┌──────────────────────┐  │
+│  │      AuthContext      │   │ GlobalSymbolProvider │  │
+│  └───────────────────────┘   └──────────────────────┘  │
+└───────────────────────────┬────────────────────────────┘
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                    TanStack Query Cache                │
+│  - GET requests cached for 3 seconds                   │
+│  - In-flight request deduplication                     │
+│  - Automatic stale-while-revalidate                    │
+└───────────────────────────┬────────────────────────────┘
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                   Component Local State                │
+│  - useState, useRef (e.g. AbortController references)  │
+└────────────────────────────────────────────────────────┘
+Global Contexts:
+AuthContext: Manages current user state, Firebase credentials token sync, and token refresh loops.
+GlobalSymbolProvider: Broadcasts the currently active stock symbol (e.g., RELIANCE) across pages so clicking a symbol in the Watchlist updates the charts on the Volume Profile page.
+Server State Caching:
+Handled via TanStack Query. Requests are cached, preventing repetitive API hits when navigating tabs.
+Secondary cache inside 
+api.ts
+ caches fetch promises for 3000ms.
+In-Flight Cancellation:
+Custom React pages implement abortControllerRef = useRef<AbortController | null>(null).
+Before firing a new data fetch, any previous in-flight request is explicitly aborted using abortControllerRef.current.abort() to prevent race conditions and network hogging.
+API Consumption Client (
+api.ts
+)
+Base URL: Dynamically resolved. Resolves to http://localhost:8000 in local dev or empty string "" in production (delegating routing to the Nginx reverse proxy).
+Interceptors:
+Automatically fetches the active Firebase JWT token (auth.currentUser?.getIdToken()) and appends it as Bearer <Token> in headers.
+Intercepts 401 Unauthorized responses, attempts to call refreshBackendToken(), and silently retries the original request upon success.
+Timeout: Enforces a strict 30-second timeout on requests using AbortController timeout hooks.
+
+
+
+Backend Architecture
+The QuantAI India backend is built on FastAPI, running asynchronously via Uvicorn, and backed by a Celery background worker pool and a DragonflyDB caching layer.
+
+High-Level Application Layout
+
+                        ┌────────────────────────┐
+                        │      FastAPI App       │
+                        │      (main.py)         │
+                        └───────────┬────────────┘
+                                    │ (Registers)
+            ┌───────────────────────┼──────────────────────┐
+            ▼                       ▼                      ▼
+┌───────────────────────┐ ┌───────────────────┐ ┌─────────────────────┐
+│      Middlewares      │ │    API Routers    │ │    Startup Tasks    │
+│  - CORS (Config)      │ │   - /api/auth     │ │  (asyncio task)     │
+│  - Observability      │ │   - /api/trading  │ │  - MarketOrchestrat │
+│  - Correlation ID     │ │   - /api/heatmap  │ │  - BreakoutService  │
+│  - Metrics Scraper    │ │   - /api/scanner  │ │  - SectorService    │
+└───────────────────────┘ └───────────────────┘ └─────────────────────┘
+Router & Middleware Registrations
+main.py
+ registers:
+
+Middlewares:
+CORSMiddleware with dynamically resolved origins.
+Observability Middleware: Automatically measures endpoint execution times, intercepts incoming request payloads, injects a unique correlation ID into HTTP headers, and reports latency to Prometheus metrics.
+Routers: Over 17 domain routers mounted under the /api prefix.
+Exception Handlers: Standard handlers formatting database connection errors, ValidationErrors, and general exceptions into consistent JSON error responses.
+Startup Sequence (Background Services)
+Upon application startup (@app.on_event("startup")), FastAPI registers and kicks off 5 background tasks:
+
+MarketDataOrchestrator.start(): Periodically synchronizes live feeds, manages WebSocket fallbacks, and writes tick buffers to cache.
+start_nifty100_ranking_service(): Ranks top Nifty 100 movers and updates rankings every 30 seconds.
+start_sector_service(): Calculates aggregate sector relative-strength metrics.
+start_realtime_breakout_service(): Scans for 52-week highs and momentum breakouts.
+RealtimeScannerEngine.initialize(): Restores scanner states, pulls cached tickers, and registers callbacks.
+Note: In SAFE_MODE, blocking initialization tasks are bypassed to ensure rapid container boot times.
+
+Caching Strategy (DragonflyDB)
+DragonflyDB is used as the high-performance cache broker. The cache client is defined in 
+cache.py
+ and 
+dragonfly_client.py
+:
+
+Cache TTL Policies:
+qai:tick:{symbol}: Tick cache, TTL = 60s.
+indicator:{symbol}: Technical indicators, TTL = 5s.
+heatmap:{mode}:{timeframe}: Page level performance, TTL = 30s.
+Cache Decorator: A custom @cache_decorator wraps service methods to automatically serialize and cache query outputs using JSON hashing.
+Fail-Fast Policy: In production, the client enforces a strict fail-fast policy with no in-memory fallbacks if the Dragonfly container becomes unavailable, preventing stale/inconsistent data states.
+Worker & Task Queue Architecture
+Background tasks are handled by Celery via 
+celery_app.py
+:
+
+Broker & Backend: DragonflyDB (redis://dragonfly:6379/1).
+Pre-fetch Configuration: Prefetch multiplier is restricted to 1 to guarantee fair task distribution among workers during long backtest runs.
+Memory Leak Protection: Each worker process is automatically recycled after executing 50 tasks or when reaching a 512MB RSS memory threshold.
+Acks Late: Enabled to ensure tasks are only acknowledged after completion. If a worker container crashes during execution, the task is safely rescheduled back into the queue.
+Scheduled Tasks (Celery Beat):
+sync_institutional_flows: Parses block/bulk deals daily.
+run_signal_bot: Runs the quantitative signal bot at market open (9:20 AM IST) and close (3:40 PM IST).
+
+
+
+
+Database Design & Schema
+QuantAI India utilizes PostgreSQL as the primary relational database, supporting both asynchronous query execution (asyncpg for API requests) and synchronous connection pooling (psycopg2 for Celery background tasks).
+
+Entity Relationship (ER) Summary
+
+                      ┌──────────────────────┐
+                      │        users         │
+                      │  - id (PK)           │
+                      │  - email             │
+                      │  - username          │
+                      │  - subscription_lvl  │
+                      └──────────┬───────────┘
+            ┌────────────────────┼───────────────────┐
+            ▼                    ▼                   ▼
+┌──────────────────────┐ ┌──────────────┐ ┌──────────────────────┐
+│  saas_subscriptions  │ │  watchlist   │ │        orders        │
+│  - user_id (FK)      │ │ - user_id(FK)│ │  - user_id (FK)      │
+│  - plan_name         │ │ - symbol     │ │  - symbol            │
+│  - status            │ └──────────────┘ │  - quantity, price   │
+└──────────────────────┘                  └──────────────────────┘
+                      ┌──────────────────────┐
+                      │  instrument_master   │
+                      │  - instrument_id (PK)│
+                      │  - symbol (Index)    │
+                      │  - sector            │
+                      └──────────┬───────────┘
+                                 │ (1-to-Many)
+                                 ▼
+                      ┌──────────────────────┐
+                      │     stock_candle     │
+                      │  - instrument_id (FK)│
+                      │  - timeframe (PK)    │
+                      │  - candle_ts (PK)    │
+                      │  - OHLCV numeric     │
+                      └──────────────────────┘
+Core Table Schemas
+1. instrument_master
+Contains the master reference list of all traded instruments. Used to resolve symbols to unique exchange instrument keys.
+
+instrument_id (BigInteger, Primary Key)
+instrument_key (String 100, Unique Index) - E.g. NSE_EQ|RELIANCE
+symbol (String 20, Index) - E.g. RELIANCE
+series (String 10) - E.g. EQ
+exchange (String 10) - E.g. NSE
+company_name (Text)
+sector (Text)
+isin_code (String 20)
+is_active (Boolean)
+Constraints: Unique constraint uq_instrument on (symbol, series, exchange).
+2. stock_candle
+A massive, high-throughput table storing OHLCV candles across multiple timeframes.
+
+instrument_id (BigInteger, Foreign Key references instrument_master, Primary Key)
+timeframe (SmallInteger, Primary Key) - Minutes: 1, 5, 15, 30, 60, 1440 (Daily)
+candle_ts (DateTime, Primary Key) - UTC Timestamp
+open / high / low / close (Numeric 12, 4) - High-precision decimals
+volume (BigInteger)
+Indexes: Composite index idx_candle_lookup on (instrument_id, timeframe, candle_ts).
+Partitioning Strategy: Monthly range partitioning based on candle_ts to keep indexes shallow and enable fast data purging.
+3. precomputed_indicators
+Stores technical indicators updated by daily cron jobs, avoiding on-demand calculation during screening.
+
+symbol (String 20, Primary Key)
+interval (String 10, Primary Key)
+timestamp (DateTime, Primary Key)
+rsi_14 / roc_10 / roc_20 (Float)
+macd / macd_signal / macd_histogram (Float)
+atr_14 / adx_14 / cci_20 (Float)
+bollinger_h / bollinger_l (Float)
+momentum_score (Float, Index)
+Constraints: Unique constraint uq_indicator_symbol_interval_ts on (symbol, interval, timestamp).
+4. vcp_scores
+Persists Volatility Contraction Pattern metrics computed by background screening workers.
+
+symbol (String 20, Unique Index)
+current_price (Float)
+vcp_score (Float) - Volatility Contraction Score (0–100)
+num_contractions (Integer) - Number of visual contraction waves
+latest_contraction_pct (Float)
+volume_dry_up_pct (Float)
+breakout_pivot (Float)
+5. darvas_boxes
+Tracks consolidation ranges defined by Nicolas Darvas theory.
+
+symbol (String 20, Unique Index)
+box_top (Float) - Resistance ceiling
+box_bottom (Float) - Support floor
+days_inside_box (Integer)
+breakout_status (String 50) - E.g. Inside Box, Bullish Breakout
+Indexing & Partitioning Optimization
+Partition Pruning: The stock_candle table is partitioned monthly on the candle_ts column. Query planner uses partition pruning to scan only the active month's partition when querying live intraday tickers.
+Composite Keys: Composite primary key (instrument_id, timeframe, candle_ts) serves as a clustered index structure, optimizing range-scans (fetching a history of daily candles for a stock) so that data is physically ordered on disk by symbol and timestamp.
+Index Cleanup: Standard b-tree indexes are set on foreign keys (user_id, instrument_id) to prevent table locks during cascades, and on frequently sorted metrics like momentum_score to optimize API sorting.
+
+
+
+Database Design & Schema
+QuantAI India utilizes PostgreSQL as the primary relational database, supporting both asynchronous query execution (asyncpg for API requests) and synchronous connection pooling (psycopg2 for Celery background tasks).
+
+Entity Relationship (ER) Summary
+
+                      ┌──────────────────────┐
+                      │        users         │
+                      │  - id (PK)           │
+                      │  - email             │
+                      │  - username          │
+                      │  - subscription_lvl  │
+                      └──────────┬───────────┘
+            ┌────────────────────┼───────────────────┐
+            ▼                    ▼                   ▼
+┌──────────────────────┐ ┌──────────────┐ ┌──────────────────────┐
+│  saas_subscriptions  │ │  watchlist   │ │        orders        │
+│  - user_id (FK)      │ │ - user_id(FK)│ │  - user_id (FK)      │
+│  - plan_name         │ │ - symbol     │ │  - symbol            │
+│  - status            │ └──────────────┘ │  - quantity, price   │
+└──────────────────────┘                  └──────────────────────┘
+                      ┌──────────────────────┐
+                      │  instrument_master   │
+                      │  - instrument_id (PK)│
+                      │  - symbol (Index)    │
+                      │  - sector            │
+                      └──────────┬───────────┘
+                                 │ (1-to-Many)
+                                 ▼
+                      ┌──────────────────────┐
+                      │     stock_candle     │
+                      │  - instrument_id (FK)│
+                      │  - timeframe (PK)    │
+                      │  - candle_ts (PK)    │
+                      │  - OHLCV numeric     │
+                      └──────────────────────┘
+Core Table Schemas
+1. instrument_master
+Contains the master reference list of all traded instruments. Used to resolve symbols to unique exchange instrument keys.
+
+instrument_id (BigInteger, Primary Key)
+instrument_key (String 100, Unique Index) - E.g. NSE_EQ|RELIANCE
+symbol (String 20, Index) - E.g. RELIANCE
+series (String 10) - E.g. EQ
+exchange (String 10) - E.g. NSE
+company_name (Text)
+sector (Text)
+isin_code (String 20)
+is_active (Boolean)
+Constraints: Unique constraint uq_instrument on (symbol, series, exchange).
+2. stock_candle
+A massive, high-throughput table storing OHLCV candles across multiple timeframes.
+
+instrument_id (BigInteger, Foreign Key references instrument_master, Primary Key)
+timeframe (SmallInteger, Primary Key) - Minutes: 1, 5, 15, 30, 60, 1440 (Daily)
+candle_ts (DateTime, Primary Key) - UTC Timestamp
+open / high / low / close (Numeric 12, 4) - High-precision decimals
+volume (BigInteger)
+Indexes: Composite index idx_candle_lookup on (instrument_id, timeframe, candle_ts).
+Partitioning Strategy: Monthly range partitioning based on candle_ts to keep indexes shallow and enable fast data purging.
+3. precomputed_indicators
+Stores technical indicators updated by daily cron jobs, avoiding on-demand calculation during screening.
+
+symbol (String 20, Primary Key)
+interval (String 10, Primary Key)
+timestamp (DateTime, Primary Key)
+rsi_14 / roc_10 / roc_20 (Float)
+macd / macd_signal / macd_histogram (Float)
+atr_14 / adx_14 / cci_20 (Float)
+bollinger_h / bollinger_l (Float)
+momentum_score (Float, Index)
+Constraints: Unique constraint uq_indicator_symbol_interval_ts on (symbol, interval, timestamp).
+4. vcp_scores
+Persists Volatility Contraction Pattern metrics computed by background screening workers.
+
+symbol (String 20, Unique Index)
+current_price (Float)
+vcp_score (Float) - Volatility Contraction Score (0–100)
+num_contractions (Integer) - Number of visual contraction waves
+latest_contraction_pct (Float)
+volume_dry_up_pct (Float)
+breakout_pivot (Float)
+5. darvas_boxes
+Tracks consolidation ranges defined by Nicolas Darvas theory.
+
+symbol (String 20, Unique Index)
+box_top (Float) - Resistance ceiling
+box_bottom (Float) - Support floor
+days_inside_box (Integer)
+breakout_status (String 50) - E.g. Inside Box, Bullish Breakout
+Indexing & Partitioning Optimization
+Partition Pruning: The stock_candle table is partitioned monthly on the candle_ts column. Query planner uses partition pruning to scan only the active month's partition when querying live intraday tickers.
+Composite Keys: Composite primary key (instrument_id, timeframe, candle_ts) serves as a clustered index structure, optimizing range-scans (fetching a history of daily candles for a stock) so that data is physically ordered on disk by symbol and timestamp.
+Index Cleanup: Standard b-tree indexes are set on foreign keys (user_id, instrument_id) to prevent table locks during cascades, and on frequently sorted metrics like momentum_score to optimize API sorting.
+
+
+API Documentation & Inventory
+This document outlines the core public and authenticated endpoints exposed by the QuantAI India FastAPI application.
+
+Authentication Overview
+Public Endpoints: /health, /ready, /metrics, /api/auth/signup, /api/auth/login, /api/trading/market-indices.
+Authenticated Endpoints: All other endpoints require a Firebase ID token passed in the header as: Authorization: Bearer <firebase_token>
+API Catalog
+1. Authentication Module
+POST /api/auth/signup
+Purpose: Creates a new user profile in the local database.
+Request Body:
+json
+
+{
+  "email": "user@example.com",
+  "password": "securepassword",
+  "username": "user123",
+  "full_name": "John Doe"
+}
+Response: 201 Created with created user metadata.
+POST /api/auth/firebase-login
+Purpose: Synchronizes a Firebase client session, generates a local session token, and returns user details.
+Request Headers: Requires Bearer Firebase Token.
+Response:
+json
+
+{
+  "status": "success",
+  "user": {
+    "email": "user@example.com",
+    "subscription_level": "FREE",
+    "is_active": true
+  }
+}
+2. Market Data & Analytics Module
+GET /api/trading/market-indices
+Purpose: Returns real-time or cached quotes for NIFTY 50, BANK NIFTY, and INDIA VIX.
+Response:
+json
+
+[
+  {
+    "name": "NIFTY 50",
+    "value": 23643.5,
+    "change": -46.1,
+    "percent": -0.19,
+    "source": "database",
+    "stale": true
+  }
+]
+GET /api/heatmap
+Purpose: Returns sector-grouped, market-cap weighted treemap hierarchy data for Nifty 500 stocks.
+Query Parameters:
+mode (string): performance (default), volatility, momentum, delivery, relative_strength.
+timeframe (string): 1D, 1W, 1M, 3M, 6M, 1Y.
+Response:
+json
+
+{
+  "status": "success",
+  "mode": "performance",
+  "timeframe": "1D",
+  "sectors": [
+    {
+      "name": "Bank",
+      "avg_value": 0.52,
+      "total_market_cap": 85000000000.0,
+      "stocks": [
+        {
+          "symbol": "HDFCBANK",
+          "name": "HDFC Bank Limited",
+          "price": 1450.2,
+          "market_cap": 11000000000.0,
+          "change_pct": 1.25,
+          "value": 1.25
+        }
+      ]
+    }
+  ]
+}
+GET /api/volume-profile
+Purpose: Returns Point of Control (POC), Value Area High (VAH), and Value Area Low (VAL) volume histograms.
+Query Parameters:
+symbol (string): Stock symbol (e.g. RELIANCE).
+lookback (integer): Number of daily candles to parse (e.g. 30).
+Response:
+json
+
+{
+  "symbol": "RELIANCE",
+  "poc_price": 2420.0,
+  "vah_price": 2450.0,
+  "val_price": 2380.0,
+  "profile_bins": [
+    {"price": 2400.0, "volume": 125000, "is_poc": false, "in_value_area": true}
+  ]
+}
+3. AI & Backtesting Module
+POST /api/ai/prompt
+Purpose: Evaluates a conversational prompt with Gemini LLM context injected with current market states.
+Request Body:
+json
+
+{
+  "prompt": "Analyze RELIANCE structure and recommend trade setups."
+}
+Response:
+json
+
+{
+  "response": "Reliance is showing a VCP consolidation with 3 contractions...",
+  "referenced_symbols": ["RELIANCE"],
+  "verdict": "BULLISH"
+}
+POST /api/backtest/run
+Purpose: Submits a backtest configuration to the Celery worker queue.
+Request Body:
+json
+
+{
+  "strategy_name": "EMA_Cross",
+  "symbols": ["RELIANCE", "TCS"],
+  "timeframe": "1d",
+  "start_date": "2025-01-01",
+  "end_date": "2026-01-01",
+  "parameters": {"fast_ema": 20, "slow_ema": 50}
+}
+Response:
+json
+
+{
+  "task_id": "87b0a8-826e-4eda-abd7-a4b2b1755807",
+  "status": "QUEUED"
+}
+
+
+
+Data Flow Analysis
+This document describes the flow of data within the QuantAI India application, including client request lifecycles, real-time WebSocket ticks, and background ETL pipelines.
+
+1. User Request Flow (REST API)
+
+[Browser Client] 
+      │ 1. HTTP Request (with Firebase JWT Token)
+      ▼
+[Nginx Gateway] 
+      │ 2. Route Matching & TLS Termination (Forward to backend:8000)
+      ▼
+[FastAPI Router] 
+      │ 3. Setup correlation ID, run Auth dependency, check authorization
+      ▼
+[Business Service] 
+      │ 4. Read cache (Dragonfly) first; if miss, execute SQL query
+      ▼
+[PostgreSQL Database] (or Dragonfly Cache)
+      │ 5. Returns query results
+      ▼
+[Business Service] 
+      │ 6. Process calculations (e.g. Pandas/Numpy matrices)
+      ▼
+[FastAPI Router] 
+      │ 7. Serialize Pydantic model, register response metrics
+      ▼
+[Browser Client] (Renders dashboard data)
+2. Real-Time WebSocket Streaming Flow
+
+[Upstox WebSocket Server]
+             │
+             │ 1. Stream binary Protobuf tick packets
+             ▼
+[UpstoxWSManager (Background Worker)]
+             │
+             │ 2. Decode Protobuf byte arrays into structured dictionaries
+             ▼
+[DragonflyDB Cache] (SET key `qai:snap:{symbol}`)
+             │
+             │ 3. PUBLISH event to channel `qai:channel:ticks`
+             ▼
+[FastAPI WebSocket Router] (Subscribed to Dragonfly channel)
+             │
+             │ 4. Receives event notification in async loop
+             ▼
+[Web Browser Client] (Pushed via WS frame)
+             │
+             │ 5. Hydrates Lightweight Charts (updates latest candle)
+             ▼
+      [UI Chart Panel]
+3. End-Of-Day (EOD) Ingestion & ETL Flow
+
+ [Celery Beat Scheduler]
+            │
+            │ 1. Triggers daily tasks at 3:40 PM IST (post-market)
+            ▼
+   [Celery Worker Pool]
+   ┌────────┴────────┐
+   │                 │ 2. Download NSE Bhavcopy & yfinance fallback
+   ▼                 ▼
+[NSE CSV Files]   [yfinance Tickers]
+   │                 │
+   └────────┬────────┘
+            │ 3. Parse data, filter active symbols, cast decimals
+            ▼
+   [stock_candle DB Table] (Inserts daily candles, Partition pruning active)
+            │
+            │ 4. Enqueues `PrecomputeIndicators` job
+            ▼
+[IndicatorComputeWorker] (Calculates RSI, MACD, Contractions in multiprocessing pool)
+            │
+            │ 5. Writes to `precomputed_indicators` table
+            ▼
+   [DragonflyDB Cache] (Warms up scanners and sector heatmap caches)
+
+
+
+ecurity Review
+This document contains an audit of the security posture, authentication protocols, secrets encryption mechanisms, and a register of identified vulnerabilities in the QuantAI India platform.
+
+Authentication & Authorization
+Protocol: Single Sign-On (SSO) backed by Firebase Authentication.
+Client Side: Handled by the Firebase JS Client SDK. Users log in via Google OAuth or Email/Password, producing a Firebase ID Token (JWT).
+Backend Verification:
+Every protected API route depends on get_current_user in 
+auth.py
+ or 
+api.ts
+.
+The JWT is verified using the Firebase Admin SDK, ensuring token authenticity, expiration verification, and mapping token identifiers directly to local User rows in PostgreSQL.
+Secrets & Token Encryption Context
+To prevent plaintext exposure of highly sensitive broker API keys (e.g. Upstox Access Tokens), the database schema utilizes Fernet Symmetric Cryptography.
+
+EncryptedString Decorator: Defined in 
+database.py
+.
+Encryption Key: Loaded via TOKEN_ENCRYPTION_KEY from the environment.
+Behavior:
+When saving broker credentials, SQLAlchemy calls encrypt_token(), transforming the token byte stream using AES-128 in CBC mode with an HMAC-SHA256 signature.
+When reading credentials, the value is decrypted back into plaintext transparently via decrypt_token(). If the environment key is missing or corrupted, a fallback warning is logged, and decryption fails gracefully.
+Security Vulnerability Register
+1. SQL Injection Vulnerability in Feature Store (Severity: CRITICAL)
+Location: backend/services/feature_store.py:93-99
+Description: The DuckDB SQL query is built dynamically using Python f-strings. A malicious actor could supply a manipulated list of symbols that executes arbitrary SQL statements inside the local file database.
+Risk: Potential data extraction or corruption of Parquet datasets.
+Mitigation: Refactor the query to use parameterized bindings (? or named parameters) instead of string formatting.
+2. Overly Permissive CORS Configuration (Severity: HIGH)
+Location: backend/main.py:32
+Description: The FastAPI app registers allow_origins=["*"] when local config is loose. This permits any external web page to execute Cross-Origin Requests against the backend.
+Risk: Cross-Origin resource leaks if API tokens are hijacked.
+Mitigation: Restrict allowed origins to specific domains (e.g., https://quantai-app.com) loaded from the .env settings.
+3. Arbitrary Code Execution via Pickled ML Models (Severity: HIGH)
+Location: backend/ml/ensemble.py:194
+Description: Model ensemble files are loaded from the filesystem using joblib.load() (which relies on Python pickle).
+Risk: If a malicious model file is uploaded to the workspace directories, loading it will trigger arbitrary Python execution on the host server.
+Mitigation: Transition from standard pickle/joblib files to tensor serialization libraries (like safetensors or ONNX) for deep learning models, or sign model checksums using SHA-256.
+4. Hardcoded Secrets in Infrastructure Config (Severity: MEDIUM)
+Location: docker-compose.yml
+Description: Database passwords (postgres:admin) and Grafana administrator credentials are stored as hardcoded, plain text environment values.
+Risk: Credentials exposure if the compose file is committed to public git repositories.
+Mitigation: Use Docker Secrets or load credentials via external environment files (.env) excluded from version control.
+
+
+Performance Review & Optimizations
+This document audits the performance profile of the QuantAI India system, details the critical bottlenecks resolved in this session, and registers outstanding performance issues.
+
+Resolved Performance Bottlenecks
+1. Market Indices Timeout Fix (Latency: ~15s → <0.2s)
+Vulnerability: The get_market_indices() call used yfinance as a fallback which took up to 15s to time out inside Docker (since Yahoo Finance blocks container IPs). During this period, the REST API blocked, preventing the DB fallback step from executing before the client aborted the connection at 15s.
+Resolution:
+Reduced yfinance internal download timeout from 15s to 2.5s.
+Wrapped Upstox REST calls and yfinance calls in asyncio.wait_for wrappers (timeouts set to 3.5s and 3.0s respectively).
+The endpoint now fails fast and immediately resolves to database EOD data in less than 200 milliseconds.
+2. Sector Heatmap Partition Scanning (Latency: >30s → 24ms)
+Vulnerability: The sector heatmap query used a heavy CTE with a window function ROW_NUMBER() OVER (PARTITION BY instrument_id ORDER BY candle_ts DESC) without a date range filter on stock_candle. This triggered full-table scans across all monthly partitions, completely locking database resources.
+Resolution:
+Dynamically query the latest candle_ts in the database (takes 0.07s).
+Calculate a dynamic :cutoff_date relative to this timestamp (e.g. subtracting 25 calendar days for a 1D timeframe).
+Injected AND candle_ts >= :cutoff_date into the CTE table scan. This enables partition pruning and forces PostgreSQL to execute index scans on (instrument_id, timeframe, candle_ts).
+3. Heatmap Live Price Hydration (Latency: 1.8s → <1.4s)
+Vulnerability: The heatmap enriches daily prices with live quotes via Upstox for 438 symbols. The previous code queried Upstox sequentially in 9 separate HTTP requests (batches of 50), taking over 1.8 seconds.
+Resolution:
+Parallelized the 9 batch requests using asyncio.gather.
+Added an asyncio.wait_for timeout of 3.5s around the gather to ensure that if Upstox is rate-limited or degraded, the API immediately falls back to database EOD prices without timing out.
+Outstanding Performance Risks
+1. Monolithic In-Process Backtesting (Severity: HIGH)
+Location: core/backtest/engine.py
+Issue: Backtesting is executed synchronously inside a bar-by-bar Python loop. For every bar index, the engine calls get_history(lookback=200) which creates a copy of the Pandas Dataframe. This limits throughput to 500–2000 bars/sec.
+Recommendation: Precompute indicators prior to loop entry and use index-based slicing (using numpy arrays) rather than DataFrame copies, raising throughput to 100,000+ bars/sec.
+2. Sync ML Training on Inference Paths (Severity: HIGH)
+Location: ml/predictor.py:94
+Issue: If the ensemble predictor is called and no pre-trained model file exists, the inference code calls model.train() synchronously inside the request thread. This blocks the ASGI worker for 30–60 seconds, timing out the client.
+Recommendation: If no model file exists, return 503 Service Unavailable with a Retry-After header, and enqueue a background training task to the Celery worker queue.
+
+Scalability Review & Roadmap
+This document outlines the current capacity limits, scaling bottlenecks, and a multi-stage roadmap to scale QuantAI India to 1,000,000 concurrent users.
+
+Current Capacity (Single Server)
+Concurrent API Requests: ~50–100 requests/sec.
+Concurrent WebSockets: ~20 active feeds.
+Data Ingestion Universe: 439 symbols.
+Database Limits: Max 60 connections (without PgBouncer active).
+Compute Capability: In-process training/backtesting blocks workers.
+Scaling Roadmaps & Milestones
+Milestone 1: 1,000 Users (Stabilization & Decoupling)
+PgBouncer Connection Pooling: Enable PgBouncer in transaction mode to pool and compress database client connection overhead.
+Background Backtesting Queue: Decouple backtesting execution from Uvicorn request loops. Send requests to Celery background tasks hosted on DragonflyDB.
+WebSocket Pub/Sub Conversion: Transition from pull-based WebSocket queries (polling Redis every 1s) to push-based DragonflyDB Pub/Sub subscriptions.
+Milestone 2: 10,000 Users (Read-Write Isolation)
+Read Replicas: Set up two read replicas of the PostgreSQL primary database. Routes like heatmap (GET /api/heatmap) and indicators are directed to get_read_db(), leaving the primary database for orders and user state writes.
+Caching Layer Clustering: Set up a DragonflyDB Primary/Replica pair, separating cache read requests from ingestion writes.
+Milestone 3: 100,000 Users (Cloud-Native Orchestration)
+Kubernetes Migration: Port the Docker Compose architecture to Kubernetes (manifests defined in /kubernetes).
+Autoscaling (HPA): Define Horizontal Pod Autoscalers targeting CPU (>70%) and queue depth, scaling FastAPI instances dynamically (min: 3, max: 25 pods).
+Database Partitioning by Timeframe: Partition the partitioned stock_candle table by timeframe (e.g. creating distinct partitions for 1m, 5m, and daily candles) to keep indexes compact.
+Milestone 4: 1,000,000 Users (Distributed Streaming & Sharding)
+Distributed Database Sharding: Migrate from standard Postgres to Citus or TimescaleDB, sharding data nodes horizontally by instrument_id.
+Event-Driven Streaming (Apache Kafka): Replace the direct Upstox ingestion worker with a Kafka cluster. Ingest ticks into Kafka topics (ticks-raw), and deploy specialized consumers (e.g. indicator-processor, vcp-scanner) in parallel.
+Columnar Analytics (Apache Iceberg): Replace the flat Parquet files in local storage with Apache Iceberg tables stored on S3/GCS, managed by a DuckDB/Athena query engine.
+
+
+
+Deployment Architecture
+QuantAI India is designed as a containerized stack that can run locally via Docker Compose or scale in a production cluster using Kubernetes.
+
+Docker Compose Orchestration (Local/Single-VM)
+The 
+docker-compose.yml
+ configures 7 core services running in a bridge network:
+
+quantai-frontend:
+Image: Built from Dockerfile.frontend.
+Engine: Nginx reverse proxy serving static React Vite assets.
+Port: Maps port 3000 on the host to port 80 inside the container.
+quantai-backend:
+Image: Built from Dockerfile in /backend.
+Engine: FastAPI running via Uvicorn (binds to port 8000).
+quantai-dragonfly:
+Image: docker.dragonflydb.io/dragonflydb/dragonfly.
+Engine: High-throughput in-memory cache and Celery broker. Binds to 6379.
+quantai-worker:
+Image: Custom Celery worker image.
+Engine: Executes backtesting tasks, indicator precomputation, and signal bot runs.
+quantai-prometheus:
+Image: prom/prometheus:latest.
+Engine: Collects time-series system metrics from the backend /metrics endpoint.
+quantai-grafana:
+Image: grafana/grafana:latest.
+Engine: Visualization dashboard accessible at port 3001.
+quantai-redis-exporter:
+Image: oliver006/redis_exporter.
+Engine: Scrapes DragonflyDB engine statistics and exports them to Prometheus on port 9121.
+Production Deployment Topology
+
+                       [Internet Traffic]
+                               │
+                               ▼
+                    [Nginx Ingress / ALB]
+                               │
+            ┌──────────────────┴──────────────────┐ (SSL/TLS terminated)
+            ▼                                     ▼
+   [React Frontend Pods]                 [FastAPI Backend Pods]
+   (Nginx Static Server)                 (ASGI Application Servers)
+                                                  │
+            ┌──────────────────┬──────────────────┼──────────────────┐
+            ▼                  ▼                  ▼                  ▼
+      [Celery Workers]   [PgBouncer Pool]  [Dragonfly Cluster] [S3 Bucket]
+    (Compute Task Nodes)       │           (Redis Cache Nodes) (Parquet Data)
+                               ▼
+                      [Postgres DB Node]
+Observability & Metrics Scraper
+RED Method Metrics: The backend /metrics endpoint collects:
+Rate: Request counters per route, method, and HTTP status code.
+Errors: 5xx server exceptions and network timeouts.
+Duration: Execution latencies histogram.
+Monitoring Exporters:
+The redis_exporter scrapes memory usage, connected clients, hit/miss ratios, and CPU load of DragonflyDB.
+Prometheus consolidates these metrics every 15 seconds.
+Grafana imports dashboards to visualize latencies and memory growth.
+

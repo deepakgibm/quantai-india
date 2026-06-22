@@ -6,7 +6,7 @@ Tables auto-create via SQLAlchemy Base.metadata.create_all().
 """
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Text, Boolean, DateTime, JSON,
+    Column, Integer, String, Float, Text, DateTime, JSON,
     ForeignKey, Index
 )
 from datetime import datetime

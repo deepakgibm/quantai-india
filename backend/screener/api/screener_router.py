@@ -7,7 +7,7 @@ All endpoints require authentication.
 
 import logging
 from datetime import date, datetime
-from typing import Optional, List, Union
+from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel

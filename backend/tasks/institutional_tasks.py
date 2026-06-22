@@ -1,7 +1,5 @@
 from celery_app import celery_app
 from etl.institutional_tracker import run_institutional_sync
-from database import sync_engine
-from sqlalchemy.orm import Session as SyncSession
 from screener.services.screener_service import ScreenerService
 import asyncio
 import logging

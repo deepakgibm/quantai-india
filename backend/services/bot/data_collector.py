@@ -12,7 +12,6 @@ import csv
 import logging
 import asyncio
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
@@ -164,7 +163,7 @@ class DataCollector:
 
     async def fetch_nifty50_history(self, days: int = 90) -> pd.DataFrame:
         """
-        Fetch NIFTY 50 index historical daily candles from Upstox.
+        Fetch NIFTY 50 index historical daily candles from PostgreSQL database.
         
         Args:
             days: Number of calendar days to fetch
@@ -172,31 +171,48 @@ class DataCollector:
         Returns:
             DataFrame with columns: timestamp, open, high, low, close, volume
         """
-        from services.upstox_client import get_upstox_client
+        from sqlalchemy import text
+        from database import AsyncSessionLocal
 
-        client = get_upstox_client()
-        to_date = datetime.now()
-        from_date = to_date - timedelta(days=days)
+        cutoff_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
         try:
-            df = await client.get_historical_data(
-                symbol="NIFTY 50",
-                instrument_key=self.NIFTY50_INSTRUMENT_KEY,
-                from_date=from_date,
-                to_date=to_date,
-                interval="day"
-            )
+            async with AsyncSessionLocal() as session:
+                query = text("""
+                    SELECT sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE im.symbol = 'NIFTY 50'
+                      AND sc.timeframe = 1440
+                      AND sc.candle_ts >= :cutoff
+                    ORDER BY sc.candle_ts ASC
+                """)
+                result = await session.execute(query, {"cutoff": cutoff_date})
+                rows = result.fetchall()
 
-            if df.empty:
-                logger.warning("No NIFTY 50 index data returned from Upstox")
+            if not rows:
+                logger.warning("No NIFTY 50 index data returned from DB")
                 return pd.DataFrame()
 
+            records = []
+            for row in rows:
+                records.append({
+                    "timestamp": row[0],
+                    "open": float(row[1]) if row[1] else 0.0,
+                    "high": float(row[2]) if row[2] else 0.0,
+                    "low": float(row[3]) if row[3] else 0.0,
+                    "close": float(row[4]) if row[4] else 0.0,
+                    "volume": int(row[5]) if row[5] else 0,
+                })
+
+            df = pd.DataFrame(records)
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
             df = df.sort_values("timestamp").reset_index(drop=True)
-            logger.info(f"Fetched {len(df)} days of NIFTY 50 data")
+            logger.info(f"Loaded {len(df)} days of NIFTY 50 data from DB")
             return df
 
         except Exception as e:
-            logger.error(f"Error fetching NIFTY 50 history: {e}")
+            logger.error(f"Error fetching NIFTY 50 history from DB: {e}")
             return pd.DataFrame()
 
     async def fetch_stock_data_from_db(self, days: int = 90) -> Dict[str, pd.DataFrame]:
@@ -215,11 +231,12 @@ class DataCollector:
         try:
             async with AsyncSessionLocal() as session:
                 query = text("""
-                    SELECT symbol, timestamp, open, high, low, close, volume
-                    FROM stock_candle
-                    WHERE timeframe = '1d'
-                      AND timestamp >= :cutoff
-                    ORDER BY symbol, timestamp
+                    SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE sc.timeframe = 1440
+                      AND sc.candle_ts >= :cutoff
+                    ORDER BY im.symbol, sc.candle_ts
                 """)
                 result = await session.execute(query, {"cutoff": cutoff_date})
                 rows = result.fetchall()
@@ -236,10 +253,10 @@ class DataCollector:
                     data_by_symbol[sym] = []
                 data_by_symbol[sym].append({
                     "timestamp": row[1],
-                    "open": float(row[2]) if row[2] else 0,
-                    "high": float(row[3]) if row[3] else 0,
-                    "low": float(row[4]) if row[4] else 0,
-                    "close": float(row[5]) if row[5] else 0,
+                    "open": float(row[2]) if row[2] else 0.0,
+                    "high": float(row[3]) if row[3] else 0.0,
+                    "low": float(row[4]) if row[4] else 0.0,
+                    "close": float(row[5]) if row[5] else 0.0,
                     "volume": int(row[6]) if row[6] else 0,
                 })
 
@@ -260,42 +277,110 @@ class DataCollector:
         self, instrument_keys: List[str], batch_size: int = 50
     ) -> Dict[str, Dict]:
         """
-        Fetch live market quotes in batches.
+        Fetch live market quotes from Dragonfly cache with DB fallback.
         
         Args:
             instrument_keys: List of Upstox instrument keys
-            batch_size: Number of keys per API call (Upstox limit)
+            batch_size: Not used (maintained for backward compatibility)
             
         Returns:
             Dict mapping instrument_key → quote data
         """
-        from services.upstox_client import get_upstox_client
+        from database import SessionLocal
+        from sqlalchemy import text
+        from services.dragonfly_client import get_cache
+        import json
 
-        client = get_upstox_client()
+        if not instrument_keys:
+            return {}
+
         all_quotes: Dict[str, Dict] = {}
 
-        # Split into batches
-        batches = [
-            instrument_keys[i : i + batch_size]
-            for i in range(0, len(instrument_keys), batch_size)
-        ]
+        # 1. Resolve instrument keys to symbols using the DB
+        ik_to_symbol = {}
+        try:
+            with SessionLocal() as session:
+                res = session.execute(text(
+                    "SELECT instrument_key, symbol FROM instrument_master "
+                    "WHERE instrument_key = ANY(:keys)"
+                ), {"keys": instrument_keys})
+                for row in res:
+                    if row[0] and row[1]:
+                        ik_to_symbol[row[0].strip()] = row[1].strip()
+        except Exception as e:
+            logger.warning(f"Failed to resolve instrument keys to symbols in fetch_live_quotes: {e}")
 
-        for i, batch in enumerate(batches):
+        # 2. Query Dragonfly cache first
+        cache = get_cache()
+        if cache.is_available() and ik_to_symbol:
             try:
-                quotes = await client.get_live_quotes(batch)
-                all_quotes.update(quotes)
-                logger.debug(f"Fetched batch {i+1}/{len(batches)}: {len(quotes)} quotes")
+                symbols = list(ik_to_symbol.values())
+                keys_new = [f"price:{s}" for s in symbols]
+                keys_legacy = [f"qai:tick:{s}" for s in symbols]
                 
-                # Small delay between batches to respect rate limits
-                if i < len(batches) - 1:
-                    await asyncio.sleep(0.5)
+                cached_new = await cache.mget_async(keys_new)
+                cached_legacy = await cache.mget_async(keys_legacy)
+                
+                symbol_to_data = {}
+                for idx, symbol in enumerate(symbols):
+                    val = cached_new[idx] or cached_legacy[idx]
+                    if val:
+                        if isinstance(val, str):
+                            try:
+                                val = json.loads(val)
+                            except:
+                                pass
+                        symbol_to_data[symbol] = val
 
+                for ik, symbol in ik_to_symbol.items():
+                    val = symbol_to_data.get(symbol)
+                    if val:
+                        ltp = val.get("ltp") or val.get("last_price") or val.get("price")
+                        prev_close = val.get("prev_close") or val.get("previous_close") or ltp
+                        
+                        all_quotes[ik] = {
+                            "last_price": float(ltp) if ltp else 0.0,
+                            "previous_close": float(prev_close) if prev_close else 0.0,
+                            "volume": int(val.get("volume") or 0),
+                            "timestamp": val.get("timestamp")
+                        }
             except Exception as e:
-                logger.error(f"Error fetching quote batch {i+1}: {e}")
-                continue
+                logger.error(f"Failed to fetch live quotes from Dragonfly: {e}")
 
-        logger.info(f"Fetched {len(all_quotes)} live quotes total")
+        # 3. For any missing instrument keys, fall back to DB stock_candle daily close
+        missing_iks = [ik for ik in instrument_keys if ik not in all_quotes]
+        if missing_iks and ik_to_symbol:
+            try:
+                with SessionLocal() as session:
+                    for ik in missing_iks:
+                        symbol = ik_to_symbol.get(ik)
+                        if not symbol:
+                            continue
+                        # Query the 2 latest daily candles
+                        stmt = text("""
+                            SELECT sc.close, sc.candle_ts
+                            FROM stock_candle sc
+                            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                            WHERE im.symbol = :symbol AND sc.timeframe = 1440
+                            ORDER BY sc.candle_ts DESC
+                            LIMIT 2
+                        """)
+                        res = session.execute(stmt, {"symbol": symbol}).fetchall()
+                        if res:
+                            ltp = float(res[0][0])
+                            prev_close = float(res[1][0]) if len(res) > 1 else ltp
+                            all_quotes[ik] = {
+                                "last_price": ltp,
+                                "previous_close": prev_close,
+                                "volume": 0,
+                                "timestamp": res[0][1]
+                            }
+            except Exception as db_err:
+                logger.warning(f"Database fallback failed in fetch_live_quotes: {db_err}")
+
+        logger.info(f"Resolved {len(all_quotes)} live quotes via Cache/DB")
         return all_quotes
+
 
     async def fetch_stock_data_from_api(
         self,

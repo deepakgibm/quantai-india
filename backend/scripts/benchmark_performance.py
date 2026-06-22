@@ -1,7 +1,5 @@
 import time
-import pandas as pd
 import logging
-from typing import List
 import os
 import sys
 
@@ -9,7 +7,6 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from services.db_data_fetcher import get_db_data_fetcher
-from core.lake_dal import get_lake_dal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

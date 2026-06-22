@@ -1,7 +1,6 @@
 import asyncio
 import sys
 import os
-import json
 
 sys.path.append(os.path.abspath("backend"))
 

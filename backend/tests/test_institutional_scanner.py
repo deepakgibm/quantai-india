@@ -6,7 +6,6 @@ from sqlalchemy import text
 
 from database import SessionLocal
 from services.institutional_scanner_service import get_institutional_scanner_service
-from models_institutional_scanner import VcpScore, TrendTemplateScore, RelativeStrengthRanking
 
 @pytest.fixture
 def dummy_candle_data():

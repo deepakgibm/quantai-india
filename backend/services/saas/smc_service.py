@@ -3,11 +3,9 @@ Smart Money Concepts (SMC) Detection Service
 """
 
 import logging
-import random
 from datetime import datetime, timedelta
 from sqlalchemy.future import select
 from models_alpha import StockCandle, InstrumentMaster
-from database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 

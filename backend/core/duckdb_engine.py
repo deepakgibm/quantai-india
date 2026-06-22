@@ -1,7 +1,6 @@
 import duckdb
 import os
 import pandas as pd
-from typing import Optional, List, Dict
 import logging
 
 logger = logging.getLogger(__name__)
