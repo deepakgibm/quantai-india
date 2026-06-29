@@ -133,8 +133,35 @@ class AIProvider:
                 "timestamp": time.strftime("%Y-%m-%d"),
                 "score": 0.5
             })
-        if "recommendation" in prompt.lower() or "picks" in prompt.lower():
-            return '{"recommendations": [], "summary": "AI Recommendations are currently disabled."}'
+        if "recommendation" in prompt.lower() or "picks" in prompt.lower() or "trading advisor" in prompt.lower():
+            return json.dumps([
+                {
+                    "symbol": "RELIANCE",
+                    "name": "Reliance Industries Limited",
+                    "action": "BUY",
+                    "trade_type": "Short-Term",
+                    "price": 2450.0,
+                    "entry_price": 2440.0,
+                    "target_price": 2550.0,
+                    "stop_loss": 2390.0,
+                    "risk_reward": "1:2.2",
+                    "confidence": 85,
+                    "reason": "Strong breakout above 50 EMA with high volumes."
+                },
+                {
+                    "symbol": "TCS",
+                    "name": "Tata Consultancy Services Limited",
+                    "action": "BUY",
+                    "trade_type": "Weekly",
+                    "price": 3800.0,
+                    "entry_price": 3780.0,
+                    "target_price": 3950.0,
+                    "stop_loss": 3700.0,
+                    "risk_reward": "1:2.1",
+                    "confidence": 80,
+                    "reason": "SMC demand zone reaction. Momentum indicators bullish."
+                }
+            ])
         return "AI response mocked (Safe Mode)."
 
     def extract_json(self, text: str) -> Any:

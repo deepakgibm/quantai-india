@@ -9,8 +9,6 @@ from engine.strategy_engine import (
     BaseStrategy, StrategySignal, SignalType, 
     evaluate_all_strategies, get_registered_strategies, STRATEGIES
 )
-from engine.scanner_service import ScannerService, get_scanner_service, start_scanner_service, stop_scanner_service
-
 # Optional imports (may not be initialized on first load)
 try:
     from engine.mtf_coordinator import MTFContext, TrendAlignment, compute_mtf_context
@@ -40,10 +38,6 @@ __all__ = [
     "evaluate_all_strategies",
     "get_registered_strategies",
     "STRATEGIES",
-    "ScannerService",
-    "get_scanner_service",
-    "start_scanner_service",
-    "stop_scanner_service",
     "MTFContext",
     "TrendAlignment",
     "compute_mtf_context",
@@ -51,3 +45,4 @@ __all__ = [
     "get_tick_aggregator",
     "get_ws_handler",
 ]
+

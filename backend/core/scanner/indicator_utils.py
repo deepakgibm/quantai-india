@@ -7,19 +7,31 @@ import numpy as np
 import pandas as pd
 from typing import Tuple
 
+try:
+    import talib
+    HAS_TALIB = True
+except ImportError:
+    HAS_TALIB = False
+
 
 def sma(series: pd.Series, period: int) -> pd.Series:
     """Simple Moving Average."""
+    if HAS_TALIB:
+        return pd.Series(talib.SMA(series.values.astype(float), timeperiod=period), index=series.index)
     return series.rolling(window=period).mean()
 
 
 def ema(series: pd.Series, period: int) -> pd.Series:
     """Exponential Moving Average."""
+    if HAS_TALIB:
+        return pd.Series(talib.EMA(series.values.astype(float), timeperiod=period), index=series.index)
     return series.ewm(span=period, adjust=False).mean()
 
 
 def rsi(close: pd.Series, period: int = 14) -> pd.Series:
     """Relative Strength Index."""
+    if HAS_TALIB:
+        return pd.Series(talib.RSI(close.values.astype(float), timeperiod=period), index=close.index)
     delta = close.diff()
     gain = delta.where(delta > 0, 0.0)
     loss = (-delta).where(delta < 0, 0.0)
@@ -33,6 +45,15 @@ def rsi(close: pd.Series, period: int = 14) -> pd.Series:
 
 def macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """MACD - Moving Average Convergence Divergence."""
+    if HAS_TALIB:
+        macd_line, signal_line, histogram = talib.MACD(
+            close.values.astype(float), fastperiod=fast, slowperiod=slow, signalperiod=signal
+        )
+        return (
+            pd.Series(macd_line, index=close.index),
+            pd.Series(signal_line, index=close.index),
+            pd.Series(histogram, index=close.index)
+        )
     fast_ema = ema(close, fast)
     slow_ema = ema(close, slow)
     macd_line = fast_ema - slow_ema
@@ -43,6 +64,15 @@ def macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> T
 
 def bollinger_bands(close: pd.Series, period: int = 20, std_dev: float = 2.0) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """Bollinger Bands - Middle, Upper, Lower."""
+    if HAS_TALIB:
+        upper, middle, lower = talib.BBANDS(
+            close.values.astype(float), timeperiod=period, nbdevup=std_dev, nbdevdn=std_dev, matype=0
+        )
+        return (
+            pd.Series(middle, index=close.index),
+            pd.Series(upper, index=close.index),
+            pd.Series(lower, index=close.index)
+        )
     middle = sma(close, period)
     std = close.rolling(window=period).std()
     upper = middle + (std * std_dev)
@@ -138,55 +168,63 @@ def cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> 
 
 def parabolic_sar(high: pd.Series, low: pd.Series, af_start: float = 0.02, af_step: float = 0.02, af_max: float = 0.2) -> pd.Series:
     """Parabolic SAR."""
-    length = len(high)
-    sar = pd.Series(index=high.index, dtype=float)
-    trend = pd.Series(index=high.index, dtype=int)
-    ep = pd.Series(index=high.index, dtype=float)
-    af = pd.Series(index=high.index, dtype=float)
+    if HAS_TALIB:
+        # Use C-compiled TA-Lib implementation for speed
+        sar_values = talib.SAR(high.values.astype(float), low.values.astype(float), acceleration=af_start, maximum=af_max)
+        return pd.Series(sar_values, index=high.index)
     
-    # Initialize
-    sar.iloc[0] = low.iloc[0]
-    trend.iloc[0] = 1
-    ep.iloc[0] = high.iloc[0]
-    af.iloc[0] = af_start
+    # Fallback to NumPy-optimized calculation (avoiding Pandas .iloc lookup in loops)
+    length = len(high)
+    high_arr = high.values.astype(float)
+    low_arr = low.values.astype(float)
+    
+    sar = np.zeros(length)
+    trend = np.zeros(length, dtype=int)
+    ep = np.zeros(length)
+    af = np.zeros(length)
+    
+    sar[0] = low_arr[0]
+    trend[0] = 1
+    ep[0] = high_arr[0]
+    af[0] = af_start
     
     for i in range(1, length):
-        if trend.iloc[i-1] == 1:  # Uptrend
-            sar.iloc[i] = sar.iloc[i-1] + af.iloc[i-1] * (ep.iloc[i-1] - sar.iloc[i-1])
-            sar.iloc[i] = min(sar.iloc[i], low.iloc[i-1], low.iloc[i-2] if i > 1 else low.iloc[i-1])
+        if trend[i-1] == 1:
+            sar[i] = sar[i-1] + af[i-1] * (ep[i-1] - sar[i-1])
+            sar[i] = min(sar[i], low_arr[i-1], low_arr[i-2] if i > 1 else low_arr[i-1])
             
-            if low.iloc[i] < sar.iloc[i]:  # Reversal
-                trend.iloc[i] = -1
-                sar.iloc[i] = ep.iloc[i-1]
-                ep.iloc[i] = low.iloc[i]
-                af.iloc[i] = af_start
+            if low_arr[i] < sar[i]:
+                trend[i] = -1
+                sar[i] = ep[i-1]
+                ep[i] = low_arr[i]
+                af[i] = af_start
             else:
-                trend.iloc[i] = 1
-                if high.iloc[i] > ep.iloc[i-1]:
-                    ep.iloc[i] = high.iloc[i]
-                    af.iloc[i] = min(af.iloc[i-1] + af_step, af_max)
+                trend[i] = 1
+                if high_arr[i] > ep[i-1]:
+                    ep[i] = high_arr[i]
+                    af[i] = min(af[i-1] + af_step, af_max)
                 else:
-                    ep.iloc[i] = ep.iloc[i-1]
-                    af.iloc[i] = af.iloc[i-1]
-        else:  # Downtrend
-            sar.iloc[i] = sar.iloc[i-1] + af.iloc[i-1] * (ep.iloc[i-1] - sar.iloc[i-1])
-            sar.iloc[i] = max(sar.iloc[i], high.iloc[i-1], high.iloc[i-2] if i > 1 else high.iloc[i-1])
+                    ep[i] = ep[i-1]
+                    af[i] = af[i-1]
+        else:
+            sar[i] = sar[i-1] + af[i-1] * (ep[i-1] - sar[i-1])
+            sar[i] = max(sar[i], high_arr[i-1], high_arr[i-2] if i > 1 else high_arr[i-1])
             
-            if high.iloc[i] > sar.iloc[i]:  # Reversal
-                trend.iloc[i] = 1
-                sar.iloc[i] = ep.iloc[i-1]
-                ep.iloc[i] = high.iloc[i]
-                af.iloc[i] = af_start
+            if high_arr[i] > sar[i]:
+                trend[i] = 1
+                sar[i] = ep[i-1]
+                ep[i] = high_arr[i]
+                af[i] = af_start
             else:
-                trend.iloc[i] = -1
-                if low.iloc[i] < ep.iloc[i-1]:
-                    ep.iloc[i] = low.iloc[i]
-                    af.iloc[i] = min(af.iloc[i-1] + af_step, af_max)
+                trend[i] = -1
+                if low_arr[i] < ep[i-1]:
+                    ep[i] = low_arr[i]
+                    af[i] = min(af[i-1] + af_step, af_max)
                 else:
-                    ep.iloc[i] = ep.iloc[i-1]
-                    af.iloc[i] = af.iloc[i-1]
-    
-    return sar
+                    ep[i] = ep[i-1]
+                    af[i] = af[i-1]
+                    
+    return pd.Series(sar, index=high.index)
 
 
 def ichimoku(high: pd.Series, low: pd.Series, close: pd.Series, 

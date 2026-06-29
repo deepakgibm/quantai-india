@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "quantai.fullname" . }}-frontend
+  labels:
+    {{- include "quantai.labels" . | nindent 4 }}
+    component: frontend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    {{- include "quantai.selectorLabels" . | nindent 4 }}
+    component: frontend

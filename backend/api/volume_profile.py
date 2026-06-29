@@ -15,88 +15,9 @@ from services.cache import get_cache_manager
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Volume Profile"])
 
-def calculate_rsi(closes: np.ndarray, period: int = 14) -> float:
-    if len(closes) < period + 1:
-        return 50.0
-    delta = np.diff(closes)
-    gain = np.where(delta > 0, delta, 0.0)
-    loss = np.where(delta < 0, -delta, 0.0)
-    
-    avg_gain = np.mean(gain[:period])
-    avg_loss = np.mean(loss[:period])
-    
-    if avg_loss == 0:
-        rs = 1e9
-    else:
-        rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    
-    for i in range(period, len(delta)):
-        avg_gain = (avg_gain * (period - 1) + gain[i]) / period
-        avg_loss = (avg_loss * (period - 1) + loss[i]) / period
-        if avg_loss == 0:
-            rs = 1e9
-        else:
-            rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-    
-    return float(rsi) if not np.isnan(rsi) else 50.0
+# Standardized technical indicators imported from core.scanner.indicator_utils
+from core.scanner import indicator_utils
 
-def calculate_adx(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14) -> float:
-    if len(closes) < 2 * period:
-        return 20.0
-    
-    # Calculate True Range (TR)
-    tr = np.zeros(len(closes) - 1)
-    plus_dm = np.zeros(len(closes) - 1)
-    minus_dm = np.zeros(len(closes) - 1)
-    
-    for i in range(1, len(closes)):
-        tr1 = highs[i] - lows[i]
-        tr2 = abs(highs[i] - closes[i-1])
-        tr3 = abs(lows[i] - closes[i-1])
-        tr[i-1] = max(tr1, tr2, tr3)
-        
-        up_move = highs[i] - highs[i-1]
-        down_move = lows[i-1] - lows[i]
-        
-        if up_move > down_move and up_move > 0:
-            plus_dm[i-1] = up_move
-        else:
-            plus_dm[i-1] = 0.0
-            
-        if down_move > up_move and down_move > 0:
-            minus_dm[i-1] = down_move
-        else:
-            minus_dm[i-1] = 0.0
-            
-    # Wilder's smoothing
-    smoothed_tr = np.zeros(len(tr) - period + 1)
-    smoothed_plus_dm = np.zeros(len(tr) - period + 1)
-    smoothed_minus_dm = np.zeros(len(tr) - period + 1)
-    
-    smoothed_tr[0] = np.mean(tr[:period])
-    smoothed_plus_dm[0] = np.mean(plus_dm[:period])
-    smoothed_minus_dm[0] = np.mean(minus_dm[:period])
-    
-    for i in range(1, len(smoothed_tr)):
-        smoothed_tr[i] = smoothed_tr[i-1] - (smoothed_tr[i-1] / period) + tr[period - 1 + i]
-        smoothed_plus_dm[i] = smoothed_plus_dm[i-1] - (smoothed_plus_dm[i-1] / period) + plus_dm[period - 1 + i]
-        smoothed_minus_dm[i] = smoothed_minus_dm[i-1] - (smoothed_minus_dm[i-1] / period) + minus_dm[period - 1 + i]
-        
-    plus_di = 100 * (smoothed_plus_dm / np.where(smoothed_tr == 0, 1e-9, smoothed_tr))
-    minus_di = 100 * (smoothed_minus_dm / np.where(smoothed_tr == 0, 1e-9, smoothed_tr))
-    
-    dx = 100 * (abs(plus_di - minus_di) / np.where(plus_di + minus_di == 0, 1e-9, plus_di + minus_di))
-    
-    # ADX smoothing
-    adx = np.zeros(len(dx) - period + 1)
-    adx[0] = np.mean(dx[:period])
-    for i in range(1, len(adx)):
-        adx[i] = (adx[i-1] * (period - 1) + dx[period - 1 + i]) / period
-        
-    val = adx[-1]
-    return float(val) if not np.isnan(val) else 20.0
 
 def calculate_volume_profile(df: pd.DataFrame, num_bins: int = 50) -> Dict[str, Any]:
     """
@@ -302,26 +223,30 @@ async def fetch_stock_data_and_calculate(symbol: str, lookback: int, db: AsyncSe
     monthly_profile = calculate_volume_profile(monthly_candles.tail(12)) # last 12 months
     
     # Compute technical indicators on daily tail
-    closes = df["close"].values
-    highs = df["high"].values
-    lows = df["low"].values
-    volumes = df["volume"].values
+    closes_series = df["close"]
+    closes = closes_series.tolist()
+    highs_series = df["high"]
+    lows_series = df["low"]
     
-    rsi = calculate_rsi(closes)
-    adx = calculate_adx(highs, lows, closes)
+    rsi_series = indicator_utils.rsi(closes_series)
+    rsi = float(rsi_series.iloc[-1]) if not rsi_series.empty and not pd.isna(rsi_series.iloc[-1]) else 50.0
+    
+    adx_series, _, _ = indicator_utils.adx(highs_series, lows_series, closes_series)
+    adx = float(adx_series.iloc[-1]) if not adx_series.empty and not pd.isna(adx_series.iloc[-1]) else 20.0
     
     # EMAs
-    df_ema = df.copy()
-    ema20 = float(df_ema["close"].ewm(span=20, adjust=False).mean().iloc[-1])
-    ema50 = float(df_ema["close"].ewm(span=50, adjust=False).mean().iloc[-1])
-    ema200 = float(df_ema["close"].ewm(span=200, adjust=False).mean().iloc[-1])
+    ema20 = float(indicator_utils.ema(closes_series, 20).iloc[-1])
+    ema50 = float(indicator_utils.ema(closes_series, 50).iloc[-1])
+    ema200 = float(indicator_utils.ema(closes_series, 200).iloc[-1])
+
     
     # VWAP
-    vwap = float((df_ema["close"] * df_ema["volume"]).sum() / df_ema["volume"].sum())
+    vwap = float((df["close"] * df["volume"]).sum() / df["volume"].sum())
     
     # Volume Expansion
-    avg_vol_20 = float(df_ema["volume"].tail(20).mean())
+    avg_vol_20 = float(df["volume"].tail(20).mean())
     vol_expansion = latest_volume / max(1.0, avg_vol_20)
+
     
     # Relative Strength compared to universe performance average
     perf_query = text("""

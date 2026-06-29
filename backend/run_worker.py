@@ -46,21 +46,19 @@ def signal_handler(signum, frame):
 
 def load_symbols() -> List[str]:
     """Load symbols from database using instrument_master."""
-    import psycopg2
-    from config import settings
+    from database import SessionLocal
+    from sqlalchemy import text
     
     try:
-        conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
-        cur = conn.cursor()
-        # Use instrument_master as source of truth for active symbols
-        cur.execute("""
-            SELECT symbol FROM instrument_master 
-            WHERE is_active = TRUE AND exchange = 'NSE' AND series = 'EQ'
-            ORDER BY symbol
-            LIMIT 200
-        """)
-        symbols = [row[0] for row in cur.fetchall()]
-        conn.close()
+        with SessionLocal() as session:
+            # Use instrument_master as source of truth for active symbols
+            rows_res = session.execute(text("""
+                SELECT symbol FROM instrument_master 
+                WHERE is_active = TRUE AND exchange = 'NSE' AND series = 'EQ'
+                ORDER BY symbol
+                LIMIT 200
+            """))
+            symbols = [row[0] for row in rows_res.fetchall()]
         logger.info(f"Loaded {len(symbols)} symbols from instrument_master")
         return symbols
     except Exception as e:
@@ -70,8 +68,8 @@ def load_symbols() -> List[str]:
 
 def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
     """Load candles for all symbols using batch query from stock_candle + instrument_master."""
-    import psycopg2
-    from config import settings
+    from database import SessionLocal
+    from sqlalchemy import text
     
     candles_map = {}
     
@@ -79,20 +77,17 @@ def load_candles(symbols: List[str]) -> Dict[str, List[Dict]]:
         return candles_map
     
     try:
-        conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
-        cur = conn.cursor()
-        
-        # Single batch query using new schema: stock_candle + instrument_master
-        cur.execute("""
-            SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
-            FROM stock_candle sc
-            JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-            WHERE im.symbol = ANY(%s) AND sc.timeframe = 1440
-            ORDER BY im.symbol, sc.candle_ts DESC
-        """, (symbols,))
-        
-        rows = cur.fetchall()
-        conn.close()
+        with SessionLocal() as session:
+            # Single batch query using new schema: stock_candle + instrument_master
+            rows_res = session.execute(text("""
+                SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = ANY(:symbols) AND sc.timeframe = 1440
+                ORDER BY im.symbol, sc.candle_ts DESC
+            """), {"symbols": list(symbols)})
+            
+            rows = rows_res.fetchall()
         
         # Group rows by symbol
         from collections import defaultdict

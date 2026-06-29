@@ -8,6 +8,7 @@ from typing import Any, List
 
 from .engine import BacktestConfig, BacktestMetrics, BacktestResult
 from .executor import Trade, OrderSide
+from .costs import CostCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +102,10 @@ class VectorizedBacktestEngine:
         final_equity = self.config.initial_capital * df["cum_ret"][-1]
         peak_equity = self.config.initial_capital * df["cum_ret"].max()
         
+        total_costs = sum(t.transaction_costs for t in trades)
+        final_equity = final_equity - total_costs
         total_return = final_equity - self.config.initial_capital
-        total_return_pct = (df["cum_ret"][-1] - 1) * 100
+        total_return_pct = (final_equity / self.config.initial_capital - 1) * 100
         
         # Sharpe (simplified)
         returns = df["strategy_ret"].to_numpy()
@@ -117,26 +120,77 @@ class VectorizedBacktestEngine:
         drawdown = cum_ret / running_max - 1
         max_dd_pct = abs(drawdown.min()) * 100
         
+        # CAGR (Compound Annual Growth Rate)
+        cagr = 0.0
+        if len(df) > 1:
+            try:
+                timestamps = df["timestamp"].to_list()
+                from datetime import datetime, date
+                def to_dt(val):
+                    if isinstance(val, (datetime, date)):
+                        return val
+                    return datetime.fromisoformat(str(val))
+                start_dt = to_dt(timestamps[0])
+                end_dt = to_dt(timestamps[-1])
+                diff_days = (end_dt - start_dt).days if hasattr(end_dt - start_dt, "days") else (end_dt - start_dt).total_seconds() / 86400.0
+                years = max(0.001, diff_days / 365.25)
+                if final_equity > 0 and self.config.initial_capital > 0:
+                    cagr = (final_equity / self.config.initial_capital) ** (1.0 / years) - 1.0
+            except Exception as ex:
+                logger.error(f"Error calculating CAGR: {ex}")
+                cagr = total_return_pct / 100.0
+
+        # Sortino Ratio (downside risk)
+        sortino = 0.0
+        downside_returns = returns[returns < 0]
+        if len(downside_returns) > 0 and downside_returns.std() > 0:
+            ann_factor = 252 * (375 if self.config.is_intraday else 1)
+            sortino = (returns.mean() / downside_returns.std()) * np.sqrt(ann_factor)
+        elif returns.mean() > 0:
+            sortino = 99.0
+
+        # Calmar Ratio
+        calmar = 0.0
+        if max_dd_pct > 0:
+            calmar = (cagr * 100.0) / max_dd_pct
+
+        # Trade statistics
+        wins = [t.net_pnl for t in trades if t.net_pnl > 0]
+        losses = [abs(t.net_pnl) for t in trades if t.net_pnl <= 0]
+        
+        profit_factor = 0.0
+        if sum(losses) > 0:
+            profit_factor = sum(wins) / sum(losses)
+        elif sum(wins) > 0:
+            profit_factor = 999.0
+            
+        avg_win = float(np.mean(wins)) if wins else 0.0
+        avg_loss = float(np.mean(losses)) if losses else 0.0
+        avg_trade_pnl = float(np.mean([t.net_pnl for t in trades])) if trades else 0.0
+        largest_win = float(max(wins)) if wins else 0.0
+        largest_loss = float(-max(losses)) if losses else 0.0
+        avg_holding_bars = float(np.mean([t.holding_bars for t in trades])) if trades else 0.0
+
         metrics = BacktestMetrics(
             total_return=total_return,
             total_return_pct=total_return_pct,
-            cagr=0.0, # Implement CAGR calculation if needed
-            max_drawdown=total_return * (max_dd_pct / 100), # placeholder
+            cagr=cagr * 100.0, # in percent
+            max_drawdown=self.config.initial_capital * (max_dd_pct / 100.0),
             max_drawdown_pct=max_dd_pct,
             sharpe_ratio=sharpe,
-            sortino_ratio=0.0,
-            calmar_ratio=0.0,
+            sortino_ratio=sortino,
+            calmar_ratio=calmar,
             total_trades=len(trades),
-            winning_trades=len([t for t in trades if t.net_pnl > 0]),
-            losing_trades=len([t for t in trades if t.net_pnl <= 0]),
-            win_rate=(len([t for t in trades if t.net_pnl > 0]) / len(trades) * 100) if trades else 0,
-            profit_factor=0.0, # Implement profit factor
-            avg_win=0.0,
-            avg_loss=0.0,
-            avg_trade_pnl=0.0,
-            largest_win=0.0,
-            largest_loss=0.0,
-            avg_holding_bars=0.0,
+            winning_trades=len(wins),
+            losing_trades=len(losses),
+            win_rate=(len(wins) / len(trades) * 100.0) if trades else 0.0,
+            profit_factor=profit_factor,
+            avg_win=avg_win,
+            avg_loss=avg_loss,
+            avg_trade_pnl=avg_trade_pnl,
+            largest_win=largest_win,
+            largest_loss=largest_loss,
+            avg_holding_bars=avg_holding_bars,
             final_equity=final_equity,
             peak_equity=peak_equity
         )
@@ -201,22 +255,34 @@ class VectorizedBacktestEngine:
         entries = df.filter(pl.col("pos_change") > 0)
         exits = df.filter(pl.col("pos_change") < 0)
         
+        entries_dicts = entries.to_dicts()
+        exits_dicts = exits.to_dicts()
+        
         trades_list = []
         trade_count = 0
         
+        calculator = CostCalculator()
+        
         # Match entries and exits (assuming one at a time for simplicity)
-        for i in range(min(len(entries), len(exits))):
-            entry_row = entries[i]
-            exit_row = exits[i]
+        for i in range(min(len(entries_dicts), len(exits_dicts))):
+            entry_row = entries_dicts[i]
+            exit_row = exits_dicts[i]
             trade_count += 1
             
-            entry_price = float(entry_row["close"][0])
-            exit_price = float(exit_row["close"][0])
+            entry_price = float(entry_row["close"])
+            exit_price = float(exit_row["close"])
             
             qty = int(self.config.initial_capital * 0.1 / entry_price) # Use 10% of capital for test qty
             if qty < 1: qty = 1
             
+            # Compute transaction costs using CostCalculator
+            is_intraday = self.config.is_intraday
+            entry_costs = calculator.calculate(entry_price, qty, OrderSide.BUY, is_intraday=is_intraday)
+            exit_costs = calculator.calculate(exit_price, qty, OrderSide.SELL, is_intraday=is_intraday)
+            total_costs = entry_costs.total + exit_costs.total
+            
             gross_pnl = (exit_price - entry_price) * qty
+            net_pnl = gross_pnl - total_costs
             ret_pct = (exit_price / entry_price - 1) * 100
             
             trade = Trade(
@@ -225,15 +291,15 @@ class VectorizedBacktestEngine:
                 side=OrderSide.BUY, # Strategy is long-only for RSI mean reversion
                 quantity=qty,
                 entry_price=entry_price,
-                entry_time=entry_row["timestamp"][0],
-                entry_bar_index=int(entry_row["index"][0]),
+                entry_time=entry_row["timestamp"],
+                entry_bar_index=int(entry_row["index"]),
                 exit_price=exit_price,
-                exit_time=exit_row["timestamp"][0],
-                exit_bar_index=int(exit_row["index"][0]),
+                exit_time=exit_row["timestamp"],
+                exit_bar_index=int(exit_row["index"]),
                 gross_pnl=gross_pnl,
-                transaction_costs=0.0, 
-                net_pnl=gross_pnl,
-                holding_bars=int(exit_row["index"][0] - entry_row["index"][0]),
+                transaction_costs=total_costs, 
+                net_pnl=net_pnl,
+                holding_bars=int(exit_row["index"] - entry_row["index"]),
                 return_pct=ret_pct
             )
             trades_list.append(trade)

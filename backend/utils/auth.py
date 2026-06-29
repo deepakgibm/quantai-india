@@ -82,7 +82,8 @@ async def get_current_user(
 ) -> User:
     # Return 401 Unauthorized when token is missing (not 403)
     if credentials is None:
-        if settings.ENVIRONMENT == "development" or getattr(settings, "SAFE_MODE", False):
+        import os
+        if os.getenv("ALLOW_AUTH_BYPASS") == "true" and (settings.ENVIRONMENT == "development" or getattr(settings, "SAFE_MODE", False)):
             # Return a system/test user for demo/test mode when no token is provided
             result = await db.execute(select(User).limit(1))
             user = result.scalar_one_or_none()

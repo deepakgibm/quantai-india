@@ -124,6 +124,8 @@ class CacheManager:
         self._misses = 0
         self._is_connected_sync = False
         self._is_connected_async = False
+        self._sync_failed = False
+        self._async_failed = False
         
         self._initialized = True
         logger.info(f"CacheManager: Initialized (Sync={REDIS_SYNC_AVAILABLE}, Async={REDIS_ASYNC_AVAILABLE})")
@@ -138,6 +140,9 @@ class CacheManager:
             raise CacheUnavailableError("redis-py not installed")
             
         if self._is_connected_sync and self._sync_client:
+            return
+            
+        if self._sync_failed and DEV_MODE:
             return
             
         try:
@@ -163,6 +168,7 @@ class CacheManager:
             logger.error(f"Sync Cache connection failed: {e}")
             self._is_connected_sync = False
             if DEV_MODE:
+                self._sync_failed = True
                 logger.warning("DEV_MODE: Using in-memory cache fallback")
                 return  # Allow fallback
             raise CacheUnavailableError(str(e))
@@ -216,6 +222,39 @@ class CacheManager:
             logger.error(f"Sync mset error: {e}")
             return False
 
+    def delete(self, key: str) -> bool:
+        """Synchronous cache delete."""
+        self._ensure_sync_connected()
+        if DEV_MODE and not self._is_connected_sync:
+            if key in _in_memory_cache:
+                del _in_memory_cache[key]
+                return True
+            return False
+        try:
+            self._sync_client.delete(key)
+            return True
+        except Exception as e:
+            logger.error(f"Sync cache delete error: {e}")
+            return False
+
+    def clear_pattern(self, pattern: str) -> bool:
+        """Synchronous clear pattern."""
+        self._ensure_sync_connected()
+        if DEV_MODE and not self._is_connected_sync:
+            keys_to_del = [k for k in _in_memory_cache if k.startswith(f"quantai:{pattern}")]
+            for k in keys_to_del:
+                del _in_memory_cache[k]
+            return True
+        try:
+            keys = self._sync_client.keys(f"quantai:{pattern}*")
+            if keys:
+                self._sync_client.delete(*keys)
+            return True
+        except Exception as e:
+            logger.error(f"Sync cache clear_pattern error: {e}")
+            return False
+
+
     # --- ASYNC METHODS (For FastAPI) ---
 
     async def _ensure_async_connected(self):
@@ -225,6 +264,9 @@ class CacheManager:
             return
             
         if self._is_connected_async and self._async_client:
+            return
+            
+        if self._async_failed and DEV_MODE:
             return
             
         try:
@@ -247,6 +289,7 @@ class CacheManager:
             logger.error(f"Async Cache connection failed: {e}")
             self._is_connected_async = False
             if DEV_MODE:
+                self._async_failed = True
                 logger.warning("DEV_MODE: Using in-memory cache fallback (async)")
                 return  # Allow fallback
             raise CacheUnavailableError(str(e))
@@ -333,6 +376,43 @@ class CacheManager:
             logger.error(f"Async mset error: {e}")
             return False
 
+    async def delete_async(self, key: str) -> bool:
+        """Async cache delete."""
+        if not REDIS_ASYNC_AVAILABLE:
+            return self.delete(key)
+        await self._ensure_async_connected()
+        if DEV_MODE and not self._is_connected_async:
+            if key in _in_memory_cache:
+                del _in_memory_cache[key]
+                return True
+            return False
+        try:
+            await self._async_client.delete(key)
+            return True
+        except Exception as e:
+            logger.error(f"Async cache delete error: {e}")
+            return False
+
+    async def clear_pattern_async(self, pattern: str) -> bool:
+        """Async clear pattern."""
+        if not REDIS_ASYNC_AVAILABLE:
+            return self.clear_pattern(pattern)
+        await self._ensure_async_connected()
+        if DEV_MODE and not self._is_connected_async:
+            keys_to_del = [k for k in _in_memory_cache if k.startswith(f"quantai:{pattern}")]
+            for k in keys_to_del:
+                del _in_memory_cache[k]
+            return True
+        try:
+            keys = await self._async_client.keys(f"quantai:{pattern}*")
+            if keys:
+                await self._async_client.delete(*keys)
+            return True
+        except Exception as e:
+            logger.error(f"Async cache clear_pattern error: {e}")
+            return False
+
+
     async def publish_async(self, channel: str, message: Any) -> int:
         """Broadcast a message to a channel (Pub/Sub)."""
         if not REDIS_ASYNC_AVAILABLE: return 0
@@ -367,7 +447,7 @@ class CacheManager:
         except: return value
 
     def is_available(self) -> bool:
-        return self._is_connected_sync or self._is_connected_async
+        return self._is_connected_sync or self._is_connected_async or DEV_MODE
 
     def get_stats(self) -> Dict[str, Any]:
         total = self._hits + self._misses
@@ -388,6 +468,11 @@ def get_cache() -> CacheManager:
     if _cache_manager is None:
         _cache_manager = CacheManager()
     return _cache_manager
+
+def get_cache_manager() -> CacheManager:
+    """Alias for backward compatibility with legacy cache imports."""
+    return get_cache()
+
 
 def cache_stats():
     return get_cache().get_stats()

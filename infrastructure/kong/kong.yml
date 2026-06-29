@@ -1,0 +1,44 @@
+_format_version: "2.1"
+_transform: true
+
+services:
+  - name: quantai-backend-api
+    url: http://quantai-backend:8000
+    routes:
+      - name: backend-api-routes
+        paths:
+          - /api
+        strip_path: false
+    plugins:
+      - name: key-auth
+        config:
+          key_names:
+            - apikey
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 5000
+          policy: redis
+          redis_host: quantai-dragonfly
+          redis_port: 6379
+          limit_by: consumer
+      - name: cors
+        config:
+          origins:
+            - "https://quantai.internal"
+          methods:
+            - GET
+            - POST
+            - OPTIONS
+            - PUT
+            - DELETE
+          headers:
+            - Authorization
+            - Content-Type
+            - apikey
+
+consumers:
+  - username: default-b2b-client
+    custom_id: b2b_001
+    keyauth_credentials:
+      - key: quantai_sandbox_api_key_2026_authorized

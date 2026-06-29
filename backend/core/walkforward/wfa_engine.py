@@ -11,7 +11,7 @@ import numpy as np
 import logging
 
 from ..backtest.engine import BacktestEngine, BacktestConfig, BacktestResult
-from ..strategies.base_strategy import BaseStrategy
+from ..legacy_strategies.base_strategy import BaseStrategy
 
 logger = logging.getLogger(__name__)
 

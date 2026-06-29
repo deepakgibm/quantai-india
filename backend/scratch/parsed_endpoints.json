@@ -1,0 +1,1066 @@
+[
+  {
+    "path": "/api/auth/signup",
+    "method": "POST",
+    "req_schema": "UserCreate",
+    "resp_schema": "UserResponse",
+    "auth": "No",
+    "summary": "Signup"
+  },
+  {
+    "path": "/api/auth/login",
+    "method": "POST",
+    "req_schema": "UserLogin",
+    "resp_schema": "Token",
+    "auth": "No",
+    "summary": "Login"
+  },
+  {
+    "path": "/api/auth/firebase-login",
+    "method": "POST",
+    "req_schema": "FirebaseLogin",
+    "resp_schema": "Token",
+    "auth": "No",
+    "summary": "Firebase Login"
+  },
+  {
+    "path": "/api/auth/me",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "UserResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Me"
+  },
+  {
+    "path": "/api/heatmap/sectors",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Heatmap Sectors"
+  },
+  {
+    "path": "/api/heatmap/sector/{sector_name}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Sector Stocks"
+  },
+  {
+    "path": "/api/heatmap/seed",
+    "method": "POST",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Seed Data"
+  },
+  {
+    "path": "/api/upstox/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Upstox Status"
+  },
+  {
+    "path": "/api/upstox/auth-url",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "UpstoxAuthResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Upstox Auth Url"
+  },
+  {
+    "path": "/api/upstox/user-profile",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get User Profile"
+  },
+  {
+    "path": "/api/upstox/callback",
+    "method": "POST",
+    "req_schema": "UpstoxCallback",
+    "resp_schema": "UpstoxTokenResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Upstox Callback"
+  },
+  {
+    "path": "/api/upstox/portfolio",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Portfolio"
+  },
+  {
+    "path": "/api/upstox/positions",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Positions"
+  },
+  {
+    "path": "/api/upstox/market-quote/{symbol}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Market Quote"
+  },
+  {
+    "path": "/api/trading/stats",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "DashboardStats",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Dashboard Stats"
+  },
+  {
+    "path": "/api/trading/dashboard",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "DashboardStats",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Dashboard Stats"
+  },
+  {
+    "path": "/api/trading/health",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Health"
+  },
+  {
+    "path": "/api/trading/market-indices",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Market Indices"
+  },
+  {
+    "path": "/api/trading/instruments",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Instruments"
+  },
+  {
+    "path": "/api/trading/top-gainers",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Top Gainers"
+  },
+  {
+    "path": "/api/trading/gainers-losers",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Gainers Losers"
+  },
+  {
+    "path": "/api/ai/strategies",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Ai Strategies"
+  },
+  {
+    "path": "/api/ai/prompt",
+    "method": "POST",
+    "req_schema": "AIPromptRequest",
+    "resp_schema": "AIPromptResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Process Ai Prompt"
+  },
+  {
+    "path": "/api/ai/market-analysis",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Market Analysis"
+  },
+  {
+    "path": "/api/ai/sentiment",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Ai Sentiment"
+  },
+  {
+    "path": "/api/ai/trend-finder",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Trend Finder Stocks"
+  },
+  {
+    "path": "/api/ai/breakout-detector",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Breakout Stocks"
+  },
+  {
+    "path": "/api/ai/top5-picks",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Top5 Picks"
+  },
+  {
+    "path": "/api/ai/top3-picks",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Top3 Picks"
+  },
+  {
+    "path": "/api/ai/momentum-scanner",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Momentum Stocks"
+  },
+  {
+    "path": "/api/ai/mean-reversion",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Mean Reversion Stocks"
+  },
+  {
+    "path": "/api/ai/gap-scanner",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Gap Stocks"
+  },
+  {
+    "path": "/api/ai/relative-strength",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Relative Strength Stocks"
+  },
+  {
+    "path": "/api/ai/vwap-scanner",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Vwap Stocks"
+  },
+  {
+    "path": "/api/ai/sr-bounce",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Sr Bounce Stocks"
+  },
+  {
+    "path": "/api/ai/command",
+    "method": "POST",
+    "req_schema": "AICommandRequest",
+    "resp_schema": "AICommandResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Process Command"
+  },
+  {
+    "path": "/api/ai/momentum",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Momentum Alias"
+  },
+  {
+    "path": "/api/ai/vwap",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Vwap Alias"
+  },
+  {
+    "path": "/api/orders/",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Orders"
+  },
+  {
+    "path": "/api/orders/",
+    "method": "POST",
+    "req_schema": "OrderCreate",
+    "resp_schema": "OrderResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Create Order"
+  },
+  {
+    "path": "/api/orders/{order_id}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "OrderResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Order"
+  },
+  {
+    "path": "/api/risk/",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Risk Settings"
+  },
+  {
+    "path": "/api/risk/",
+    "method": "PUT",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Update Risk Settings"
+  },
+  {
+    "path": "/api/settings/",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Settings"
+  },
+  {
+    "path": "/api/settings/",
+    "method": "PUT",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Update Settings"
+  },
+  {
+    "path": "/api/algorithms/",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Algorithms"
+  },
+  {
+    "path": "/api/algorithms/",
+    "method": "POST",
+    "req_schema": "AlgorithmCreate",
+    "resp_schema": "AlgorithmResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Create Algorithm"
+  },
+  {
+    "path": "/api/algorithms/{algorithm_id}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "AlgorithmResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Algorithm"
+  },
+  {
+    "path": "/api/algorithms/{algorithm_id}",
+    "method": "PUT",
+    "req_schema": "AlgorithmUpdate",
+    "resp_schema": "AlgorithmResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Update Algorithm"
+  },
+  {
+    "path": "/api/algorithms/{algorithm_id}",
+    "method": "DELETE",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Delete Algorithm"
+  },
+  {
+    "path": "/api/agentic-bot/analyze",
+    "method": "POST",
+    "req_schema": "AgentRequest",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Run Agent Analysis"
+  },
+  {
+    "path": "/api/agentic-bot/process",
+    "method": "POST",
+    "req_schema": "AgentRequest",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Process Agent Request"
+  },
+  {
+    "path": "/api/engines/test",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Test Endpoint"
+  },
+  {
+    "path": "/api/engines/performance",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Engine Performance"
+  },
+  {
+    "path": "/api/engines/performance/{engine_name}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Single Engine Performance"
+  },
+  {
+    "path": "/api/quant/strategies",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "routers__quant_bot__StrategyListResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "List Strategies"
+  },
+  {
+    "path": "/api/quant/backtest/run",
+    "method": "POST",
+    "req_schema": "routers__quant_bot__BacktestRequest",
+    "resp_schema": "BacktestResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Run Backtest"
+  },
+  {
+    "path": "/api/quant/walkforward/run",
+    "method": "POST",
+    "req_schema": "WFARequest",
+    "resp_schema": "WFAResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Run Walkforward"
+  },
+  {
+    "path": "/api/quant/symbols",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "List Available Symbols"
+  },
+  {
+    "path": "/api/scanner/strategies",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Strategies"
+  },
+  {
+    "path": "/api/scanner/indices",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Indices"
+  },
+  {
+    "path": "/api/scanner/timeframes",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Timeframes"
+  },
+  {
+    "path": "/api/scanner/run",
+    "method": "POST",
+    "req_schema": "ScanRequest",
+    "resp_schema": "ScanResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Run Scan"
+  },
+  {
+    "path": "/api/scanner/progress/{scan_id}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Scan Progress"
+  },
+  {
+    "path": "/api/scanner/presets",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Presets"
+  },
+  {
+    "path": "/api/scanner/presets",
+    "method": "POST",
+    "req_schema": "PresetRequest",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Save Preset"
+  },
+  {
+    "path": "/api/scanner/presets/{preset_id}",
+    "method": "DELETE",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Delete Preset"
+  },
+  {
+    "path": "/api/scanner/momentum",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Momentum Data"
+  },
+  {
+    "path": "/api/scanner/breakout",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Breakout Data"
+  },
+  {
+    "path": "/api/scanner/reversal",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Reversal Data"
+  },
+  {
+    "path": "/api/scanner/trendfinder",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Trendfinder Data"
+  },
+  {
+    "path": "/api/scanner/week52-breakouts",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Week52 Breakouts"
+  },
+  {
+    "path": "/api/scanner/momentum/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Momentum Status"
+  },
+  {
+    "path": "/api/market/nifty100/top-movers",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Nifty100 Top Movers"
+  },
+  {
+    "path": "/api/market/nifty100/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Nifty100 Ranking Status"
+  },
+  {
+    "path": "/api/market/top-movers",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Top Movers Alias"
+  },
+  {
+    "path": "/api/market/orchestrator/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Orchestrator Status"
+  },
+  {
+    "path": "/api/market/health",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Market Health"
+  },
+  {
+    "path": "/api/market/heatmap",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Sector Heatmap"
+  },
+  {
+    "path": "/api/market/sector-stocks/{sector_name}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Sector Stocks"
+  },
+  {
+    "path": "/api/v1/walk-forward",
+    "method": "POST",
+    "req_schema": "WalkForwardRequest",
+    "resp_schema": "WalkForwardResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Run Walk Forward Backtest"
+  },
+  {
+    "path": "/api/v1/walk-forward/strategies",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Available Strategies"
+  },
+  {
+    "path": "/api/v1/walk-forward/presets",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Walk Forward Presets"
+  },
+  {
+    "path": "/api/v1/walk-forward/symbols",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Available Symbols"
+  },
+  {
+    "path": "/api/v1/experiment-lab/",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Lab Info"
+  },
+  {
+    "path": "/api/v1/experiment-lab/strategies",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "List Strategies"
+  },
+  {
+    "path": "/api/v1/experiment-lab/strategies/{strategy_id}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Strategy"
+  },
+  {
+    "path": "/api/v1/experiment-lab/categories",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "List Categories"
+  },
+  {
+    "path": "/api/v1/experiment-lab/backtest",
+    "method": "POST",
+    "req_schema": "api__v1__endpoints__experiment_lab__BacktestRequest",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Run Backtest"
+  },
+  {
+    "path": "/api/v1/experiment-lab/compare",
+    "method": "POST",
+    "req_schema": "api__v1__endpoints__experiment_lab__BacktestRequest",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Compare Strategies"
+  },
+  {
+    "path": "/api/v1/experiment-lab/symbols",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Available Symbols"
+  },
+  {
+    "path": "/api/v1/experiment-lab/timeframes",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Available Timeframes"
+  },
+  {
+    "path": "/api/v1/experiment-lab/cache",
+    "method": "DELETE",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Clear Cache"
+  },
+  {
+    "path": "/api/v1/etl/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Etl Status"
+  },
+  {
+    "path": "/api/v1/backtest/strategies/list",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "api__v1__endpoints__backtest_strategies__StrategyListResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "List All Strategies"
+  },
+  {
+    "path": "/api/v1/backtest/strategies/by-tier",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Strategies By Tier"
+  },
+  {
+    "path": "/api/v1/backtest/strategies/search",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Search Strategies"
+  },
+  {
+    "path": "/api/v1/backtest/strategies/{strategy_name}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Strategy Details"
+  },
+  {
+    "path": "/api/v1/ml/predict",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "ForecastResponse",
+    "auth": "Yes (Bearer)",
+    "summary": "Predict Price"
+  },
+  {
+    "path": "/api/v1/ml/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Status"
+  },
+  {
+    "path": "/api/v1/ml/symbols",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Available Symbols"
+  },
+  {
+    "path": "/api/v2/scanner/momentum",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Momentum V2"
+  },
+  {
+    "path": "/api/v2/scanner/signals",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Active Signals"
+  },
+  {
+    "path": "/api/v2/scanner/breakout",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Breakout V2"
+  },
+  {
+    "path": "/api/v2/scanner/reversal",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Reversal V2"
+  },
+  {
+    "path": "/api/v2/scanner/trendfinder",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Trendfinder V2"
+  },
+  {
+    "path": "/api/v2/scanner/symbol/{symbol}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Symbol Snapshot"
+  },
+  {
+    "path": "/api/v2/scanner/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Scanner Status"
+  },
+  {
+    "path": "/api/v3/scanner/momentum",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Momentum"
+  },
+  {
+    "path": "/api/v3/scanner/breakout",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Breakout"
+  },
+  {
+    "path": "/api/v3/scanner/reversal",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Reversal"
+  },
+  {
+    "path": "/api/v3/scanner/signals",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Active Signals"
+  },
+  {
+    "path": "/api/v3/scanner/snapshots",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get All Snapshots"
+  },
+  {
+    "path": "/api/v3/scanner/symbol/{symbol}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Symbol Snapshot"
+  },
+  {
+    "path": "/api/v3/scanner/status",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Status"
+  },
+  {
+    "path": "/api/v3/scanner/metrics",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Get Metrics"
+  },
+  {
+    "path": "/api/v3/scanner/warm",
+    "method": "POST",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Trigger Warm"
+  },
+  {
+    "path": "/api/analytics/overview",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Analytics Overview"
+  },
+  {
+    "path": "/api/analytics/momentum/top",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Top Momentum"
+  },
+  {
+    "path": "/api/analytics/volatility/{symbol}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Volatility Analysis"
+  },
+  {
+    "path": "/api/analytics/correlation",
+    "method": "POST",
+    "req_schema": "JSON Object",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Correlation Matrix"
+  },
+  {
+    "path": "/api/analytics/support-resistance/{symbol}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Support Resistance"
+  },
+  {
+    "path": "/api/analytics/query",
+    "method": "POST",
+    "req_schema": "QueryRequest",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Execute Custom Query"
+  },
+  {
+    "path": "/api/analytics/archive/list",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "List Archives"
+  },
+  {
+    "path": "/api/analytics/archive/stats",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Archive Stats"
+  },
+  {
+    "path": "/api/analytics/archive/month",
+    "method": "POST",
+    "req_schema": "ArchiveRequest",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Archive Month"
+  },
+  {
+    "path": "/api/analytics/archive/old",
+    "method": "POST",
+    "req_schema": "ArchiveOldRequest",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Archive Old Data"
+  },
+  {
+    "path": "/api/analytics/archive/restore",
+    "method": "POST",
+    "req_schema": "ArchiveRequest",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Restore From Archive"
+  },
+  {
+    "path": "/api/analytics/indicators/compute",
+    "method": "POST",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Trigger Indicator Computation"
+  },
+  {
+    "path": "/api/analytics/indicators/latest/{symbol}",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "Yes (Bearer)",
+    "summary": "Get Latest Indicators"
+  },
+  {
+    "path": "/",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Root"
+  },
+  {
+    "path": "/health",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Health Check"
+  },
+  {
+    "path": "/ready",
+    "method": "GET",
+    "req_schema": "None",
+    "resp_schema": "JSON Object",
+    "auth": "No",
+    "summary": "Readiness Check"
+  }
+]

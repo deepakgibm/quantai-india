@@ -57,67 +57,58 @@ def compute_indicators_process(task: ComputeTask) -> ComputeResult:
             timestamp=time.time()
         )
     
-    # Extract price data
-    closes = [c.get('close', 0) for c in candles]
-    highs = [c.get('high', 0) for c in candles]
-    lows = [c.get('low', 0) for c in candles]
-    volumes = [c.get('volume', 0) for c in candles]
+    import pandas as pd
+    from core.scanner import indicator_utils
+    
+    df = pd.DataFrame(candles)
+    for col in ['open', 'high', 'low', 'close', 'volume']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').astype('float64')
+            
+    close = df['close']
+    high = df['high']
+    low = df['low']
     
     # Compute indicators
     indicators = {}
     
     # SMA
-    indicators['sma_20'] = sum(closes[-20:]) / 20 if len(closes) >= 20 else closes[-1]
-    indicators['sma_50'] = sum(closes[-50:]) / 50 if len(closes) >= 50 else indicators['sma_20']
+    sma_20 = indicator_utils.sma(close, 20)
+    indicators['sma_20'] = float(sma_20.iloc[-1]) if len(close) >= 20 else float(close.iloc[-1])
+    sma_50 = indicator_utils.sma(close, 50)
+    indicators['sma_50'] = float(sma_50.iloc[-1]) if len(close) >= 50 else float(indicators['sma_20'])
     
     # EMA
-    indicators['ema_9'] = _ema(closes, 9)
-    indicators['ema_21'] = _ema(closes, 21)
-    indicators['ema_50'] = _ema(closes, 50)
+    indicators['ema_9'] = float(indicator_utils.ema(close, 9).iloc[-1])
+    indicators['ema_21'] = float(indicator_utils.ema(close, 21).iloc[-1])
+    indicators['ema_50'] = float(indicator_utils.ema(close, 50).iloc[-1])
     
     # RSI
-    indicators['rsi_14'] = _rsi(closes, 14)
+    rsi_14 = indicator_utils.rsi(close, 14).iloc[-1]
+    indicators['rsi_14'] = float(rsi_14) if not pd.isna(rsi_14) else 50.0
     
     # MACD
-    ema_12 = _ema(closes, 12)
-    ema_26 = _ema(closes, 26)
-    indicators['macd_line'] = ema_12 - ema_26
-    indicators['macd_signal'] = indicators['macd_line'] * 0.9  # Simplified
-    indicators['macd_histogram'] = indicators['macd_line'] - indicators['macd_signal']
+    macd_line, macd_signal, macd_hist = indicator_utils.macd(close, 12, 26, 9)
+    indicators['macd_line'] = float(macd_line.iloc[-1])
+    indicators['macd_signal'] = float(macd_signal.iloc[-1])
+    indicators['macd_histogram'] = float(macd_hist.iloc[-1])
     
     # Bollinger Bands
-    sma = indicators['sma_20']
-    if len(closes) >= 20:
-        variance = sum((x - sma) ** 2 for x in closes[-20:]) / 20
-        std = variance ** 0.5
-        indicators['bb_upper'] = sma + (2 * std)
-        indicators['bb_lower'] = sma - (2 * std)
-        indicators['bb_middle'] = sma
-    else:
-        indicators['bb_upper'] = closes[-1]
-        indicators['bb_lower'] = closes[-1]
-        indicators['bb_middle'] = closes[-1]
+    bb_middle, bb_upper, bb_lower = indicator_utils.bollinger_bands(close, 20, 2.0)
+    indicators['bb_upper'] = float(bb_upper.iloc[-1]) if len(close) >= 20 else float(close.iloc[-1])
+    indicators['bb_lower'] = float(bb_lower.iloc[-1]) if len(close) >= 20 else float(close.iloc[-1])
+    indicators['bb_middle'] = float(bb_middle.iloc[-1]) if len(close) >= 20 else float(close.iloc[-1])
     
     # ATR
-    if len(highs) >= 14:
-        tr_values = []
-        for i in range(-14, 0):
-            tr = max(
-                highs[i] - lows[i],
-                abs(highs[i] - closes[i-1]),
-                abs(lows[i] - closes[i-1])
-            )
-            tr_values.append(tr)
-        indicators['atr_14'] = sum(tr_values) / 14
-    else:
-        indicators['atr_14'] = 0
+    atr_val = indicator_utils.atr(high, low, close, 14).iloc[-1]
+    indicators['atr_14'] = float(atr_val) if len(close) >= 14 and not pd.isna(atr_val) else 0.0
     
     # Current price data
-    indicators['current_close'] = closes[-1]
-    indicators['prev_close'] = closes[-2] if len(closes) >= 2 else closes[-1]
-    indicators['change_pct'] = (
-        (closes[-1] - closes[-2]) / closes[-2] * 100
-    ) if len(closes) >= 2 and closes[-2] > 0 else 0
+    indicators['current_close'] = float(close.iloc[-1])
+    indicators['prev_close'] = float(close.iloc[-2]) if len(close) >= 2 else float(close.iloc[-1])
+    indicators['change_pct'] = float(
+        ((close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100)
+    ) if len(close) >= 2 and close.iloc[-2] > 0 else 0.0
     
     # Generate signals
     signals = []
@@ -141,16 +132,16 @@ def compute_indicators_process(task: ComputeTask) -> ComputeResult:
         signals.append('EMA_BEARISH_STACK')
     
     # Bollinger signals
-    if closes[-1] < indicators['bb_lower']:
+    if close.iloc[-1] < indicators['bb_lower']:
         signals.append('BB_OVERSOLD')
-    elif closes[-1] > indicators['bb_upper']:
+    elif close.iloc[-1] > indicators['bb_upper']:
         signals.append('BB_OVERBOUGHT')
     
     # Build snapshot
     snapshot = {
         'symbol': task.symbol,
         'interval': task.interval,
-        'ltp': closes[-1],
+        'ltp': indicators['current_close'],
         'prev_close': indicators['prev_close'],
         'change_pct': round(indicators['change_pct'], 2),
         'indicators': {k: round(v, 4) for k, v in indicators.items()},
@@ -173,53 +164,6 @@ def compute_indicators_process(task: ComputeTask) -> ComputeResult:
         compute_time_ms=round(compute_time, 2),
         timestamp=time.time()
     )
-
-
-def _ema(data: List[float], period: int) -> float:
-    """Exponential Moving Average."""
-    if len(data) < period:
-        return data[-1] if data else 0.0
-    
-    multiplier = 2 / (period + 1)
-    ema = sum(data[:period]) / period
-    
-    for price in data[period:]:
-        ema = (price * multiplier) + (ema * (1 - multiplier))
-    
-    return ema
-
-
-def _rsi(closes: List[float], period: int = 14) -> float:
-    """Relative Strength Index with Wilder's Smoothing."""
-    if len(closes) < period + 1:
-        return 50.0
-
-    gains = []
-    losses = []
-    
-    for i in range(1, len(closes)):
-        change = closes[i] - closes[i-1]
-        if change > 0:
-            gains.append(change)
-            losses.append(0.0)
-        else:
-            gains.append(0.0)
-            losses.append(abs(change))
-            
-    # Calculate first average gain and loss (SMA for the first 'period' elements)
-    avg_gain = sum(gains[:period]) / period
-    avg_loss = sum(losses[:period]) / period
-    
-    # Calculate Wilder's smoothed average for subsequent elements
-    for i in range(period, len(gains)):
-        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-        
-    if avg_loss == 0.0:
-        return 100.0 if avg_gain > 0.0 else 50.0
-        
-    rs = avg_gain / avg_loss
-    return 100.0 - (100.0 / (1.0 + rs))
 
 
 def _get_momentum_bucket(change_pct: float) -> str:

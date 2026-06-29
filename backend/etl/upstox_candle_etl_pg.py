@@ -45,29 +45,49 @@ else:
 # CONFIG
 # ==========================
 
-ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN")
-if not ACCESS_TOKEN:
-    raise ValueError("UPSTOX_ACCESS_TOKEN not found in .env file")
-
 # PostgreSQL connection - local database
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:admin@localhost:5432/quantai")
 # Convert asyncpg URL to psycopg2 format
 SYNC_DATABASE_URL = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
 
+def get_auth_headers():
+    """Dynamically fetch the upstox access token from database if available, otherwise fallback to env."""
+    token = None
+    try:
+        import psycopg2
+        pg_url = SYNC_DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        conn = psycopg2.connect(pg_url)
+        cur = conn.cursor()
+        cur.execute("SELECT encrypted_token FROM auth_tokens WHERE token_type = 'OAUTH' LIMIT 1")
+        row = cur.fetchone()
+        if row:
+            encrypted_token = row[0]
+            import sys
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if backend_dir not in sys.path:
+                sys.path.append(backend_dir)
+            from core.security import decrypt_token
+            token = decrypt_token(encrypted_token)
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+    if not token:
+        token = os.getenv("UPSTOX_ACCESS_TOKEN")
+        
+    if not token:
+        raise ValueError("No OAuth token found in database or .env")
+        
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json"
+    }
+
 BASE_URL = "https://api.upstox.com/v3/historical-candle"
-
 SYMBOL_FILE = Path(__file__).parent / "nifty_500.csv"
-
-# Default start date - will be overridden by database check
 DEFAULT_START_DATE = date(2026, 1, 10)
-
-# Two weeks back from today
 TWO_WEEKS_AGO = date.today() - timedelta(days=14)
-
-HEADERS = {
-    "Authorization": f"Bearer {ACCESS_TOKEN}",
-    "Accept": "application/json"
-}
 
 MAX_RETRIES = 5
 RATE_LIMIT_SLEEP = 0.7
@@ -225,7 +245,7 @@ def fetch_candles(instrument_key, v3_tf, from_date, to_date):
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=10)
+            r = requests.get(url, headers=get_auth_headers(), timeout=10)
             
             if r.status_code == 429:
                 wait = 2 ** attempt
@@ -237,7 +257,7 @@ def fetch_candles(instrument_key, v3_tf, from_date, to_date):
             return r.json()
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
-                print("[ERROR] Token expired! Please refresh UPSTOX_ACCESS_TOKEN in .env")
+                print("[ERROR] Token expired! Please refresh UPSTOX_ACCESS_TOKEN in database or .env")
                 raise
             wait = 2 ** attempt
             print(f"[WARN] {e} -> retry in {wait}s")
@@ -273,7 +293,7 @@ def fetch_intraday_candles(instrument_key, v3_tf):
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=10)
+            r = requests.get(url, headers=get_auth_headers(), timeout=10)
             
             if r.status_code == 429:
                 wait = 2 ** attempt
@@ -285,7 +305,7 @@ def fetch_intraday_candles(instrument_key, v3_tf):
             return r.json()
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
-                print("[ERROR] Token expired! Please refresh UPSTOX_ACCESS_TOKEN in .env")
+                print("[ERROR] Token expired! Please refresh UPSTOX_ACCESS_TOKEN in database or .env")
                 raise
             if e.response.status_code == 400:
                 # Some instruments don't support intraday data

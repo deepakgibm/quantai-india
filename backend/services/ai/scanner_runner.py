@@ -38,14 +38,20 @@ class ScannerRunner:
             logger.info(f"ScannerRunner: Starting {scanner_name} scan with {timeout}s budget...")
             detector = scanner_class()
             
-            # Check if scan_all is a coroutine function
+            # Check if scan_all is a coroutine function and inspect its parameters
             import inspect
+            sig = inspect.signature(detector.scan_all)
+            kwargs_to_pass = {"limit": limit}
+            if "timeout" in sig.parameters:
+                kwargs_to_pass["timeout"] = timeout
+
             if inspect.iscoroutinefunction(detector.scan_all):
-                scan_result = await asyncio.wait_for(detector.scan_all(limit=limit, timeout=timeout), timeout=timeout + 2.0)
+                scan_result = await asyncio.wait_for(detector.scan_all(**kwargs_to_pass), timeout=timeout + 2.0)
             else:
                 loop = asyncio.get_event_loop()
+                # Run the synchronous scan_all in a thread pool executor
                 scan_result = await asyncio.wait_for(
-                    loop.run_in_executor(None, detector.scan_all, limit),
+                    loop.run_in_executor(None, lambda: detector.scan_all(**kwargs_to_pass)),
                     timeout=timeout + 2.0
                 )
             

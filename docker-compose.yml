@@ -90,6 +90,8 @@ services:
     environment:
       - DRAGONFLY_HOST=dragonfly
       - DRAGONFLY_PORT=6379
+      - CELERY_BROKER_URL=redis://dragonfly:6379/1
+      - CELERY_RESULT_BACKEND=redis://dragonfly:6379/2
       - DATABASE_URL=postgresql+asyncpg://postgres:admin@host.docker.internal:5432/quantai
       - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY:-generate_your_own_key_here}
       - ENABLE_AI_FEATURES=${ENABLE_AI_FEATURES:-false}
@@ -329,7 +331,7 @@ services:
       retries: 3
 
   redis-exporter:
-    image: oliver006/redis_exporter
+    image: oliver006/redis_exporter:alpine
     container_name: quantai-redis-exporter
     environment:
       - REDIS_ADDR=redis://dragonfly:6379

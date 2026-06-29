@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, JSON, CheckConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base, EncryptedString
@@ -55,7 +55,10 @@ class BrokerCredentials(Base):
 
 class Position(Base):
     __tablename__ = "positions"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        CheckConstraint('avg_price >= 0', name='check_position_avg_price_non_negative'),
+        {'extend_existing': True}
+    )
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     symbol = Column(String)
@@ -68,6 +71,11 @@ class Position(Base):
 
 class Holding(Base):
     __tablename__ = "holdings"
+    __table_args__ = (
+        CheckConstraint('quantity > 0', name='check_holding_quantity_positive'),
+        CheckConstraint('avg_price >= 0', name='check_holding_avg_price_non_negative'),
+        CheckConstraint('current_price >= 0', name='check_holding_current_price_non_negative'),
+    )
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     symbol = Column(String)
@@ -119,6 +127,10 @@ class Algorithm(Base):
 
 class Order(Base):
     __tablename__ = "orders"
+    __table_args__ = (
+        CheckConstraint('quantity > 0', name='check_order_quantity_positive'),
+        CheckConstraint('price >= 0', name='check_order_price_non_negative'),
+    )
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     symbol = Column(String)
@@ -132,6 +144,10 @@ class Order(Base):
 
 class UserSettings(Base):
     __tablename__ = "user_settings"
+    __table_args__ = (
+        CheckConstraint('max_capital > 0', name='check_max_capital_positive'),
+        CheckConstraint('max_risk_per_trade >= 0 AND max_risk_per_trade <= 100', name='check_max_risk_range'),
+    )
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     max_capital = Column(Float, default=1000000)

@@ -13,90 +13,9 @@ from services.cache import get_cache_manager
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Sector Analysis"])
 
-# ==========================================
-# MATHEMATICAL TECHNICAL INDICATORS ENGINE
-# ==========================================
+import pandas as pd
+from core.scanner import indicator_utils
 
-def compute_rsi(prices: np.ndarray, period: int = 14) -> float:
-    if len(prices) < period + 1:
-        return 50.0
-    deltas = np.diff(prices)
-    seed = deltas[:period]
-    up = seed[seed >= 0].sum() / period
-    down = -seed[seed < 0].sum() / period
-    if down == 0:
-        rs = 1e9
-    else:
-        rs = up / down
-    
-    rsi = np.zeros_like(prices)
-    rsi[:period] = 100. - 100. / (1. + rs)
-    
-    for i in range(period, len(prices)):
-        delta = deltas[i - 1]
-        if delta > 0:
-            upval = delta
-            downval = 0.
-        else:
-            upval = 0.
-            downval = -delta
-        up = (up * (period - 1) + upval) / period
-        down = (down * (period - 1) + downval) / period
-        if down == 0:
-            rs = 1e9
-        else:
-            rs = up / down
-        rsi[i] = 100. - 100. / (1. + rs)
-    
-    val = rsi[-1]
-    return float(val) if not np.isnan(val) else 50.0
-
-def compute_ema(prices: np.ndarray, period: int) -> float:
-    if len(prices) < period:
-        return float(prices[-1]) if len(prices) > 0 else 0.0
-    sma = np.mean(prices[:period])
-    ema = sma
-    multiplier = 2.0 / (period + 1.0)
-    for p in prices[period:]:
-        ema = (p - ema) * multiplier + ema
-    return float(ema)
-
-def compute_sma(prices: np.ndarray, period: int) -> float:
-    if len(prices) < period:
-        return float(prices[-1]) if len(prices) > 0 else 0.0
-    return float(np.mean(prices[-period:]))
-
-def compute_macd(prices: np.ndarray) -> tuple:
-    # MACD (12, 26, 9)
-    if len(prices) < 26:
-        return 0.0, 0.0, 0.0
-    
-    ema12_val = np.mean(prices[:12])
-    ema26_val = np.mean(prices[:26])
-    
-    ema12_mult = 2.0 / 13.0
-    ema26_mult = 2.0 / 27.0
-    
-    macd_line = []
-    for i, p in enumerate(prices):
-        if i >= 12:
-            ema12_val = (p - ema12_val) * ema12_mult + ema12_val
-        if i >= 26:
-            ema26_val = (p - ema26_val) * ema26_mult + ema26_val
-            macd_line.append(ema12_val - ema26_val)
-            
-    if len(macd_line) < 9:
-        return 0.0, 0.0, 0.0
-        
-    signal_val = np.mean(macd_line[:9])
-    signal_mult = 2.0 / 10.0
-    for m in macd_line[9:]:
-        signal_val = (m - signal_val) * signal_mult + signal_val
-        
-    latest_macd = macd_line[-1]
-    latest_signal = signal_val
-    latest_hist = latest_macd - latest_signal
-    return float(latest_macd), float(latest_signal), float(latest_hist)
 
 # ==========================================
 # COMPOSITE RATING ENGINE
@@ -352,11 +271,20 @@ async def get_sector_analysis(
                 timeframe_return = ret_1d
             
             # Technical Indicators
-            rsi = compute_rsi(closes)
-            macd_l, signal_l, macd_h = compute_macd(closes)
-            dma_20 = compute_sma(closes, 20)
-            dma_50 = compute_sma(closes, 50)
-            dma_200 = compute_sma(closes, 200)
+            closes_series = pd.Series(closes)
+            
+            rsi_series = indicator_utils.rsi(closes_series)
+            rsi = float(rsi_series.iloc[-1]) if not rsi_series.empty and not pd.isna(rsi_series.iloc[-1]) else 50.0
+            
+            macd_l_series, signal_l_series, macd_h_series = indicator_utils.macd(closes_series, 12, 26, 9)
+            macd_l = float(macd_l_series.iloc[-1]) if not macd_l_series.empty else 0.0
+            signal_l = float(signal_l_series.iloc[-1]) if not signal_l_series.empty else 0.0
+            macd_h = float(macd_h_series.iloc[-1]) if not macd_h_series.empty else 0.0
+            
+            dma_20 = float(indicator_utils.sma(closes_series, 20).iloc[-1]) if len(closes_series) >= 20 else float(closes[-1])
+            dma_50 = float(indicator_utils.sma(closes_series, 50).iloc[-1]) if len(closes_series) >= 50 else float(dma_20)
+            dma_200 = float(indicator_utils.sma(closes_series, 200).iloc[-1]) if len(closes_series) >= 200 else float(dma_50)
+
             
             above_20 = bool(latest_close > dma_20)
             above_50 = bool(latest_close > dma_50)

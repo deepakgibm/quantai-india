@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "quantai.fullname" . }}-celery
+  labels:
+    {{- include "quantai.labels" . | nindent 4 }}
+    component: celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "quantai.selectorLabels" . | nindent 6 }}
+      component: celery
+  template:
+    metadata:
+      labels:
+        {{- include "quantai.selectorLabels" . | nindent 8 }}
+        component: celery
+    spec:
+      containers:
+        - name: celery
+          image: "{{ .Values.image.celery.repository }}:{{ .Values.image.celery.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.celery.pullPolicy }}
+          env:
+            - name: DRAGONFLY_HOST
+              value: "{{ include "quantai.fullname" . }}-dragonfly"
+            - name: DRAGONFLY_PORT
+              value: "6379"
+            - name: CELERY_BROKER_URL
+              value: "redis://{{ include "quantai.fullname" . }}-dragonfly:6379/1"
+            - name: CELERY_RESULT_BACKEND
+              value: "redis://{{ include "quantai.fullname" . }}-dragonfly:6379/2"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: database-url
+            - name: READ_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: read-database-url
+            - name: UPSTOX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: upstox-api-key
+            - name: UPSTOX_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: upstox-api-secret
+            - name: UPSTOX_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: upstox-access-token
+            - name: TOKEN_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: token-encryption-key
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: jwt-secret
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "quantai.fullname" . }}-secrets
+                  key: gemini-api-key
+            {{- range $key, $value := .Values.env }}
+            {{- if and (ne $key "CELERY_BROKER_URL") (ne $key "CELERY_RESULT_BACKEND") (ne $key "DRAGONFLY_HOST") (ne $key "DRAGONFLY_PORT") (ne $key "DATABASE_URL") (ne $key "READ_DATABASE_URL") (ne $key "UPSTOX_API_KEY") (ne $key "UPSTOX_API_SECRET") (ne $key "UPSTOX_ACCESS_TOKEN") (ne $key "TOKEN_ENCRYPTION_KEY") (ne $key "JWT_SECRET") (ne $key "GEMINI_API_KEY") }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - celery_app
+                - inspect
+                - ping
+                - --timeout
+                - "5"
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.resources.worker | nindent 12 }}

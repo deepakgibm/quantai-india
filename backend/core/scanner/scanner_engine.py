@@ -305,46 +305,45 @@ class ScannerEngine:
 
         # 2. Check HP Engine Cache (Fastest)
         try:
-            from engine.scanner_service import get_scanner_service
-            hp_service = get_scanner_service()
-            if hp_service._is_running:
-                snapshots = hp_service.get_all_snapshots()
-                if snapshots and len(snapshots) > 0:
-                    data = []
-                    for s in snapshots[:500]:
-                        data.append({
-                            "symbol": s.get("symbol"),
-                            "ltp": s.get("ltp", 0),
-                            "prev_close": s.get("prev_close", 0),
-                            "change_pct": s.get("change_pct", 0),
-                            "momentum_score": max(5, min(95, 50 + int(s.get("change_pct", 0) * 10))),
-                            "bucket": s.get("momentum_bucket", "NEUTRAL"),
-                            "direction": "UP" if s.get("change_pct", 0) > 0 else "DOWN",
-                            "source": "HP_ENGINE",
-                            "confidence": "HIGH" if s.get("signal_strength", 0) > 50 else "MEDIUM",
-                            "active_strategies": s.get("active_strategies", []),
-                            "last_update": s.get("updated_at")
-                        })
-                    
-                    enriched_data = await enrich_scanner_results(data[:100])
-                    if len(data) > 100:
-                        enriched_data.extend(data[100:])
-                    
-                    response = {
-                        "type": "bucket_update",
-                        "timestamp": datetime.now().isoformat(),
-                        "data": enriched_data,
-                        "status": {
-                            "source": "HP_ENGINE_ENRICHED",
-                            "is_healthy": True,
-                            "stock_count": len(enriched_data),
-                            "poll_interval": 5
-                        }
+            from services.dragonfly_client import get_cache, CacheKeys
+            cache = get_cache()
+            snapshots = await cache.get_async(CacheKeys.all_snapshots())
+            if snapshots and len(snapshots) > 0:
+                data = []
+                for s in snapshots[:500]:
+                    data.append({
+                        "symbol": s.get("symbol"),
+                        "ltp": s.get("ltp", 0),
+                        "prev_close": s.get("prev_close", 0),
+                        "change_pct": s.get("change_pct", 0),
+                        "momentum_score": max(5, min(95, 50 + int(s.get("change_pct", 0) * 10))),
+                        "bucket": s.get("momentum_bucket", "NEUTRAL"),
+                        "direction": "UP" if s.get("change_pct", 0) > 0 else "DOWN",
+                        "source": "HP_ENGINE",
+                        "confidence": "HIGH" if s.get("signal_strength", 0) > 50 else "MEDIUM",
+                        "active_strategies": s.get("active_strategies", []),
+                        "last_update": s.get("updated_at")
+                    })
+                
+                enriched_data = await enrich_scanner_results(data[:100])
+                if len(data) > 100:
+                    enriched_data.extend(data[100:])
+                
+                response = {
+                    "type": "bucket_update",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": enriched_data,
+                    "status": {
+                        "source": "HP_ENGINE_ENRICHED",
+                        "is_healthy": True,
+                        "stock_count": len(enriched_data),
+                        "poll_interval": 5
                     }
-                    self._set_cached_scan("momentum", response)
-                    return response
+                }
+                self._set_cached_scan("momentum", response)
+                return response
         except Exception as e:
-            logger.debug(f"HP scanner fallback: {e}")
+            logger.error(f"momentum: HP cache read failed: {e}")
 
         # 3. Last resort: DB Logic
         db_fetcher = get_db_data_fetcher()

@@ -20,6 +20,7 @@ celery_app = Celery(
         "tasks.bot_tasks",
         "tasks.scanner_tasks",
         "tasks.hp_scanner_tasks",
+        "tasks.token_monitor",
     ],
 )
 
@@ -73,4 +74,21 @@ celery_app.conf.beat_schedule = {
         "task": "tasks.bot_tasks.run_signal_bot",
         "schedule": crontab(hour=15, minute=40),  # 3:40 PM IST — after market closes
     },
+    "monitor-analytics-token-health-daily": {
+        "task": "monitor_analytics_token_health",
+        "schedule": crontab(hour=8, minute=0),   # 8:00 AM IST — daily health check
+    },
 }
+
+from celery.signals import task_failure
+import logging
+
+@task_failure.connect
+def handle_task_failure(sender=None, task_id=None, exception=None, traceback=None, args=None, kwargs=None, einfo=None, **extra):
+    logger = logging.getLogger("celery.task")
+    logger.critical(
+        f"🚨 Celery Task Failed! Task: {sender.name if sender else 'Unknown'}, "
+        f"Task ID: {task_id}, Exception: {exception}\n"
+        f"Args: {args}, Kwargs: {kwargs}\n"
+        f"Traceback: {traceback or einfo}"
+    )

@@ -54,6 +54,24 @@ Base = declarative_base()
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    try:
+        # Programmatically run Alembic migrations on startup to ensure all indexes exist
+        from alembic.config import Config
+        from alembic import command
+        import os
+        
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+        
+        # Run Alembic upgrade to latest migration head
+        command.upgrade(alembic_cfg, "head")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error running Alembic migrations during startup: {e}")
+
+
 
 async def verify_database_health():
     """

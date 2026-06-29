@@ -40,6 +40,7 @@ class UpstoxWSManager:
         self.instrument_keys: Dict[str, str] = {} # symbol -> instrument_key
         self.key_to_symbol: Dict[str, str] = {}   # instrument_key -> symbol
         self.last_ticks: Dict[str, Dict] = {}
+        self._stop_requested = False
         self._load_instrument_keys()
         
     async def _resolve_instrument_keys(self, symbols: List[str]) -> List[str]:
@@ -153,6 +154,7 @@ class UpstoxWSManager:
         """
         if self.is_running:
             return
+        self._stop_requested = False
         
         for attempt in range(max_retries):
             try:
@@ -235,7 +237,30 @@ class UpstoxWSManager:
             logger.error(f"Error in WebSocket listener: {e}")
         finally:
             self.is_running = False
-            # Reconnect logic could go here
+            self.ws = None
+            if not self._stop_requested:
+                logger.info("Upstox WebSocket dropped involuntarily. Initiating auto-reconnect...")
+                asyncio.create_task(self._auto_reconnect())
+
+    async def _auto_reconnect(self):
+        """Auto-reconnect to Upstox WebSocket in background with backoff."""
+        attempt = 0
+        max_retries = 10
+        while not self.is_running and not self._stop_requested and attempt < max_retries:
+            wait_time = min(2 ** attempt, 60)
+            logger.info(f"Auto-reconnect attempt {attempt+1}/{max_retries} in {wait_time}s...")
+            await asyncio.sleep(wait_time)
+            try:
+                await self.connect(max_retries=1)
+                if self.is_running:
+                    logger.info("Auto-reconnect successful!")
+                    return
+            except Exception as e:
+                logger.warning(f"Auto-reconnect attempt {attempt+1} failed: {e}")
+                attempt += 1
+
+        if not self.is_running:
+            logger.critical("Auto-reconnect failed. WebSocket market data feed is dead.")
 
     async def _handle_message(self, message):
         """Handle incoming binary message (Protobuf)."""
@@ -276,6 +301,7 @@ class UpstoxWSManager:
 
     def stop(self):
         """Stop the WebSocket manager."""
+        self._stop_requested = True
         self.is_running = False
         if self.ws:
             asyncio.create_task(self.ws.close())

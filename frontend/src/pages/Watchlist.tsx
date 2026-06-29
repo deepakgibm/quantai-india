@@ -31,6 +31,7 @@ import {
 } from 'recharts';
 import { apiGet, apiPost, apiRequest, API_URL, getAuthHeaders } from '../services/api';
 import { MarketDataService, MarketQuote } from '../services/marketDataService';
+import { useMarketDataStore } from '../store/useMarketDataStore';
 import { Page } from '../types';
 import {
   useWatchlistQuery,
@@ -91,21 +92,17 @@ interface WatchlistRowProps {
 }
 
 const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, onRemove, renderStatusBadge }) => {
-  const [livePrice, setLivePrice] = useState<number>(item.current_price || item.watchlist_price);
-  const [priceSource, setPriceSource] = useState<string>('DB');
-  const [isStale, setIsStale] = useState<boolean>(false);
+  const quote = useMarketDataStore(state => state.quotes[item.symbol.toUpperCase().trim()]);
+  const subscribe = useMarketDataStore(state => state.subscribe);
 
   useEffect(() => {
-    const unsubscribe = MarketDataService.subscribe(item.symbol, (quote: MarketQuote) => {
-      if (quote.ltp > 0) {
-        setLivePrice(quote.ltp);
-        setPriceSource(quote.isLive ? 'WS' : 'CACHED');
-        setIsStale(MarketDataService.isPriceStale(quote.timestamp));
-      }
-    });
-
+    const unsubscribe = subscribe(item.symbol);
     return () => unsubscribe();
-  }, [item.symbol]);
+  }, [item.symbol, subscribe]);
+
+  const livePrice = quote?.ltp || item.current_price || item.watchlist_price;
+  const priceSource = quote ? (quote.isLive ? 'WS' : 'CACHED') : 'DB';
+  const isStale = quote ? MarketDataService.isPriceStale(quote.timestamp) : false;
 
   const returnVal = (virtualInvestment / item.watchlist_price) * (livePrice || item.watchlist_price) - virtualInvestment;
   const changePercent = item.watchlist_price > 0 ? ((livePrice - item.watchlist_price) / item.watchlist_price) * 100 : 0;

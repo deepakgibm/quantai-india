@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "quantai.fullname" . }}-pgbouncer
+  labels:
+    {{- include "quantai.labels" . | nindent 4 }}
+    component: pgbouncer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "quantai.selectorLabels" . | nindent 6 }}
+      component: pgbouncer
+  template:
+    metadata:
+      labels:
+        {{- include "quantai.selectorLabels" . | nindent 8 }}
+        component: pgbouncer
+    spec:
+      containers:
+        - name: pgbouncer
+          image: "edoburu/pgbouncer:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: pgbouncer
+              containerPort: 6432
+              protocol: TCP
+          env:
+            - name: DB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: DB_USER
+              value: {{ .Values.database.user | quote }}
+            - name: DB_PASSWORD
+              value: {{ .Values.database.password | quote }}
+            - name: DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: POOL_MODE
+              value: {{ .Values.database.poolMode | quote }}
+            - name: MAX_CLIENT_CONN
+              value: {{ .Values.database.maxClientConn | quote }}
+            - name: DEFAULT_POOL_SIZE
+              value: {{ .Values.database.defaultPoolSize | quote }}
+          livenessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 64Mi

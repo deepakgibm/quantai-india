@@ -152,12 +152,13 @@ class FeatureStoreService:
         if not any(Path(self.base_path).rglob("*.parquet")): # Check if any files exist
             return None
             
-        query = f"SELECT MAX(timestamp) as last_ts FROM read_parquet('{parquet_path}', hive_partitioning=1)"
+        query = "SELECT MAX(timestamp) as last_ts FROM read_parquet($1, hive_partitioning=1)"
         try:
-            res = self.db.execute(query).fetchone()
+            res = self.db.execute(query, [parquet_path]).fetchone()
             return res[0] if res and res[0] else None
         except Exception:
             return None
+
 
 # Singleton
 _feature_store: Optional[FeatureStoreService] = None

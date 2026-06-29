@@ -4,8 +4,8 @@
                     Schema Migration Validation
 ================================================================================
 
-Run Date: 2026-06-22 17:54:14
-Duration: 6.28 seconds
+Run Date: 2026-06-23 20:10:54
+Duration: 30.70 seconds
 
 --------------------------------------------------------------------------------
                            OVERALL RESULTS
@@ -21,55 +21,55 @@ Pass Rate:   100.0%
 --------------------------------------------------------------------------------
 
 ✅ /api/trading/instruments
-   Status: PASS | Time: 7.46ms
+   Status: PASS | Time: 18.93ms
    DB Validation: Returned 20 instruments
 
 ✅ /api/metrics/symbols
-   Status: PASS | Time: 173.81ms
+   Status: PASS | Time: 155.68ms
    DB Validation: API: 9357, DB: 2434
 
 ✅ /api/metrics/symbols/RELIANCE
-   Status: PASS | Time: 124.71ms
+   Status: PASS | Time: 121.52ms
    DB Validation: Symbol details returned
 
 ✅ /api/metrics/symbols/{invalid}
-   Status: PASS | Time: 134.86ms
+   Status: PASS | Time: 123.97ms
    DB Validation: 404 returned correctly
 
 ✅ /api/metrics/sectors
-   Status: PASS | Time: 3.89ms
+   Status: PASS | Time: 4.99ms
    DB Validation: Returned 0 sectors
 
 ✅ /api/trading/health
-   Status: PASS | Time: 9.66ms
+   Status: PASS | Time: 5.33ms
    DB Validation: Healthy
 
 ✅ /api/metrics/freshness
-   Status: PASS | Time: 780.81ms
+   Status: PASS | Time: 1178.24ms
    DB Validation: DB latest: 2026-05-15 00:00:00
 
 ✅ /api/trading/market-indices
-   Status: PASS | Time: 6.63ms
+   Status: PASS | Time: 6019.97ms
    DB Validation: Returned 3 indices
 
 ✅ /api/metrics/cache/stats
-   Status: PASS | Time: 5.35ms
+   Status: PASS | Time: 5.21ms
    DB Validation: Cache stats returned
 
 ✅ /api/scanner/strategies
-   Status: PASS | Time: 6.67ms
+   Status: PASS | Time: 5.33ms
    DB Validation: Returned strategies
 
 ✅ /api/scanner/timeframes
-   Status: PASS | Time: 16.71ms
+   Status: PASS | Time: 18.48ms
    DB Validation: Timeframes returned
 
 ✅ /api/scanner/momentum
-   Status: PASS | Time: 216.46ms
+   Status: PASS | Time: 23.49ms
    DB Validation: Status: 200
 
 ✅ /api/scanner/week52-breakouts
-   Status: PASS | Time: 26.85ms
+   Status: PASS | Time: 22.46ms
    DB Validation: Status: 200
 
 ✅ Schema: Timeframe Format
@@ -81,15 +81,15 @@ Pass Rate:   100.0%
    DB Validation: Validated 9357 symbols
 
 ✅ Perf: /api/trading/instruments
-   Status: PASS | Time: 8.23ms
+   Status: PASS | Time: 5.09ms
    DB Validation: < 500ms threshold
 
 ✅ Perf: /api/trading/health
-   Status: PASS | Time: 5.77ms
+   Status: PASS | Time: 4.38ms
    DB Validation: < 100ms
 
 ✅ Telemetry: /metrics
-   Status: PASS | Time: 23.16ms
+   Status: PASS | Time: 9.33ms
    DB Validation: Exposes Prometheus metrics
 
 

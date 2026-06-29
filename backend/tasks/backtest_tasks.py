@@ -163,31 +163,25 @@ def run_backtest(self, config: Dict[str, Any]):
 def _load_strategy(strategy_name: str, params: Dict[str, Any]) -> Optional[Any]:
     """Dynamically load a strategy by name."""
     try:
-        # Try loading from the strategies module
-        import importlib
+        from core.legacy_strategies import get_strategy
         
-        # Map common strategy names to modules
-        strategy_map = {
-            "RSIMeanReversion": ("strategies.rsi_mean_reversion", "RSIMeanReversion"),
-            "MACDCrossover": ("strategies.macd_crossover", "MACDCrossover"),
-            "BollingerBands": ("strategies.bollinger_bands", "BollingerBands"),
-            "VWAPStrategy": ("strategies.vwap_strategy", "VWAPStrategy"),
-            "BreakoutStrategy": ("strategies.breakout_strategy", "BreakoutStrategy"),
-            "MomentumStrategy": ("strategies.momentum_strategy", "MomentumStrategy"),
+        # Map common strategy names to internal names
+        name_map = {
+            "RSIMeanReversion": "RSIMeanReversion",
+            "MACDCrossover": "MACDCrossover",
+            "BollingerBands": "BollingerSqueeze",
+            "BollingerSqueeze": "BollingerSqueeze",
+            "Supertrend": "Supertrend",
+            "Stochastic": "Stochastic",
+            "ADXTrend": "ADXTrend",
+            "VolumeBreakout": "VolumeBreakout",
+            "Ichimoku": "Ichimoku",
+            "MACrossover": "MACrossover",
         }
         
-        if strategy_name in strategy_map:
-            module_path, class_name = strategy_map[strategy_name]
-            module = importlib.import_module(module_path)
-            strategy_class = getattr(module, class_name)
-            return strategy_class(**params)
-        
-        # Fallback: try direct import
-        module = importlib.import_module(f"strategies.{strategy_name.lower()}")
-        strategy_class = getattr(module, strategy_name)
-        return strategy_class(**params)
-        
-    except (ImportError, AttributeError) as e:
+        internal_name = name_map.get(strategy_name, strategy_name)
+        return get_strategy(internal_name, params)
+    except Exception as e:
         logger.error(f"Failed to load strategy '{strategy_name}': {e}")
         return None
 def _load_vectorized_strategy(strategy_name: str, params: Dict[str, Any]) -> Optional[Any]:

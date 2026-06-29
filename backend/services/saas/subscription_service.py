@@ -123,6 +123,30 @@ class SubscriptionService:
         if not subscription:
             raise ValueError("Subscription record not found.")
             
+        # Cryptographic signature verification
+        import hmac
+        import hashlib
+        import os
+        from config import settings
+        
+        razorpay_secret = os.getenv("RAZORPAY_KEY_SECRET", "mock_secret")
+        
+        # Razorpay signature format check: payment_id + "|" + subscription_id
+        message = f"{razorpay_payment_id}|{subscription.razorpay_subscription_id}"
+        expected_signature = hmac.new(
+            razorpay_secret.encode('utf-8'),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        is_dev = settings.ENVIRONMENT == "development" or getattr(settings, "SAFE_MODE", False) or os.getenv("SAFE_MODE") == "true"
+        
+        if razorpay_signature == "mock_sig" and is_dev:
+            logger.warning("[Razorpay] Accepting mock_sig in development mode.")
+        else:
+            if not hmac.compare_digest(expected_signature, razorpay_signature):
+                raise ValueError("Invalid Razorpay payment signature.")
+            
         # Update subscription state to ACTIVE
         subscription.status = "ACTIVE"
         subscription.start_date = datetime.utcnow()

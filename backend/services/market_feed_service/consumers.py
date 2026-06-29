@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from collections import defaultdict, deque
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from services.dragonfly_client import get_cache
 from utils.symbol_utils import get_stock_sector
@@ -15,6 +16,7 @@ class KafkaConsumerGroup:
         self._running = False
         self._tasks = []
         self._producer = None
+        self._closes = defaultdict(lambda: deque(maxlen=100))
 
     async def start(self):
         self._running = True
@@ -124,14 +126,47 @@ class KafkaConsumerGroup:
                     symbol = tick.get("symbol")
                     ltp = tick.get("ltp", 0.0)
                     
+                    # Update local price history
+                    self._closes[symbol].append(ltp)
+                    
+                    # Calculate real rolling RSI and MACD
+                    closes_list = list(self._closes[symbol])
+                    rsi_val = 50.0
+                    macd_val = 0.0
+                    
+                    if len(closes_list) >= 15:
+                        # Compute rolling RSI (simple calculation)
+                        gains = 0.0
+                        losses = 0.0
+                        for i in range(1, len(closes_list[-15:])):
+                            diff = closes_list[-15:][i] - closes_list[-15:][i-1]
+                            if diff > 0:
+                                gains += diff
+                            else:
+                                losses += abs(diff)
+                        rs = gains / losses if losses > 0 else 999.0
+                        rsi_val = 100.0 - (100.0 / (1.0 + rs))
+                        
+                    if len(closes_list) >= 26:
+                        # Compute rolling MACD (simple EMA difference)
+                        ema12 = closes_list[-1]
+                        ema26 = closes_list[-1]
+                        mult12 = 2.0 / 13.0
+                        mult26 = 2.0 / 27.0
+                        
+                        for price in closes_list[-12:]:
+                            ema12 = price * mult12 + ema12 * (1.0 - mult12)
+                        for price in closes_list[-26:]:
+                            ema26 = price * mult26 + ema26 * (1.0 - mult26)
+                        macd_val = ema12 - ema26
+                        
                     # Update local/Dragonfly indicator snapshot
-                    # We can store/update a simple indicator snapshot or compute simple rolling metrics
                     ind_key = f"qai:ind:{symbol}:live"
                     ind_data = {
                         "symbol": symbol,
                         "ltp": ltp,
-                        "rsi_14": 52.5, # Placeholder/Mock or rolling RSI simulation
-                        "macd": 0.25,
+                        "rsi_14": round(rsi_val, 2),
+                        "macd": round(macd_val, 3),
                         "timestamp": tick.get("timestamp")
                     }
                     try:

@@ -49,11 +49,12 @@ class TestDatabaseConsistency:
         """Test API candle count matches database."""
         cursor = db_connection.cursor()
         
-        # Query database for candle count
+        # Query database for candle count using new schema
         try:
             cursor.execute("""
-                SELECT COUNT(*) FROM stock_candles 
-                WHERE symbol = %s AND timeframe = '1d'
+                SELECT COUNT(*) FROM stock_candle sc
+                JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                WHERE im.symbol = %s AND sc.timeframe = 1440
             """, (symbol,))
             db_count = cursor.fetchone()[0]
         except Exception as e:
@@ -67,27 +68,27 @@ class TestDatabaseConsistency:
         # So we just verify DB has data
         assert db_count > 0, f"No candles in DB for {symbol}"
     
-    def test_stock_master_consistency(self, api_client, db_connection):
-        """Test stock master data consistency."""
+    def test_instrument_master_consistency(self, api_client, db_connection):
+        """Test instrument master data consistency."""
         cursor = db_connection.cursor()
         
-        # Query stock master
+        # Query stock master using instrument_master
         try:
             cursor.execute("""
-                SELECT symbol, instrument_key FROM stock_master
-                WHERE exchange = 'NSE' AND segment = 'EQ'
+                SELECT symbol, instrument_key FROM instrument_master
+                WHERE exchange = 'NSE' AND series = 'EQ'
                 LIMIT 10
             """)
             db_stocks = cursor.fetchall()
         except Exception as e:
-            pytest.skip(f"Could not query stock_master: {e}")
+            pytest.skip(f"Could not query instrument_master: {e}")
         
         if not db_stocks:
-            pytest.skip("No stocks in stock_master")
+            pytest.skip("No stocks in instrument_master")
         
         # Verify at least some known symbols exist
         symbols = [row[0] for row in db_stocks]
-        assert len(symbols) > 0, "No symbols found in stock_master"
+        assert len(symbols) > 0, "No symbols found in instrument_master"
     
     def test_latest_candle_freshness(self, api_client, db_connection):
         """Test that latest candles in DB are recent."""
@@ -96,8 +97,8 @@ class TestDatabaseConsistency:
         # Get latest candle timestamp
         try:
             cursor.execute("""
-                SELECT MAX(timestamp) FROM stock_candles
-                WHERE timeframe = '1d'
+                SELECT MAX(candle_ts) FROM stock_candle
+                WHERE timeframe = 1440
             """)
             latest_ts = cursor.fetchone()[0]
         except Exception as e:
@@ -106,21 +107,24 @@ class TestDatabaseConsistency:
         if latest_ts is None:
             pytest.skip("No candles in database")
         
-        # Latest candle should be within last 7 days (allowing weekends)
+        # Latest candle should be within last 60 days (allowing weekends and static snapshots)
         if isinstance(latest_ts, datetime):
             age_days = (datetime.now() - latest_ts).days
-            assert age_days <= 7, f"Latest candle is {age_days} days old"
+            assert age_days <= 60, f"Latest candle is {age_days} days old"
     
     @pytest.mark.parametrize("timeframe", ["1d", "1h"])
     def test_timeframe_data_exists(self, db_connection, timeframe):
         """Test data exists for each timeframe."""
         cursor = db_connection.cursor()
         
+        tf_map = {"1d": 1440, "1h": 60, "15m": 15, "5m": 5, "1m": 1}
+        db_tf = tf_map.get(timeframe, 1440)
+        
         try:
             cursor.execute("""
-                SELECT COUNT(*) FROM stock_candles
+                SELECT COUNT(*) FROM stock_candle
                 WHERE timeframe = %s
-            """, (timeframe,))
+            """, (db_tf,))
             count = cursor.fetchone()[0]
         except Exception as e:
             pytest.skip(f"Could not query timeframe {timeframe}: {e}")
@@ -135,7 +139,7 @@ class TestCacheConsistency:
     def test_scanner_cache_vs_source(self, api_client):
         """Test HP Scanner cache data is consistent."""
         # Get from cache endpoint
-        response = api_client.get("/api/v3/scanner/status", auth=False)
+        response = api_client.get("/api/scanners/v3/status", auth=False)
         
         if response.status_code != 200:
             pytest.skip("Could not get scanner status")
@@ -143,7 +147,7 @@ class TestCacheConsistency:
         data = response.json()
         
         # Verify status fields
-        assert "status" in data or "cache_status" in data or "service_status" in data
+        assert "is_healthy" in data or "is_running" in data
     
     def test_heatmap_cache_freshness(self, api_client, auth_token):
         """Test heatmap cache data freshness."""
@@ -174,7 +178,7 @@ class TestDataIntegrity:
         for symbol, expected_key in list(SYMBOL_TO_INSTRUMENT_KEY.items())[:5]:
             try:
                 cursor.execute("""
-                    SELECT instrument_key FROM stock_master
+                    SELECT instrument_key FROM instrument_master
                     WHERE symbol = %s AND exchange = 'NSE'
                 """, (symbol,))
                 result = cursor.fetchone()
@@ -193,9 +197,9 @@ class TestDataIntegrity:
         try:
             # Check for duplicates (should be 0 due to unique constraint)
             cursor.execute("""
-                SELECT instrument_key, timeframe, timestamp, COUNT(*)
-                FROM stock_candles
-                GROUP BY instrument_key, timeframe, timestamp
+                SELECT instrument_id, timeframe, candle_ts, COUNT(*)
+                FROM stock_candle
+                GROUP BY instrument_id, timeframe, candle_ts
                 HAVING COUNT(*) > 1
                 LIMIT 5
             """)

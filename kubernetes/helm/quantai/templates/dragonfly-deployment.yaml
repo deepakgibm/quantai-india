@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "quantai.fullname" . }}-dragonfly
+  labels:
+    {{- include "quantai.labels" . | nindent 4 }}
+    component: dragonfly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "quantai.selectorLabels" . | nindent 6 }}
+      component: dragonfly
+  template:
+    metadata:
+      labels:
+        {{- include "quantai.selectorLabels" . | nindent 8 }}
+        component: dragonfly
+    spec:
+      containers:
+        - name: dragonfly
+          image: "docker.dragonflydb.io/dragonflydb/dragonfly:latest"
+          imagePullPolicy: IfNotPresent
+          command: ["dragonfly", "--logtostderr", "--cache_mode=true"]
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 256Mi

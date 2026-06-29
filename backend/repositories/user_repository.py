@@ -34,3 +34,9 @@ class UserRepository:
         """Add default user settings."""
         db.add(settings)
         return settings
+
+    @staticmethod
+    async def get_settings(db: AsyncSession, user_id: int) -> Optional[UserSettings]:
+        """Fetch user settings by user ID."""
+        result = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
+        return result.scalar_one_or_none()

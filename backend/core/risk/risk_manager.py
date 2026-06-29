@@ -146,3 +146,65 @@ class RiskManager:
             return False
             
         return True
+
+    def calculate_portfolio_var(
+        self,
+        portfolio_value: float,
+        weights: Dict[str, float],
+        returns_df: Optional[Any] = None,
+        confidence_level: float = 0.95
+    ) -> float:
+        """
+        Calculates Portfolio Value at Risk (VaR) using the parametric variance-covariance method.
+        
+        Args:
+            portfolio_value: Total value of the portfolio in INR
+            weights: Dictionary mapping symbol -> weight (sums to 1.0)
+            returns_df: Historical daily returns DataFrame for the symbols
+            confidence_level: Confidence level (0.95 or 0.99)
+            
+        Returns:
+            VaR amount in INR (maximum estimated loss over a 1-day horizon)
+        """
+        if not weights:
+            return 0.0
+            
+        import numpy as np
+        import pandas as pd
+        
+        # 1. Map confidence level to Z-score
+        if confidence_level == 0.99:
+            z_score = 2.326
+        else:
+            z_score = 1.645  # Default to 95%
+            
+        # 2. Extract or compute covariance matrix
+        if returns_df is not None:
+            try:
+                if hasattr(returns_df, "to_pandas"):
+                    df = returns_df.to_pandas()
+                else:
+                    df = pd.DataFrame(returns_df)
+                    
+                symbols = list(weights.keys())
+                active_symbols = [s for s in symbols if s in df.columns]
+                
+                if not active_symbols:
+                    return 0.0
+                    
+                w_arr = np.array([weights[s] for s in active_symbols])
+                if w_arr.sum() > 0:
+                    w_arr = w_arr / w_arr.sum()
+                    
+                cov_matrix = df[active_symbols].cov().values
+                
+                port_variance = np.dot(w_arr.T, np.dot(cov_matrix, w_arr))
+                port_volatility = np.sqrt(port_variance)
+                
+                var_amount = portfolio_value * port_volatility * z_score
+                return float(var_amount)
+            except Exception as e:
+                logger.error(f"RiskManager: VaR calculation failed: {e}")
+                
+        fallback_vol = 0.02
+        return float(portfolio_value * fallback_vol * z_score)

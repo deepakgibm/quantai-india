@@ -69,3 +69,7 @@ psutil==5.9.8
 # Event Streaming
 aiokafka==0.10.0
 
+# ClickHouse DB and Load Testing (6-Month Plan)
+clickhouse-connect==0.7.0
+locust==2.28.0
+

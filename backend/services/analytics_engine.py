@@ -253,7 +253,7 @@ class DuckDBAnalyticsEngine:
         """
         self._ensure_table_exists('stock_candle')
         self._ensure_table_exists('instrument_master')
-        sql = f"""
+        sql = """
         WITH daily_returns AS (
             SELECT 
                 im.symbol,
@@ -262,9 +262,9 @@ class DuckDBAnalyticsEngine:
                 (sc.close - LAG(sc.close) OVER (ORDER BY sc.candle_ts)) / LAG(sc.close) OVER (ORDER BY sc.candle_ts) as daily_return
             FROM stock_candle sc
             JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-            WHERE im.symbol = '{symbol}' AND sc.timeframe = 1440
+            WHERE im.symbol = $1 AND sc.timeframe = 1440
             ORDER BY sc.candle_ts DESC
-            LIMIT {lookback_days}
+            LIMIT $2
         )
         SELECT 
             symbol,
@@ -278,8 +278,7 @@ class DuckDBAnalyticsEngine:
         WHERE daily_return IS NOT NULL
         GROUP BY symbol
         """
-        return self.query(sql)
-        return self.query(sql)
+        return self.query(sql, [symbol, lookback_days])
     
     def get_correlation_matrix(self, symbols: List[str], 
                                 lookback_days: int = 60) -> pd.DataFrame:
@@ -288,7 +287,10 @@ class DuckDBAnalyticsEngine:
         """
         self._ensure_table_exists('stock_candle')
         self._ensure_table_exists('instrument_master')
-        # Get returns for all symbols
+        
+        # Placeholders for symbols ($2, $3, etc.) leaving $1 for lookback_days
+        placeholders = ", ".join([f"${i}" for i in range(2, len(symbols) + 2)])
+        
         sql = f"""
         WITH returns AS (
             SELECT 
@@ -298,36 +300,33 @@ class DuckDBAnalyticsEngine:
                 LAG(sc.close) OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts) as ret
             FROM stock_candle sc
             JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-            WHERE im.symbol IN ({','.join([f"'{s}'" for s in symbols])})
+            WHERE im.symbol IN ({placeholders})
             AND sc.timeframe = 1440
-            AND sc.candle_ts >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+            AND sc.candle_ts >= CURRENT_DATE - INTERVAL '1 day' * $1
         )
         SELECT symbol, date, ret
         FROM returns
         WHERE ret IS NOT NULL
         ORDER BY date, symbol
         """
-        df = self.query(sql)
+        params = [lookback_days] + symbols
+        df = self.query(sql, params)
         
         if df.empty:
             return pd.DataFrame()
         
         # Pivot and calculate correlation
-        pivot = df.pivot(index='date', columns='symbol', values='ret')
-        return pivot.corr()
+        pivot_df = df.pivot(index='date', columns='symbol', values='ret')
+        return pivot_df.corr().fillna(0)
     
-    def get_sector_performance(self, sector_mapping: Dict[str, str],
-                                 lookback_days: int = 30) -> pd.DataFrame:
+    def get_sector_performance(self, lookback_days: int = 30) -> pd.DataFrame:
         """
         Calculate sector-wise performance.
-        
-        Args:
-            sector_mapping: Dict mapping symbol -> sector
         """
         self._ensure_table_exists('stock_candle')
         self._ensure_table_exists('instrument_master')
         
-        sql = f"""
+        sql = """
         WITH latest_candles AS (
             SELECT 
                 sc.instrument_id,
@@ -337,7 +336,7 @@ class DuckDBAnalyticsEngine:
                 ROW_NUMBER() OVER (PARTITION BY sc.instrument_id ORDER BY sc.candle_ts DESC) as rn
             FROM stock_candle sc
             WHERE sc.timeframe = 1440
-              AND sc.candle_ts >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+              AND sc.candle_ts >= CURRENT_DATE - INTERVAL '1 day' * $1
         ),
         price_changes AS (
             SELECT 
@@ -366,7 +365,7 @@ class DuckDBAnalyticsEngine:
         GROUP BY sector
         ORDER BY avg_return DESC
         """
-        return self.query(sql)
+        return self.query(sql, [lookback_days])
     
     def get_support_resistance_levels(self, symbol: str, 
                                         lookback_days: int = 90) -> pd.DataFrame:
@@ -375,7 +374,7 @@ class DuckDBAnalyticsEngine:
         """
         self._ensure_table_exists('stock_candle')
         self._ensure_table_exists('instrument_master')
-        sql = f"""
+        sql = """
         WITH daily_data AS (
             SELECT 
                 sc.candle_ts::date as date,
@@ -384,8 +383,8 @@ class DuckDBAnalyticsEngine:
                 (array_agg(sc.close ORDER BY sc.candle_ts DESC))[1] as close
             FROM stock_candle sc
             JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-            WHERE im.symbol = '{symbol}' AND sc.timeframe = 1440
-            AND sc.candle_ts >= CURRENT_DATE - INTERVAL '{lookback_days} days'
+            WHERE im.symbol = $1 AND sc.timeframe = 1440
+            AND sc.candle_ts >= CURRENT_DATE - INTERVAL '1 day' * $2
             GROUP BY date
         ),
         pivot_calc AS (
@@ -408,7 +407,7 @@ class DuckDBAnalyticsEngine:
             ROUND(MIN(low)::numeric, 2) as support_min
         FROM pivot_calc
         """
-        return self.query(sql)
+        return self.query(sql, [symbol, lookback_days])
     
     def export_to_parquet(self, query: str, output_path: str):
         """

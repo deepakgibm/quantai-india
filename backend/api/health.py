@@ -62,6 +62,26 @@ async def health_check():
         }
     except Exception:
         health["checks"]["upstox_api"] = {"status": "unknown"}
+        
+    # 4. Check Resource Utilization
+    try:
+        import psutil
+        process = psutil.Process()
+        health["checks"]["resources"] = {
+            "status": "healthy",
+            "cpu_percent": psutil.cpu_percent(interval=None),
+            "memory_rss_mb": round(process.memory_info().rss / (1024 * 1024), 2),
+            "system_memory_percent": psutil.virtual_memory().percent
+        }
+    except Exception:
+        try:
+            import os
+            health["checks"]["resources"] = {
+                "status": "healthy",
+                "pid": os.getpid()
+            }
+        except Exception:
+            health["checks"]["resources"] = {"status": "unknown"}
     
     # Return 503 only if CRITICAL dependencies are down (DB)
     # Cache/Upstox degradation should return 200 with "degraded" body

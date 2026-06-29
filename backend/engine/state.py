@@ -205,56 +205,63 @@ class StateManager:
         
         logger.info(f"Warming up state for {len(symbols)} symbols, {candle_count} candles each")
         
-        # Import here to avoid circular dependency
-        import psycopg2
-        from config import settings
+        from database import SessionLocal
+        from sqlalchemy import text
         from models_alpha import TimeframeMapper
         
         db_tf = TimeframeMapper.to_minutes(interval)
         
         try:
-            conn = psycopg2.connect(settings.SYNC_DATABASE_URL)
-            cur = conn.cursor()
-            
-            for symbol in symbols:
-                # Query using new schema: stock_candle joined with instrument_master
-                cur.execute("""
-                    SELECT sc.candle_ts, sc."open", sc.high, sc.low, sc."close", sc.volume
-                    FROM stock_candle sc
-                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-                    WHERE im.symbol = %s AND sc.timeframe = %s
-                    ORDER BY sc.candle_ts DESC
-                    LIMIT %s
-                """, (symbol, db_tf, candle_count))
+            with SessionLocal() as session:
+                # Single batch query using Window function to fetch top N candles per symbol
+                query = text("""
+                    SELECT symbol, candle_ts, open, high, low, close, volume FROM (
+                        SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume,
+                               ROW_NUMBER() OVER (PARTITION BY im.symbol ORDER BY sc.candle_ts DESC) as rn
+                        FROM stock_candle sc
+                        JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                        WHERE im.symbol = ANY(:symbols) AND sc.timeframe = :timeframe
+                    ) sub
+                    WHERE rn <= :limit
+                    ORDER BY symbol, candle_ts DESC;
+                """)
                 
-                rows = cur.fetchall()
+                rows_res = session.execute(query, {"symbols": list(symbols), "timeframe": db_tf, "limit": candle_count})
+                rows = rows_res.fetchall()
                 
-                if rows:
+                # Group rows by symbol
+                from collections import defaultdict
+                symbol_rows = defaultdict(list)
+                for row in rows:
+                    symbol_rows[row[0]].append(row)
+                
+                for symbol, sym_rows in symbol_rows.items():
                     state = self.get_or_create_symbol(symbol)
-                    # Rows are DESC, reverse for chronological order
-                    for row in reversed(rows):
+                    
+                    # sym_rows is ordered DESC by candle_ts, reverse for chronological order
+                    for row in reversed(sym_rows):
                         candle = Candle(
-                            timestamp=row[0],
-                            open=float(row[1]),
-                            high=float(row[2]),
-                            low=float(row[3]),
-                            close=float(row[4]),
-                            volume=int(row[5] or 0)
+                            timestamp=row[1],
+                            open=float(row[2]),
+                            high=float(row[3]),
+                            low=float(row[4]),
+                            close=float(row[5]),
+                            volume=int(row[6] or 0)
                         )
                         state.add_candle(interval, candle)
                     
-                    # Set LTP and prev_close from most recent candles
-                    if len(rows) >= 2:
-                        state.ltp = float(rows[0][4])  # Most recent close
-                        state.prev_close = float(rows[1][4])  # Previous close
+                    # Set LTP and prev_close from most recent candles (sym_rows is sorted DESC)
+                    if len(sym_rows) >= 2:
+                        state.ltp = float(sym_rows[0][5])  # Most recent close
+                        state.prev_close = float(sym_rows[1][5])  # Previous close
                         state.change_pct = ((state.ltp - state.prev_close) / state.prev_close * 100) if state.prev_close > 0 else 0.0
             
-            conn.close()
             self._is_warmed_up = True
             logger.info(f"Warm-up complete: {self.get_symbol_count()} symbols loaded")
             
         except Exception as e:
             logger.error(f"Warm-up failed: {e}")
+
     
     def get_status(self) -> Dict[str, Any]:
         """Get state manager status."""

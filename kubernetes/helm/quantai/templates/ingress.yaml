@@ -35,9 +35,10 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ $fullName }}-backend
+                name: {{ printf "%s-%s" $fullName .serviceName }}
                 port:
-                  number: {{ $svcPort }}
+                  number: {{ .servicePort }}
           {{- end }}
     {{- end }}
 {{- end }}
+

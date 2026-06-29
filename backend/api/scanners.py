@@ -406,39 +406,40 @@ async def get_reversal_data(
 ):
     """REST endpoint for reversal data."""
     try:
-        from engine.scanner_service import get_scanner_service
-        service = get_scanner_service()
-        snapshots = service.get_all_snapshots()
+        from services.dragonfly_client import get_cache, CacheKeys
+        cache = get_cache()
+        reversals = await cache.get_async(CacheKeys.reversal()) or []
         
-        reversals = []
-        for s in snapshots:
-            change = s.get("change_pct", 0)
-            rsi = s.get("indicators", {}).get("rsi_14", 50)
+        enriched_reversals = []
+        for r in reversals:
+            change = r.get("change_pct", 0)
+            rsi = r.get("indicators", {}).get("rsi_14", 50)
             
             if rsi < 35 or (-4.0 <= change <= -1.0):
-                reversals.append({
-                    **s,
+                enriched_reversals.append({
+                    **r,
                     "reversal_type": "BULLISH",
                     "reversal_score": int(abs(change) * 20) if change < 0 else int((35 - rsi) * 2),
                     "pattern": "OVERSOLD_BOUNCE"
                 })
             elif rsi > 65 or (3.0 <= change <= 6.0):
-                reversals.append({
-                    **s,
+                enriched_reversals.append({
+                    **r,
                     "reversal_type": "BEARISH",
                     "reversal_score": int(change * 15) if change > 0 else int((rsi - 65) * 2),
                     "pattern": "OVERBOUGHT_CORRECTION"
                 })
         
-        reversals.sort(key=lambda x: x.get("reversal_score", 0), reverse=True)
+        enriched_reversals.sort(key=lambda x: x.get("reversal_score", 0), reverse=True)
         return {
             "type": "reversal_scan",
             "timestamp": datetime.now().isoformat(),
-            "data": reversals[:50],
-            "count": len(reversals),
+            "data": enriched_reversals[:50],
+            "count": len(enriched_reversals),
             "status": "success"
         }
     except Exception as e:
+
         logger.error(f"Reversal scanner REST endpoint failed: {e}")
         return {
             "type": "reversal_scan",

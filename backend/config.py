@@ -66,6 +66,13 @@ class Settings:
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"redis://{DRAGONFLY_HOST}:{DRAGONFLY_PORT}/0")
     CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"redis://{DRAGONFLY_HOST}:{DRAGONFLY_PORT}/0")
     
+    # ClickHouse Time-Series DB Configuration
+    CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "localhost")
+    CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
+    CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
+    CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
+    CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "default")
+    
     # SECURITY: Validated SECRET_KEY - no unsafe defaults
     SECRET_KEY = _validate_secret_key(os.getenv("SECRET_KEY", ""))
     
