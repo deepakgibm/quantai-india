@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 def rate_limit(limit: int, window: int, name: str = "default"):
     """
-    Simple Redis-based rate limiter middleware/dependency.
+    Atomic Redis-based rate limiter middleware/dependency using sliding window counter.
     limit: Number of requests allowed
     window: Time window in seconds
     """
@@ -17,43 +17,47 @@ def rate_limit(limit: int, window: int, name: str = "default"):
             return
             
         cache = get_cache()
-        if not cache.is_available():
-            # If cache is down, we don't block for now in this implementation
-            # or we could fail-closed. High-sec apps fail-closed.
+        await cache._ensure_async_connected()
+        
+        # If Dragonfly/Redis is not running, fail open in development/safe mode
+        if not cache._is_connected_async:
             return
             
-        # Use client IP as identifier
+        redis = cache._async_client
+        
         try:
-            client_ip = conn.client.host
+            client_ip = conn.client.host if conn.client else "unknown"
         except AttributeError:
             return
         
         key = f"qai:ratelimit:{name}:{client_ip}"
         
         try:
-            current = cache.get(key)
-            if current is None:
-                cache.set(key, 1, ttl=window)
-                return
+            # Atomic sliding window increment using Redis pipeline
+            async with redis.pipeline(transaction=True) as pipe:
+                pipe.incr(key)
+                pipe.ttl(key)
+                res = await pipe.execute()
                 
-            if int(current) >= limit:
+            count = res[0]
+            ttl = res[1]
+            
+            # Set TTL if new key
+            if count == 1 or ttl == -1:
+                await redis.expire(key, window)
+                ttl = window
+                
+            if count > limit:
                 logger.warning(f"Rate limit exceeded for {client_ip} on {name}")
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Too many requests. Please try again later."
+                    detail=f"Too many requests. Please try again in {ttl if ttl > 0 else window} seconds."
                 )
-                
-            # Increment is not atomic in the current CacheManager API (no INCR)
-            # But for simple rate limiting it's often close enough, 
-            # or we add INCR to CacheManager.
-            # Let's add 1 to the current and set it back.
-            cache.set(key, int(current) + 1, ttl=window)
-            
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Rate limit error: {e}")
-            # Fail open if cache error occurs, to not block users due to infra issues
+            # Fail open to prevent service outages on cache failure
             pass
             
     return dependency

@@ -164,7 +164,11 @@ class DuckDBAnalyticsEngine:
                     pg_conn = pg_conn.replace("localhost", "host.docker.internal")
                 
                 logger.info(f"Using PG Connection for DuckDB: {pg_conn}")
-                self.load_from_postgres(pg_conn, table_name)
+                where_clause = None
+                if table_name == 'stock_candle':
+                    # Only load daily candles (timeframe = 1440) from the last 90 days to optimize load time
+                    where_clause = "timeframe = 1440 AND candle_ts >= NOW() - INTERVAL '90 days'"
+                self.load_from_postgres(pg_conn, table_name, where_clause)
                 
                 # Verify again
                 tables = self._conn.execute("SHOW TABLES").fetchall()

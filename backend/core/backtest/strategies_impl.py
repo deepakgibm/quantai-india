@@ -13,6 +13,7 @@ Strategy Categories:
 
 import pandas as pd
 import numpy as np
+from core.indicators import atr
 from typing import Dict, List, Optional, Any
 from .base import SignalType, StrategyMetadata, BaseStrategy
 
@@ -70,14 +71,8 @@ class MACrossoverStrategy(BaseStrategy):
             df['slow_ma'] = df['close'].rolling(slow).mean()
         
         # Calculate ATR for stops
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(
-                abs(df['high'] - df['close'].shift(1)),
-                abs(df['low'] - df['close'].shift(1))
-            )
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -416,12 +411,8 @@ class RSIMeanReversionStrategy(BaseStrategy):
         df['rsi'] = 100 - (100 / (1 + rs))
         
         # Calculate ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -554,12 +545,8 @@ class ZScoreReversionStrategy(BaseStrategy):
         df['zscore'] = (df['close'] - df['ma']) / df['std']
         
         # ATR for stops
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -688,12 +675,8 @@ class VolumeBreakoutStrategy(BaseStrategy):
         df['volume_surge'] = df['volume'] > (vol_mult * df['avg_volume'])
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -841,12 +824,8 @@ class VWAPPullbackStrategy(BaseStrategy):
         df['uptrend'] = df['close'] > df['ema']
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # VWAP touch detection
         vwap_lower = df['vwap'] * (1 - vwap_buffer)
@@ -918,12 +897,8 @@ class VWAPTrendStrategy(BaseStrategy):
         df['vwap'] = df['cum_tpv'] / df['cum_volume']
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # VWAP position
         df['above_vwap'] = df['close'] > df['vwap']

@@ -2,13 +2,13 @@
 FastAPI Middleware for Observability
 
 Provides request-level instrumentation for correlation IDs, logging, and metrics.
+Refactored to pure ASGI middleware to avoid Starlette BaseHTTPMiddleware concurrency bugs.
 """
 
 import time
 from typing import Callable
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Scope, Receive, Send
 
 from core.observability.correlation import (
     set_correlation_id,
@@ -22,66 +22,83 @@ from core.observability.config import get_observability_config
 logger = get_logger(__name__)
 
 
-class CorrelationMiddleware(BaseHTTPMiddleware):
+class CorrelationMiddleware:
     """
-    Middleware to generate and propagate correlation IDs.
-    
-    - Checks for incoming X-Correlation-ID header
-    - Generates new ID if not present
-    - Adds correlation ID to response headers
+    ASGI Middleware to generate and propagate correlation IDs.
     """
-    
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    def __init__(self, app: ASGIApp):
+        self.app = app
+        
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+            
         config = get_observability_config()
+        headers = Headers(scope=scope)
         
         # Get or generate correlation ID
-        correlation_id = request.headers.get(config.correlation_header)
+        correlation_id = headers.get(config.correlation_header)
         if not correlation_id:
             correlation_id = generate_correlation_id()
-        
+            
         # Set in context for the request lifecycle
         set_correlation_id(correlation_id)
         
-        # Process request
-        response = await call_next(request)
-        
-        # Add to response headers
-        response.headers[config.correlation_header] = correlation_id
-        
-        return response
+        # Modify response headers to include correlation ID on startup
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers_list = list(message.get("headers", []))
+                headers_list.append((
+                    config.correlation_header.encode('latin1'),
+                    correlation_id.encode('latin1')
+                ))
+                message["headers"] = headers_list
+            await send(message)
+            
+        await self.app(scope, receive, send_wrapper)
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
+class RequestLoggingMiddleware:
     """
-    Middleware to log request start/end with timing.
-    
-    Logs include:
-    - Route, method, status code
-    - Duration in milliseconds
-    - Correlation ID (auto-injected by logger)
+    ASGI Middleware to log request start/end with timing.
     """
-    
-    # Routes to skip logging (health checks, metrics)
     SKIP_ROUTES = {"/health", "/ready", "/metrics", "/"}
     
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Skip logging for health checks
-        if request.url.path in self.SKIP_ROUTES:
-            return await call_next(request)
+    def __init__(self, app: ASGIApp):
+        self.app = app
         
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+            
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        
+        if path in self.SKIP_ROUTES:
+            await self.app(scope, receive, send)
+            return
+            
         start_time = time.perf_counter()
         
         # Log request start
         logger.info(
             "request_started",
-            route=request.url.path,
-            method=request.method,
-            query=str(request.query_params) if request.query_params else None
+            route=path,
+            method=method,
+            query=scope.get("query_string", b"").decode("utf-8")
         )
         
-        # Process request
+        status_code = [500]
+        
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status_code[0] = message.get("status", 500)
+            await send(message)
+            
         try:
-            response = await call_next(request)
+            await self.app(scope, receive, send_wrapper)
             duration_ms = (time.perf_counter() - start_time) * 1000
             
             # Log request completion
@@ -90,20 +107,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             
             getattr(logger, log_level)(
                 "request_completed",
-                route=request.url.path,
-                method=request.method,
-                status=response.status_code,
+                route=path,
+                method=method,
+                status=status_code[0],
                 duration_ms=round(duration_ms, 2)
             )
-            
-            return response
-            
         except Exception as e:
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.error(
                 "request_failed",
-                route=request.url.path,
-                method=request.method,
+                route=path,
+                method=method,
                 error=str(e),
                 duration_ms=round(duration_ms, 2),
                 exc_info=True
@@ -111,96 +125,94 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             raise
 
 
-class MetricsMiddleware(BaseHTTPMiddleware):
+class MetricsMiddleware:
     """
-    Middleware to collect Prometheus metrics.
-    
-    Collects:
-    - Request count by route, method, status
-    - Request latency histogram
-    - Error counts
+    ASGI Middleware to collect Prometheus metrics.
     """
-    
-    # Routes to skip metrics (avoid polluting metrics with health checks)
     SKIP_ROUTES = {"/health", "/ready", "/metrics"}
     
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Skip metrics for internal endpoints
-        if request.url.path in self.SKIP_ROUTES:
-            return await call_next(request)
+    def __init__(self, app: ASGIApp):
+        self.app = app
         
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+            
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        
+        if path in self.SKIP_ROUTES:
+            await self.app(scope, receive, send)
+            return
+            
         metrics = get_metrics()
         start_time = time.perf_counter()
+        status_code = [500]
         
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status_code[0] = message.get("status", 500)
+            await send(message)
+            
         try:
-            response = await call_next(request)
+            await self.app(scope, receive, send_wrapper)
             duration = time.perf_counter() - start_time
             
             # Record successful request
             metrics.record_request(
-                route=self._normalize_route(request.url.path),
-                method=request.method,
-                status=response.status_code,
+                route=self._normalize_route(path),
+                method=method,
+                status=status_code[0],
                 duration=duration
             )
             
             # Record errors (4xx, 5xx)
-            if response.status_code >= 400:
+            if status_code[0] >= 400:
                 metrics.record_error(
-                    route=self._normalize_route(request.url.path),
-                    error_code=f"HTTP_{response.status_code}"
+                    route=self._normalize_route(path),
+                    error_code=f"HTTP_{status_code[0]}"
                 )
-            
-            return response
-            
         except Exception as e:
             duration = time.perf_counter() - start_time
             
             # Record failed request
             metrics.record_request(
-                route=self._normalize_route(request.url.path),
-                method=request.method,
+                route=self._normalize_route(path),
+                method=method,
                 status=500,
                 duration=duration
             )
             metrics.record_error(
-                route=self._normalize_route(request.url.path),
+                route=self._normalize_route(path),
                 error_code="INTERNAL_ERROR"
             )
-            
             raise
-    
+            
     def _normalize_route(self, path: str) -> str:
         """
         Normalize route path to reduce cardinality.
-        
-        Replaces dynamic segments with placeholders:
-        /api/scanner/RELIANCE -> /api/scanner/{symbol}
         """
         parts = path.strip("/").split("/")
         normalized = []
         
-        for i, part in enumerate(parts):
+        for part in parts:
             # Detect likely dynamic segments (UUIDs, stock symbols, IDs)
             if self._is_dynamic_segment(part):
                 normalized.append("{id}")
             else:
                 normalized.append(part)
-        
+                
         return "/" + "/".join(normalized)
-    
+        
     def _is_dynamic_segment(self, segment: str) -> bool:
         """Check if a path segment is likely dynamic."""
-        # All uppercase = likely stock symbol
         if segment.isupper() and len(segment) <= 20:
             return True
-        # Contains only digits = likely ID
         if segment.isdigit():
             return True
-        # UUID pattern
         if len(segment) == 36 and segment.count("-") == 4:
             return True
-        # Hex string (like correlation ID)
         if len(segment) >= 16 and all(c in "0123456789abcdef" for c in segment.lower()):
             return True
         return False
@@ -210,9 +222,8 @@ def setup_observability_middleware(app) -> None:
     """
     Configure all observability middleware on a FastAPI app.
     
-    Order matters: Correlation -> Logging -> Metrics
+    Order matters: Correlation -> Logging -> Metrics (last added = first executed)
     """
-    # Add in reverse order (last added = first executed)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationMiddleware)

@@ -11,6 +11,7 @@ This module includes:
 
 import pandas as pd
 import numpy as np
+from core.indicators import atr
 from typing import Dict, Any
 
 from .base import BaseStrategy, StrategyMetadata, SignalType
@@ -65,12 +66,8 @@ class MACDBullishCrossoverStrategy(BaseStrategy):
         df['macd_histogram'] = df['macd'] - df['macd_signal']
         
         # Calculate ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -142,12 +139,8 @@ class StochasticOscillatorStrategy(BaseStrategy):
         df['stoch_d'] = df['stoch_k'].rolling(d_period).mean()
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -216,12 +209,8 @@ class PriceMomentumStrategy(BaseStrategy):
         df['roc'] = ((df['close'] - df['close'].shift(lookback)) / df['close'].shift(lookback)) * 100
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -300,12 +289,8 @@ class RSIMACDConfluenceStrategy(BaseStrategy):
         df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals - both must agree
         df['signal'] = SignalType.HOLD.value
@@ -391,12 +376,8 @@ class BollingerBandsBreakoutStrategy(BaseStrategy):
         df['volume_surge'] = df['volume'] > (vol_mult * df['avg_volume'])
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -466,12 +447,8 @@ class HeadAndShouldersStrategy(BaseStrategy):
         df['local_low'] = df['low'].rolling(lookback, center=True).min() == df['low']
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Simplified pattern: look for triple peaks with middle one highest
         df['rolling_high'] = df['high'].rolling(lookback).max()
@@ -548,12 +525,8 @@ class WilliamsRStrategy(BaseStrategy):
         df['williams_r'] = -100 * (high_max - df['close']) / (high_max - low_min)
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -644,12 +617,8 @@ class CCIDeviationStrategy(BaseStrategy):
         df['cci'] = (df['typical_price'] - df['sma_tp']) / (0.015 * df['mad'])
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals
         df['signal'] = SignalType.HOLD.value
@@ -704,12 +673,8 @@ class DonchianMeanReversionStrategy(BaseStrategy):
         df['middle_channel'] = (df['upper_channel'] + df['lower_channel']) / 2
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate signals - mean reversion
         df['signal'] = SignalType.HOLD.value
@@ -774,12 +739,8 @@ class FibonacciRetracementStrategy(BaseStrategy):
         df['trend_ma'] = df['close'].rolling(ma_period).mean()
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate Signals
         df['signal'] = SignalType.HOLD.value
@@ -860,12 +821,8 @@ class FlagPennantStrategy(BaseStrategy):
         df['volume_surge'] = df['volume'] > 1.2 * df['avg_volume']
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate Signals
         df['signal'] = SignalType.HOLD.value
@@ -953,12 +910,8 @@ class IchimokuCloudStrategy(BaseStrategy):
         # Using simplified Tenkan/Kijun cross + Price > Cloud
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate Signals
         df['signal'] = SignalType.HOLD.value
@@ -1081,12 +1034,8 @@ class OBVDivergenceStrategy(BaseStrategy):
         bearish_div = (df['price_chg'] > 0.02 * df['close']) & (df['obv_chg'] < 0)
         
         # ATR
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         # Generate Signals
         df['signal'] = SignalType.HOLD.value
@@ -1358,12 +1307,8 @@ class MultiTimeframeConfluenceStrategy(BaseStrategy):
         df.loc[buy_mask, 'signal'] = SignalType.BUY.value
         
         # ATR for stop
-        df['tr'] = np.maximum(
-            df['high'] - df['low'],
-            np.maximum(abs(df['high'] - df['close'].shift(1)),
-                       abs(df['low'] - df['close'].shift(1)))
-        )
-        df['atr'] = df['tr'].rolling(14).mean()
+        # Calculate ATR
+        df['atr'] = atr(df['high'], df['low'], df['close'], 14)
         
         df['stop_loss'] = np.where(
             df['signal'] == SignalType.BUY.value,

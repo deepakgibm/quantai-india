@@ -23,20 +23,15 @@ class IntradayCandle(Base):
     """Intraday candle data for Nifty 500 stocks."""
     __tablename__ = "intraday_candles"
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    symbol = Column(String(50), nullable=False, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True)
-    interval = Column(String(10), nullable=False, index=True)
+    symbol = Column(String(50), primary_key=True)
+    timestamp = Column(DateTime, primary_key=True)
+    interval = Column(String(10), primary_key=True)
     open = Column(Float, nullable=False)
     high = Column(Float, nullable=False)
     low = Column(Float, nullable=False)
     close = Column(Float, nullable=False)
     volume = Column(Integer, nullable=False)
     source = Column(String(20), default="upstox")
-    
-    __table_args__ = (
-        Index('idx_symbol_interval_timestamp', 'symbol', 'interval', 'timestamp', unique=True),
-    )
 
 
 class LoaderCheckpoint(Base):

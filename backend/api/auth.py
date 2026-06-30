@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
 auth_service = get_auth_service()
 
-@router.post("/signup", response_model=UserResponse, dependencies=[Depends(rate_limit(limit=100, window=60, name="auth_signup"))])
+@router.post("/signup", response_model=UserResponse, dependencies=[Depends(rate_limit(limit=5, window=60, name="auth_signup"))])
 async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
     """User signup endpoint."""
     try:
@@ -24,7 +24,7 @@ async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
         logger.error(f"Signup failed: {e}")
         raise HTTPException(status_code=500, detail="Internal server error during signup")
 
-@router.post("/login", response_model=Token, dependencies=[Depends(rate_limit(limit=100, window=60, name="auth_login"))])
+@router.post("/login", response_model=Token, dependencies=[Depends(rate_limit(limit=5, window=60, name="auth_login"))])
 async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
     """User login endpoint."""
     try:
