@@ -88,6 +88,10 @@ def resolve_instrument_id(
     Raises:
         ValueError: If instrument is inactive
     """
+    symbol_upper = symbol.upper().strip()
+    if symbol_upper in ("NIFTY", "NIFTY_50", "NSE:NIFTY"):
+        symbol = "NIFTY 50"
+
     cache_key = f"sym:{symbol}:{series}:{exchange}"
     
     # Check cache first
@@ -105,13 +109,23 @@ def resolve_instrument_id(
     
     try:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT 
-                instrument_id, instrument_key, symbol, series, exchange,
-                company_name, sector, is_active
-            FROM instrument_master
-            WHERE symbol = %s AND series = %s AND exchange = %s
-        """, (symbol, series, exchange))
+        if symbol == "NIFTY 50":
+            cursor.execute("""
+                SELECT 
+                    instrument_id, instrument_key, symbol, series, exchange,
+                    company_name, sector, is_active
+                FROM instrument_master
+                WHERE symbol = %s AND exchange = %s
+                LIMIT 1
+            """, (symbol, exchange))
+        else:
+            cursor.execute("""
+                SELECT 
+                    instrument_id, instrument_key, symbol, series, exchange,
+                    company_name, sector, is_active
+                FROM instrument_master
+                WHERE symbol = %s AND series = %s AND exchange = %s
+            """, (symbol, series, exchange))
         
         row = cursor.fetchone()
         if not row:

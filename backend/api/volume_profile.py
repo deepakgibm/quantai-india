@@ -259,7 +259,13 @@ async def fetch_stock_data_and_calculate(symbol: str, lookback: int, db: AsyncSe
         ) sub
         WHERE prev_close IS NOT NULL AND prev_close > 0
     """)
-    cutoff_dt = (datetime.now() - timedelta(days=45)).date()
+    # Resolve reference date (max date in database) to support static historical datasets
+    ref_res = await db.execute(text("SELECT MAX(candle_ts) FROM stock_candle"))
+    max_ts = ref_res.scalar()
+    if not max_ts:
+        max_ts = datetime.now()
+        
+    cutoff_dt = (max_ts - timedelta(days=45)).date()
     perf_res = await db.execute(perf_query, {"cutoff": cutoff_dt})
     univ_avg_ret = float(perf_res.scalar() or 2.0)
     

@@ -279,7 +279,7 @@ class UpstoxClient:
         from datetime import timedelta
         
         max_chunk_days = 30
-        is_sub_day = interval in ("1minute", "30minute")
+        is_sub_day = interval in ("1minute", "3minute", "5minute", "10minute", "15minute", "30minute", "60minute", "1hour")
         
         if is_sub_day and (to_date - from_date).days > max_chunk_days:
             chunks = []

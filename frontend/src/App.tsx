@@ -177,7 +177,8 @@ const ProtectedRoute: React.FC<{ element: React.ReactNode; activePage: Page }> =
     activePage === Page.QUANT_WORKSPACE ||
     activePage === Page.QUANT_BOT ||
     activePage === Page.WALK_FORWARD_BACKTEST ||
-    activePage === Page.EXPERIMENT_LAB;
+    activePage === Page.EXPERIMENT_LAB ||
+    activePage === Page.OPTION_FLOW;
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>

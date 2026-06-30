@@ -142,7 +142,7 @@ const PriceDiagnosticPanel: React.FC = () => {
       setIntegrityScore(100);
       return;
     }
-    const matches = list.filter(r => r.status === 'MATCH').length;
+    const matches = list.filter((r: any) => r.status === 'MATCH').length;
     setIntegrityScore(Math.round((matches / list.length) * 100));
   }, [rows]);
 

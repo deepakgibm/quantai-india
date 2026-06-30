@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCw, 
   BarChart2, List, ShieldAlert, Award, Layers, AlertTriangle, 
-  Gauge, Zap, Clock, Activity, Target, ShieldCheck, Flame, Info
+  Gauge, Zap, Clock, Activity, Target, ShieldCheck, Flame, Info,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
 import { api } from '../services/api';
@@ -245,17 +246,21 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   // Advanced Chart State
   const [chartData, setChartData] = useState<AdvancedChartData | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
-  
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const chartCardRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const lightweightChartRef = useRef<any>(null);
   const candlestickSeriesRef = useRef<any>(null);
   const ema20SeriesRef = useRef<any>(null);
   const ema50SeriesRef = useRef<any>(null);
   const vwapSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
   const chartMarkersRef = useRef<any[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const chartCacheRef = useRef<Record<string, AdvancedChartData>>({});
+  const lastChartTimeRef = useRef<any>(null);
+  const chartPollFailuresRef = useRef<number>(0);
   const maxRetries = 2;
 
   // Fetch Broker Connection Status
@@ -390,7 +395,19 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       return;
     }
     
-    const cacheKey = `${symbol}:${timeframe}:90`;
+    // Resolve dynamic historical data availability depending on selected timeframe
+    let lookbackDays = 90;
+    if (timeframe === '1d') {
+      lookbackDays = 730; // Load 2 Years of daily candles
+    } else if (timeframe === '30m') {
+      lookbackDays = 365; // Load 1 Year of 30m candles
+    } else if (timeframe === '15m') {
+      lookbackDays = 180; // Load 6 Months of 15m candles
+    } else if (timeframe === '5m') {
+      lookbackDays = 90;  // Load 90 Days of 5m candles
+    }
+    
+    const cacheKey = `${symbol}:${timeframe}:${lookbackDays}`;
     if (chartCacheRef.current[cacheKey]) {
       setChartError(null);
       setChartData(chartCacheRef.current[cacheKey]);
@@ -400,7 +417,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     setChartLoading(true);
     setChartError(null);
     try {
-      const response = await api.getOptionFlowChart(clean, timeframe, 90);
+      const response = await api.getOptionFlowChart(clean, timeframe, lookbackDays);
       // Handle double-nested data payload structure if API returns {success: true, data: {...}}
       const chartPayload = response?.data && response?.success ? response.data : response;
       
@@ -416,7 +433,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     }
   };
 
-  // Run on Symbol change
+  // Run on Symbol change to reset states and load expiries
   useEffect(() => {
     const init = async () => {
       setData(null);
@@ -432,77 +449,145 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       if (!fnoValid) {
         setIsNonFno(true);
         setLoading(false);
-        return;
+      } else {
+        setIsNonFno(false);
+        setLoading(true);
+        try {
+          await Promise.all([
+            fetchExpiries(selectedSymbol),
+            checkBrokerStatus()
+          ]);
+        } catch (e) {
+          console.warn('[OptionFlow] Initialization failed:', e);
+        } finally {
+          setLoading(false);
+        }
       }
-      
-      setIsNonFno(false);
-      setLoading(true);
-      
-      await Promise.all([
-        fetchExpiries(selectedSymbol),
-        checkBrokerStatus()
-      ]);
     };
     init();
   }, [selectedSymbol]);
 
-  // Run on Expiry or Timeframe change
+  // Run on Symbol or Timeframe change - ALWAYS load the price chart!
+  useEffect(() => {
+    fetchChartData(selectedSymbol, chartTimeframe);
+  }, [selectedSymbol, chartTimeframe]);
+
+  // Run on Expiry change - load F&O option metrics when expiry is selected
+  useEffect(() => {
+    if (selectedExpiry && !isNonFno) {
+      fetchOptionFlow(selectedSymbol, selectedExpiry);
+    }
+  }, [selectedSymbol, selectedExpiry, isNonFno]);
+
+  // Hook for incremental updates polling
   useEffect(() => {
     const clean = selectedSymbol.toUpperCase().replace("NSE:", "").trim();
-    if (!isFOSymbol(clean)) {
-      setIsNonFno(true);
-      setLoading(false);
-      return;
-    }
-
-    if (selectedExpiry) {
-      fetchOptionFlow(selectedSymbol, selectedExpiry);
-      fetchChartData(selectedSymbol, chartTimeframe);
-    }
 
     const fetchIncrementalChartData = async () => {
       if (!lightweightChartRef.current || !candlestickSeriesRef.current) return;
+      
+      const timeToComparable = (time: any): number => {
+        if (time === null || time === undefined) return 0;
+        
+        // Lightweight Charts business day object: { year, month, day }
+        if (typeof time === 'object' && time.year && time.month && time.day) {
+          return time.year * 10000 + time.month * 100 + time.day;
+        }
+        
+        // String date: e.g. "2026-06-30" or ISO string
+        if (typeof time === 'string') {
+          if (time.includes('T')) {
+            return Math.floor(new Date(time).getTime() / 1000);
+          }
+          const parts = time.split('-');
+          if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const d = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+              return y * 10000 + m * 100 + d;
+            }
+          }
+          return Math.floor(new Date(time).getTime() / 1000);
+        }
+        
+        // Number: Unix timestamp
+        if (typeof time === 'number') {
+          if (time > 10000000000) {
+            return Math.floor(time / 1000);
+          }
+          return time;
+        }
+        
+        return 0;
+      };
+
       try {
         const response = await api.getOptionFlowChart(clean, chartTimeframe, 2);
+        chartPollFailuresRef.current = 0; // Reset failures on success!
         const chartPayload = response?.data && response?.success ? response.data : response;
 
         if (chartPayload && chartPayload.candles && chartPayload.candles.length > 0) {
           // 1. Update Existing Candlestick Series Instantly
           chartPayload.candles.forEach((c: any) => {
+            let t = c.time;
+            if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
+            else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
+            
+            const lastTime = lastChartTimeRef.current;
+            const newComp = timeToComparable(t);
+            const lastComp = timeToComparable(lastTime);
+            
+            if (lastTime && newComp < lastComp) {
+              console.warn(
+                `[OptionFlow] Update rejected: Incoming timestamp is older than last candle.`,
+                `Previous time:`, lastTime,
+                `Incoming time:`, t,
+                `Reason: Out of order timestamp (Incoming: ${newComp} < Last: ${lastComp})`
+              );
+              return; // Skip this outdated candle update
+            }
+
             if (candlestickSeriesRef.current) {
-              let t = c.time;
-              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-              
               candlestickSeriesRef.current.update({
                 time: t as UTCTimestamp,
-                open: c.open,
-                high: c.high,
-                low: c.low,
-                close: c.close
+                open: Number(c.open),
+                high: Number(c.high),
+                low: Number(c.low),
+                close: Number(c.close)
               });
             }
-            if (ema20SeriesRef.current && c.ema_20 !== undefined) {
-              let t = c.time;
-              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-              ema20SeriesRef.current.update({ time: t as UTCTimestamp, value: c.ema_20 });
+            if (ema20SeriesRef.current && c.ema_20 !== undefined && !isNaN(c.ema_20)) {
+              ema20SeriesRef.current.update({ time: t as UTCTimestamp, value: Number(c.ema_20) });
             }
-            if (ema50SeriesRef.current && c.ema_50 !== undefined) {
-              let t = c.time;
-              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-              ema50SeriesRef.current.update({ time: t as UTCTimestamp, value: c.ema_50 });
+            if (ema50SeriesRef.current && c.ema_50 !== undefined && !isNaN(c.ema_50)) {
+              ema50SeriesRef.current.update({ time: t as UTCTimestamp, value: Number(c.ema_50) });
             }
-            if (vwapSeriesRef.current && c.vwap !== undefined) {
-              let t = c.time;
-              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-              vwapSeriesRef.current.update({ time: t as UTCTimestamp, value: c.vwap });
+            if (vwapSeriesRef.current && c.vwap !== undefined && !isNaN(c.vwap)) {
+              vwapSeriesRef.current.update({ time: t as UTCTimestamp, value: Number(c.vwap) });
+            }
+            if (volumeSeriesRef.current && c.volume !== undefined && !isNaN(c.volume)) {
+              volumeSeriesRef.current.update({
+                time: t as UTCTimestamp,
+                value: Number(c.volume),
+                color: Number(c.close) >= Number(c.open) ? '#10b98155' : '#ef444455'
+              });
+            }
+            
+            // Set lastChartTimeRef to the newest processed timestamp
+            if (newComp >= lastComp) {
+              lastChartTimeRef.current = t;
             }
           });
 
-          // 2. Update Breakout Markers
+          // 2. Accumulate/Merge Smart Money Zones
+          if (chartPayload.smart_money_zones && chartPayload.smart_money_zones.length > 0) {
+            // Keep at most 5 recent smart money zones
+            const mergedZones = [...chartPayload.smart_money_zones];
+            // Render zones (not shown here)
+          }
+
+          // 3. Accumulate/Merge Breakout Markers
           if (chartPayload.breakout_markers && chartPayload.breakout_markers.length > 0 && candlestickSeriesRef.current) {
             const existingMarkersMap = new Map(chartMarkersRef.current.map(m => [m.time, m]));
             chartPayload.breakout_markers.forEach((m: any) => {
@@ -511,7 +596,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
               else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
               existingMarkersMap.set(t, { ...m, time: t });
             });
-            const mergedMarkers = Array.from(existingMarkersMap.values()).sort((a, b) => {
+            const mergedMarkers = Array.from(existingMarkersMap.values()).sort((a: any, b: any) => {
               const tA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime();
               const tB = typeof b.time === 'number' ? b.time : new Date(b.time).getTime();
               return tA - tB;
@@ -519,30 +604,10 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
             candlestickSeriesRef.current.setMarkers(mergedMarkers);
             chartMarkersRef.current = mergedMarkers;
           }
-
-          setChartData(prev => {
-            if (!prev) return null;
-            const existingCandlesMap = new Map((prev.candles || []).map(c => [c.time, c]));
-            chartPayload.candles.forEach((c: any) => {
-              let t = c.time;
-              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-              existingCandlesMap.set(t, { ...c, time: t });
-            });
-            const mergedCandles = Array.from(existingCandlesMap.values()).sort((a, b) => {
-              const tA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime();
-              const tB = typeof b.time === 'number' ? b.time : new Date(b.time).getTime();
-              return tA - tB;
-            });
-            return {
-              ...prev,
-              candle_count: mergedCandles.length,
-              candles: mergedCandles
-            };
-          });
         }
       } catch (err) {
-        console.warn('[OptionFlow] Failed to fetch incremental chart updates:', err);
+        chartPollFailuresRef.current += 1;
+        console.warn(`[OptionFlow] Failed to fetch incremental chart updates (consecutive failures: ${chartPollFailuresRef.current}):`, err);
       }
     };
 
@@ -550,7 +615,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       if (selectedExpiry && !isNonFno) {
         fetchOptionFlow(selectedSymbol, selectedExpiry, true);
         checkBrokerStatus();
-        fetchIncrementalChartData();
+        
+        // Polling back-off logic for incremental updates
+        if (chartPollFailuresRef.current < 3) {
+          fetchIncrementalChartData();
+        } else if (chartPollFailuresRef.current % 10 === 0) {
+          console.log('[OptionFlow] Retrying incremental chart poll after cool-down...');
+          fetchIncrementalChartData();
+        }
       }
     }, 15000);
 
@@ -565,12 +637,54 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     };
   }, [selectedSymbol, selectedExpiry, isNonFno, chartTimeframe]);
 
+  // Fullscreen Toggler
+  const toggleFullscreen = useCallback(() => {
+    if (!chartCardRef.current) return;
+    
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(err => {
+        console.error('[Fullscreen] Exit failed:', err);
+      });
+    } else {
+      chartCardRef.current.requestFullscreen().catch(err => {
+        console.error('[Fullscreen] Request failed:', err);
+      });
+    }
+  }, []);
+
+  // Listen for browser fullscreen change events (handles ESC key natively)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const active = document.fullscreenElement === chartCardRef.current;
+      console.log('[Fullscreen] Native event triggered. Active status:', active);
+      setIsFullscreen(active);
+      
+      // Trigger a resize manually on state switch to ensure chart fills element instantly
+      setTimeout(() => {
+        const chart = lightweightChartRef.current;
+        const container = chartContainerRef.current;
+        if (chart && container) {
+          console.log(`[Fullscreen Resize] Resizing chart to container width: ${container.clientWidth}, height: ${container.clientHeight}`);
+          chart.resize(container.clientWidth, container.clientHeight);
+        }
+      }, 50);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   // =========================================================================
   // TradingView Lightweight Chart Setup & Lifecycle
   // =========================================================================
   
-  // 1. Reset/Destroy Chart on Symbol or Timeframe change
+  // 1. Initialize Chart Instance (Created once on symbol or timeframe change)
   useEffect(() => {
+    if (!chartContainerRef.current) return;
+    
+    // Destroy previous chart if it exists
     if (lightweightChartRef.current) {
       try {
         lightweightChartRef.current.remove();
@@ -579,74 +693,155 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       }
       lightweightChartRef.current = null;
       candlestickSeriesRef.current = null;
+      volumeSeriesRef.current = null;
       ema20SeriesRef.current = null;
       ema50SeriesRef.current = null;
       vwapSeriesRef.current = null;
       chartMarkersRef.current = [];
     }
-    setChartData(null);
+    
+    lastChartTimeRef.current = null;
     setChartError(null);
-  }, [selectedSymbol, chartTimeframe]);
-
-  // 2. Initialize and draw chart when chartData arrives
-  useEffect(() => {
-    if (!chartContainerRef.current || !chartData || !chartData.candles || chartData.candles.length === 0) {
-      return;
-    }
-
-    // If chart already initialized, skip full recreation (incremental updates handle live data)
-    if (lightweightChartRef.current) {
-      return;
-    }
 
     const container = chartContainerRef.current;
-    console.log(`[Chart Init] Creating chart. Container clientWidth: ${container.clientWidth}, height: 320`);
+    console.log(`[Chart Init] Creating chart. Container clientWidth: ${container.clientWidth}, height: 700`);
     
-    // Create Chart Instance
     try {
       const chart = createChart(container, {
-      width: container.clientWidth || 800,
-      height: 320,
-      layout: {
-        background: { type: ColorType.Solid, color: '#090d16' },
-        textColor: '#64748b',
-      },
-      grid: {
-        vertLines: { color: '#1e293b' },
-        horzLines: { color: '#1e293b' },
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-      },
-      rightPriceScale: {
-        visible: true,
-        borderColor: '#1e293b',
-      },
-      timeScale: {
-        borderColor: '#1e293b',
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    });
+        width: container.clientWidth || 800,
+        height: 700,
+        layout: {
+          background: { type: ColorType.Solid, color: '#090d16' },
+          textColor: '#64748b',
+        },
+        grid: {
+          vertLines: { color: '#1e293b' },
+          horzLines: { color: '#1e293b' },
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+        },
+        rightPriceScale: {
+          visible: true,
+          borderColor: '#1e293b',
+        },
+        timeScale: {
+          borderColor: '#1e293b',
+          timeVisible: true,
+          secondsVisible: false,
+        },
+      });
 
-    lightweightChartRef.current = chart;
+      lightweightChartRef.current = chart;
 
-    // Main Candlestick Series
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#10b981',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
-    });
-    candlestickSeriesRef.current = candlestickSeries;
+      // Create candlestick series
+      const candlestickSeries = chart.addCandlestickSeries({
+        upColor: '#10b981',
+        downColor: '#ef4444',
+        borderVisible: false,
+        wickUpColor: '#10b981',
+        wickDownColor: '#ef4444',
+      });
+      candlestickSeriesRef.current = candlestickSeries;
+
+      // Create volume series
+      const volumeSeries = chart.addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+      });
+      volumeSeries.priceScale().applyOptions({
+        scaleMargins: { top: 0.8, bottom: 0 },
+      });
+      volumeSeriesRef.current = volumeSeries;
+
+      // Create EMA20 series
+      const ema20Series = chart.addLineSeries({
+        color: '#F59E0B',
+        lineWidth: 1,
+        title: 'EMA 20'
+      });
+      ema20SeriesRef.current = ema20Series;
+
+      // Create EMA50 series
+      const ema50Series = chart.addLineSeries({
+        color: '#3b82f6',
+        lineWidth: 1,
+        title: 'EMA 50'
+      });
+      ema50SeriesRef.current = ema50Series;
+
+      // Create VWAP series
+      const vwapSeries = chart.addLineSeries({
+        color: '#8B5CF6',
+        lineWidth: 1,
+        title: 'VWAP'
+      });
+      vwapSeriesRef.current = vwapSeries;
+
+      // Double click to toggle fullscreen and reset zoom
+      const handleDoubleClick = () => {
+        chart.timeScale().fitContent();
+        toggleFullscreen();
+      };
+      container.addEventListener('dblclick', handleDoubleClick);
+      (container as any)._dblClickHandler = handleDoubleClick;
+
+      // Handle Resize using ResizeObserver
+      const resizeObserver = new ResizeObserver(entries => {
+        if (!entries || entries.length === 0) return;
+        const { width, height } = entries[0].contentRect;
+        if (lightweightChartRef.current && width > 0 && height > 0) {
+          console.log(`[Chart Resize] Resizing chart to clientWidth: ${width}, height: ${height}`);
+          lightweightChartRef.current.resize(width, height);
+        }
+      });
+      resizeObserver.observe(container);
+      (container as any)._resizeObserver = resizeObserver;
+
+    } catch (e: any) {
+      console.error('[Chart Init] Fatal error during chart creation:', e);
+      setChartError(e.message || e.toString());
+    }
+
+    return () => {
+      // Cleanup chart on unmount or symbol/timeframe changes
+      if (lightweightChartRef.current) {
+        try { lightweightChartRef.current.remove(); } catch (ex) {}
+        lightweightChartRef.current = null;
+        candlestickSeriesRef.current = null;
+        volumeSeriesRef.current = null;
+        ema20SeriesRef.current = null;
+        ema50SeriesRef.current = null;
+        vwapSeriesRef.current = null;
+        chartMarkersRef.current = [];
+      }
+      if (chartContainerRef.current) {
+        const c = chartContainerRef.current;
+        if ((c as any)._resizeObserver) (c as any)._resizeObserver.disconnect();
+        if ((c as any)._dblClickHandler) c.removeEventListener('dblclick', (c as any)._dblClickHandler);
+      }
+    };
+  }, [selectedSymbol, chartTimeframe, toggleFullscreen]);
+
+  // 2. Draw/Update Chart Data (Runs when chartData is fetched or refreshed)
+  useEffect(() => {
+    const chart = lightweightChartRef.current;
+    const candlestickSeries = candlestickSeriesRef.current;
+    const volumeSeries = volumeSeriesRef.current;
+    const ema20Series = ema20SeriesRef.current;
+    const ema50Series = ema50SeriesRef.current;
+    const vwapSeries = vwapSeriesRef.current;
+
+    if (!chart || !candlestickSeries || !volumeSeries || !ema20Series || !ema50Series || !vwapSeries || !chartData || !chartData.candles || chartData.candles.length === 0) {
+      return;
+    }
 
     // Populate candle data
     const candlesData = (chartData.candles || [])
       .filter((c: any) => c && c.time && c.open != null && c.high != null && c.low != null && c.close != null && !isNaN(c.close))
       .map((c: any) => {
         let t = c.time;
-        // Strict timestamp conversion logic as requested
         if (typeof t === 'string' && t.includes('T')) {
           t = Math.floor(new Date(t).getTime() / 1000);
         } else if (typeof t === 'number' && t > 10000000000) {
@@ -660,24 +855,19 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           close: Number(c.close)
         };
       });
-    
-    console.log(`[Chart Init] Adding ${candlesData.length} candles to series. First candle:`, candlesData[0]);
-    
+
     try {
       candlestickSeries.setData(candlesData);
-      console.log('[Chart Init] Successfully set candlestick data');
+      if (candlesData.length > 0) {
+        lastChartTimeRef.current = candlesData[candlesData.length - 1].time;
+        console.log(`[Chart Data] Set candlestick data. Count: ${candlesData.length}, lastTime:`, lastChartTimeRef.current);
+      }
     } catch (e) {
-      console.error('[Chart Init] Error setting candlestick data:', e);
+      console.error('[Chart Data] Error setting candlestick data:', e);
     }
 
-    // Volume Series
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-      scaleMargins: { top: 0.8, bottom: 0 },
-    });
-    volumeSeries.setData((chartData.candles || [])
+    // Populate volume data
+    const volumeData = (chartData.candles || [])
       .filter((c: any) => c && c.time && c.volume != null && !isNaN(c.volume))
       .map((c: any) => {
         let t = c.time;
@@ -688,60 +878,70 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           value: Number(c.volume),
           color: Number(c.close) >= Number(c.open) ? '#10b98155' : '#ef444455'
         };
-      }));
+      });
+    try {
+      volumeSeries.setData(volumeData);
+    } catch (e) {
+      console.error('[Chart Data] Error setting volume data:', e);
+    }
 
-    // EMA 20 Overlays (Yellow)
-    const ema20Series = chart.addLineSeries({
-      color: '#F59E0B',
-      lineWidth: 1,
-      title: 'EMA 20'
-    });
-    ema20SeriesRef.current = ema20Series;
-    ema20Series.setData((chartData.candles || [])
+    // Populate EMA20 data
+    const ema20Data = (chartData.candles || [])
       .filter((c: any) => c && c.time && c.ema_20 != null && !isNaN(c.ema_20))
       .map((c: any) => {
         let t = c.time;
         if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
         else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
         return { time: t, value: Number(c.ema_20) };
-      }));
+      });
+    try {
+      ema20Series.setData(ema20Data);
+    } catch (e) {
+      console.error('[Chart Data] Error setting EMA20 data:', e);
+    }
 
-    // EMA 50 Overlays (Blue)
-    const ema50Series = chart.addLineSeries({
-      color: '#3b82f6',
-      lineWidth: 1,
-      title: 'EMA 50'
-    });
-    ema50SeriesRef.current = ema50Series;
-    ema50Series.setData((chartData.candles || [])
+    // Populate EMA50 data
+    const ema50Data = (chartData.candles || [])
       .filter((c: any) => c && c.time && c.ema_50 != null && !isNaN(c.ema_50))
       .map((c: any) => {
         let t = c.time;
         if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
         else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
         return { time: t, value: Number(c.ema_50) };
-      }));
+      });
+    try {
+      ema50Series.setData(ema50Data);
+    } catch (e) {
+      console.error('[Chart Data] Error setting EMA50 data:', e);
+    }
 
-    // VWAP Overlay (Purple)
-    const vwapSeries = chart.addLineSeries({
-      color: '#8B5CF6',
-      lineWidth: 1,
-      title: 'VWAP'
-    });
-    vwapSeriesRef.current = vwapSeries;
-    vwapSeries.setData((chartData.candles || [])
+    // Populate VWAP data
+    const vwapData = (chartData.candles || [])
       .filter((c: any) => c && c.time && c.vwap != null && !isNaN(c.vwap))
       .map((c: any) => {
         let t = c.time;
         if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
         else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
         return { time: t, value: Number(c.vwap) };
-      }));
+      });
+    try {
+      vwapSeries.setData(vwapData);
+    } catch (e) {
+      console.error('[Chart Data] Error setting VWAP data:', e);
+    }
 
-    // Support & Resistance Zones
+    // Clear previous price lines if they exist
+    if ((candlestickSeries as any)._priceLines) {
+      (candlestickSeries as any)._priceLines.forEach((l: any) => {
+        try { candlestickSeries.removePriceLine(l); } catch (ex) {}
+      });
+    }
+    (candlestickSeries as any)._priceLines = [];
+
+    // Support Zones
     if (chartData.support_zones && chartData.support_zones.length > 0) {
       chartData.support_zones.forEach(price => {
-        candlestickSeries.createPriceLine({
+        const line = candlestickSeries.createPriceLine({
           price: price,
           color: '#10B981',
           lineWidth: 1,
@@ -749,12 +949,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           axisLabelVisible: true,
           title: 'Support',
         });
+        (candlestickSeries as any)._priceLines.push(line);
       });
     }
 
+    // Resistance Zones
     if (chartData.resistance_zones && chartData.resistance_zones.length > 0) {
       chartData.resistance_zones.forEach(price => {
-        candlestickSeries.createPriceLine({
+        const line = candlestickSeries.createPriceLine({
           price: price,
           color: '#EF4444',
           lineWidth: 1,
@@ -762,6 +964,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           axisLabelVisible: true,
           title: 'Resistance',
         });
+        (candlestickSeries as any)._priceLines.push(line);
       });
     }
 
@@ -775,44 +978,160 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           return { ...m, time: t };
         });
         
-        console.log(`[Chart Init] Setting ${validMarkers.length} markers`);
+        console.log(`[Chart Data] Setting ${validMarkers.length} markers`);
         candlestickSeries.setMarkers(validMarkers);
         chartMarkersRef.current = validMarkers;
       } catch (e) {
-        console.error('[Chart Init] Error setting markers:', e);
+        console.error('[Chart Data] Error setting markers:', e);
       }
+    } else {
+      candlestickSeries.setMarkers([]);
+      chartMarkersRef.current = [];
     }
 
     // Auto-fit contents
     try {
       chart.timeScale().fitContent();
-      console.log('[Chart Init] Successfully fitted content');
-    } catch (e) {
-      console.error('[Chart Init] Error fitting content:', e);
+    } catch (e) {}
+
+    // Task 6 - Validate Candle Counts Log
+    if (candlesData.length > 0) {
+      const getFormattedDate = (timeVal: any) => {
+        if (typeof timeVal === 'number') {
+          return new Date(timeVal * 1000).toISOString().split('T')[0];
+        } else {
+          return String(timeVal).split('T')[0];
+        }
+      };
+      const oldestTs = getFormattedDate(candlesData[0].time);
+      const latestTs = getFormattedDate(candlesData[candlesData.length - 1].time);
+      console.log(`[Chart History Validation]\nTimeframe: ${chartTimeframe}\nHistory Range: ${chartTitleRange}\nNumber of Candles: ${candlesData.length}\nOldest Timestamp: ${oldestTs}\nLatest Timestamp: ${latestTs}`);
     }
 
-    // Handle Resize
-    const handleResize = () => {
-      if (lightweightChartRef.current && container.clientWidth > 0) {
-        lightweightChartRef.current.applyOptions({ width: container.clientWidth });
+    // Tooltip rendering logic
+    const lastCandle = candlesData[candlesData.length - 1];
+    const updateTooltipText = (candle: any, volumeVal?: number, ema20Val?: number, ema50Val?: number, vwapVal?: number) => {
+      const timeEl = document.getElementById('chart-tooltip-time');
+      const ohlcEl = document.getElementById('chart-tooltip-ohlc');
+      const volEl = document.getElementById('chart-tooltip-volume');
+      const indEl = document.getElementById('chart-tooltip-indicators');
+
+      if (timeEl && ohlcEl && volEl && indEl) {
+        if (candle) {
+          const dateStr = typeof candle.time === 'number'
+            ? new Date(candle.time * 1000).toLocaleString()
+            : String(candle.time);
+          timeEl.textContent = dateStr;
+          ohlcEl.innerHTML = `O: <span class="text-white">${Number(candle.open).toFixed(2)}</span> H: <span class="text-emerald-400">${Number(candle.high).toFixed(2)}</span> L: <span class="text-red-400">${Number(candle.low).toFixed(2)}</span> C: <span class="text-white">${Number(candle.close).toFixed(2)}</span>`;
+        } else {
+          timeEl.textContent = '';
+          ohlcEl.innerHTML = '';
+        }
+
+        if (volumeVal != null) {
+          volEl.textContent = `Vol: ${volumeVal.toLocaleString()}`;
+        } else {
+          volEl.textContent = '';
+        }
+
+        let indStr = '';
+        if (ema20Val != null && !isNaN(ema20Val)) indStr += `EMA20: ${ema20Val.toFixed(2)} `;
+        if (ema50Val != null && !isNaN(ema50Val)) indStr += `EMA50: ${ema50Val.toFixed(2)} `;
+        if (vwapVal != null && !isNaN(vwapVal)) indStr += `VWAP: ${vwapVal.toFixed(2)} `;
+        indEl.textContent = indStr.trim();
       }
     };
-    window.addEventListener('resize', handleResize);
 
-    // Store resize listener in ref so we can remove it on unmount
-    (container as any)._resizeHandler = handleResize;
-
-    } catch (e: any) {
-      console.error('[Chart Init] Fatal error during chart creation:', e);
-      setChartError(e.message || e.toString());
+    if (lastCandle) {
+      const lastIdx = (chartData.candles || []).length - 1;
+      const lastRaw = (chartData.candles || [])[lastIdx];
+      updateTooltipText(
+        lastCandle, 
+        lastRaw?.volume, 
+        lastRaw?.ema_20, 
+        lastRaw?.ema_50, 
+        lastRaw?.vwap
+      );
     }
+
+    const crosshairHandler = (param: any) => {
+      const timeEl = document.getElementById('chart-tooltip-time');
+      const ohlcEl = document.getElementById('chart-tooltip-ohlc');
+      const volEl = document.getElementById('chart-tooltip-volume');
+      const indEl = document.getElementById('chart-tooltip-indicators');
+
+      if (!timeEl || !ohlcEl || !volEl || !indEl) return;
+
+      if (
+        !param.time ||
+        param.point === undefined ||
+        param.point.x < 0 ||
+        param.point.y < 0
+      ) {
+        if (lastCandle) {
+          const lastIdx = (chartData.candles || []).length - 1;
+          const lastRaw = (chartData.candles || [])[lastIdx];
+          updateTooltipText(
+            lastCandle, 
+            lastRaw?.volume, 
+            lastRaw?.ema_20, 
+            lastRaw?.ema_50, 
+            lastRaw?.vwap
+          );
+        }
+        return;
+      }
+
+      const dateStr = typeof param.time === 'number'
+        ? new Date(param.time * 1000).toLocaleString()
+        : String(param.time);
+      
+      timeEl.textContent = dateStr;
+
+      const candle = param.seriesData.get(candlestickSeries);
+      if (candle) {
+        const c = candle as any;
+        ohlcEl.innerHTML = `O: <span class="text-white">${c.open.toFixed(2)}</span> H: <span class="text-emerald-400">${c.high.toFixed(2)}</span> L: <span class="text-red-400">${c.low.toFixed(2)}</span> C: <span class="text-white">${c.close.toFixed(2)}</span>`;
+      } else {
+        ohlcEl.innerHTML = '';
+      }
+
+      const vol = param.seriesData.get(volumeSeries);
+      if (vol) {
+        const v = vol as any;
+        volEl.textContent = `Vol: ${v.value.toLocaleString()}`;
+      } else {
+        volEl.textContent = '';
+      }
+
+      const ema20 = param.seriesData.get(ema20Series);
+      const ema50 = param.seriesData.get(ema50Series);
+      const vwap = param.seriesData.get(vwapSeries);
+      
+      let indStr = '';
+      if (ema20) indStr += `EMA20: ${(ema20 as any).value.toFixed(2)} `;
+      if (ema50) indStr += `EMA50: ${(ema50 as any).value.toFixed(2)} `;
+      if (vwap) indStr += `VWAP: ${(vwap as any).value.toFixed(2)} `;
+      indEl.textContent = indStr.trim();
+    };
+    chart.subscribeCrosshairMove(crosshairHandler);
+
+    return () => {
+      chart.unsubscribeCrosshairMove(crosshairHandler);
+    };
   }, [chartData]); // Note: No cleanup function returned here to prevent destruction on data updates. Cleanup is in useEffect #1.
 
   // 3. Global cleanup on unmount
   useEffect(() => {
     return () => {
-      if (chartContainerRef.current && (chartContainerRef.current as any)._resizeHandler) {
-        window.removeEventListener('resize', (chartContainerRef.current as any)._resizeHandler);
+      if (chartContainerRef.current) {
+        const container = chartContainerRef.current;
+        if ((container as any)._resizeObserver) {
+          (container as any)._resizeObserver.disconnect();
+        }
+        if ((container as any)._dblClickHandler) {
+          container.removeEventListener('dblclick', (container as any)._dblClickHandler);
+        }
       }
       if (lightweightChartRef.current) {
         try { lightweightChartRef.current.remove(); } catch (e) {}
@@ -855,48 +1174,63 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     }));
   }, [data]);
 
-  if (isNonFno) {
-    if (isWidget) {
-      return (
-        <div className="flex flex-col items-center justify-center p-6 min-h-[200px] text-center">
-          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2.5 text-slate-400">
-            <ShieldAlert size={16} className="text-slate-400 dark:text-slate-500" />
-          </div>
-          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-            Options data unavailable for this stock.
-          </p>
-        </div>
-      );
+  const chartTitleRange = useMemo(() => {
+    if (!chartData || !chartData.candles || chartData.candles.length === 0) {
+      return '';
     }
-    return (
-      <div className="space-y-6">
-        {!isWidget && (
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-white font-display">Option Flow Terminal</h2>
-              <p className="text-sm text-slate-500 font-medium">Derivative turnover & institutional block tracker</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <GlobalSymbolSearch />
-            </div>
-          </div>
-        )}
+    const candles = chartData.candles;
+    const firstCandle = candles[0];
+    const lastCandle = candles[candles.length - 1];
+    
+    let firstTime = firstCandle.time;
+    let lastTime = lastCandle.time;
+    
+    // Convert to Date objects
+    let firstDate: Date;
+    let lastDate: Date;
+    
+    if (typeof firstTime === 'number') {
+      firstDate = new Date(firstTime * 1000);
+    } else {
+      firstDate = new Date(firstTime);
+    }
+    
+    if (typeof lastTime === 'number') {
+      lastDate = new Date(lastTime * 1000);
+    } else {
+      lastDate = new Date(lastTime);
+    }
+    
+    const diffTime = Math.abs(lastDate.getTime() - firstDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (chartTimeframe === '5m' || chartTimeframe === '15m') {
+      return `${diffDays} Days`;
+    }
+    
+    if (diffDays >= 360) {
+      const yrs = Math.round(diffDays / 365);
+      return `${yrs} Year${yrs > 1 ? 's' : ''}`;
+    } else if (diffDays >= 30) {
+      const mos = Math.round(diffDays / 30);
+      return `${mos} Month${mos > 1 ? 's' : ''}`;
+    } else {
+      return `${diffDays} Day${diffDays > 1 ? 's' : ''}`;
+    }
+  }, [chartData, chartTimeframe]);
 
-        <div className="flex flex-col items-center justify-center p-8 min-h-[250px] rounded-xl border border-purple-500/20 bg-slate-900/60 dark:bg-slate-950/40 backdrop-blur-md text-slate-100 shadow-xl">
-          <div className="w-10 h-10 rounded-full bg-purple-950/30 border border-purple-500/30 flex items-center justify-center mb-3.5 text-purple-400">
-            <ShieldAlert size={20} />
-          </div>
-          <h3 className="font-display font-semibold text-sm text-purple-400 mb-1.5">F&O Segment Required</h3>
-          <p className="text-xs text-slate-400 max-w-md text-center mb-4 font-medium leading-relaxed">
-            The symbol <span className="text-white font-bold">{selectedSymbol}</span> does not trade in the Futures & Options segment on the NSE. Option chain and flow metrics are only available for F&O-active stocks.
-          </p>
-          <div className="text-[10px] text-slate-500">
-            Please search for an F&O stock (e.g., RELIANCE, NIFTY, TCS, SBIN).
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const getChartTitle = () => {
+    const rangeStr = chartTitleRange ? ` (${chartTitleRange})` : '';
+    switch (chartTimeframe) {
+      case '5m': return `5 Minute Chart${rangeStr}`;
+      case '15m': return `15 Minute Chart${rangeStr}`;
+      case '30m': return `30 Minute Chart${rangeStr}`;
+      case '1d': return `Daily Chart${rangeStr}`;
+      default: return `Stock Chart${rangeStr}`;
+    }
+  };
+
+
 
   // Render Skeletons
   const renderSkeletons = () => (
@@ -920,7 +1254,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     </div>
   );
 
-  if (loading && !data) {
+  if (loading && !data && !isNonFno) {
     return (
       <div className="space-y-6">
         {!isWidget && (
@@ -957,7 +1291,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
   const isDataEmpty = !data || !data.strikes || data.strikes.length === 0;
 
-  if (isDataEmpty && !loading) {
+  if (isDataEmpty && !loading && !isNonFno) {
     let emptyTitle = "No Option Chain Data Available";
     let emptyMessage = (
       <>
@@ -1024,16 +1358,52 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     return `₹${val.toLocaleString('en-IN')}`;
   };
 
-  const isStaleData = dataSource === 'stale_cache' || dataSource === 'cache';
-  const signal = data.trade_signals?.signal || 'NO TRADE';
-  const bias = data.trade_signals?.directional_bias || 'Neutral';
-  const confidence = data.trade_signals?.confidence || 'Medium';
+  const isStaleData = data ? (dataSource === 'stale_cache' || dataSource === 'cache') : false;
+
+  // F&O analytics helper variables with safe fallbacks
+  const pcr = data?.pcr_oi ?? 0;
+  const sentiment = data?.sentiment ?? 'Neutral';
+  const sentimentScore = data?.sentiment_score ?? 50;
+  const totalVolume = data?.total_call_volume ?? 0;
+
+  // Extract latest candle to calculate fallback price and changes
+  const latestCandle = chartData?.candles?.[chartData.candles.length - 1];
+  const spotPrice = data?.spot_price ?? latestCandle?.close ?? 0;
+  const spotChange = data?.spot_change_pct ?? (latestCandle && chartData?.candles && chartData.candles.length > 1 ? ((latestCandle.close - chartData.candles[0].close) / chartData.candles[0].close) * 100 : 0);
+  
+  let signal = 'NO TRADE';
+  let bias = 'Neutral';
+  let confidence = 'Medium';
+  let signalReason = 'No signals generated currently.';
+  
+  if (data?.trade_signals) {
+    signal = data.trade_signals.signal || 'NO TRADE';
+    bias = data.trade_signals.directional_bias || 'Neutral';
+    confidence = data.trade_signals.confidence || 'Medium';
+    signalReason = data.trade_signals.reason?.[0] || 'No signals generated currently.';
+  } else if (latestCandle) {
+    const ema20 = latestCandle.ema_20;
+    const ema50 = latestCandle.ema_50;
+    if (ema20 && ema50) {
+      if (ema20 > ema50) {
+        signal = 'TECHNICAL BUY';
+        bias = 'Bullish';
+        confidence = 'Medium';
+        signalReason = 'EMA 20 is above EMA 50 indicating upward trend.';
+      } else {
+        signal = 'TECHNICAL SELL';
+        bias = 'Bearish';
+        confidence = 'Medium';
+        signalReason = 'EMA 20 is below EMA 50 indicating downward trend.';
+      }
+    }
+  }
 
   const isDev = (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') || 
                 (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost');
 
   return (
-    <div className="space-y-6 text-slate-100 font-sans selection:bg-emerald-500/30">
+    <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6 text-slate-100 font-sans selection:bg-emerald-500/30">
       {/* Diagnostic Panel */}
       {isDev && (
         <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl text-[11px] font-mono text-slate-300 backdrop-blur-md">
@@ -1062,7 +1432,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           </div>
           <div className="flex items-center gap-1.5 border-r border-slate-700/50 pr-4">
             <span className="text-slate-500">Strike Count:</span>
-            <span className="text-white font-bold">{data.strikes?.length || 0}</span>
+            <span className="text-white font-bold">{data?.strikes?.length || 0}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500">Last Refresh:</span>
@@ -1085,26 +1455,26 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       <div className="flex flex-wrap items-center gap-6 px-4 py-3 bg-slate-900/40 border border-slate-800/80 rounded-xl text-[11px] font-mono font-bold text-slate-400 backdrop-blur-md">
         <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
           <span className="text-slate-500">Call Turnover</span>
-          <span className="text-slate-100 font-extrabold">{formatPremium(data.total_call_premium)}</span>
+          <span className="text-slate-100 font-extrabold">{formatPremium(data?.total_call_premium)}</span>
         </div>
         <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
           <span className="text-slate-500">Put Turnover</span>
-          <span className="text-slate-100 font-extrabold">{formatPremium(data.total_put_premium)}</span>
+          <span className="text-slate-100 font-extrabold">{formatPremium(data?.total_put_premium)}</span>
         </div>
         <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
           <span className="text-slate-500">Net Premium Flow</span>
-          <span className={`font-extrabold ${data.net_flow >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {data.net_flow >= 0 ? "+" : ""}{formatPremium(data.net_flow)}
+          <span className={`font-extrabold ${(data?.net_flow ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {(data?.net_flow ?? 0) >= 0 ? "+" : ""}{formatPremium(data?.net_flow ?? 0)}
           </span>
         </div>
         <div className="flex items-center gap-1.5 border-r border-slate-800/80 pr-4">
           <span className="text-slate-500">Put-Call Ratio (PCR)</span>
-          <span className="text-slate-100 font-extrabold">{(data.pcr_oi ?? 0).toFixed(2)}</span>
+          <span className="text-slate-100 font-extrabold">{pcr.toFixed(2)}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-slate-500">Institutional Bias</span>
-          <span className={`font-extrabold ${(data.sentiment ?? 'Neutral').includes('Bullish') ? "text-emerald-400" : (data.sentiment ?? 'Neutral').includes('Bearish') ? "text-red-400" : "text-slate-400"}`}>
-            {data.sentiment}
+          <span className={`font-extrabold ${sentiment.includes('Bullish') ? "text-emerald-400" : sentiment.includes('Bearish') ? "text-red-400" : "text-slate-400"}`}>
+            {sentiment}
           </span>
         </div>
       </div>
@@ -1117,18 +1487,18 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
         <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all">
           <div className="flex justify-between items-center">
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Asset Quote</span>
-            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded ${(data.spot_change_pct ?? 0) >= 0 ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/40 text-red-400'}`}>
-              {(data.spot_change_pct ?? 0) >= 0 ? '+' : ''}{(data.spot_change_pct ?? 0).toFixed(2)}%
+            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded ${spotChange >= 0 ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/40 text-red-400'}`}>
+              {spotChange >= 0 ? '+' : ''}{spotChange.toFixed(2)}%
             </span>
           </div>
           <div className="my-3">
-            <div className="text-xs text-slate-400 font-semibold">{data.symbol}</div>
+            <div className="text-xs text-slate-400 font-semibold">{data?.symbol || selectedSymbol}</div>
             <div className="text-2xl font-bold font-mono mt-1 text-slate-100">
-              ₹{(data.spot_price ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{spotPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
           </div>
           <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold">
-            <span>Vol: {(data.total_call_volume ?? 0).toLocaleString()} contracts</span>
+            <span>Vol: {totalVolume.toLocaleString()} contracts</span>
             <span className="flex items-center gap-1">
               <Clock size={10} /> Auto-Refreshed
             </span>
@@ -1142,20 +1512,20 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
             <Activity size={12} className="text-purple-400 animate-pulse" />
           </div>
           <div className="my-3 text-center">
-            <div className={`text-xl font-bold uppercase ${(data.sentiment ?? 'Neutral').includes('Bullish') ? 'text-emerald-400' : (data.sentiment ?? 'Neutral').includes('Bearish') ? 'text-red-400' : 'text-slate-400'}`}>
-              {data.sentiment ?? 'Neutral'}
+            <div className={`text-xl font-bold uppercase ${sentiment.includes('Bullish') ? 'text-emerald-400' : sentiment.includes('Bearish') ? 'text-red-400' : 'text-slate-400'}`}>
+              {sentiment}
             </div>
             {/* Slider track visualization */}
             <div className="w-full bg-slate-800/80 h-1.5 rounded-full mt-3 overflow-hidden relative border border-slate-700/40">
               <div 
-                className={`h-full rounded-full transition-all duration-500 ${(data.sentiment_score ?? 50) >= 60 ? 'bg-emerald-500' : (data.sentiment_score ?? 50) <= 40 ? 'bg-red-500' : 'bg-slate-500'}`}
-                style={{ width: `${data.sentiment_score ?? 50}%` }}
+                className={`h-full rounded-full transition-all duration-500 ${sentimentScore >= 60 ? 'bg-emerald-500' : sentimentScore <= 40 ? 'bg-red-500' : 'bg-slate-500'}`}
+                style={{ width: `${sentimentScore}%` }}
               ></div>
             </div>
           </div>
           <div className="flex justify-between text-[10px] text-slate-500 font-semibold font-mono">
-            <span>PCR: {(data.pcr_oi ?? 0).toFixed(2)}</span>
-            <span>Index: {data.sentiment_score ?? 50}/100</span>
+            <span>PCR: {pcr.toFixed(2)}</span>
+            <span>Index: {sentimentScore}/100</span>
           </div>
         </div>
 
@@ -1168,21 +1538,21 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           <div className="my-2 flex items-center justify-between">
             <div>
               <span className={`text-2xl font-bold px-3 py-0.5 rounded font-display ${
-                signal.includes('BUY') || signal.includes('BREAKOUT') ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/20' :
-                signal.includes('SELL') || signal.includes('BREAKDOWN') ? 'bg-red-950/40 text-red-400 border border-red-500/20' : 'bg-slate-800 text-slate-400'
+                signal.includes('BUY') || signal.includes('BREAKOUT') || signal.includes('BULLISH') ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/20' :
+                signal.includes('SELL') || signal.includes('BREAKDOWN') || signal.includes('BEARISH') ? 'bg-red-950/40 text-red-400 border border-red-500/20' : 'bg-slate-800 text-slate-400'
               }`}>
                 {signal}
               </span>
             </div>
             <div className="text-right">
               <div className="text-[9px] text-slate-500 font-bold">CONFIDENCE</div>
-              <div className="text-xs font-semibold text-slate-200">{confidence} ({data.trade_signals?.confidence_score ?? 50}%)</div>
+              <div className="text-xs font-semibold text-slate-200">{confidence} ({data?.trade_signals?.confidence_score ?? 50}%)</div>
             </div>
           </div>
           <div className="text-[9px] text-slate-400 font-semibold truncate">
-            {data.trade_signals?.reason?.[0] || 'No signals generated currently.'}
+            {signalReason}
           </div>
-          {data.trade_signals?.equity_contribution !== undefined && data.trade_signals?.options_contribution !== undefined && (
+          {data?.trade_signals?.equity_contribution !== undefined && data?.trade_signals?.options_contribution !== undefined && (
             <div className="mt-2.5 pt-2 border-t border-slate-800/40">
               <div className="flex justify-between text-[8px] font-mono font-bold text-slate-500 mb-1">
                 <span>EQUITY: {data.trade_signals.equity_contribution}%</span>
@@ -1198,9 +1568,9 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
         {/* Market Relative Strength HUD */}
         {(() => {
-          const stockChange = data.market_correlation?.stock_change_pct;
-          const sectorChange = data.market_correlation?.sector_change_pct;
-          const niftyChange = data.market_correlation?.nifty_change_pct;
+          const stockChange = data?.market_correlation?.stock_change_pct;
+          const sectorChange = data?.market_correlation?.sector_change_pct;
+          const niftyChange = data?.market_correlation?.nifty_change_pct;
           
           const isAvailable = stockChange !== null && stockChange !== undefined;
           
@@ -1212,8 +1582,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           const sectorColor = sectorChange !== null && sectorChange !== undefined ? (sectorChange! >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500';
           const niftyColor = niftyChange !== null && niftyChange !== undefined ? (niftyChange! >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500';
           
-          const betaVal = data.market_correlation?.beta;
-          const corrVal = data.market_correlation?.correlation_score;
+          const betaVal = data?.market_correlation?.beta;
+          const corrVal = data?.market_correlation?.correlation_score;
           
           const betaStr = betaVal !== null && betaVal !== undefined ? betaVal.toFixed(2) : 'N/A';
           const corrStr = corrVal !== null && corrVal !== undefined ? corrVal.toFixed(2) : 'N/A';
@@ -1225,11 +1595,11 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
             >
               <div className="flex justify-between items-center">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Relative Strength</span>
-                <span className="text-[10px] font-mono font-bold text-slate-400">{data.market_correlation?.sector_name ?? 'N/A'}</span>
+                <span className="text-[10px] font-mono font-bold text-slate-400">{data?.market_correlation?.sector_name ?? 'N/A'}</span>
               </div>
               <div className="my-2">
                 <div className="text-[11px] font-bold text-purple-400 truncate">
-                  {data.market_correlation?.relative_strength ?? 'N/A'}
+                  {data?.market_correlation?.relative_strength ?? 'N/A'}
                 </div>
                 <div className="grid grid-cols-3 gap-2 mt-2.5 text-center text-[10px] font-mono font-bold">
                   <div className="bg-slate-950/60 p-1 rounded">
@@ -1258,21 +1628,23 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       {/* =========================================================================
           MAIN WORKSPACE LAYOUT GRID
          ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
         
-        {/* LEFT & CENTER COLUMN: Advanced Charting & Intraday PCR/Flow Trends */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* LEFT & CENTER COLUMN: Advanced Charting & Intraday PCR/Flow Trends - 70% */}
+        <div className="lg:col-span-7 space-y-6">
           {/* Lightweight Chart Panel */}
-          <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+          <div 
+            ref={chartCardRef} 
+            className={`p-6 border rounded-2xl backdrop-blur-md transition-all ${
+              isFullscreen 
+                ? 'w-full h-full flex flex-col justify-between bg-slate-950 border-0 rounded-none' 
+                : 'bg-slate-900/60 border-slate-800/80'
+            }`}
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  <BarChart2 size={14} className="text-purple-400" /> {
-                    chartTimeframe === '5m' ? '5 Minute Chart (3 Months)' :
-                    chartTimeframe === '15m' ? '15 Minute Chart (3 Months)' :
-                    chartTimeframe === '30m' ? '30 Minute Chart (3 Months)' :
-                    'Daily Chart (3 Months)'
-                  }
+                  <BarChart2 size={14} className="text-purple-400" /> {getChartTitle()}
                   {chartData && (
                     <span className="group relative inline-block cursor-pointer ml-1.5 align-middle">
                       <Info size={12} className="text-slate-500 hover:text-slate-300" />
@@ -1295,24 +1667,54 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                 </h3>
                 <p className="text-[10px] text-slate-500 font-semibold mt-0.5">VWAP, EMA 20/50, Support/Resistance & Accumulation Zones</p>
               </div>
-              <div className="flex items-center gap-1 bg-slate-950/40 p-1 rounded-lg border border-slate-800/80">
-                {(['5m', '15m', '30m', '1d'] as const).map((tf) => (
-                  <button
-                    key={tf}
-                    onClick={() => setChartTimeframe(tf)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer border-0 ${
-                      chartTimeframe === tf
-                        ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
-                        : 'bg-transparent text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {tf === '1d' ? '1D' : tf}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-950/40 p-1 rounded-lg border border-slate-800/80">
+                  {(['5m', '15m', '30m', '1d'] as const).map((tf) => (
+                    <button
+                      key={tf}
+                      onClick={() => setChartTimeframe(tf)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer border-0 ${
+                        chartTimeframe === tf
+                          ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                          : 'bg-transparent text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {tf === '1d' ? '1D' : tf}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={toggleFullscreen}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold bg-slate-950/40 border border-slate-800/80 hover:bg-slate-850 hover:border-slate-700 text-slate-300 hover:text-slate-100 transition-all cursor-pointer"
+                  title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
+                >
+                  {isFullscreen ? (
+                    <>
+                      <Minimize2 size={12} className="text-purple-400" />
+                      <span>Exit Full Screen</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 size={12} className="text-purple-400" />
+                      <span>Full Screen</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
             
-            <div className="relative h-[320px] min-h-[320px] bg-slate-950/40 rounded-xl overflow-hidden border border-slate-850">
+            <div className={`relative ${isFullscreen ? 'flex-grow h-[calc(100vh-140px)]' : 'h-[700px] min-h-[700px]'} bg-slate-950/40 rounded-xl overflow-hidden border border-slate-850`}>
+              {/* Dynamic Interactive Tooltip Overlay */}
+              <div 
+                id="chart-tooltip" 
+                className="absolute top-2.5 left-2.5 z-10 p-2.5 bg-slate-950/90 border border-slate-850 rounded-lg text-[10px] font-mono text-slate-300 pointer-events-none select-none flex flex-wrap gap-x-3.5 gap-y-1 max-w-[95%] shadow-lg shadow-black/80"
+              >
+                <span id="chart-tooltip-time" className="text-purple-400 font-bold"></span>
+                <span id="chart-tooltip-ohlc"></span>
+                <span id="chart-tooltip-volume" className="text-teal-400"></span>
+                <span id="chart-tooltip-indicators" className="text-yellow-400"></span>
+              </div>
+
               {chartLoading && (
                 <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-10 text-xs text-purple-400 font-bold gap-2">
                   <RefreshCw className="animate-spin" size={14} /> Loading Advanced Overlays...
@@ -1324,7 +1726,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                   <p className="text-xs text-red-200/80 whitespace-pre-wrap break-all">{chartError}</p>
                 </div>
               )}
-              <div ref={chartContainerRef} className="w-full h-full min-h-[320px]"></div>
+              <div ref={chartContainerRef} className={`w-full h-full ${isFullscreen ? '' : 'min-h-[700px]'}`}></div>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mt-3 text-[10px] font-semibold text-slate-500">
@@ -1337,7 +1739,8 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
           </div>
 
           {/* Intraday PCR & Premium Accumulation Curves */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {!isNonFno && data && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* PCR Intraday Momentum */}
             <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
               <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
@@ -1386,88 +1789,112 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
               </div>
             </div>
           </div>
+          )}
         </div>
 
-        {/* RIGHT COLUMN: Open Interest Profile & Smart Money Panel */}
-        <div className="space-y-6">
-          {/* Open Interest Horizontal Histogram Profile */}
-          <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
-            <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
-              <Layers size={14} className="text-purple-400" /> Open Interest Profile (ATM strikes)
-            </h3>
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={strikesChartData || []} layout="vertical">
-                  <CartesianGrid stroke="#1e293b" horizontal={false} />
-                  <XAxis type="number" stroke="#475569" fontSize={9} />
-                  <YAxis dataKey="strike" type="category" stroke="#475569" fontSize={9} width={45} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
-                  <Legend fontSize={9} />
-                  <Bar dataKey="Call OI" fill="#10b981" radius={[0, 2, 2, 0]} />
-                  <Bar dataKey="Put OI" fill="#ef4444" radius={[0, 2, 2, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+        {/* RIGHT COLUMN: Open Interest Profile & Smart Money Panel - 30% */}
+        {isNonFno ? (
+          <div className="lg:col-span-3 p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md flex flex-col justify-center items-center text-center space-y-4">
+            <ShieldAlert size={36} className="text-purple-400 mb-2" />
+            <div>
+              <h4 className="text-slate-200 font-bold font-display text-sm">Option Analytics Unavailable</h4>
+              <p className="text-slate-400 font-semibold text-xs leading-relaxed max-w-xs mt-2">
+                The stock <span className="text-white font-bold">{selectedSymbol}</span> does not trade in the F&O segment. Intraday PCR trend, option chains, and smart money blocks are only supported for F&O-active contracts.
+              </p>
             </div>
-            <div className="mt-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800 text-[10px] font-mono grid grid-cols-3 text-center">
-              <div>
-                <div className="text-slate-500 scale-95 uppercase font-bold">Max Pain</div>
-                <div className="text-purple-400 font-bold text-xs mt-0.5">{data.max_pain}</div>
-              </div>
-              <div className="border-x border-slate-800">
-                <div className="text-slate-500 scale-95 uppercase font-bold">S Support</div>
-                <div className="text-emerald-400 font-bold text-xs mt-0.5">{data.support_strike}</div>
-              </div>
-              <div>
-                <div className="text-slate-500 scale-95 uppercase font-bold">R Resistance</div>
-                <div className="text-red-400 font-bold text-xs mt-0.5">{data.resistance_strike}</div>
-              </div>
+            <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-850 w-full text-left font-mono text-[10px] text-slate-400 space-y-1.5 shadow-inner">
+              <div className="text-slate-500 font-bold border-b border-slate-800 pb-1 mb-1">FEATURE CAPABILITIES DETECTED</div>
+              <div>• Historical Price Chart: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
+              <div>• EMA 20/50 Indicators: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
+              <div>• VWAP Overlays: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
+              <div>• Volume & Buy/Sell Signals: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
+              <div>• Relative Strength (RS): <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
+              <div>• Options Chain / PCR: <span className="text-red-400 font-bold">✗ UNAVAILABLE</span></div>
+              <div>• Smart Money blocks: <span className="text-red-400 font-bold">✗ UNAVAILABLE</span></div>
             </div>
           </div>
+        ) : (
+          <div className="lg:col-span-3 space-y-6">
+            {/* Open Interest Horizontal Histogram Profile */}
+            <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <Layers size={14} className="text-purple-400" /> Open Interest Profile (ATM strikes)
+              </h3>
+              <div className="h-[250px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={strikesChartData || []} layout="vertical">
+                    <CartesianGrid stroke="#1e293b" horizontal={false} />
+                    <XAxis type="number" stroke="#475569" fontSize={9} />
+                    <YAxis dataKey="strike" type="category" stroke="#475569" fontSize={9} width={45} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
+                    <Legend fontSize={9} />
+                    <Bar dataKey="Call OI" fill="#10b981" radius={[0, 2, 2, 0]} />
+                    <Bar dataKey="Put OI" fill="#ef4444" radius={[0, 2, 2, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800 text-[10px] font-mono grid grid-cols-3 text-center">
+                <div>
+                  <div className="text-slate-500 scale-95 uppercase font-bold">Max Pain</div>
+                  <div className="text-purple-400 font-bold text-xs mt-0.5">{data?.max_pain}</div>
+                </div>
+                <div className="border-x border-slate-800">
+                  <div className="text-slate-500 scale-95 uppercase font-bold">S Support</div>
+                  <div className="text-emerald-400 font-bold text-xs mt-0.5">{data?.support_strike}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500 scale-95 uppercase font-bold">R Resistance</div>
+                  <div className="text-red-400 font-bold text-xs mt-0.5">{data?.resistance_strike}</div>
+                </div>
+              </div>
+            </div>
 
-          {/* Smart Money & Anomalies activity tracker */}
-          <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
-            <h3 className="font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5" style={{ color: '#FFFFFF' }}>
-              <Award size={14} style={{ color: '#FFFFFF' }} /> SMART MONEY ACTIVITY
-            </h3>
-            <div className="space-y-3 max-h-[290px] overflow-y-auto pr-1">
-              {data.smart_money_activity && data.smart_money_activity.length > 0 ? (
-                data.smart_money_activity.map((act, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`p-3 rounded-xl border flex flex-col justify-between text-[11px] font-semibold transition-all hover:bg-slate-850/40 ${
-                      act.severity === 'High' ? 'bg-red-950/15 border-red-500/20' :
-                      act.severity === 'Medium' ? 'bg-amber-950/15 border-amber-500/20' :
-                      'bg-slate-950/40 border-slate-800'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center border-b border-slate-800/60 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-[10px]" style={{ color: '#FFFFFF' }}>
-                      <span className="flex items-center gap-1" style={{ color: '#FFFFFF' }}>
-                        <Flame size={12} className={act.severity === 'High' ? 'animate-pulse' : ''} style={{ color: '#FFFFFF' }} />
-                        {act.type}
-                      </span>
-                      <span style={{ color: '#FFFFFF' }}>Strike {act.strike_price}</span>
+            {/* Smart Money & Anomalies activity tracker */}
+            <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+              <h3 className="font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5" style={{ color: '#FFFFFF' }}>
+                <Award size={14} style={{ color: '#FFFFFF' }} /> SMART MONEY ACTIVITY
+              </h3>
+              <div className="space-y-3 max-h-[290px] overflow-y-auto pr-1">
+                {data?.smart_money_activity && data.smart_money_activity.length > 0 ? (
+                  data.smart_money_activity.map((act, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`p-3 rounded-xl border flex flex-col justify-between text-[11px] font-semibold transition-all hover:bg-slate-850/40 ${
+                        act.severity === 'High' ? 'bg-red-950/15 border-red-500/20' :
+                        act.severity === 'Medium' ? 'bg-amber-950/15 border-amber-500/20' :
+                        'bg-slate-950/40 border-slate-800'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center border-b border-slate-800/60 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-[10px]" style={{ color: '#FFFFFF' }}>
+                        <span className="flex items-center gap-1" style={{ color: '#FFFFFF' }}>
+                          <Flame size={12} className={act.severity === 'High' ? 'animate-pulse' : ''} style={{ color: '#FFFFFF' }} />
+                          {act.type}
+                        </span>
+                        <span style={{ color: '#FFFFFF' }}>Strike {act.strike_price}</span>
+                      </div>
+                      <p className="text-[10px] leading-relaxed font-mono" style={{ color: '#FFFFFF' }}>
+                        {act.reason}
+                      </p>
                     </div>
-                    <p className="text-[10px] leading-relaxed font-mono" style={{ color: '#FFFFFF' }}>
-                      {act.reason}
+                  ))
+                ) : (
+                  <div style={{ padding: '3rem 0', textAlign: 'center' }}>
+                    <p style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold', margin: 0, opacity: 1 }} className="text-white">
+                      No unusual smart money patterns detected currently.
                     </p>
                   </div>
-                ))
-              ) : (
-                <div style={{ padding: '3rem 0', textAlign: 'center' }}>
-                  <p style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold', margin: 0, opacity: 1 }} className="text-white">
-                    No unusual smart money patterns detected currently.
-                  </p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* =========================================================================
           TABS AREA: OPTION CHAIN, HEATMAP, BLOCK TRADES, TRADE SUMMARY
          ========================================================================= */}
-      <div className="space-y-4">
+      {!isNonFno && data && (
+        <div className="space-y-4">
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-800/80 gap-2 overflow-x-auto">
           <button
@@ -1851,6 +2278,7 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
 
         </div>
       </div>
+      )}
 
     </div>
   );

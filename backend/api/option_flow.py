@@ -231,7 +231,13 @@ def get_rolling_history(cache, key: str, current_val: float, val_name: str) -> L
 async def compute_relative_strength_analytics(symbol: str, db: AsyncSession) -> Dict[str, Any]:
     """Calculate Beta, Correlation, and Sector/Index relative performance."""
     try:
-        cutoff = datetime.now() - timedelta(days=45)
+        # Resolve reference date (max date in database) to support static historical datasets
+        ref_res = await db.execute(text("SELECT MAX(candle_ts) FROM stock_candle"))
+        max_ts = ref_res.scalar()
+        if not max_ts:
+            max_ts = datetime.now()
+            
+        cutoff = max_ts - timedelta(days=45)
         
         # Resolve instrument IDs from cache
         from services.instrument_resolver import resolve_instrument_id
@@ -1425,6 +1431,47 @@ async def load_historical_chart_data(
             
     return pd.DataFrame()
 
+async def save_candles_to_db(instrument_id: int, timeframe: int, df: pd.DataFrame, db: AsyncSession):
+    """Saves historical candles fetched from Upstox to the local database cache."""
+    if df.empty:
+        return
+        
+    query = text("""
+        INSERT INTO stock_candle (instrument_id, timeframe, candle_ts, open, high, low, close, volume)
+        VALUES (:iid, :tf, :ts, :open, :high, :low, :close, :volume)
+        ON CONFLICT (instrument_id, timeframe, candle_ts) 
+        DO UPDATE SET 
+            open = EXCLUDED.open,
+            high = EXCLUDED.high,
+            low = EXCLUDED.low,
+            close = EXCLUDED.close,
+            volume = EXCLUDED.volume
+    """)
+    
+    # Prepare batch execution values
+    values = []
+    for _, row in df.iterrows():
+        ts = row['timestamp']
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts.replace("Z", ""))
+        values.append({
+            "iid": instrument_id,
+            "tf": timeframe,
+            "ts": ts,
+            "open": float(row['open']),
+            "high": float(row['high']),
+            "low": float(row['low']),
+            "close": float(row['close']),
+            "volume": int(row['volume'])
+        })
+        
+    # Execute batch insert/update in chunks of 500
+    for i in range(0, len(values), 500):
+        chunk = values[i:i+500]
+        await db.execute(query, chunk)
+    await db.commit()
+    logger.info(f"[OptionFlowChart] Cached {len(values)} candles to DB for instrument {instrument_id} (timeframe={timeframe})")
+
 @router.get("/{symbol}/chart")
 async def get_option_flow_chart(
     symbol: str,
@@ -1468,12 +1515,29 @@ async def get_option_flow_chart(
         
     # 3. Try DB-first (stock_candle table) before hitting Upstox
     df = pd.DataFrame()
+    tf_db = 1440
+    candle_limit = 90
     try:
         from services.instrument_resolver import resolve_instrument_id
         iid = resolve_instrument_id(symbol)
         if iid:
-            tf_db = 1440 if upstox_interval == "day" else (30 if upstox_interval == "30minute" else 1)
-            candle_limit = lookback_days * (1 if upstox_interval == "day" else 390)
+            if interval_clean in ("1d", "day"):
+                tf_db = 1440
+                candles_per_day = 1
+            elif interval_clean in ("30m", "30minute"):
+                tf_db = 30
+                candles_per_day = 13
+            elif interval_clean in ("15m", "15minute"):
+                tf_db = 15
+                candles_per_day = 25
+            elif interval_clean in ("5m", "5minute"):
+                tf_db = 5
+                candles_per_day = 75
+            else:
+                tf_db = 1
+                candles_per_day = 375
+            candle_limit = lookback_days * candles_per_day
+            db_limit = max(candle_limit, 100 if tf_db != 1440 else 50)
             db_candles = await db.execute(
                 text("""
                     SELECT candle_ts, open, high, low, close, volume
@@ -1482,7 +1546,7 @@ async def get_option_flow_chart(
                     ORDER BY candle_ts DESC
                     LIMIT :lim
                 """),
-                {"iid": iid, "tf": tf_db, "lim": min(candle_limit, 5000)}
+                {"iid": iid, "tf": tf_db, "lim": min(db_limit, 10000)}
             )
             rows = db_candles.fetchall()
             if rows and len(rows) >= 5:
@@ -1490,18 +1554,61 @@ async def get_option_flow_chart(
                 df["symbol"] = symbol
                 df["timestamp"] = pd.to_datetime(df["timestamp"])
                 df = df.sort_values("timestamp").reset_index(drop=True)
-                logger.info(f"[OptionFlowChart] Serving {len(df)} candles for {symbol} from DB cache")
+                logger.info(f"[OptionFlowChart] Serving {len(df)} candles for {symbol} from DB cache (db_limit={db_limit})")
     except Exception as db_err:
         logger.warning(f"[OptionFlowChart] DB candle fetch failed for {symbol}: {db_err}")
 
-    # 4. Fetch from Upstox API (disabled - reading from stock_candle exclusively)
+    # 4. Fetch from Upstox API if DB has insufficient data or is empty
+    if df.empty or len(df) < (candle_limit * 0.8):
+        try:
+            from services.upstox_client import get_upstox_client
+            client = get_upstox_client()
+            if client and await client.is_authenticated():
+                logger.info(f"[OptionFlowChart] DB cache insufficient ({len(df)} < {candle_limit}). Fetching from Upstox for {symbol}...")
+                
+                # Map timeframe to Upstox interval string
+                upstox_interval = "day" if interval_clean in ("1d", "day") else (
+                    "30minute" if interval_clean in ("30m", "30minute") else (
+                        "15minute" if interval_clean in ("15m", "15minute") else (
+                            "5minute" if interval_clean in ("5m", "5minute") else "1minute"
+                        )
+                    )
+                )
+                
+                to_date = datetime.now()
+                api_days = max(lookback_days, 10 if tf_db == 1440 else 30)
+                from_date = to_date - timedelta(days=api_days)
+                
+                upstox_df = await client.get_historical_data(
+                    symbol=symbol,
+                    instrument_key=instrument_key,
+                    from_date=from_date,
+                    to_date=to_date,
+                    interval=upstox_interval
+                )
+                
+                if not upstox_df.empty:
+                    df = upstox_df
+                    logger.info(f"[OptionFlowChart] Successfully fetched {len(df)} candles from Upstox for {symbol}")
+                    
+                    # Cache back to database
+                    try:
+                        from services.instrument_resolver import resolve_instrument_id
+                        iid = resolve_instrument_id(symbol)
+                        if iid:
+                            await save_candles_to_db(iid, tf_db, df, db)
+                    except Exception as save_err:
+                        logger.warning(f"[OptionFlowChart] Failed to cache Upstox candles to DB: {save_err}")
+        except Exception as api_err:
+            logger.warning(f"[OptionFlowChart] Upstox API fallback failed for {symbol}: {api_err}")
+
     if df.empty:
-        raise HTTPException(status_code=404, detail="No historical candle data found in database")
+        raise HTTPException(status_code=404, detail="No historical candle data found in database or Upstox API")
     
     try:
         to_date = datetime.now()
-        # Resample 1minute candles to 5minute or 15minute if interval is 5m or 15m
-        if interval_clean in ("5m", "5minute", "15m", "15minute"):
+        # Resample 1minute candles to 5minute or 15minute only if we fetched 1-minute candles (tf_db == 1)
+        if tf_db == 1 and interval_clean in ("5m", "5minute", "15m", "15minute"):
             resample_rule = "5min" if ("5m" in interval_clean or "5minute" in interval_clean) else "15min"
             
             df["timestamp"] = pd.to_datetime(df["timestamp"])
@@ -1658,21 +1765,26 @@ async def get_option_flow_chart(
         from_date_str = earliest_ts.strftime("%Y-%m-%d") if not df.empty else ""
         to_date_str = latest_ts.strftime("%Y-%m-%d") if not df.empty else ""
 
+        # Slice returned candles and markers to match lookback_days
+        sliced_candles = chart_candles[-candle_limit:] if candle_limit < len(chart_candles) else chart_candles
+        returned_times = {c["time"] for c in sliced_candles}
+        sliced_markers = [m for m in breakout_markers if m["time"] in returned_times]
+
         response_payload = {
             "success": True,
             "data": {
                 "symbol": symbol,
                 "interval": interval,
                 "available_history_days": available_days,
-                "candle_count": len(chart_candles),
+                "candle_count": len(sliced_candles),
                 "from_date": from_date_str,
                 "to_date": to_date_str,
-                "candles": chart_candles,
+                "candles": sliced_candles,
                 "support_zones": support_zones,
                 "resistance_zones": resistance_zones,
                 "volume_profile": volume_profile,
                 "smart_money_zones": smart_money_zones[:5],
-                "breakout_markers": breakout_markers
+                "breakout_markers": sliced_markers
             }
         }
         
