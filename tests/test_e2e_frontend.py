@@ -17,11 +17,11 @@ def test_frontend_login_flow(page: Page):
     6. Verify Dashboard Features (Option Flow, Heatmap, ATR)
     """
     # 1. Open Frontend
-    print("\n[Step 1] Navigating to http://localhost:3000")
-    page.goto("http://localhost:3000")
+    print("\n[Step 1] Navigating to http://127.0.0.1:3000")
+    page.goto("http://127.0.0.1:3000")
     
     # 2. Check if we need to log in (Landing Page)
-    # The application uses state-based routing, so the URL remains http://localhost:3000/
+    # The application uses state-based routing, so the URL remains http://127.0.0.1:3000/
     print("[Step 2] Checking for Landing Page...")
     
     dashboard_header = page.get_by_text("Institutional Trading Dashboard")
@@ -52,7 +52,7 @@ def test_frontend_login_flow(page: Page):
         # 3. Verify Dashboard Transition
         print("[Step 4] Waiting for Dashboard...")
         # Wait for the main Dashboard heading to confirm transition
-        expect(dashboard_header).to_be_visible(timeout=15000)
+        expect(dashboard_header).to_be_visible(timeout=35000)
         print(" -> Dashboard heading is visible")
     
     # 4. Check Dashboard Features

@@ -24,7 +24,7 @@ load_dotenv("config/.env.test")
 # Configuration
 # =============================================================================
 
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
 TEST_USERNAME = os.getenv("TEST_USERNAME", "dthat53@gmail.com")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "admin1243")
 

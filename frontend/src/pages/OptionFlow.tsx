@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { createChart, ColorType, ISeriesApi, UTCTimestamp, CrosshairMode } from 'lightweight-charts';
 import { isFOSymbol } from '../utils/fnoUtils';
+import { TradingWorkspace, TradingChartHandle } from '../components/trading';
 
 
 // TypeScript Definitions matching Backend response
@@ -246,16 +247,9 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   // Advanced Chart State
   const [chartData, setChartData] = useState<AdvancedChartData | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
-  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const chartWorkspaceRef = useRef<TradingChartHandle | null>(null);
   const chartCardRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const lightweightChartRef = useRef<any>(null);
-  const candlestickSeriesRef = useRef<any>(null);
-  const ema20SeriesRef = useRef<any>(null);
-  const ema50SeriesRef = useRef<any>(null);
-  const vwapSeriesRef = useRef<any>(null);
-  const volumeSeriesRef = useRef<any>(null);
-  const chartMarkersRef = useRef<any[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const chartCacheRef = useRef<Record<string, AdvancedChartData>>({});
@@ -484,126 +478,17 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
     const clean = selectedSymbol.toUpperCase().replace("NSE:", "").trim();
 
     const fetchIncrementalChartData = async () => {
-      if (!lightweightChartRef.current || !candlestickSeriesRef.current) return;
+      if (!chartWorkspaceRef.current) return;
       
-      const timeToComparable = (time: any): number => {
-        if (time === null || time === undefined) return 0;
-        
-        // Lightweight Charts business day object: { year, month, day }
-        if (typeof time === 'object' && time.year && time.month && time.day) {
-          return time.year * 10000 + time.month * 100 + time.day;
-        }
-        
-        // String date: e.g. "2026-06-30" or ISO string
-        if (typeof time === 'string') {
-          if (time.includes('T')) {
-            return Math.floor(new Date(time).getTime() / 1000);
-          }
-          const parts = time.split('-');
-          if (parts.length === 3) {
-            const y = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10);
-            const d = parseInt(parts[2], 10);
-            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-              return y * 10000 + m * 100 + d;
-            }
-          }
-          return Math.floor(new Date(time).getTime() / 1000);
-        }
-        
-        // Number: Unix timestamp
-        if (typeof time === 'number') {
-          if (time > 10000000000) {
-            return Math.floor(time / 1000);
-          }
-          return time;
-        }
-        
-        return 0;
-      };
-
       try {
         const response = await api.getOptionFlowChart(clean, chartTimeframe, 2);
         chartPollFailuresRef.current = 0; // Reset failures on success!
         const chartPayload = response?.data && response?.success ? response.data : response;
 
         if (chartPayload && chartPayload.candles && chartPayload.candles.length > 0) {
-          // 1. Update Existing Candlestick Series Instantly
           chartPayload.candles.forEach((c: any) => {
-            let t = c.time;
-            if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-            else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-            
-            const lastTime = lastChartTimeRef.current;
-            const newComp = timeToComparable(t);
-            const lastComp = timeToComparable(lastTime);
-            
-            if (lastTime && newComp < lastComp) {
-              console.warn(
-                `[OptionFlow] Update rejected: Incoming timestamp is older than last candle.`,
-                `Previous time:`, lastTime,
-                `Incoming time:`, t,
-                `Reason: Out of order timestamp (Incoming: ${newComp} < Last: ${lastComp})`
-              );
-              return; // Skip this outdated candle update
-            }
-
-            if (candlestickSeriesRef.current) {
-              candlestickSeriesRef.current.update({
-                time: t as UTCTimestamp,
-                open: Number(c.open),
-                high: Number(c.high),
-                low: Number(c.low),
-                close: Number(c.close)
-              });
-            }
-            if (ema20SeriesRef.current && c.ema_20 !== undefined && !isNaN(c.ema_20)) {
-              ema20SeriesRef.current.update({ time: t as UTCTimestamp, value: Number(c.ema_20) });
-            }
-            if (ema50SeriesRef.current && c.ema_50 !== undefined && !isNaN(c.ema_50)) {
-              ema50SeriesRef.current.update({ time: t as UTCTimestamp, value: Number(c.ema_50) });
-            }
-            if (vwapSeriesRef.current && c.vwap !== undefined && !isNaN(c.vwap)) {
-              vwapSeriesRef.current.update({ time: t as UTCTimestamp, value: Number(c.vwap) });
-            }
-            if (volumeSeriesRef.current && c.volume !== undefined && !isNaN(c.volume)) {
-              volumeSeriesRef.current.update({
-                time: t as UTCTimestamp,
-                value: Number(c.volume),
-                color: Number(c.close) >= Number(c.open) ? '#10b98155' : '#ef444455'
-              });
-            }
-            
-            // Set lastChartTimeRef to the newest processed timestamp
-            if (newComp >= lastComp) {
-              lastChartTimeRef.current = t;
-            }
+            chartWorkspaceRef.current?.updateIncrementalCandle(c);
           });
-
-          // 2. Accumulate/Merge Smart Money Zones
-          if (chartPayload.smart_money_zones && chartPayload.smart_money_zones.length > 0) {
-            // Keep at most 5 recent smart money zones
-            const mergedZones = [...chartPayload.smart_money_zones];
-            // Render zones (not shown here)
-          }
-
-          // 3. Accumulate/Merge Breakout Markers
-          if (chartPayload.breakout_markers && chartPayload.breakout_markers.length > 0 && candlestickSeriesRef.current) {
-            const existingMarkersMap = new Map(chartMarkersRef.current.map(m => [m.time, m]));
-            chartPayload.breakout_markers.forEach((m: any) => {
-              let t = m.time;
-              if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-              else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-              existingMarkersMap.set(t, { ...m, time: t });
-            });
-            const mergedMarkers = Array.from(existingMarkersMap.values()).sort((a: any, b: any) => {
-              const tA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime();
-              const tB = typeof b.time === 'number' ? b.time : new Date(b.time).getTime();
-              return tA - tB;
-            });
-            candlestickSeriesRef.current.setMarkers(mergedMarkers);
-            chartMarkersRef.current = mergedMarkers;
-          }
         }
       } catch (err) {
         chartPollFailuresRef.current += 1;
@@ -658,16 +543,6 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       const active = document.fullscreenElement === chartCardRef.current;
       console.log('[Fullscreen] Native event triggered. Active status:', active);
       setIsFullscreen(active);
-      
-      // Trigger a resize manually on state switch to ensure chart fills element instantly
-      setTimeout(() => {
-        const chart = lightweightChartRef.current;
-        const container = chartContainerRef.current;
-        if (chart && container) {
-          console.log(`[Fullscreen Resize] Resizing chart to container width: ${container.clientWidth}, height: ${container.clientHeight}`);
-          chart.resize(container.clientWidth, container.clientHeight);
-        }
-      }, 50);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -680,464 +555,6 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   // TradingView Lightweight Chart Setup & Lifecycle
   // =========================================================================
   
-  // 1. Initialize Chart Instance (Created once on symbol or timeframe change)
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-    
-    // Destroy previous chart if it exists
-    if (lightweightChartRef.current) {
-      try {
-        lightweightChartRef.current.remove();
-      } catch (e) {
-        console.warn('Error removing chart:', e);
-      }
-      lightweightChartRef.current = null;
-      candlestickSeriesRef.current = null;
-      volumeSeriesRef.current = null;
-      ema20SeriesRef.current = null;
-      ema50SeriesRef.current = null;
-      vwapSeriesRef.current = null;
-      chartMarkersRef.current = [];
-    }
-    
-    lastChartTimeRef.current = null;
-    setChartError(null);
-
-    const container = chartContainerRef.current;
-    console.log(`[Chart Init] Creating chart. Container clientWidth: ${container.clientWidth}, height: 700`);
-    
-    try {
-      const chart = createChart(container, {
-        width: container.clientWidth || 800,
-        height: 700,
-        layout: {
-          background: { type: ColorType.Solid, color: '#090d16' },
-          textColor: '#64748b',
-        },
-        grid: {
-          vertLines: { color: '#1e293b' },
-          horzLines: { color: '#1e293b' },
-        },
-        crosshair: {
-          mode: CrosshairMode.Normal,
-        },
-        rightPriceScale: {
-          visible: true,
-          borderColor: '#1e293b',
-        },
-        timeScale: {
-          borderColor: '#1e293b',
-          timeVisible: true,
-          secondsVisible: false,
-        },
-      });
-
-      lightweightChartRef.current = chart;
-
-      // Create candlestick series
-      const candlestickSeries = chart.addCandlestickSeries({
-        upColor: '#10b981',
-        downColor: '#ef4444',
-        borderVisible: false,
-        wickUpColor: '#10b981',
-        wickDownColor: '#ef4444',
-      });
-      candlestickSeriesRef.current = candlestickSeries;
-
-      // Create volume series
-      const volumeSeries = chart.addHistogramSeries({
-        color: '#26a69a',
-        priceFormat: { type: 'volume' },
-        priceScaleId: '',
-      });
-      volumeSeries.priceScale().applyOptions({
-        scaleMargins: { top: 0.8, bottom: 0 },
-      });
-      volumeSeriesRef.current = volumeSeries;
-
-      // Create EMA20 series
-      const ema20Series = chart.addLineSeries({
-        color: '#F59E0B',
-        lineWidth: 1,
-        title: 'EMA 20'
-      });
-      ema20SeriesRef.current = ema20Series;
-
-      // Create EMA50 series
-      const ema50Series = chart.addLineSeries({
-        color: '#3b82f6',
-        lineWidth: 1,
-        title: 'EMA 50'
-      });
-      ema50SeriesRef.current = ema50Series;
-
-      // Create VWAP series
-      const vwapSeries = chart.addLineSeries({
-        color: '#8B5CF6',
-        lineWidth: 1,
-        title: 'VWAP'
-      });
-      vwapSeriesRef.current = vwapSeries;
-
-      // Double click to toggle fullscreen and reset zoom
-      const handleDoubleClick = () => {
-        chart.timeScale().fitContent();
-        toggleFullscreen();
-      };
-      container.addEventListener('dblclick', handleDoubleClick);
-      (container as any)._dblClickHandler = handleDoubleClick;
-
-      // Handle Resize using ResizeObserver
-      const resizeObserver = new ResizeObserver(entries => {
-        if (!entries || entries.length === 0) return;
-        const { width, height } = entries[0].contentRect;
-        if (lightweightChartRef.current && width > 0 && height > 0) {
-          console.log(`[Chart Resize] Resizing chart to clientWidth: ${width}, height: ${height}`);
-          lightweightChartRef.current.resize(width, height);
-        }
-      });
-      resizeObserver.observe(container);
-      (container as any)._resizeObserver = resizeObserver;
-
-    } catch (e: any) {
-      console.error('[Chart Init] Fatal error during chart creation:', e);
-      setChartError(e.message || e.toString());
-    }
-
-    return () => {
-      // Cleanup chart on unmount or symbol/timeframe changes
-      if (lightweightChartRef.current) {
-        try { lightweightChartRef.current.remove(); } catch (ex) {}
-        lightweightChartRef.current = null;
-        candlestickSeriesRef.current = null;
-        volumeSeriesRef.current = null;
-        ema20SeriesRef.current = null;
-        ema50SeriesRef.current = null;
-        vwapSeriesRef.current = null;
-        chartMarkersRef.current = [];
-      }
-      if (chartContainerRef.current) {
-        const c = chartContainerRef.current;
-        if ((c as any)._resizeObserver) (c as any)._resizeObserver.disconnect();
-        if ((c as any)._dblClickHandler) c.removeEventListener('dblclick', (c as any)._dblClickHandler);
-      }
-    };
-  }, [selectedSymbol, chartTimeframe, toggleFullscreen]);
-
-  // 2. Draw/Update Chart Data (Runs when chartData is fetched or refreshed)
-  useEffect(() => {
-    const chart = lightweightChartRef.current;
-    const candlestickSeries = candlestickSeriesRef.current;
-    const volumeSeries = volumeSeriesRef.current;
-    const ema20Series = ema20SeriesRef.current;
-    const ema50Series = ema50SeriesRef.current;
-    const vwapSeries = vwapSeriesRef.current;
-
-    if (!chart || !candlestickSeries || !volumeSeries || !ema20Series || !ema50Series || !vwapSeries || !chartData || !chartData.candles || chartData.candles.length === 0) {
-      return;
-    }
-
-    // Populate candle data
-    const candlesData = (chartData.candles || [])
-      .filter((c: any) => c && c.time && c.open != null && c.high != null && c.low != null && c.close != null && !isNaN(c.close))
-      .map((c: any) => {
-        let t = c.time;
-        if (typeof t === 'string' && t.includes('T')) {
-          t = Math.floor(new Date(t).getTime() / 1000);
-        } else if (typeof t === 'number' && t > 10000000000) {
-          t = Math.floor(t / 1000);
-        }
-        return {
-          time: t,
-          open: Number(c.open),
-          high: Number(c.high),
-          low: Number(c.low),
-          close: Number(c.close)
-        };
-      });
-
-    try {
-      candlestickSeries.setData(candlesData);
-      if (candlesData.length > 0) {
-        lastChartTimeRef.current = candlesData[candlesData.length - 1].time;
-        console.log(`[Chart Data] Set candlestick data. Count: ${candlesData.length}, lastTime:`, lastChartTimeRef.current);
-      }
-    } catch (e) {
-      console.error('[Chart Data] Error setting candlestick data:', e);
-    }
-
-    // Populate volume data
-    const volumeData = (chartData.candles || [])
-      .filter((c: any) => c && c.time && c.volume != null && !isNaN(c.volume))
-      .map((c: any) => {
-        let t = c.time;
-        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-        return {
-          time: t,
-          value: Number(c.volume),
-          color: Number(c.close) >= Number(c.open) ? '#10b98155' : '#ef444455'
-        };
-      });
-    try {
-      volumeSeries.setData(volumeData);
-    } catch (e) {
-      console.error('[Chart Data] Error setting volume data:', e);
-    }
-
-    // Populate EMA20 data
-    const ema20Data = (chartData.candles || [])
-      .filter((c: any) => c && c.time && c.ema_20 != null && !isNaN(c.ema_20))
-      .map((c: any) => {
-        let t = c.time;
-        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-        return { time: t, value: Number(c.ema_20) };
-      });
-    try {
-      ema20Series.setData(ema20Data);
-    } catch (e) {
-      console.error('[Chart Data] Error setting EMA20 data:', e);
-    }
-
-    // Populate EMA50 data
-    const ema50Data = (chartData.candles || [])
-      .filter((c: any) => c && c.time && c.ema_50 != null && !isNaN(c.ema_50))
-      .map((c: any) => {
-        let t = c.time;
-        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-        return { time: t, value: Number(c.ema_50) };
-      });
-    try {
-      ema50Series.setData(ema50Data);
-    } catch (e) {
-      console.error('[Chart Data] Error setting EMA50 data:', e);
-    }
-
-    // Populate VWAP data
-    const vwapData = (chartData.candles || [])
-      .filter((c: any) => c && c.time && c.vwap != null && !isNaN(c.vwap))
-      .map((c: any) => {
-        let t = c.time;
-        if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-        else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-        return { time: t, value: Number(c.vwap) };
-      });
-    try {
-      vwapSeries.setData(vwapData);
-    } catch (e) {
-      console.error('[Chart Data] Error setting VWAP data:', e);
-    }
-
-    // Clear previous price lines if they exist
-    if ((candlestickSeries as any)._priceLines) {
-      (candlestickSeries as any)._priceLines.forEach((l: any) => {
-        try { candlestickSeries.removePriceLine(l); } catch (ex) {}
-      });
-    }
-    (candlestickSeries as any)._priceLines = [];
-
-    // Support Zones
-    if (chartData.support_zones && chartData.support_zones.length > 0) {
-      chartData.support_zones.forEach(price => {
-        const line = candlestickSeries.createPriceLine({
-          price: price,
-          color: '#10B981',
-          lineWidth: 1,
-          lineStyle: 2,
-          axisLabelVisible: true,
-          title: 'Support',
-        });
-        (candlestickSeries as any)._priceLines.push(line);
-      });
-    }
-
-    // Resistance Zones
-    if (chartData.resistance_zones && chartData.resistance_zones.length > 0) {
-      chartData.resistance_zones.forEach(price => {
-        const line = candlestickSeries.createPriceLine({
-          price: price,
-          color: '#EF4444',
-          lineWidth: 1,
-          lineStyle: 2,
-          axisLabelVisible: true,
-          title: 'Resistance',
-        });
-        (candlestickSeries as any)._priceLines.push(line);
-      });
-    }
-
-    // Set markers for breakouts/breakdowns
-    if (chartData.breakout_markers && chartData.breakout_markers.length > 0) {
-      try {
-        const validMarkers = chartData.breakout_markers.map((m: any) => {
-          let t = m.time;
-          if (typeof t === 'string' && t.includes('T')) t = Math.floor(new Date(t).getTime() / 1000);
-          else if (typeof t === 'number' && t > 10000000000) t = Math.floor(t / 1000);
-          return { ...m, time: t };
-        });
-        
-        console.log(`[Chart Data] Setting ${validMarkers.length} markers`);
-        candlestickSeries.setMarkers(validMarkers);
-        chartMarkersRef.current = validMarkers;
-      } catch (e) {
-        console.error('[Chart Data] Error setting markers:', e);
-      }
-    } else {
-      candlestickSeries.setMarkers([]);
-      chartMarkersRef.current = [];
-    }
-
-    // Auto-fit contents
-    try {
-      chart.timeScale().fitContent();
-    } catch (e) {}
-
-    // Task 6 - Validate Candle Counts Log
-    if (candlesData.length > 0) {
-      const getFormattedDate = (timeVal: any) => {
-        if (typeof timeVal === 'number') {
-          return new Date(timeVal * 1000).toISOString().split('T')[0];
-        } else {
-          return String(timeVal).split('T')[0];
-        }
-      };
-      const oldestTs = getFormattedDate(candlesData[0].time);
-      const latestTs = getFormattedDate(candlesData[candlesData.length - 1].time);
-      console.log(`[Chart History Validation]\nTimeframe: ${chartTimeframe}\nHistory Range: ${chartTitleRange}\nNumber of Candles: ${candlesData.length}\nOldest Timestamp: ${oldestTs}\nLatest Timestamp: ${latestTs}`);
-    }
-
-    // Tooltip rendering logic
-    const lastCandle = candlesData[candlesData.length - 1];
-    const updateTooltipText = (candle: any, volumeVal?: number, ema20Val?: number, ema50Val?: number, vwapVal?: number) => {
-      const timeEl = document.getElementById('chart-tooltip-time');
-      const ohlcEl = document.getElementById('chart-tooltip-ohlc');
-      const volEl = document.getElementById('chart-tooltip-volume');
-      const indEl = document.getElementById('chart-tooltip-indicators');
-
-      if (timeEl && ohlcEl && volEl && indEl) {
-        if (candle) {
-          const dateStr = typeof candle.time === 'number'
-            ? new Date(candle.time * 1000).toLocaleString()
-            : String(candle.time);
-          timeEl.textContent = dateStr;
-          ohlcEl.innerHTML = `O: <span class="text-white">${Number(candle.open).toFixed(2)}</span> H: <span class="text-emerald-400">${Number(candle.high).toFixed(2)}</span> L: <span class="text-red-400">${Number(candle.low).toFixed(2)}</span> C: <span class="text-white">${Number(candle.close).toFixed(2)}</span>`;
-        } else {
-          timeEl.textContent = '';
-          ohlcEl.innerHTML = '';
-        }
-
-        if (volumeVal != null) {
-          volEl.textContent = `Vol: ${volumeVal.toLocaleString()}`;
-        } else {
-          volEl.textContent = '';
-        }
-
-        let indStr = '';
-        if (ema20Val != null && !isNaN(ema20Val)) indStr += `EMA20: ${ema20Val.toFixed(2)} `;
-        if (ema50Val != null && !isNaN(ema50Val)) indStr += `EMA50: ${ema50Val.toFixed(2)} `;
-        if (vwapVal != null && !isNaN(vwapVal)) indStr += `VWAP: ${vwapVal.toFixed(2)} `;
-        indEl.textContent = indStr.trim();
-      }
-    };
-
-    if (lastCandle) {
-      const lastIdx = (chartData.candles || []).length - 1;
-      const lastRaw = (chartData.candles || [])[lastIdx];
-      updateTooltipText(
-        lastCandle, 
-        lastRaw?.volume, 
-        lastRaw?.ema_20, 
-        lastRaw?.ema_50, 
-        lastRaw?.vwap
-      );
-    }
-
-    const crosshairHandler = (param: any) => {
-      const timeEl = document.getElementById('chart-tooltip-time');
-      const ohlcEl = document.getElementById('chart-tooltip-ohlc');
-      const volEl = document.getElementById('chart-tooltip-volume');
-      const indEl = document.getElementById('chart-tooltip-indicators');
-
-      if (!timeEl || !ohlcEl || !volEl || !indEl) return;
-
-      if (
-        !param.time ||
-        param.point === undefined ||
-        param.point.x < 0 ||
-        param.point.y < 0
-      ) {
-        if (lastCandle) {
-          const lastIdx = (chartData.candles || []).length - 1;
-          const lastRaw = (chartData.candles || [])[lastIdx];
-          updateTooltipText(
-            lastCandle, 
-            lastRaw?.volume, 
-            lastRaw?.ema_20, 
-            lastRaw?.ema_50, 
-            lastRaw?.vwap
-          );
-        }
-        return;
-      }
-
-      const dateStr = typeof param.time === 'number'
-        ? new Date(param.time * 1000).toLocaleString()
-        : String(param.time);
-      
-      timeEl.textContent = dateStr;
-
-      const candle = param.seriesData.get(candlestickSeries);
-      if (candle) {
-        const c = candle as any;
-        ohlcEl.innerHTML = `O: <span class="text-white">${c.open.toFixed(2)}</span> H: <span class="text-emerald-400">${c.high.toFixed(2)}</span> L: <span class="text-red-400">${c.low.toFixed(2)}</span> C: <span class="text-white">${c.close.toFixed(2)}</span>`;
-      } else {
-        ohlcEl.innerHTML = '';
-      }
-
-      const vol = param.seriesData.get(volumeSeries);
-      if (vol) {
-        const v = vol as any;
-        volEl.textContent = `Vol: ${v.value.toLocaleString()}`;
-      } else {
-        volEl.textContent = '';
-      }
-
-      const ema20 = param.seriesData.get(ema20Series);
-      const ema50 = param.seriesData.get(ema50Series);
-      const vwap = param.seriesData.get(vwapSeries);
-      
-      let indStr = '';
-      if (ema20) indStr += `EMA20: ${(ema20 as any).value.toFixed(2)} `;
-      if (ema50) indStr += `EMA50: ${(ema50 as any).value.toFixed(2)} `;
-      if (vwap) indStr += `VWAP: ${(vwap as any).value.toFixed(2)} `;
-      indEl.textContent = indStr.trim();
-    };
-    chart.subscribeCrosshairMove(crosshairHandler);
-
-    return () => {
-      chart.unsubscribeCrosshairMove(crosshairHandler);
-    };
-  }, [chartData]); // Note: No cleanup function returned here to prevent destruction on data updates. Cleanup is in useEffect #1.
-
-  // 3. Global cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (chartContainerRef.current) {
-        const container = chartContainerRef.current;
-        if ((container as any)._resizeObserver) {
-          (container as any)._resizeObserver.disconnect();
-        }
-        if ((container as any)._dblClickHandler) {
-          container.removeEventListener('dblclick', (container as any)._dblClickHandler);
-        }
-      }
-      if (lightweightChartRef.current) {
-        try { lightweightChartRef.current.remove(); } catch (e) {}
-      }
-    };
-  }, []);
 
   const handleRetry = () => {
     setLoading(true);
@@ -1626,201 +1043,50 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
       </div>
 
       {/* =========================================================================
-          MAIN WORKSPACE LAYOUT GRID
+          MAIN WORKSPACE — PROFESSIONAL TRADING TERMINAL
          ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-        
-        {/* LEFT & CENTER COLUMN: Advanced Charting & Intraday PCR/Flow Trends - 70% */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Lightweight Chart Panel */}
-          <div 
-            ref={chartCardRef} 
-            className={`p-6 border rounded-2xl backdrop-blur-md transition-all ${
-              isFullscreen 
-                ? 'w-full h-full flex flex-col justify-between bg-slate-950 border-0 rounded-none' 
-                : 'bg-slate-900/60 border-slate-800/80'
-            }`}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <div>
-                <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  <BarChart2 size={14} className="text-purple-400" /> {getChartTitle()}
-                  {chartData && (
-                    <span className="group relative inline-block cursor-pointer ml-1.5 align-middle">
-                      <Info size={12} className="text-slate-500 hover:text-slate-300" />
-                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block bg-slate-950/95 border border-slate-800 text-slate-350 text-[10px] p-2.5 rounded-lg shadow-xl font-mono whitespace-nowrap z-50 pointer-events-none transition-all">
-                        <span className="block text-purple-400 font-bold border-b border-slate-800/80 pb-1 mb-1">
-                          History Loaded:
-                        </span>
-                        <span className="block text-slate-100 font-bold mb-2">
-                          {chartData.available_history_days || 90} Days
-                        </span>
-                        <span className="block text-purple-400 font-bold border-b border-slate-800/80 pb-1 mb-1">
-                          Candles:
-                        </span>
-                        <span className="block text-slate-100 font-bold">
-                          {chartData.candle_count || 0}
-                        </span>
-                      </span>
-                    </span>
-                  )}
-                </h3>
-                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">VWAP, EMA 20/50, Support/Resistance & Accumulation Zones</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-950/40 p-1 rounded-lg border border-slate-800/80">
-                  {(['5m', '15m', '30m', '1d'] as const).map((tf) => (
-                    <button
-                      key={tf}
-                      onClick={() => setChartTimeframe(tf)}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer border-0 ${
-                        chartTimeframe === tf
-                          ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
-                          : 'bg-transparent text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {tf === '1d' ? '1D' : tf}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={toggleFullscreen}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold bg-slate-950/40 border border-slate-800/80 hover:bg-slate-850 hover:border-slate-700 text-slate-300 hover:text-slate-100 transition-all cursor-pointer"
-                  title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
-                >
-                  {isFullscreen ? (
-                    <>
-                      <Minimize2 size={12} className="text-purple-400" />
-                      <span>Exit Full Screen</span>
-                    </>
-                  ) : (
-                    <>
-                      <Maximize2 size={12} className="text-purple-400" />
-                      <span>Full Screen</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            <div className={`relative ${isFullscreen ? 'flex-grow h-[calc(100vh-140px)]' : 'h-[700px] min-h-[700px]'} bg-slate-950/40 rounded-xl overflow-hidden border border-slate-850`}>
-              {/* Dynamic Interactive Tooltip Overlay */}
-              <div 
-                id="chart-tooltip" 
-                className="absolute top-2.5 left-2.5 z-10 p-2.5 bg-slate-950/90 border border-slate-850 rounded-lg text-[10px] font-mono text-slate-300 pointer-events-none select-none flex flex-wrap gap-x-3.5 gap-y-1 max-w-[95%] shadow-lg shadow-black/80"
-              >
-                <span id="chart-tooltip-time" className="text-purple-400 font-bold"></span>
-                <span id="chart-tooltip-ohlc"></span>
-                <span id="chart-tooltip-volume" className="text-teal-400"></span>
-                <span id="chart-tooltip-indicators" className="text-yellow-400"></span>
-              </div>
-
-              {chartLoading && (
-                <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-10 text-xs text-purple-400 font-bold gap-2">
-                  <RefreshCw className="animate-spin" size={14} /> Loading Advanced Overlays...
-                </div>
-              )}
-              {chartError && (
-                <div className="absolute inset-0 bg-red-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 p-6 text-center border border-red-500/50 rounded-xl">
-                  <span className="text-red-400 font-bold mb-2">Chart Render Error</span>
-                  <p className="text-xs text-red-200/80 whitespace-pre-wrap break-all">{chartError}</p>
-                </div>
-              )}
-              <div ref={chartContainerRef} className={`w-full h-full ${isFullscreen ? '' : 'min-h-[700px]'}`}></div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4 mt-3 text-[10px] font-semibold text-slate-500">
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-yellow-500"></span> EMA 20</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-blue-500"></span> EMA 50</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-purple-500"></span> VWAP</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-emerald-500/30"></span> Support Zones</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500/30"></span> Resistance Zones</div>
-            </div>
-          </div>
-
-          {/* Intraday PCR & Premium Accumulation Curves */}
-          {!isNonFno && data && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* PCR Intraday Momentum */}
-            <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
-              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                <Activity size={14} className="text-purple-400" /> Intraday PCR Momentum
-              </h3>
-              <div className="h-[180px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.pcr_trend || []}>
-                    <defs>
-                      <linearGradient id="pcrGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="#1e293b" vertical={false} />
-                    <XAxis dataKey="time" stroke="#475569" fontSize={9} />
-                    <YAxis stroke="#475569" fontSize={9} domain={['auto', 'auto']} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
-                    <Area type="monotone" dataKey="pcr" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#pcrGrad)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Premium Accumulation Curve */}
-            <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
-              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                <TrendingUp size={14} className="text-emerald-400" /> Premium Accumulation Curve
-              </h3>
-              <div className="h-[180px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.premium_flow_history || []}>
-                    <defs>
-                      <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="#1e293b" vertical={false} />
-                    <XAxis dataKey="time" stroke="#475569" fontSize={9} />
-                    <YAxis stroke="#475569" fontSize={9} tickFormatter={(val) => `${(val / 100000).toFixed(0)}L`} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
-                    <Area type="monotone" dataKey="net_premium" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#flowGrad)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-          )}
-        </div>
-
-        {/* RIGHT COLUMN: Open Interest Profile & Smart Money Panel - 30% */}
+      <div ref={chartCardRef} className="w-full">
+        <TradingWorkspace
+          ref={chartWorkspaceRef}
+          chartData={chartData}
+          chartLoading={chartLoading}
+          chartError={chartError}
+          chartTimeframe={chartTimeframe}
+          onTimeframeChange={setChartTimeframe}
+          symbolName={data?.symbol || selectedSymbol}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
+          showAnalytics={true}
+        >
+        {/* RIGHT COLUMN ANALYTICS (passed as children to TradingWorkspace) */}
         {isNonFno ? (
-          <div className="lg:col-span-3 p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md flex flex-col justify-center items-center text-center space-y-4">
-            <ShieldAlert size={36} className="text-purple-400 mb-2" />
-            <div>
-              <h4 className="text-slate-200 font-bold font-display text-sm">Option Analytics Unavailable</h4>
-              <p className="text-slate-400 font-semibold text-xs leading-relaxed max-w-xs mt-2">
-                The stock <span className="text-white font-bold">{selectedSymbol}</span> does not trade in the F&O segment. Intraday PCR trend, option chains, and smart money blocks are only supported for F&O-active contracts.
-              </p>
+          <>
+            <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md flex flex-col justify-center items-center text-center space-y-4">
+              <ShieldAlert size={28} className="text-purple-400 mb-1" />
+              <div>
+                <h4 className="text-slate-200 font-bold font-display text-sm">Option Analytics Unavailable</h4>
+                <p className="text-slate-400 font-semibold text-xs leading-relaxed max-w-xs mt-2">
+                  <span className="text-white font-bold">{selectedSymbol}</span> does not trade in the F&O segment.
+                </p>
+              </div>
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-850 w-full text-left font-mono text-[9px] text-slate-400 space-y-1 shadow-inner">
+                <div className="text-slate-500 font-bold border-b border-slate-800 pb-1 mb-1">CAPABILITIES</div>
+                <div>• Price Chart: <span className="text-emerald-400 font-bold">✓</span></div>
+                <div>• EMA / VWAP: <span className="text-emerald-400 font-bold">✓</span></div>
+                <div>• Volume / Signals: <span className="text-emerald-400 font-bold">✓</span></div>
+                <div>• Options / PCR: <span className="text-red-400 font-bold">✗</span></div>
+                <div>• Smart Money: <span className="text-red-400 font-bold">✗</span></div>
+              </div>
             </div>
-            <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-850 w-full text-left font-mono text-[10px] text-slate-400 space-y-1.5 shadow-inner">
-              <div className="text-slate-500 font-bold border-b border-slate-800 pb-1 mb-1">FEATURE CAPABILITIES DETECTED</div>
-              <div>• Historical Price Chart: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
-              <div>• EMA 20/50 Indicators: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
-              <div>• VWAP Overlays: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
-              <div>• Volume & Buy/Sell Signals: <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
-              <div>• Relative Strength (RS): <span className="text-emerald-400 font-bold">✓ AVAILABLE</span></div>
-              <div>• Options Chain / PCR: <span className="text-red-400 font-bold">✗ UNAVAILABLE</span></div>
-              <div>• Smart Money blocks: <span className="text-red-400 font-bold">✗ UNAVAILABLE</span></div>
-            </div>
-          </div>
-        ) : (
-          <div className="lg:col-span-3 space-y-6">
+          </>
+        ) : data ? (
+          <>
             {/* Open Interest Horizontal Histogram Profile */}
-            <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
-              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                <Layers size={14} className="text-purple-400" /> Open Interest Profile (ATM strikes)
+            <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+              <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Layers size={14} className="text-purple-400" /> Open Interest Profile
               </h3>
-              <div className="h-[250px] w-full">
+              <div className="h-[220px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={strikesChartData || []} layout="vertical">
                     <CartesianGrid stroke="#1e293b" horizontal={false} />
@@ -1833,62 +1099,117 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="mt-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800 text-[10px] font-mono grid grid-cols-3 text-center">
+              <div className="mt-2 bg-slate-950/60 p-2 rounded-lg border border-slate-800 text-[9px] font-mono grid grid-cols-3 text-center">
                 <div>
-                  <div className="text-slate-500 scale-95 uppercase font-bold">Max Pain</div>
+                  <div className="text-slate-500 scale-90 uppercase font-bold">Max Pain</div>
                   <div className="text-purple-400 font-bold text-xs mt-0.5">{data?.max_pain}</div>
                 </div>
                 <div className="border-x border-slate-800">
-                  <div className="text-slate-500 scale-95 uppercase font-bold">S Support</div>
+                  <div className="text-slate-500 scale-90 uppercase font-bold">S Support</div>
                   <div className="text-emerald-400 font-bold text-xs mt-0.5">{data?.support_strike}</div>
                 </div>
                 <div>
-                  <div className="text-slate-500 scale-95 uppercase font-bold">R Resistance</div>
+                  <div className="text-slate-500 scale-90 uppercase font-bold">R Resistance</div>
                   <div className="text-red-400 font-bold text-xs mt-0.5">{data?.resistance_strike}</div>
                 </div>
               </div>
             </div>
 
             {/* Smart Money & Anomalies activity tracker */}
-            <div className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
-              <h3 className="font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5" style={{ color: '#FFFFFF' }}>
-                <Award size={14} style={{ color: '#FFFFFF' }} /> SMART MONEY ACTIVITY
+            <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+              <h3 className="font-bold text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5" style={{ color: '#FFFFFF' }}>
+                <Award size={14} style={{ color: '#FFFFFF' }} /> SMART MONEY
               </h3>
-              <div className="space-y-3 max-h-[290px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
                 {data?.smart_money_activity && data.smart_money_activity.length > 0 ? (
                   data.smart_money_activity.map((act, idx) => (
                     <div 
                       key={idx} 
-                      className={`p-3 rounded-xl border flex flex-col justify-between text-[11px] font-semibold transition-all hover:bg-slate-850/40 ${
+                      className={`p-2.5 rounded-xl border flex flex-col justify-between text-[10px] font-semibold transition-all hover:bg-slate-850/40 ${
                         act.severity === 'High' ? 'bg-red-950/15 border-red-500/20' :
                         act.severity === 'Medium' ? 'bg-amber-950/15 border-amber-500/20' :
                         'bg-slate-950/40 border-slate-800'
                       }`}
                     >
-                      <div className="flex justify-between items-center border-b border-slate-800/60 pb-1.5 mb-1.5 font-bold uppercase tracking-wider text-[10px]" style={{ color: '#FFFFFF' }}>
+                      <div className="flex justify-between items-center border-b border-slate-800/60 pb-1 mb-1 font-bold uppercase tracking-wider text-[9px]" style={{ color: '#FFFFFF' }}>
                         <span className="flex items-center gap-1" style={{ color: '#FFFFFF' }}>
-                          <Flame size={12} className={act.severity === 'High' ? 'animate-pulse' : ''} style={{ color: '#FFFFFF' }} />
+                          <Flame size={11} className={act.severity === 'High' ? 'animate-pulse' : ''} style={{ color: '#FFFFFF' }} />
                           {act.type}
                         </span>
                         <span style={{ color: '#FFFFFF' }}>Strike {act.strike_price}</span>
                       </div>
-                      <p className="text-[10px] leading-relaxed font-mono" style={{ color: '#FFFFFF' }}>
+                      <p className="text-[9px] leading-relaxed font-mono" style={{ color: '#FFFFFF' }}>
                         {act.reason}
                       </p>
                     </div>
                   ))
                 ) : (
-                  <div style={{ padding: '3rem 0', textAlign: 'center' }}>
-                    <p style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold', margin: 0, opacity: 1 }} className="text-white">
-                      No unusual smart money patterns detected currently.
+                  <div style={{ padding: '2rem 0', textAlign: 'center' }}>
+                    <p style={{ color: '#FFFFFF', fontSize: '12px', fontWeight: 'bold', margin: 0, opacity: 1 }} className="text-white">
+                      No smart money patterns detected.
                     </p>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        )}
+          </>
+        ) : null}
+      </TradingWorkspace>
       </div>
+
+      {/* Intraday PCR & Premium Accumulation Curves (below workspace) */}
+      {!isNonFno && data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* PCR Intraday Momentum */}
+          <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+            <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <Activity size={14} className="text-purple-400" /> Intraday PCR Momentum
+            </h3>
+            <div className="h-[180px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.pcr_trend || []}>
+                  <defs>
+                    <linearGradient id="pcrGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="time" stroke="#475569" fontSize={9} />
+                  <YAxis stroke="#475569" fontSize={9} domain={['auto', 'auto']} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
+                  <Area type="monotone" dataKey="pcr" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#pcrGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Premium Accumulation Curve */}
+          <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl backdrop-blur-md">
+            <h3 className="text-slate-200 font-bold text-xs uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <TrendingUp size={14} className="text-emerald-400" /> Premium Accumulation Curve
+            </h3>
+            <div className="h-[180px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.premium_flow_history || []}>
+                  <defs>
+                    <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="time" stroke="#475569" fontSize={9} />
+                  <YAxis stroke="#475569" fontSize={9} domain={['auto', 'auto']} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
+                  <Area type="monotone" dataKey="call_premium" stroke="#10b981" strokeWidth={1.5} fillOpacity={1} fill="url(#flowGrad)" name="Call ₹" />
+                  <Area type="monotone" dataKey="put_premium" stroke="#ef4444" strokeWidth={1.5} fillOpacity={0.3} fill="#ef444420" name="Put ₹" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
           TABS AREA: OPTION CHAIN, HEATMAP, BLOCK TRADES, TRADE SUMMARY

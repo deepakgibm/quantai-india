@@ -458,30 +458,44 @@ export const api = {
   },
 
   firebaseLogin: async (idToken: string, email: string, fullName?: string) => {
-    try {
-      const res = await fetchWithTimeout(`${API_URL}/api/auth/firebase-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id_token: idToken,
-          email: email,
-          full_name: fullName
-        })
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const message = errorData.detail || `Firebase login sync failed with status ${res.status}`;
-        throw new Error(message);
-      }
-
-      const data = await res.json();
-      localStorage.setItem('access_token', data.access_token);
-      return data;
-    } catch (err: any) {
-      console.error("Firebase login sync error:", err);
-      throw err;
+    // Check if there is already a global in-flight promise for this exact function
+    const existingPromise = (window as any).__firebaseLoginPromise;
+    if (existingPromise) {
+      console.log("[Auth] Reusing in-flight firebaseLogin promise...");
+      return existingPromise;
     }
+
+    const promise = (async () => {
+      try {
+        const res = await fetchWithTimeout(`${API_URL}/api/auth/firebase-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id_token: idToken,
+            email: email,
+            full_name: fullName
+          })
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          const message = errorData.detail || `Firebase login sync failed with status ${res.status}`;
+          throw new Error(message);
+        }
+
+        const data = await res.json();
+        localStorage.setItem('access_token', data.access_token);
+        return data;
+      } catch (err: any) {
+        console.error("Firebase login sync error:", err);
+        throw err;
+      } finally {
+        delete (window as any).__firebaseLoginPromise;
+      }
+    })();
+
+    (window as any).__firebaseLoginPromise = promise;
+    return promise;
   },
 
   // --- UPSTOX INTEGRATION ---

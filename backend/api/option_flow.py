@@ -698,6 +698,43 @@ async def get_option_flow(
                     logger.debug(f"[Option Flow] Stale cache read failed: {sce}")
         
         # Parse strikes & compute spot price
+        # In DEV_MODE/test environments, if raw_strikes is empty, generate mock strikes
+        if not raw_strikes and (os.getenv("DEV_MODE", "false").lower() == "true" or settings.ENVIRONMENT == "development"):
+            logger.info(f"[Option Flow] Generating mock option chain strikes for {symbol} (DEV_MODE=True)")
+            mock_spot = 2500.0 if "RELIANCE" in symbol else (3800.0 if "TCS" in symbol else 500.0)
+            mock_expiry = expiry or "2026-07-30"
+            for i in range(-10, 11):
+                strike = float(round(mock_spot * (1 + i * 0.01) / 50) * 50)
+                raw_strikes.append({
+                    "strike_price": strike,
+                    "call_options": {
+                        "expiry": mock_expiry,
+                        "market_data": {
+                            "oi": 15000 - i * 500,
+                            "oi_change": 1000 - i * 100,
+                            "volume": 25000 - i * 1000,
+                            "ltp": max(1.0, 100.0 - i * 10.0),
+                            "close": max(1.0, 95.0 - i * 10.0),
+                            "prev_close": max(1.0, 105.0 - i * 10.0),
+                            "bid": max(1.0, 99.0 - i * 10.0),
+                            "ask": max(1.0, 101.0 - i * 10.0)
+                        }
+                    },
+                    "put_options": {
+                        "expiry": mock_expiry,
+                        "market_data": {
+                            "oi": 15000 + i * 500,
+                            "oi_change": 1000 + i * 100,
+                            "volume": 25000 + i * 1000,
+                            "ltp": max(1.0, 100.0 + i * 10.0),
+                            "close": max(1.0, 95.0 + i * 10.0),
+                            "prev_close": max(1.0, 105.0 + i * 10.0),
+                            "bid": max(1.0, 99.0 + i * 10.0),
+                            "ask": max(1.0, 101.0 + i * 10.0)
+                        }
+                    }
+                })
+
         strikes_list = []
         total_call_oi = 0
         total_put_oi = 0
