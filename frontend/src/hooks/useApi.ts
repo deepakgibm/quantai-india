@@ -31,6 +31,7 @@ export const useWatchlistQuery = () => {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    refetchInterval: 5000,
   });
 };
 
@@ -56,6 +57,7 @@ export const useWatchlistPerformanceQuery = (virtualInvestment: number) => {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    refetchInterval: 5000,
   });
 };
 
@@ -81,6 +83,7 @@ export const useWatchlistAnalyticsQuery = (virtualInvestment: number) => {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    refetchInterval: 5000,
   });
 };
 

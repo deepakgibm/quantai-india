@@ -59,9 +59,9 @@ def test_frontend_login_flow(page: Page):
     print("[Step 5] Verifying Option Flow, Heatmap, and ATR modules on Dashboard...")
     
     # Verify Dashboard stats cards
-    win_rate_card = page.get_by_text("Signal Win Rate")
-    expect(win_rate_card).to_be_visible(timeout=10000)
-    print(" -> Found 'Signal Win Rate' card")
+    watchlist_card = page.get_by_text("AI Copilot Market Summary")
+    expect(watchlist_card).to_be_visible(timeout=10000)
+    print(" -> Found 'AI Copilot Market Summary' card")
     
     # Verify Option Flow Widget
     option_flow_header = page.get_by_text("Option Flow").first

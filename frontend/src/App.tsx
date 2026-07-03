@@ -20,17 +20,13 @@ import TradeScreener from './pages/TradeScreener';
 import BotTab from './pages/BotTab';
 import QuantWorkspace from './pages/QuantWorkspace';
 import Subscription from './pages/Subscription';
-import PortfolioIntelligence from './pages/PortfolioIntelligence';
-import SignalCenter from './pages/SignalCenter';
 import SMCAnalysis from './pages/SMCAnalysis';
 import PatternLab from './pages/PatternLab';
 import Academy from './pages/Academy';
-import ResearchCenter from './pages/ResearchCenter';
 import Affiliate from './pages/Affiliate';
 import Watchlist from './pages/Watchlist';
 import InstitutionalScanner from './pages/InstitutionalScanner';
 import InstitutionalStockDetail from './pages/InstitutionalStockDetail';
-import PriceDiagnosticPanel from './pages/PriceDiagnosticPanel';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -155,20 +151,14 @@ const ProtectedRoute: React.FC<{ element: React.ReactNode; activePage: Page }> =
     else if (page === Page.TRADE_SCREENER) path = '/trade-screener';
     else if (page === Page.SIGNAL_BOT) path = '/signal-bot';
     else if (page === Page.SUBSCRIPTION) path = '/subscription';
-    else if (page === Page.PORTFOLIO_INTELLIGENCE) path = '/portfolio-intelligence';
-    else if (page === Page.SIGNAL_CENTER) path = '/signal-center';
     else if (page === Page.SMC_ANALYSIS) path = '/smc-analysis';
     else if (page === Page.PATTERN_LAB) path = '/pattern-lab';
     else if (page === Page.ACADEMY) path = '/academy';
-    else if (page === Page.RESEARCH_CENTER) path = '/research-center';
     else if (page === Page.AFFILIATE) path = '/affiliate';
     else if (page === Page.WATCHLIST) path = '/watchlist';
     else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
     else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
       path = `/institutional-scanner/${symbol.toUpperCase()}`;
-    }
-    else if (page === Page.PRICE_DIAGNOSTICS) {
-      path = '/diagnostics';
     }
     navigate(path);
   };
@@ -239,20 +229,14 @@ const AppRoutes: React.FC = () => {
     else if (page === Page.TRADE_SCREENER) path = '/trade-screener';
     else if (page === Page.SIGNAL_BOT) path = '/signal-bot';
     else if (page === Page.SUBSCRIPTION) path = '/subscription';
-    else if (page === Page.PORTFOLIO_INTELLIGENCE) path = '/portfolio-intelligence';
-    else if (page === Page.SIGNAL_CENTER) path = '/signal-center';
     else if (page === Page.SMC_ANALYSIS) path = '/smc-analysis';
     else if (page === Page.PATTERN_LAB) path = '/pattern-lab';
     else if (page === Page.ACADEMY) path = '/academy';
-    else if (page === Page.RESEARCH_CENTER) path = '/research-center';
     else if (page === Page.AFFILIATE) path = '/affiliate';
     else if (page === Page.WATCHLIST) path = '/watchlist';
     else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
     else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
       path = `/institutional-scanner/${symbol.toUpperCase()}`;
-    }
-    else if (page === Page.PRICE_DIAGNOSTICS) {
-      path = '/diagnostics';
     }
     navigate(path);
   };
@@ -294,17 +278,13 @@ const AppRoutes: React.FC = () => {
       <Route path="/trade-screener" element={<ProtectedRoute activePage={Page.TRADE_SCREENER} element={<TradeScreener />} />} />
       <Route path="/signal-bot" element={<ProtectedRoute activePage={Page.SIGNAL_BOT} element={<BotTab />} />} />
       <Route path="/subscription" element={<ProtectedRoute activePage={Page.SUBSCRIPTION} element={<Subscription />} />} />
-      <Route path="/portfolio-intelligence" element={<ProtectedRoute activePage={Page.PORTFOLIO_INTELLIGENCE} element={<PortfolioIntelligence />} />} />
-      <Route path="/signal-center" element={<ProtectedRoute activePage={Page.SIGNAL_CENTER} element={<SignalCenter />} />} />
       <Route path="/smc-analysis" element={<ProtectedRoute activePage={Page.SMC_ANALYSIS} element={<SMCAnalysis />} />} />
       <Route path="/pattern-lab" element={<ProtectedRoute activePage={Page.PATTERN_LAB} element={<PatternLab />} />} />
       <Route path="/academy" element={<ProtectedRoute activePage={Page.ACADEMY} element={<Academy />} />} />
-      <Route path="/research-center" element={<ProtectedRoute activePage={Page.RESEARCH_CENTER} element={<ResearchCenter />} />} />
       <Route path="/affiliate" element={<ProtectedRoute activePage={Page.AFFILIATE} element={<Affiliate />} />} />
       <Route path="/watchlist" element={<ProtectedRoute activePage={Page.WATCHLIST} element={<Watchlist onNavigate={handleNavigate} />} />} />
       <Route path="/institutional-scanner" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_SCANNER} element={<InstitutionalScanner onNavigate={handleNavigate} />} />} />
       <Route path="/institutional-scanner/:symbol" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_STOCK_DETAIL} element={<InstitutionalStockDetailWrapper />} />} />
-      <Route path="/diagnostics" element={<ProtectedRoute activePage={Page.PRICE_DIAGNOSTICS} element={<PriceDiagnosticPanel />} />} />
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1093,18 +1093,6 @@ export const api = {
     throw res.error;
   },
 
-  getPortfolioIntelligence: async () => {
-    const res = await apiGet<any>('/api/saas/portfolio-intel');
-    if (res.success) return res.data;
-    throw res.error;
-  },
-
-  getSignalCenter: async () => {
-    const res = await apiGet<any>('/api/saas/signal-center');
-    if (res.success) return res.data;
-    throw res.error;
-  },
-
   getSMCAnalysis: async (symbol: string) => {
     const res = await apiGet<any>(`/api/saas/smc?symbol=${encodeURIComponent(symbol)}`);
     if (res.success) return res.data;
@@ -1137,18 +1125,6 @@ export const api = {
 
   submitAcademyQuiz: async (courseId: number, answers: number[]) => {
     const res = await apiPost<any>(`/api/saas/academy/course/${courseId}/submit-quiz`, answers);
-    if (res.success) return res.data;
-    throw res.error;
-  },
-
-  getResearchReports: async () => {
-    const res = await apiGet<any>('/api/saas/research');
-    if (res.success) return res.data;
-    throw res.error;
-  },
-
-  generateAIResearchReport: async (topic: string) => {
-    const res = await apiPost<any>('/api/saas/research/generate', { topic });
     if (res.success) return res.data;
     throw res.error;
   },

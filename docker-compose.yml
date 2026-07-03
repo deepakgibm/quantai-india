@@ -270,7 +270,7 @@ services:
         - VITE_FIREBASE_MEASUREMENTID=${VITE_FIREBASE_MEASUREMENTID}
     container_name: quantai-frontend
     ports:
-      - "127.0.0.1:3000:80"
+      - "3000:80"
     mem_limit: 256m
     cpus: '0.5'
     depends_on:

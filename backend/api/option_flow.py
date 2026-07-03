@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, time, timedelta
 import pytz
 import random
+import os
 
 from database import get_read_db
 from models import User
@@ -14,6 +15,7 @@ from utils.auth import get_current_user
 from services.cache import get_cache_manager
 from data.fno_stocks import has_derivatives, is_index
 from utils.symbol_utils import get_stock_sector
+from config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Option Flow"])

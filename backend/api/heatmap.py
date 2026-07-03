@@ -282,22 +282,21 @@ async def get_heatmap(
             "market_cap": float(r.market_cap) if r.market_cap is not None else 5000000000.0 # 500Cr default only if absolutely null
         } for r in rows])
         
-        # Enrich latest close with live prices from UpstoxPriceResolver during market hours (timeframe = 1D)
-        if timeframe == "1D":
-            try:
-                from services.upstox_price_resolver import get_upstox_price_resolver
-                resolver = get_upstox_price_resolver()
-                symbols = df["symbol"].tolist()
-                live_prices = await resolver.get_prices_bulk(symbols)
-                for idx, row in df.iterrows():
-                    sym = row["symbol"]
-                    p_data = live_prices.get(sym)
-                    if p_data and p_data.get("price", 0) > 0:
-                        df.at[idx, "close"] = p_data["price"]
-                        if p_data.get("prev_close", 0) > 0:
-                            df.at[idx, "prev_close"] = p_data["prev_close"]
-            except Exception as e:
-                logger.error(f"Failed to enrich heatmap with live prices: {e}")
+        # Enrich latest close with live prices from UpstoxPriceResolver
+        try:
+            from services.upstox_price_resolver import get_upstox_price_resolver
+            resolver = get_upstox_price_resolver()
+            symbols = df["symbol"].tolist()
+            live_prices = await resolver.get_prices_bulk(symbols)
+            for idx, row in df.iterrows():
+                sym = row["symbol"]
+                p_data = live_prices.get(sym)
+                if p_data and p_data.get("price", 0) > 0:
+                    df.at[idx, "close"] = p_data["price"]
+                    if timeframe == "1D" and p_data.get("prev_close", 0) > 0:
+                        df.at[idx, "prev_close"] = p_data["prev_close"]
+        except Exception as e:
+            logger.error(f"Failed to enrich heatmap with live prices: {e}")
 
         # Calculate change percent based on chosen timeframe previous close
         df["change_pct"] = ((df["close"] - df["prev_close"]) / df["prev_close"]) * 100.0

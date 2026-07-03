@@ -89,3 +89,48 @@ async def get_orchestrator_status_alias(current_user: User = Depends(get_current
 async def get_market_health():
     """Get market service health."""
     return {"status": "healthy", "service": "Market Data Service", "is_healthy": True}
+
+
+@router.get("/health-report")
+async def get_market_health_report(current_user: User = Depends(get_current_user)):
+    """Comprehensive Market Data Health and Connectivity Monitor."""
+    try:
+        from services.market_data_orchestrator import get_market_data_orchestrator
+        from services.dragonfly_client import get_cache
+        from datetime import datetime
+        import time
+        
+        orchestrator = get_market_data_orchestrator()
+        cache = get_cache()
+        
+        # Test Cache latency
+        start_cache = time.perf_counter()
+        cache_available = cache.is_available()
+        if cache_available:
+            await cache.get_async("qai:health_ping")
+        cache_latency = (time.perf_counter() - start_cache) * 1000
+        
+        status_info = orchestrator.get_status()
+        
+        return {
+            "status": "healthy" if status_info.get("is_healthy") else "degraded",
+            "timestamp": datetime.now().isoformat(),
+            "websocket": {
+                "active_source": status_info.get("source"),
+                "is_running": orchestrator.is_running,
+                "last_tick_time": status_info.get("last_tick"),
+                "error_count": status_info.get("rest_error_count", 0)
+            },
+            "cache": {
+                "available": cache_available,
+                "latency_ms": round(cache_latency, 2),
+                "tracked_symbols": status_info.get("symbol_count", 0)
+            },
+            "system_health": {
+                "is_market_open": orchestrator.market_hours.is_market_open(),
+                "trading_date": orchestrator.market_hours.get_trading_date()
+            }
+        }
+    except Exception as e:
+        logger.error(f"Health report endpoint failed: {e}")
+        return {"status": "unhealthy", "error": str(e)}

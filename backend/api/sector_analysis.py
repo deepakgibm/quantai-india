@@ -221,18 +221,38 @@ async def get_sector_analysis(
             symbol_data[sym]["volumes"].append(int(r.volume))
             symbol_data[sym]["candle_ts"].append(r.candle_ts)
 
-        # Enrich latest closes with live prices from UpstoxPriceResolver for 1D timeframes
-        if timeframe == "1D" and symbol_data:
+        # Enrich latest closes with live prices from UpstoxPriceResolver for all timeframes
+        if symbol_data:
             try:
                 from services.upstox_price_resolver import get_upstox_price_resolver
+                from services.market_hours_service import get_market_hours_service
+                from datetime import date
+                
                 resolver = get_upstox_price_resolver()
+                market_hours = get_market_hours_service()
+                
+                today_date_str = market_hours.get_trading_date()
+                today_date = date.fromisoformat(today_date_str)
+                
                 symbols = list(symbol_data.keys())
                 live_prices = await resolver.get_prices_bulk(symbols)
                 for sym, p_data in live_prices.items():
                     if sym in symbol_data and p_data and p_data.get("price", 0) > 0:
-                        # Override the latest close price in the closes list
-                        if symbol_data[sym]["closes"]:
-                            symbol_data[sym]["closes"][-1] = p_data["price"]
+                        ltp = p_data["price"]
+                        s_data = symbol_data[sym]
+                        
+                        if s_data["closes"]:
+                            last_ts = s_data["candle_ts"][-1]
+                            last_date = last_ts.date() if isinstance(last_ts, datetime) else (last_ts if isinstance(last_ts, date) else None)
+                            
+                            if last_date and last_date < today_date:
+                                # Today is a new trading day not in DB daily candles, append live price
+                                s_data["closes"].append(ltp)
+                                s_data["volumes"].append(0)
+                                s_data["candle_ts"].append(datetime.combine(today_date, datetime.min.time()))
+                            else:
+                                # Today's candle is already present in DB daily candles, override it
+                                s_data["closes"][-1] = ltp
             except Exception as e:
                 logger.error(f"Failed to enrich sector analysis with live prices: {e}")
 

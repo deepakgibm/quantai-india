@@ -28,17 +28,13 @@ export enum Page {
   SECTOR_ANALYSIS = 'SECTOR_ANALYSIS',
   VOLUME_PROFILE = 'VOLUME_PROFILE',
   SUBSCRIPTION = 'subscription',
-  PORTFOLIO_INTELLIGENCE = 'portfolio_intelligence',
-  SIGNAL_CENTER = 'signal_center',
   SMC_ANALYSIS = 'smc_analysis',
   PATTERN_LAB = 'pattern_lab',
   ACADEMY = 'academy',
-  RESEARCH_CENTER = 'research_center',
   AFFILIATE = 'affiliate',
   WATCHLIST = 'watchlist',
   INSTITUTIONAL_SCANNER = 'institutional_scanner',
   INSTITUTIONAL_STOCK_DETAIL = 'institutional_stock_detail',
-  PRICE_DIAGNOSTICS = 'PRICE_DIAGNOSTICS',
 }
 
 export interface Stock {

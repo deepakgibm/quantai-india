@@ -29,7 +29,7 @@ class UpstoxWSManager:
     pushing directly to Redis PubSub.
     """
     
-    WS_URL = "wss://api.upstox.com/v2/feed/market-data-feed"
+    WS_URL = "wss://api.upstox.com/v3/feed/market-data-feed"
     
     def __init__(self):
         self.client = get_upstox_client()
@@ -116,7 +116,7 @@ class UpstoxWSManager:
             logger.error("NO ANALYTICS TOKEN AVAILABLE! Market Data WS cannot connect.")
             raise Exception("Analytics Token Missing")
 
-        endpoint = "https://api.upstox.com/v2/feed/market-data-feed/authorize"
+        endpoint = "https://api.upstox.com/v3/feed/market-data-feed/authorize"
         try:
             # Institutional tokens require both Bearer and Api-Key headers
             headers = {
@@ -135,7 +135,7 @@ class UpstoxWSManager:
                 response.raise_for_status()
                 data = response.json()
                 if data.get("status") == "success":
-                    return data["data"]["authorized_redirect_url"]
+                    return data["data"].get("authorized_redirect_uri") or data["data"].get("authorized_redirect_url")
                 raise Exception(f"Failed to authorize WS: {data}")
         except PermissionError:
             raise # Re-raise for connect() to catch

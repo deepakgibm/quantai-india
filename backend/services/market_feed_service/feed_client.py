@@ -64,7 +64,7 @@ class UpstoxFeedClient:
             logger.error("NO ANALYTICS TOKEN AVAILABLE! Market Feed WS cannot connect.")
             raise Exception("Analytics Token Missing")
 
-        endpoint = "https://api.upstox.com/v2/feed/market-data-feed/authorize"
+        endpoint = "https://api.upstox.com/v3/feed/market-data-feed/authorize"
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {analytics_token}",
@@ -78,7 +78,7 @@ class UpstoxFeedClient:
             response.raise_for_status()
             data = response.json()
             if data.get("status") == "success":
-                return data["data"]["authorized_redirect_url"]
+                return data["data"].get("authorized_redirect_uri") or data["data"].get("authorized_redirect_url")
             raise Exception(f"Failed to authorize WS: {data}")
 
     async def start(self):

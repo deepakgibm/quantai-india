@@ -13,12 +13,9 @@ from database import get_db
 
 # Service imports
 from services.saas.subscription_service import SubscriptionService
-from services.saas.portfolio_intel_service import PortfolioIntelService
-from services.saas.signal_center_service import SignalCenterService
 from services.saas.smc_service import SMCService
 from services.saas.pattern_recognition_service import PatternRecognitionService
 from services.saas.academy_service import AcademyService
-from services.saas.research_service import ResearchService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -102,40 +99,6 @@ async def get_billing_revenue_analytics(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ─── PORTFOLIO INTELLIGENCE ROUTES ───────────────────────────────────────────
-
-@router.get("/portfolio-intel")
-async def get_portfolio_intelligence(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    import asyncio
-    try:
-        analysis = await asyncio.wait_for(
-            PortfolioIntelService.analyze_portfolio(db, current_user.id),
-            timeout=10.0
-        )
-        return {"status": "success", "analysis": analysis}
-    except asyncio.TimeoutError:
-        logger.error("Portfolio intelligence timed out (10s)")
-        raise HTTPException(status_code=504, detail="Portfolio analysis timed out. Please try again.")
-    except Exception as e:
-        logger.error(f"Portfolio intelligence failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ─── SIGNAL PERFORMANCE CENTER ROUTES ──────────────────────────────────────────
-
-@router.get("/signal-center")
-async def get_signal_center(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        metrics = await SignalCenterService.get_performance_metrics(db)
-        return {"status": "success", "metrics": metrics}
-    except Exception as e:
-        logger.error(f"Signal center stats failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ─── SMART MONEY CONCEPTS ROUTES ──────────────────────────────────────────────
 
@@ -223,32 +186,6 @@ async def submit_academy_quiz(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ─── RESEARCH CENTER ROUTES ───────────────────────────────────────────────────
-
-@router.get("/research")
-async def get_research_newsletter_archive(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        reports = await ResearchService.get_reports(db)
-        return {"status": "success", "reports": reports}
-    except Exception as e:
-        logger.error(f"Failed to fetch research: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/research/generate")
-async def generate_ai_research_report(
-    topic: str = Body(..., embed=True),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        report = await ResearchService.generate_ai_report(db, topic)
-        return {"status": "success", "report": report}
-    except Exception as e:
-        logger.error(f"Research generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ─── BROKER AFFILIATE CENTER ROUTES ───────────────────────────────────────────
 

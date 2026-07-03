@@ -179,6 +179,48 @@ async def get_volatility_data(
             'volume': int(r.volume) if r.volume is not None else 0
         } for r in candles_rows])
         
+        # Inject live/EOD price from resolver to construct today's session candle
+        try:
+            from services.upstox_price_resolver import get_upstox_price_resolver
+            from services.market_hours_service import get_market_hours_service
+            
+            resolver = get_upstox_price_resolver()
+            price_res = await resolver.get_price(symbol)
+            
+            if price_res and price_res.get("price") and price_res.get("price") > 0:
+                ltp = float(price_res["price"])
+                prev_close = float(price_res.get("prev_close") or df['close'].iloc[-1])
+                
+                market_hours = get_market_hours_service()
+                today_date_str = market_hours.get_trading_date()
+                today_date = date.fromisoformat(today_date_str)
+                
+                last_date = df['date'].iloc[-1]
+                
+                if last_date < today_date:
+                    # Construct a new daily candle for today's session
+                    open_p = prev_close
+                    high_p = max(prev_close, ltp)
+                    low_p = min(prev_close, ltp)
+                    close_p = ltp
+                    
+                    new_row = pd.DataFrame([{
+                        'date': today_date,
+                        'open': open_p,
+                        'high': high_p,
+                        'low': low_p,
+                        'close': close_p,
+                        'volume': 0
+                    }])
+                    df = pd.concat([df, new_row], ignore_index=True)
+                else:
+                    # Today's candle is already in the database, update its close with the live LTP
+                    df.loc[df.index[-1], 'close'] = ltp
+                    df.loc[df.index[-1], 'high'] = max(df.loc[df.index[-1], 'high'], ltp)
+                    df.loc[df.index[-1], 'low'] = min(df.loc[df.index[-1], 'low'], ltp)
+        except Exception as e:
+            logger.warning(f"Failed to enrich volatility calculations with live price: {e}")
+        
         # 3. Compute log returns & historical volatility
         df['log_return'] = np.log(df['close'] / df['close'].shift(1))
         

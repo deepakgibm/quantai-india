@@ -37,7 +37,7 @@ Start-Sleep -Seconds 5
 $dockerPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 if (Test-Path $dockerPath) {
     Write-Host "[3/5] Launching Docker Desktop from: $dockerPath" -ForegroundColor Yellow
-    Start-Process -FilePath $dockerPath
+    Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList "`"$dockerPath`""
 } else {
     Write-Host "Error: Docker Desktop executable not found at $dockerPath" -ForegroundColor Red
     Exit 1

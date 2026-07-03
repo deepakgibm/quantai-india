@@ -3,6 +3,8 @@ import json
 import logging
 import os
 from collections import defaultdict, deque
+from datetime import datetime
+import pytz
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from services.dragonfly_client import get_cache
 from utils.symbol_utils import get_stock_sector
@@ -74,7 +76,16 @@ class KafkaConsumerGroup:
                     ltp = tick.get("ltp") or tick.get("last_price") or 0.0
                     volume = tick.get("volume") or 0
                     change_pct = tick.get("change_percent") or tick.get("change_pct") or 0.0
-                    timestamp = tick.get("timestamp") or ""
+                    raw_ts = tick.get("timestamp") or tick.get("ltp_time")
+                    if not raw_ts:
+                        timestamp = datetime.now(pytz.UTC).isoformat()
+                    elif isinstance(raw_ts, (int, float)) or (isinstance(raw_ts, str) and raw_ts.isdigit()):
+                        try:
+                            timestamp = datetime.fromtimestamp(int(raw_ts) / 1000.0, pytz.UTC).isoformat()
+                        except Exception:
+                            timestamp = datetime.now(pytz.UTC).isoformat()
+                    else:
+                        timestamp = str(raw_ts)
                     
                     normalized_tick = {
                         "symbol": symbol,

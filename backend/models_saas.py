@@ -171,22 +171,6 @@ class AcademyCertificate(Base):
         UniqueConstraint('user_id', 'course_id', name='uq_user_course_cert'),
     )
 
-class ResearchReport(Base):
-    """
-    SaaS stock research reports & AI generated publications.
-    """
-    __tablename__ = "research_reports"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(200), nullable=False)
-    report_type = Column(String(50), default="DAILY")  # DAILY, WEEKLY, AI_GENERATED
-    summary = Column(Text, nullable=True)
-    content_markdown = Column(Text, nullable=True)
-    pdf_url = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<ResearchReport(title={self.title}, type={self.report_type})>"
 
 class AffiliateTracker(Base):
     """

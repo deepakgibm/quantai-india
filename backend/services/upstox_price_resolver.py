@@ -56,12 +56,17 @@ class UpstoxPriceResolver:
         if price_data:
             return price_data
             
-        # 2. Fallback: Database EOD
-        logger.info(f"Resolver: Cache miss for {symbol}. Falling back to DB EOD.")
+        # 2. Secondary: Upstox REST API quote
+        price_data = await self._get_rest_price(symbol)
+        if price_data:
+            return price_data
+            
+        # 3. Fallback: Database EOD
+        logger.info(f"Resolver: Cache and REST miss for {symbol}. Falling back to DB EOD.")
         return await self._get_db_eod_price(symbol)
 
     async def get_prices_bulk(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
-        """Fetch prices for multiple symbols using optimized batch routing (Cache/DB only, no REST)."""
+        """Fetch prices for multiple symbols using optimized batch routing (Cache -> REST -> DB)."""
         if not symbols: return {}
         symbols = [s.upper() for s in symbols]
         
@@ -81,7 +86,65 @@ class UpstoxPriceResolver:
         if not pending_symbols:
             return results
             
-        # 2. Strategy: DB Fallback for any remaining
+        # 2. Strategy: Upstox REST API Batch Fallback
+        try:
+            from services.upstox_client import get_upstox_client
+            from services.instrument_resolver import resolve_instrument_info
+            
+            client = get_upstox_client()
+            
+            # Resolve instrument keys
+            keys_to_sym = {}
+            for s in pending_symbols:
+                info = resolve_instrument_info(s)
+                if info and info.instrument_key:
+                    keys_to_sym[info.instrument_key] = s
+                    
+            if keys_to_sym:
+                rest_res = await client.get_live_quotes(list(keys_to_sym.keys()))
+                
+                for inst_key, quote in rest_res.items():
+                    s = keys_to_sym.get(inst_key)
+                    if s and quote and quote.get("last_price"):
+                        ltp = float(quote["last_price"])
+                        prev_close = float(quote.get("previous_close") or ltp)
+                        change_pct = float(quote.get("change_percent") or 0.0)
+                        
+                        res = self._format_response(
+                            s, 
+                            ltp, 
+                            PriceSource.UPSTOX_REST, 
+                            datetime.now(IST), 
+                            prev_close=prev_close, 
+                            change_pct=change_pct
+                        )
+                        results[s] = res
+                        
+                        # Cache it to Dragonfly (both new and legacy keys)
+                        cache_key = f"price:{s}"
+                        cache_key_legacy = f"qai:tick:{s}"
+                        cache_payload = {
+                            "symbol": s,
+                            "ltp": ltp,
+                            "volume": quote.get("volume", 0),
+                            "prev_close": prev_close,
+                            "change_percent": change_pct,
+                            "timestamp": datetime.now(pytz.UTC).isoformat()
+                        }
+                        try:
+                            await self.cache.set_async(cache_key, cache_payload, ttl=300)
+                            await self.cache.set_async(cache_key_legacy, cache_payload, ttl=300)
+                        except Exception as ce:
+                            logger.warning(f"Resolver: Failed to write bulk REST quote to cache: {ce}")
+                            
+                pending_symbols = [s for s in pending_symbols if s not in results]
+        except Exception as e:
+            logger.error(f"Resolver: Bulk REST resolution failed: {e}")
+            
+        if not pending_symbols:
+            return results
+            
+        # 3. Strategy: DB Fallback for any remaining
         try:
             from services.live_price_enricher import get_database_movers_data
             db_data = await get_database_movers_data(pending_symbols)
@@ -151,8 +214,9 @@ class UpstoxPriceResolver:
                     else:
                         ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
                         
+                    market_open = self.market_hours.is_market_open()
                     age = (datetime.now(pytz.UTC) - ts).total_seconds()
-                    stale = age > 5.0
+                    stale = market_open and (age > 5.0)
                     
                     if stale:
                         logger.warning(f"Resolver: Tick for {symbol} is stale ({age:.1f}s > 5.0s). Marking data_stale=True.")
@@ -164,8 +228,53 @@ class UpstoxPriceResolver:
         return None
 
     async def _get_rest_price(self, symbol: str, is_fallback: bool = False) -> Optional[Dict[str, Any]]:
-        """Stubbed - REST requests are completely blocked from user requests."""
-        logger.warning(f"Resolver: Blocked direct REST API fetch request for {symbol}.")
+        """Fetch live quote from Upstox REST API and cache it to prevent hammering."""
+        try:
+            from services.upstox_client import get_upstox_client
+            from services.instrument_resolver import resolve_instrument_info
+            
+            info = resolve_instrument_info(symbol)
+            if not info or not info.instrument_key:
+                return None
+                
+            client = get_upstox_client()
+            quote = await client.get_live_quote(info.instrument_key, symbol)
+            
+            if quote and quote.get("last_price") and quote["last_price"] > 0:
+                ltp = float(quote["last_price"])
+                prev_close = float(quote.get("previous_close") or ltp)
+                change_pct = float(quote.get("change_percent") or 0.0)
+                
+                res = self._format_response(
+                    symbol, 
+                    ltp, 
+                    PriceSource.UPSTOX_REST, 
+                    datetime.now(IST), 
+                    prev_close=prev_close, 
+                    change_pct=change_pct
+                )
+                
+                # Cache to Dragonfly (both new and legacy keys)
+                cache_key = f"price:{symbol}"
+                cache_key_legacy = f"qai:tick:{symbol}"
+                cache_payload = {
+                    "symbol": symbol,
+                    "ltp": ltp,
+                    "volume": quote.get("volume", 0),
+                    "prev_close": prev_close,
+                    "change_percent": change_pct,
+                    "timestamp": datetime.now(pytz.UTC).isoformat()
+                }
+                try:
+                    await self.cache.set_async(cache_key, cache_payload, ttl=300)
+                    await self.cache.set_async(cache_key_legacy, cache_payload, ttl=300)
+                except Exception as ce:
+                    logger.warning(f"Resolver: Failed to write REST quote to cache: {ce}")
+                    
+                return res
+        except Exception as e:
+            logger.error(f"Resolver: REST API fallback failed for {symbol}: {e}")
+            
         return None
 
     async def _get_db_eod_price(self, symbol: str) -> Dict[str, Any]:
@@ -214,7 +323,7 @@ class UpstoxPriceResolver:
             "price": round(float(price or 0), 2),
             "prev_close": round(float(prev_close or 0), 2),
             "change_pct": round(float(change_pct or 0), 2),
-            "is_live": source.value == PriceSource.UPSTOX_WS.value and not stale,
+            "is_live": source.value == PriceSource.UPSTOX_WS.value and self.market_hours.is_market_open() and not stale,
             "price_source": source.value,
             "exchange": "NSE",
             "timestamp": ts.isoformat(),

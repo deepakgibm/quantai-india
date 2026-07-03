@@ -66,12 +66,9 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Research & Tools',
     items: [
       { page: Page.QUANT_WORKSPACE,      icon: BarChart2,       label: 'Research Terminal', badge: 'NEW' },
-      { page: Page.RESEARCH_CENTER,      icon: Newspaper,       label: 'Research Center' },
       { page: Page.WATCHLIST,            icon: Eye,             label: 'Watchlist Portfolio' },
-      { page: Page.PORTFOLIO_INTELLIGENCE, icon: Briefcase,     label: 'Portfolio Intel' },
       { page: Page.SMC_ANALYSIS,         icon: Compass,         label: 'SMC Analysis' },
       { page: Page.PATTERN_LAB,          icon: BookOpen,        label: 'Pattern Lab' },
-      { page: Page.PRICE_DIAGNOSTICS,    icon: ShieldAlert,     label: 'Price Diagnostics' },
     ],
   },
   {
@@ -80,7 +77,6 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.INSTITUTIONAL_SCANNER, icon: TrendingUp,     label: 'Institutional Scanner', badge: 'VCP' },
       { page: Page.TRADE_SCREENER,       icon: Shield,          label: 'Trade Screener' },
       { page: Page.SIGNAL_BOT,           icon: Bot,             label: 'Signal Bot' },
-      { page: Page.SIGNAL_CENTER,        icon: Award,           label: 'Signal Performance' },
       { page: Page.AI_PROMPT,            icon: BrainCircuit,    label: 'AI Prompt' },
       { page: Page.SCANNER,              icon: Search,          label: 'Scanner' },
       { page: Page.MOMENT_ALERT,         icon: Bell,            label: 'Moment Alert' },
