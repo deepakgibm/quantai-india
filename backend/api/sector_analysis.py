@@ -245,14 +245,21 @@ async def get_sector_analysis(
                             last_ts = s_data["candle_ts"][-1]
                             last_date = last_ts.date() if isinstance(last_ts, datetime) else (last_ts if isinstance(last_ts, date) else None)
                             
-                            if last_date and last_date < today_date:
-                                # Today is a new trading day not in DB daily candles, append live price
-                                s_data["closes"].append(ltp)
-                                s_data["volumes"].append(0)
-                                s_data["candle_ts"].append(datetime.combine(today_date, datetime.min.time()))
-                            else:
-                                # Today's candle is already present in DB daily candles, override it
-                                s_data["closes"][-1] = ltp
+                            if last_date:
+                                gap_days = (today_date - last_date).days
+                                if gap_days <= 3:
+                                    if last_date < today_date:
+                                        # Only append if price differs or market is open to avoid flat duplicates
+                                        if ltp != s_data["closes"][-1] or market_hours.is_market_open():
+                                            s_data["closes"].append(ltp)
+                                            s_data["volumes"].append(0)
+                                            s_data["candle_ts"].append(datetime.combine(today_date, datetime.min.time()))
+                                    else:
+                                        s_data["closes"][-1] = ltp
+                                else:
+                                    # Stale DB. Update EOD last close ONLY if market is open and we have fresh active LTP
+                                    if market_hours.is_market_open() and ltp != s_data["closes"][-1]:
+                                        s_data["closes"][-1] = ltp
             except Exception as e:
                 logger.error(f"Failed to enrich sector analysis with live prices: {e}")
 
@@ -561,7 +568,11 @@ async def get_sector_analysis(
             sd["stocks"] = sorted(sd["stocks"], key=lambda x: x["timeframe_return"], reverse=True)
             
             # Issue 2 Fix: If stock count <= 5, display ranking table only (empty top/bottom performers to trigger UI hide)
-            if cnt <= 5:
+            # Phase 9: If all stocks have exactly 0% return, do not show performers
+            if all(abs(st["timeframe_return"]) < 1e-5 for st in sd["stocks"]):
+                gainers = []
+                losers = []
+            elif cnt <= 5:
                 gainers = []
                 losers = []
             else:

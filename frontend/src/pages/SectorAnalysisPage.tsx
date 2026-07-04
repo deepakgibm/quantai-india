@@ -390,7 +390,7 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
       <div className="bg-slate-900/20 border border-slate-800/80 rounded-2xl p-6 shadow-md space-y-4">
         <div>
           <h2 className="text-sm font-bold text-slate-200">Sector Performance Heatmap</h2>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Colored by 1-Month Return &bull; Click to drill down</p>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Colored by {timeframe} Return &bull; Click to drill down</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {(() => {
@@ -401,11 +401,11 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
               <div
                 key={sec.sector}
                 onClick={() => setSelectedSector(sec)}
-                className={`p-4 border rounded-xl cursor-pointer hover:scale-[1.02] transition-all flex flex-col justify-between h-28 shadow-lg ${getHeatmapColor(sec.avg_return_1m)}`}
+                className={`p-4 border rounded-xl cursor-pointer hover:scale-[1.02] transition-all flex flex-col justify-between h-28 shadow-lg ${getHeatmapColor(sec.avg_return_timeframe)}`}
               >
                 <div className="font-bold text-xs line-clamp-2 leading-tight" title={sec.sector}>{sec.sector}</div>
                 <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-lg font-black">{sec.avg_return_1m >= 0 ? '+' : ''}{sec.avg_return_1m.toFixed(1)}%</span>
+                  <span className="text-lg font-black">{sec.avg_return_timeframe >= 0 ? '+' : ''}{sec.avg_return_timeframe.toFixed(2)}%</span>
                   <span className="text-[9px] opacity-75 font-semibold">{sec.stock_count} stocks</span>
                 </div>
               </div>
@@ -711,7 +711,7 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
                 <div>
                   <h2 className="text-md font-bold text-white">{selectedSector.sector} Constituents</h2>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">
-                    Avg PE: {selectedSector.avg_pe.toFixed(1)} &bull; Avg RSI: {selectedSector.avg_rsi.toFixed(0)} &bull; {selectedSector.valuation_rating}
+                    Avg Return ({timeframe}): {selectedSector.avg_return_timeframe >= 0 ? '+' : ''}{selectedSector.avg_return_timeframe.toFixed(2)}% &bull; Avg PE: {selectedSector.avg_pe.toFixed(1)} &bull; Avg RSI: {selectedSector.avg_rsi.toFixed(0)} &bull; {selectedSector.valuation_rating}
                   </p>
                 </div>
               </div>
@@ -727,45 +727,54 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               {/* Leaders and Laggards snapshot */}
               {selectedSector.stock_count > 5 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1">
-                      <TrendingUp size={10} /> Top Performers ({timeframe})
-                    </h3>
-                    <div className="space-y-1.5">
-                      {(() => {
-                        const gainers = Array.isArray(selectedSector?.gainers) ? selectedSector.gainers.slice(0, 3) : [];
-                        console.log("Rendering Modal Top Performers, gainers:", gainers);
-                        console.log("Is Array:", Array.isArray(gainers));
-                        return gainers.map(st => (
-                          <div key={st.symbol} className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
-                            <span className="font-mono text-emerald-400 font-bold">+{st.change_1d.toFixed(1)}%</span>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
+                (() => {
+                  const gainers = Array.isArray(selectedSector?.gainers) ? selectedSector.gainers : [];
+                  const losers = Array.isArray(selectedSector?.losers) ? selectedSector.losers : [];
+                  
+                  if (gainers.length === 0 && losers.length === 0) {
+                    return (
+                      <div className="bg-slate-950/60 border border-slate-850 rounded-xl p-4 text-center text-slate-450 font-mono text-[11px] font-bold">
+                        No meaningful price movement detected. All constituents unchanged.
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                        <h3 className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1">
+                          <TrendingUp size={10} /> Top Performers ({timeframe})
+                        </h3>
+                        <div className="space-y-1.5">
+                          {gainers.map(st => (
+                            <div key={st.symbol} className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
+                              <span className="font-mono text-emerald-400 font-bold">
+                                {st.timeframe_return >= 0 ? '+' : ''}{st.timeframe_return.toFixed(2)}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
-                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1">
-                      <TrendingDown size={10} /> Bottom Performers ({timeframe})
-                    </h3>
-                    <div className="space-y-1.5">
-                      {(() => {
-                        const losers = Array.isArray(selectedSector?.losers) ? selectedSector.losers.slice(0, 3) : [];
-                        console.log("Rendering Modal Bottom Performers, losers:", losers);
-                        console.log("Is Array:", Array.isArray(losers));
-                        return losers.map(st => (
-                          <div key={st.symbol} className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
-                            <span className="font-mono text-rose-400 font-bold">{st.change_1d.toFixed(1)}%</span>
-                          </div>
-                        ));
-                      })()}
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                        <h3 className="text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1">
+                          <TrendingDown size={10} /> Bottom Performers ({timeframe})
+                        </h3>
+                        <div className="space-y-1.5">
+                          {losers.map(st => (
+                            <div key={st.symbol} className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-white">{st.symbol} <span className="text-[9px] text-slate-500 font-normal">{st.company_name}</span></span>
+                              <span className="font-mono text-rose-400 font-bold">
+                                {st.timeframe_return >= 0 ? '+' : ''}{st.timeframe_return.toFixed(2)}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()
               )}
 
               {/* Table of all constituents */}
@@ -807,7 +816,7 @@ const SectorAnalysisPage: React.FC<{ onNavigate?: (page: any) => void }> = () =>
                             <td className="px-4 py-2 text-slate-500 truncate max-w-[150px]">{st.company_name}</td>
                             <td className="px-4 py-2 text-right font-mono font-semibold">₹{st.price.toFixed(1)}</td>
                             <td className={`px-4 py-2 text-right font-mono font-bold ${st.timeframe_return >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {st.timeframe_return >= 0 ? '+' : ''}{st.timeframe_return.toFixed(1)}%
+                              {st.timeframe_return >= 0 ? '+' : ''}{st.timeframe_return.toFixed(2)}%
                             </td>
                             <td className={`px-4 py-2 text-right font-mono ${st.rsi >= 70 ? 'text-amber-400' : st.rsi <= 30 ? 'text-emerald-400' : 'text-slate-400'}`}>
                               {st.rsi.toFixed(0)}

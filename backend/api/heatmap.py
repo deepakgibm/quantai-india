@@ -304,7 +304,7 @@ async def get_heatmap(
                 p_data = live_prices.get(sym)
                 if p_data and p_data.get("price", 0) > 0:
                     df.at[idx, "close"] = p_data["price"]
-                    if timeframe == "1D" and p_data.get("prev_close", 0) > 0:
+                    if timeframe == "1D" and p_data.get("prev_close", 0) > 0 and p_data["prev_close"] != p_data["price"]:
                         df.at[idx, "prev_close"] = p_data["prev_close"]
         except Exception as e:
             logger.error(f"Failed to enrich heatmap with live prices: {e}")
