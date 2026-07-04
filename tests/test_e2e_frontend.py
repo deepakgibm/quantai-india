@@ -69,9 +69,9 @@ def test_frontend_login_flow(page: Page):
     print(" -> Found 'Option Flow' widget")
     
     # Verify Heatmap Widget
-    heatmap_header = page.get_by_text("Market Heatmap (NIFTY 505)")
+    heatmap_header = page.get_by_text("NIFTY 50 Heatmap").first
     expect(heatmap_header).to_be_visible(timeout=15000)
-    print(" -> Found 'Market Heatmap' widget")
+    print(" -> Found 'NIFTY 50 Heatmap' widget")
     
     print("Frontend E2E Test Passed: Landing -> Login -> Dashboard -> Features Present")
 

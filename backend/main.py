@@ -162,6 +162,11 @@ async def startup_event():
         await init_db()
         logger.info("?? Database schema verified/created.")
         
+        # Seed corporate actions
+        from services.corporate_action_service import seed_corporate_actions
+        await seed_corporate_actions()
+        logger.info("?? Corporate actions database seeded.")
+        
         # Warm instrument resolver cache in a background executor
         from services.instrument_resolver import warm_cache
         loop = asyncio.get_event_loop()

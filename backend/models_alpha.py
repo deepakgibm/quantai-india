@@ -405,3 +405,19 @@ class IndexConstituent(Base):
     __table_args__ = (
         PrimaryKeyConstraint('index_id', 'instrument_id'),
     )
+
+
+class CorporateAction(Base):
+    """
+    Table to store stock splits, bonus issues, mergers, demergers, and other corporate actions.
+    """
+    __tablename__ = "corporate_action"
+    id = Column(Integer, primary_key=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    action_type = Column(String(50), nullable=False)  # 'Split', 'Bonus', 'Demerger', etc.
+    effective_date = Column(DateTime, nullable=False)
+    adjustment_factor = Column(Float, nullable=False)
+    ratio = Column(String(20), nullable=True)
+    source = Column(String(100), nullable=True)
+    verified = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
