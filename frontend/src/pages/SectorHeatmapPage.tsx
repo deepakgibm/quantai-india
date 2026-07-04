@@ -148,6 +148,10 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
   const [dimensions, setDimensions] = useState({ width: 1000, height: 550 });
   const [showDebug, setShowDebug] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
+  
+  useEffect(() => {
+    document.title = "NIFTY 50 Heatmap | QuantAI India";
+  }, []);
 
   const changeTimeframe = (tf: string) => {
     setTimeframe(tf);
@@ -372,7 +376,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
                   <ArrowLeft size={16} /> All Sectors
                 </button>
               ) : (
-                <h1 className="text-2xl font-bold tracking-tight text-white font-display">NIFTY 500 Heatmap</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-white font-display">NIFTY 50 Heatmap</h1>
               )}
               {selectedSector && (
                 <span className="text-lg font-bold text-white font-display">
@@ -449,7 +453,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
               </button>
             ) : (
               <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-                <LayoutGrid size={15} className="text-emerald-500" /> Market Heatmap (NIFTY 505)
+                <LayoutGrid size={15} className="text-emerald-500" /> NIFTY 50 Heatmap
               </h3>
             )}
             {selectedSector && (
@@ -660,28 +664,28 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
           {showDebug && (
             <div className="mt-4 pt-4 border-t border-slate-800/60 grid grid-cols-2 md:grid-cols-6 gap-4 text-[10px] text-slate-500 font-semibold font-mono">
               <div>
+                <span className="text-slate-400 block mb-0.5">Universe</span>
+                <span className="text-yellow-400 font-bold uppercase">{heatmapData.index || "NIFTY 50"}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Stocks Loaded</span>
+                <span className="text-slate-200 font-bold">{heatmapData.stockCount ?? (heatmapData.sectors ? heatmapData.sectors.flatMap((s: any) => s.stocks || []).length : 0)}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Excluded</span>
+                <span className="text-slate-200 font-bold">{Math.max(0, 50 - (heatmapData.stockCount ?? (heatmapData.sectors ? heatmapData.sectors.flatMap((s: any) => s.stocks || []).length : 0)))}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Sectors</span>
+                <span className="text-slate-200 font-bold">{heatmapData.sectorCount ?? (heatmapData.sectors ? heatmapData.sectors.length : 0)}</span>
+              </div>
+              <div>
                 <span className="text-slate-400 block mb-0.5">Active Metric</span>
-                <span className="text-yellow-400 font-bold uppercase">{mode}</span>
+                <span className="text-slate-200 font-bold uppercase">{mode}</span>
               </div>
               <div>
-                <span className="text-slate-400 block mb-0.5">Raw Score</span>
-                <span className="text-slate-200 font-bold">{heatmapData.market_summary.score} / 100</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block mb-0.5">Raw Confidence</span>
-                <span className="text-slate-200 font-bold">{heatmapData.market_summary.confidence}%</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block mb-0.5">Raw Sentiment</span>
-                <span className="text-slate-200 font-bold">{heatmapData.market_summary.sentiment}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block mb-0.5">API Response</span>
-                <span className="text-slate-200 font-bold">status: {heatmapData.status} | mode: {heatmapData.mode}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block mb-0.5">Last Refresh Time</span>
-                <span className="text-slate-200 font-bold">{lastRefreshTime}</span>
+                <span className="text-slate-400 block mb-0.5">Last Updated</span>
+                <span className="text-slate-200 font-bold">{heatmapData.lastUpdated ? new Date(heatmapData.lastUpdated).toLocaleTimeString() : lastRefreshTime}</span>
               </div>
             </div>
           )}

@@ -57,7 +57,7 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.DASHBOARD,            icon: LayoutDashboard, label: 'Dashboard' },
       { page: Page.VOLATILITY_DASHBOARD, icon: Activity,        label: 'Volatility Index' },
       { page: Page.OPTION_FLOW,          icon: TrendingUp,      label: 'Option Flow' },
-      { page: Page.SECTOR_HEATMAP,       icon: Zap,             label: 'Sector Heatmap' },
+      { page: Page.SECTOR_HEATMAP,       icon: Zap,             label: 'NIFTY 50 Heatmap' },
       { page: Page.SECTOR_ANALYSIS,      icon: LayoutGrid,      label: 'Sector Analysis' },
       { page: Page.VOLUME_PROFILE,       icon: Cpu,             label: 'Volume Profile' },
     ],

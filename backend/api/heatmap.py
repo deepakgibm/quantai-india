@@ -97,13 +97,13 @@ def generate_market_summary(df: pd.DataFrame, active_metric: str, sectors_list: 
     
     if active_metric == "performance":
         if signal == "BUY":
-            summary = f"{int(perf_pct)}% of NIFTY 500 stocks are positive. {', '.join(top_sec[:2])} are leading. Broad participation suggests bullish sentiment."
+            summary = f"{int(perf_pct)}% of NIFTY 50 stocks are positive. {', '.join(top_sec[:2])} are leading. Broad participation suggests bullish sentiment."
             actionable_insight = "Retail investors may consider accumulating leaders while avoiding weak sectors."
         elif signal == "HOLD":
             summary = f"Market is mixed with balanced winners and losers ({int(perf_pct)}% positive stocks). {', '.join(top_sec[:2])} show resilience, but {', '.join(weak_sec[:2])} are lagging. No strong directional bias."
             actionable_insight = "Consider holding current quality positions and wait for a clearer momentum shift."
         else: # SELL
-            summary = f"Only {int(perf_pct)}% of NIFTY 500 stocks are positive today. Most sectors, led by weakness in {', '.join(weak_sec[:2])}, are declining, indicating risk-off sentiment."
+            summary = f"Only {int(perf_pct)}% of NIFTY 50 stocks are positive today. Most sectors, led by weakness in {', '.join(weak_sec[:2])}, are declining, indicating risk-off sentiment."
             actionable_insight = "Focus on capital preservation. Tighten stop-losses and avoid buying into weak rallies."
             
     elif active_metric == "volatility":
@@ -218,6 +218,10 @@ async def get_heatmap(
         from datetime import timedelta
         cutoff_date = max_ts - timedelta(days=calendar_days)
         
+        # Resolve Nifty 50 constituents
+        from utils.index_config import get_index_constituents
+        nifty50_symbols = get_index_constituents("NIFTY 50")
+        
         print(f"[SECTOR_ENGINE] Computing heatmap hierarchy for mode={mode}, timeframe={timeframe} (target_rn={target_rn}, calendar_days={calendar_days})")
         
         # SQL Query to fetch latest and timeframe-ago close prices, volume and market cap
@@ -256,10 +260,17 @@ async def get_heatmap(
             LEFT JOIN prev_candles pc ON im.instrument_id = pc.instrument_id
             LEFT JOIN prev_10_candles p10 ON im.instrument_id = p10.instrument_id
             LEFT JOIN fundamental_metrics fm ON im.symbol = fm.symbol
-            WHERE im.is_active = TRUE
+            WHERE im.is_active = TRUE AND im.symbol = ANY(:nifty50_symbols)
         """)
         
-        result = await db.execute(sql, {"target_rn": target_rn, "cutoff_date": cutoff_date})
+        result = await db.execute(
+            sql, 
+            {
+                "target_rn": target_rn, 
+                "cutoff_date": cutoff_date, 
+                "nifty50_symbols": list(nifty50_symbols)
+            }
+        )
         rows = result.fetchall()
         
         if not rows:
@@ -367,8 +378,16 @@ async def get_heatmap(
         
         summary_data = generate_market_summary(df, mode, sectors_list)
         
+        # Count unique sectors and total stocks
+        sector_count = len(sectors_list)
+        total_stocks_count = len(df)
+        
         response_data = {
             "status": "success",
+            "index": "NIFTY50",
+            "stockCount": total_stocks_count,
+            "sectorCount": sector_count,
+            "lastUpdated": datetime.now().isoformat(),
             "mode": mode,
             "timeframe": timeframe,
             "sectors": sectors_list,
