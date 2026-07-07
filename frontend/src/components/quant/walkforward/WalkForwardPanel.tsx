@@ -7,7 +7,8 @@ import QuantAreaChart from '../charts/QuantAreaChart';
 import DataTable, { DataTableColumn } from '../shared/DataTable';
 import { WalkForwardWindow } from '../../../types/quant';
 
-const fmt = (n: number, d = 2) => n.toFixed(d);
+const fmt = (n: number | null | undefined, d = 2) => 
+  typeof n === 'number' && !isNaN(n) ? n.toFixed(d) : '—';
 
 /**
  * Walk-Forward Mode Panel — validation status, IS/OOS summary KPIs,

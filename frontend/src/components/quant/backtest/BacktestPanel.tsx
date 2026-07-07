@@ -7,7 +7,8 @@ import QuantAreaChart from '../charts/QuantAreaChart';
 import DataTable, { DataTableColumn } from '../shared/DataTable';
 import { Trade } from '../../../types/quant';
 
-const fmt = (n: number, decimals = 2) => n.toFixed(decimals);
+const fmt = (n: number | null | undefined, decimals = 2) => 
+  typeof n === 'number' && !isNaN(n) ? n.toFixed(decimals) : '—';
 const fmtCcy = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 

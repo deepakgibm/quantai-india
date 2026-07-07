@@ -67,17 +67,20 @@ class LegacyStrategyAdapter(UnifiedStrategy):
             try:
                 return self.legacy.generate_signals(df, self.params)
             except TypeError:
-                # If experiment lab strategy, generate_signals(df) takes no params
-                # Returns List[SignalResult]
+                import numpy as np
                 res_signals = self.legacy.generate_signals(df)
                 df_out = df.copy()
                 df_out["signal"] = "HOLD"
                 for sig in res_signals:
-                    # Find closest timestamp index
                     ts = sig.timestamp
-                    mask = df_out["timestamp"] == ts
-                    if mask.any():
-                        df_out.loc[mask, "signal"] = sig.signal.value
+                    if isinstance(ts, (int, np.integer)):
+                        if 0 <= ts < len(df_out):
+                            df_out.iloc[ts, df_out.columns.get_loc("signal")] = sig.signal.value
+                    else:
+                        # Find closest timestamp index via column comparison
+                        mask = df_out["timestamp"] == ts
+                        if mask.any():
+                            df_out.loc[mask, "signal"] = sig.signal.value
                 return df_out
         return df.copy()
 

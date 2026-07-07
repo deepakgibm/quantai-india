@@ -16,7 +16,8 @@ import EmptyState from '../shared/EmptyState';
 import DataTable, { DataTableColumn, TOOLTIP_STYLE } from '../shared/DataTable';
 import { OptimizationRun } from '../../../types/quant';
 
-const fmt = (n: number, d = 2) => n.toFixed(d);
+const fmt = (n: number | null | undefined, d = 2) => 
+  typeof n === 'number' && !isNaN(n) ? n.toFixed(d) : '—';
 
 /**
  * Optimization Mode Panel — best parameter HUD, scatter plot, full combinations table.

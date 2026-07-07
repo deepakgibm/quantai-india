@@ -83,18 +83,18 @@ const DiscoveryPanel: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                   <KpiCard
                     label="Return"
-                    value={`${m.total_return_pct >= 0 ? '+' : ''}${m.total_return_pct.toFixed(1)}%`}
-                    color={m.total_return_pct >= 0 ? 'text-emerald-400' : 'text-red-400'}
+                    value={`${(m.total_return_pct ?? 0) >= 0 ? '+' : ''}${(m.total_return_pct ?? 0).toFixed(1)}%`}
+                    color={(m.total_return_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}
                   />
                   <KpiCard
                     label="Sharpe"
-                    value={m.sharpe_ratio.toFixed(2)}
-                    color={m.sharpe_ratio >= 1 ? 'text-brand-400' : 'text-slate-300'}
+                    value={(m.sharpe_ratio ?? 0).toFixed(2)}
+                    color={(m.sharpe_ratio ?? 0) >= 1 ? 'text-brand-400' : 'text-slate-300'}
                   />
                   <KpiCard
                     label="Max DD"
-                    value={`${m.max_drawdown_pct.toFixed(1)}%`}
-                    color={m.max_drawdown_pct < 15 ? 'text-amber-400' : 'text-red-400'}
+                    value={`${(m.max_drawdown_pct ?? 0).toFixed(1)}%`}
+                    color={(m.max_drawdown_pct ?? 0) < 15 ? 'text-amber-400' : 'text-red-400'}
                   />
                 </div>
               )}

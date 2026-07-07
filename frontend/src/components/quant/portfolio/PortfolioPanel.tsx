@@ -5,7 +5,8 @@ import KpiCard from '../shared/KpiCard';
 import EmptyState from '../shared/EmptyState';
 import QuantAreaChart from '../charts/QuantAreaChart';
 
-const fmt = (n: number, d = 2) => n.toFixed(d);
+const fmt = (n: number | null | undefined, d = 2) => 
+  typeof n === 'number' && !isNaN(n) ? n.toFixed(d) : '—';
 const fmtCcy = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 

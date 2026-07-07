@@ -46,8 +46,10 @@ class VectorizedExecutionEngine:
 
         # 3. Simulate returns vectorially
         close_prices = df_signals['close'].values
-        # Convert timestamps to ISO strings immediately to avoid numpy.datetime64 serialization errors
-        raw_timestamps = df_signals['timestamp'].values
+        if 'timestamp' in df_signals.columns:
+            raw_timestamps = df_signals['timestamp'].values
+        else:
+            raw_timestamps = df_signals.index.values
         timestamps = [pd.Timestamp(t).isoformat() if not isinstance(t, str) else t for t in raw_timestamps]
         signals = df_signals['signal'].values
         
