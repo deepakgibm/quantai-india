@@ -27,7 +27,8 @@ import {
   Compass,
   BookOpen,
   Briefcase,
-  Eye
+  Eye,
+  HelpCircle
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -89,6 +90,7 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.ACADEMY,              icon: GraduationCap,   label: 'Academy' },
       { page: Page.SUBSCRIPTION,         icon: CreditCard,      label: 'Subscription' },
       { page: Page.AFFILIATE,            icon: Handshake,       label: 'Affiliate' },
+      { page: Page.HELP_CENTER,          icon: HelpCircle,      label: 'Help Center' },
     ],
   },
 ];

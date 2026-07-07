@@ -25,6 +25,7 @@ import PatternLab from './pages/PatternLab';
 import Academy from './pages/Academy';
 import Affiliate from './pages/Affiliate';
 import Watchlist from './pages/Watchlist';
+import { HelpCenter } from './pages/HelpCenter';
 import InstitutionalScanner from './pages/InstitutionalScanner';
 import InstitutionalStockDetail from './pages/InstitutionalStockDetail';
 import Sidebar from './components/Sidebar';
@@ -156,6 +157,7 @@ const ProtectedRoute: React.FC<{ element: React.ReactNode; activePage: Page }> =
     else if (page === Page.ACADEMY) path = '/academy';
     else if (page === Page.AFFILIATE) path = '/affiliate';
     else if (page === Page.WATCHLIST) path = '/watchlist';
+    else if (page === Page.HELP_CENTER) path = '/help';
     else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
     else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
       path = `/institutional-scanner/${symbol.toUpperCase()}`;
@@ -234,6 +236,7 @@ const AppRoutes: React.FC = () => {
     else if (page === Page.ACADEMY) path = '/academy';
     else if (page === Page.AFFILIATE) path = '/affiliate';
     else if (page === Page.WATCHLIST) path = '/watchlist';
+    else if (page === Page.HELP_CENTER) path = '/help';
     else if (page === Page.INSTITUTIONAL_SCANNER) path = '/institutional-scanner';
     else if (page === Page.INSTITUTIONAL_STOCK_DETAIL && symbol) {
       path = `/institutional-scanner/${symbol.toUpperCase()}`;
@@ -283,6 +286,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/academy" element={<ProtectedRoute activePage={Page.ACADEMY} element={<Academy />} />} />
       <Route path="/affiliate" element={<ProtectedRoute activePage={Page.AFFILIATE} element={<Affiliate />} />} />
       <Route path="/watchlist" element={<ProtectedRoute activePage={Page.WATCHLIST} element={<Watchlist onNavigate={handleNavigate} />} />} />
+      <Route path="/help" element={<ProtectedRoute activePage={Page.HELP_CENTER} element={<HelpCenter />} />} />
       <Route path="/institutional-scanner" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_SCANNER} element={<InstitutionalScanner onNavigate={handleNavigate} />} />} />
       <Route path="/institutional-scanner/:symbol" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_STOCK_DETAIL} element={<InstitutionalStockDetailWrapper />} />} />
       

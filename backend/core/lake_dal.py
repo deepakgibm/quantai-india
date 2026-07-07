@@ -111,7 +111,7 @@ class LakeDAL:
             try:
                 # 2. Attempt Polars (Native)
                 logger.debug("Trying Polars scan_parquet...")
-                lf = pl.scan_parquet(str(input_dir / "**" / "*.parquet"), hive_partitioning=True)
+                lf = pl.scan_parquet(str(input_dir / "**" / "*.parquet"), hive_partitioning=False)
                 # Test schema access which triggers partition unification
                 schema = lf.collect_schema()
                 logger.info(f"✅ Success: Loaded schema via Polars native: {schema}")

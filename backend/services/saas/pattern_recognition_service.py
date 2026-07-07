@@ -133,50 +133,92 @@ class PatternRecognitionService:
                     })
 
         # 3. Harmonic Patterns detection
-        # Simple mock harmonic structures for demonstration
-        if n >= 30:
-            # Gartley / Butterfly simulation
-            detected_harmonics.append({
-                "pattern": "Bullish Gartley",
-                "accuracy": 92.4,
-                "target_price": candles[-1]["close"] * 1.08,
-                "stop_loss": candles[-1]["close"] * 0.96,
-                "timestamp": candles[-1]["timestamp"].strftime("%Y-%m-%d"),
-                "ratio_breakdown": {"XA": 1.0, "AB": 0.618, "BC": 0.382, "CD": 0.786}
-            })
-            
-        # 4. Chart Patterns (Triangles, Flags, Wedges)
-        # Symmetrical Triangle simulation: high values getting lower, low values getting higher
-        highs = [c["high"] for c in candles[-20:]]
-        lows = [c["low"] for c in candles[-20:]]
-        
-        # Check converging trend
-        is_converging = True
-        for idx in range(1, 10):
-            # check if highs decreasing and lows increasing
-            if highs[-idx] > highs[-(idx+1)] or lows[-idx] < lows[-(idx+1)]:
-                is_converging = False
-                break
+        # Extrema detection (swing points)
+        swings = []  # list of tuples: (index, type: 'high'/'low', price, timestamp)
+        for i in range(2, n - 2):
+            # Check for swing high
+            if (candles[i]["high"] > candles[i-1]["high"] and candles[i]["high"] > candles[i-2]["high"] and
+                candles[i]["high"] > candles[i+1]["high"] and candles[i]["high"] > candles[i+2]["high"]):
+                swings.append((i, "high", candles[i]["high"], candles[i]["timestamp"]))
+            # Check for swing low
+            elif (candles[i]["low"] < candles[i-1]["low"] and candles[i]["low"] < candles[i-2]["low"] and
+                  candles[i]["low"] < candles[i+1]["low"] and candles[i]["low"] < candles[i+2]["low"]):
+                swings.append((i, "low", candles[i]["low"], candles[i]["timestamp"]))
+
+        # Find 5-point patterns (X, A, B, C, D)
+        if len(swings) >= 5:
+            recent_swings = swings[-5:]
+            alternating = True
+            for k in range(4):
+                if recent_swings[k][1] == recent_swings[k+1][1]:
+                    alternating = False
+            if alternating:
+                x_p = recent_swings[0][2]
+                a_p = recent_swings[1][2]
+                b_p = recent_swings[2][2]
+                c_p = recent_swings[3][2]
+                d_p = recent_swings[4][2]
                 
-        if is_converging:
+                xa = abs(a_p - x_p)
+                ab = abs(b_p - a_p)
+                bc = abs(c_p - b_p)
+                cd = abs(d_p - c_p)
+                
+                if xa > 0 and ab > 0 and bc > 0:
+                    rt_ab = ab / xa
+                    rt_bc = bc / ab
+                    rt_cd = cd / bc
+                    
+                    if 0.5 <= rt_ab <= 0.85 and 0.3 <= rt_bc <= 0.95:
+                        is_bullish = recent_swings[4][1] == "low"  # ending in a valley
+                        detected_harmonics.append({
+                            "pattern": "Gartley" if is_bullish else "Bearish Gartley",
+                            "accuracy": float(round((1.0 - abs(rt_ab - 0.618)) * 100, 1)),
+                            "target_price": float(round(d_p * (1.08 if is_bullish else 0.92), 2)),
+                            "stop_loss": float(round(d_p * (0.96 if is_bullish else 1.04), 2)),
+                            "timestamp": recent_swings[4][3].strftime("%Y-%m-%d"),
+                            "ratio_breakdown": {
+                                "XA": 1.0,
+                                "AB": float(round(rt_ab, 3)),
+                                "BC": float(round(rt_bc, 3)),
+                                "CD": float(round(rt_cd, 3))
+                            }
+                        })
+
+        # 4. Chart Patterns (Triangles, Flags, Wedges)
+        # Symmetrical Triangle detection: converging highs and lows
+        last_15 = candles[-15:]
+        highs_15 = [c["high"] for c in last_15]
+        lows_15 = [c["low"] for c in last_15]
+        
+        first_half_high = max(highs_15[:7])
+        second_half_high = max(highs_15[7:])
+        first_half_low = min(lows_15[:7])
+        second_half_low = min(lows_15[7:])
+        
+        if second_half_high < first_half_high * 0.995 and second_half_low > first_half_low * 1.005:
             detected_charts.append({
                 "pattern": "Symmetrical Triangle",
                 "type": "CONSOLIDATION",
                 "direction": "BREAKOUT_PENDING",
-                "trigger_price": highs[-1],
-                "target": highs[-1] * 1.10,
+                "trigger_price": float(round(second_half_high, 2)),
+                "target": float(round(second_half_high * 1.08, 2)),
                 "timestamp": candles[-1]["timestamp"].strftime("%Y-%m-%d")
             })
         else:
-            # Fallback to flag pattern simulation
-            detected_charts.append({
-                "pattern": "Bullish Flag",
-                "type": "CONTINUATION",
-                "direction": "UPWARD",
-                "trigger_price": candles[-1]["close"] * 1.02,
-                "target": candles[-1]["close"] * 1.12,
-                "timestamp": candles[-1]["timestamp"].strftime("%Y-%m-%d")
-            })
+            # Bullish Flag: check for a strong preceding uptrend followed by a consolidation channel
+            if len(candles) >= 20:
+                flagpole_change = (candles[-6]["close"] - candles[-16]["close"]) / candles[-16]["close"]
+                flag_consolidation = all(candles[-i]["close"] <= candles[-i-1]["close"] * 1.015 for i in range(1, 5))
+                if flagpole_change >= 0.05 and flag_consolidation:
+                    detected_charts.append({
+                        "pattern": "Bullish Flag",
+                        "type": "CONTINUATION",
+                        "direction": "UPWARD",
+                        "trigger_price": float(round(max([c["high"] for c in candles[-5:]]), 2)),
+                        "target": float(round(candles[-1]["close"] * (1.0 + flagpole_change), 2)),
+                        "timestamp": candles[-1]["timestamp"].strftime("%Y-%m-%d")
+                    })
 
         return {
             "symbol": symbol,

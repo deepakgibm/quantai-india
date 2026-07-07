@@ -119,11 +119,11 @@ def main():
         (f"{BASE_URL}/api/scanner/breakout", "Scanner Breakout"),
         (f"{BASE_URL}/api/scanner/week52-breakouts", "Week52 Breakouts"),
         (f"{BASE_URL}/api/scanner/reversal", "Scanner Reversal"),
-        (f"{BASE_URL}/api/scanner/trendfinder", "Scanner TrendFinder"),
+        (f"{BASE_URL}/api/ai/trend-finder", "Scanner TrendFinder"),
         (f"{BASE_URL}/api/trading/dashboard", "Trading Dashboard"),
         (f"{BASE_URL}/api/trading/top-gainers", "Top Gainers"),
         (f"{BASE_URL}/api/trading/gainers-losers", "Gainers Losers"),
-        (f"{BASE_URL}/api/ai/breakout-stocks", "AI Breakout Stocks"),
+        (f"{BASE_URL}/api/ai/breakout-detector", "AI Breakout Stocks"),
     ]
     
     results = []

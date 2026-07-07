@@ -1,0 +1,316 @@
+{
+  "timestamp": "2026-07-07T16:17:49.037794",
+  "summary": {
+    "total": 34,
+    "passed": 34,
+    "failed": 0
+  },
+  "results": [
+    {
+      "category": "Health",
+      "endpoint": "/health",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 28.4,
+      "notes": ""
+    },
+    {
+      "category": "Health",
+      "endpoint": "/ready",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 5.48,
+      "notes": ""
+    },
+    {
+      "category": "Auth",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 219.69,
+      "notes": ""
+    },
+    {
+      "category": "Auth",
+      "endpoint": "/api/auth/me",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 12.24,
+      "notes": ""
+    },
+    {
+      "category": "Market",
+      "endpoint": "/api/market/top-movers",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 3.27,
+      "notes": ""
+    },
+    {
+      "category": "Market",
+      "endpoint": "/api/market/global-context",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 2504.48,
+      "notes": ""
+    },
+    {
+      "category": "Market",
+      "endpoint": "/api/market/status",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 3.79,
+      "notes": ""
+    },
+    {
+      "category": "Market",
+      "endpoint": "/api/market/orchestrator-status",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 11.54,
+      "notes": ""
+    },
+    {
+      "category": "Trading",
+      "endpoint": "/api/trading/dashboard",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 79.42,
+      "notes": ""
+    },
+    {
+      "category": "Trading",
+      "endpoint": "/api/trading/indices",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 2.88,
+      "notes": ""
+    },
+    {
+      "category": "Trading",
+      "endpoint": "/api/trading/instruments",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 1.43,
+      "notes": ""
+    },
+    {
+      "category": "Trading",
+      "endpoint": "/api/trading/top-gainers",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 26.35,
+      "notes": ""
+    },
+    {
+      "category": "Scanner",
+      "endpoint": "/api/scanner/strategies",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 3.22,
+      "notes": ""
+    },
+    {
+      "category": "Scanner",
+      "endpoint": "/api/scanner/momentum",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 13.58,
+      "notes": ""
+    },
+    {
+      "category": "Scanner",
+      "endpoint": "/api/scanner/week52-breakouts",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 11.05,
+      "notes": ""
+    },
+    {
+      "category": "Scanner",
+      "endpoint": "/api/scanner/hp/momentum",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 14.33,
+      "notes": ""
+    },
+    {
+      "category": "Scanner",
+      "endpoint": "/api/scanner/hp/breakout",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 7.62,
+      "notes": ""
+    },
+    {
+      "category": "Heatmap",
+      "endpoint": "/api/heatmap?mode=performance&timeframe=1D",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 217.71,
+      "notes": ""
+    },
+    {
+      "category": "SectorAnalysis",
+      "endpoint": "/api/sector-analysis?timeframe=1D",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 1880.77,
+      "notes": ""
+    },
+    {
+      "category": "AI",
+      "endpoint": "/api/ai/strategies",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 21.47,
+      "notes": ""
+    },
+    {
+      "category": "AI",
+      "endpoint": "/api/ai/breakout-detector",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 1186.54,
+      "notes": ""
+    },
+    {
+      "category": "AI",
+      "endpoint": "/api/ai/trend-finder",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 334.8,
+      "notes": ""
+    },
+    {
+      "category": "AI",
+      "endpoint": "/api/ai/top5-picks",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 1302.73,
+      "notes": ""
+    },
+    {
+      "category": "AI",
+      "endpoint": "/api/ai/market-analysis",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 27.64,
+      "notes": ""
+    },
+    {
+      "category": "AI",
+      "endpoint": "/api/ai/sentiment",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 40.18,
+      "notes": ""
+    },
+    {
+      "category": "Analytics",
+      "endpoint": "/api/analytics/overview",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 31.5,
+      "notes": ""
+    },
+    {
+      "category": "Analytics",
+      "endpoint": "/api/analytics/indicators/latest/RELIANCE",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 190.8,
+      "notes": ""
+    },
+    {
+      "category": "Analytics",
+      "endpoint": "/api/analytics/volatility/RELIANCE",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 3839.74,
+      "notes": ""
+    },
+    {
+      "category": "SaaS",
+      "endpoint": "/api/saas/subscription",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 37.68,
+      "notes": ""
+    },
+    {
+      "category": "Engine",
+      "endpoint": "/api/engines/performance",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 22.23,
+      "notes": ""
+    },
+    {
+      "category": "Watchlist",
+      "endpoint": "/api/watchlist/",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 29.36,
+      "notes": ""
+    },
+    {
+      "category": "Upstox",
+      "endpoint": "/api/upstox/status",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 5.13,
+      "notes": ""
+    },
+    {
+      "category": "Upstox",
+      "endpoint": "/api/upstox/connect-url",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 2.55,
+      "notes": ""
+    },
+    {
+      "category": "Search",
+      "endpoint": "/api/search/stocks?q=RELIANCE",
+      "method": "GET",
+      "status_code": 200,
+      "success": true,
+      "response_time_ms": 29.94,
+      "notes": ""
+    }
+  ]
+}

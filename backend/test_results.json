@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-17T22:26:16.413197",
+  "timestamp": "2026-07-07T16:17:14.091750",
   "summary": {
     "total": 12,
     "passed": 12,
@@ -11,7 +11,7 @@
       "endpoint": "Trading Health",
       "url": "http://localhost:8000/api/trading/health",
       "status_code": 200,
-      "response_time_ms": 6.48,
+      "response_time_ms": 4.03,
       "pass": true,
       "data_preview": "{\"status\":\"healthy\",\"service\":\"quantai-trading-api\"}"
     },
@@ -19,47 +19,47 @@
       "endpoint": "Trading Instruments",
       "url": "http://localhost:8000/api/trading/instruments",
       "status_code": 200,
-      "response_time_ms": 8.03,
+      "response_time_ms": 6.68,
       "pass": true,
-      "data_preview": "{\"status\":\"success\",\"instruments\":[{\"symbol\":\"AGARWALEYE\",\"name\":\"DR AGARWALS HEALTH CARE L\",\"exchange\":\"NSE\"},{\"symbol\":\"AIIL\",\"name\":\"AUTHUM INVEST & INFRA LTD\",\"exchange\":\"NSE\"},{\"symbol\":\"CHAMBLFE"
+      "data_preview": "{\"status\":\"success\",\"instruments\":[{\"symbol\":\"AGARWALEYE\",\"name\":\"DR AGARWALS HEALTH CARE L\",\"exchange\":\"NSE\"},{\"symbol\":\"774LICH27\",\"name\":\"LICH 7.74% 2027 SR 448\",\"exchange\":\"NSE\"},{\"symbol\":\"760BR5"
     },
     {
       "endpoint": "Market Indices",
       "url": "http://localhost:8000/api/trading/market-indices",
       "status_code": 200,
-      "response_time_ms": 25.7,
+      "response_time_ms": 91.15,
       "pass": true,
-      "data_preview": "[{\"name\":\"NIFTY 50\",\"value\":24085.7,\"change\":96.55,\"percent\":0.4,\"source\":\"upstox_rest\",\"stale\":false,\"timestamp\":null},{\"name\":\"BANK NIFTY\",\"value\":57585.05,\"change\":287.9,\"percent\":0.5,\"source\":\"ups"
+      "data_preview": "[{\"name\":\"NIFTY 50\",\"value\":24398.7,\"change\":-31.65,\"percent\":-0.13,\"source\":\"upstox_rest\",\"stale\":false,\"timestamp\":null},{\"name\":\"BANK NIFTY\",\"value\":58200.7,\"change\":-90.8,\"percent\":-0.16,\"source\":"
     },
     {
       "endpoint": "Metrics Symbols",
       "url": "http://localhost:8000/api/metrics/symbols",
       "status_code": 200,
-      "response_time_ms": 165.76,
+      "response_time_ms": 355.35,
       "pass": true,
-      "data_preview": "{\"count\":2437,\"symbols\":[{\"symbol\":\"20MICRONS\",\"company_name\":\"20 MICRONS LTD\",\"sector\":\"Others\",\"instrument_key\":\"NSE_EQ|INE144J01027\"},{\"symbol\":\"21STCENMGM\",\"company_name\":\"21ST CENTURY MGMT SERVIC"
+      "data_preview": "{\"count\":9357,\"symbols\":[{\"symbol\":\"0IRFC35\",\"company_name\":\"IRFC 0% 2035 SR 192\",\"sector\":\"Others\",\"instrument_key\":\"NSE_EQ|INE053F08536\"},{\"symbol\":\"0MOFSL27\",\"company_name\":\"SEC RE NCD SR IV\",\"sect"
     },
     {
       "endpoint": "Data Freshness",
       "url": "http://localhost:8000/api/metrics/freshness",
       "status_code": 200,
-      "response_time_ms": 7326.12,
+      "response_time_ms": 1292.01,
       "pass": true,
-      "data_preview": "{\"timeframes\":{\"1m\":{\"latest\":\"2026-02-10T15:29:00\",\"symbols\":436,\"age_hours\":3049.45},\"3m\":{\"latest\":\"2026-02-10T15:27:00\",\"symbols\":436,\"age_hours\":3049.49},\"5m\":{\"latest\":\"2026-05-15T15:25:00\",\"sym"
+      "data_preview": "{\"timeframes\":{\"1m\":{\"latest\":\"2026-02-10T15:29:00\",\"symbols\":436,\"age_hours\":3528.8},\"3m\":{\"latest\":\"2026-02-10T15:27:00\",\"symbols\":436,\"age_hours\":3528.84},\"5m\":{\"latest\":\"2026-05-15T15:25:00\",\"symb"
     },
     {
       "endpoint": "Cache Stats",
       "url": "http://localhost:8000/api/metrics/cache/stats",
       "status_code": 200,
-      "response_time_ms": 23.85,
+      "response_time_ms": 3.86,
       "pass": true,
-      "data_preview": "{\"hits\":0,\"misses\":8,\"hit_rate_percent\":0.0,\"last_warmup\":null,\"cache_version\":\"v1\"}"
+      "data_preview": "{\"hits\":0,\"misses\":1,\"hit_rate_percent\":0.0,\"last_warmup\":null,\"cache_version\":\"v1\"}"
     },
     {
       "endpoint": "Sectors",
       "url": "http://localhost:8000/api/metrics/sectors",
       "status_code": 200,
-      "response_time_ms": 30.36,
+      "response_time_ms": 5.35,
       "pass": true,
       "data_preview": "{\"count\":0,\"sectors\":[]}"
     },
@@ -67,7 +67,7 @@
       "endpoint": "Scanner Strategies",
       "url": "http://localhost:8000/api/scanner/strategies",
       "status_code": 200,
-      "response_time_ms": 28.95,
+      "response_time_ms": 3.1,
       "pass": true,
       "data_preview": "{\"status\":\"success\",\"strategies\":[{\"name\":\"Multi-Timeframe Confluence\",\"description\":\"3-layer confluence: Daily trend + 4H structure + 1H entry trigger\",\"tier\":\"Multi-Timeframe Confluence\",\"min_bars\":"
     },
@@ -75,7 +75,7 @@
       "endpoint": "Scanner Timeframes",
       "url": "http://localhost:8000/api/scanner/timeframes",
       "status_code": 200,
-      "response_time_ms": 19.83,
+      "response_time_ms": 12.56,
       "pass": true,
       "data_preview": "{\"status\":\"success\",\"timeframes\":[{\"value\":\"3m\",\"label\":\"3 Minutes\"},{\"value\":\"5m\",\"label\":\"5 Minutes\"},{\"value\":\"15m\",\"label\":\"15 Minutes\"},{\"value\":\"30m\",\"label\":\"30 Minutes\"},{\"value\":\"60m\",\"label\""
     },
@@ -83,29 +83,29 @@
       "endpoint": "Scanner Momentum",
       "url": "http://localhost:8000/api/scanner/momentum",
       "status_code": 200,
-      "response_time_ms": 406.46,
+      "response_time_ms": 26.19,
       "pass": true,
-      "data_preview": "{\"type\":\"bucket_update\",\"data\":[{\"symbol\":\"360ONE\",\"ltp\":1093.8,\"prev_close\":1034.65,\"change_pct\":5.72,\"momentum_score\":85,\"bucket\":\"STRONG_BULLISH\",\"direction\":\"Bullish\",\"correlation\":0.5,\"source\":\"D"
+      "data_preview": "{\"type\":\"bucket_update\",\"data\":[{\"symbol\":\"ABSLAMC\",\"interval\":\"1day\",\"ltp\":1030.4,\"prev_close\":1068.2,\"change_pct\":-3.54,\"indicators\":{\"sma_20\":1051.4425,\"sma_50\":1051.4425,\"ema_9\":1049.0234,\"ema_21\""
     },
     {
       "endpoint": "Week52 Breakouts",
       "url": "http://localhost:8000/api/scanner/week52-breakouts",
       "status_code": 200,
-      "response_time_ms": 44.51,
+      "response_time_ms": 19.05,
       "pass": true,
-      "data_preview": "{\"status\":\"success\",\"timestamp\":\"2026-06-17T16:56:16.140863\",\"data\":[{\"symbol\":\"RELIANCE\",\"ltp\":2450.5,\"high_52w\":2500.0,\"low_52w\":2000.0,\"prev_close\":2450.5,\"change_pct\":0.5,\"breakout_type\":\"Yearly H"
+      "data_preview": "{\"status\":\"success\",\"timestamp\":\"2026-07-07T16:17:13.909843\",\"data\":[{\"symbol\":\"ABSLAMC\",\"interval\":\"1day\",\"ltp\":1030.4,\"prev_close\":1068.2,\"change_pct\":-3.54,\"indicators\":{\"sma_20\":1051.4425,\"sma_50\""
     },
     {
       "endpoint": "Bot Scheduler Status",
       "url": "http://localhost:8000/api/bot/scheduler-status",
       "status_code": 200,
-      "response_time_ms": 22.26,
+      "response_time_ms": 6.73,
       "pass": true,
-      "data_preview": "{\"status\":\"success\",\"data\":{\"enabled\":true,\"morning_run\":\"09:20\",\"close_run\":\"15:40\",\"telegram_configured\":false}}"
+      "data_preview": "{\"status\":\"success\",\"source\":\"upstox\",\"timestamp\":\"2026-07-07T16:17:13.919319\",\"last_updated\":\"2026-07-07T16:17:13.919328\",\"is_live\":true,\"data_quality\":\"verified\",\"data\":{\"enabled\":true,\"morning_run\""
     }
   ],
   "db_validations": {
-    "instrument_count": 2437,
+    "instrument_count": 9357,
     "daily_candle_count": 56622,
     "latest_daily_candle": "2026-05-15 00:00:00",
     "symbols_with_daily_candles": 439

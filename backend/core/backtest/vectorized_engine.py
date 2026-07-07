@@ -36,7 +36,7 @@ class VectorizedBacktestEngine:
             
         # Scan files in this specific partition
         # Using glob to get all files in subfolders (year/month/day)
-        df = pl.scan_parquet(f"{path}/**/*.parquet")
+        df = pl.scan_parquet(f"{path}/**/*.parquet", hive_partitioning=False)
         
         # Apply date filters lazily
         df = df.filter(

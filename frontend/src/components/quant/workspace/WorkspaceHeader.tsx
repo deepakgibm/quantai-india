@@ -1,5 +1,6 @@
 import React from 'react';
-import { BarChart3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BarChart3, HelpCircle } from 'lucide-react';
 import { useQuantContext } from '../../../contexts/QuantContext';
 import SymbolSearch from '../../SymbolSearch';
 
@@ -10,6 +11,7 @@ const TIMEFRAMES = ['5m', '15m', '30m', '1H', '1D'];
  * (symbol, timeframe, date range, capital).
  */
 const WorkspaceHeader: React.FC = () => {
+  const navigate = useNavigate();
   const {
     selectedSymbol, setSelectedSymbol,
     timeframe, setTimeframe,
@@ -124,6 +126,17 @@ const WorkspaceHeader: React.FC = () => {
                 className="pl-6 pr-3 py-2 rounded-md border border-slate-700 bg-slate-950 text-white text-xs outline-none focus:ring-1 focus:ring-brand-500 w-28"
               />
             </div>
+          </div>
+
+          {/* Help Button */}
+          <div className="flex items-center">
+            <button
+              onClick={() => navigate('/help')}
+              className="p-2 bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-white rounded-md border border-slate-700 transition-all shadow-sm"
+              title="Open Help Center & Documentation"
+            >
+              <HelpCircle size={16} />
+            </button>
           </div>
         </div>
       </div>
