@@ -16,6 +16,11 @@ import {
   DollarSign
 } from 'lucide-react';
 
+const safeFixed = (val: any, decimals = 2): string => {
+  if (val === null || val === undefined || isNaN(Number(val))) return '—';
+  return Number(val).toFixed(decimals);
+};
+
 interface ScannerResult {
   symbol: string;
   company_name: string;
@@ -720,7 +725,7 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                     {activeTab === 'vcp' && (
                       <>
                         <td className="p-4 font-mono text-slate-400">
-                          {row.distance_52w_high.toFixed(2)}%
+                          {safeFixed(row.distance_52w_high, 2)}%
                         </td>
                         <td className="p-4">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -729,13 +734,13 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                             row.vcp_score >= 70 ? 'bg-sky-950/40 text-sky-400 border border-sky-500/20' :
                             'bg-slate-800/40 text-slate-400 border border-slate-700/20'
                           }`}>
-                            {row.vcp_score.toFixed(1)} ({row.vcp_category})
+                            {safeFixed(row.vcp_score, 1)} ({row.vcp_category})
                           </span>
                         </td>
                         <td className="p-4 text-center font-mono">{row.vcp_contractions}T</td>
-                        <td className="p-4 font-mono text-amber-500">{row.vcp_latest_contraction.toFixed(2)}%</td>
-                        <td className="p-4 font-mono text-emerald-500">{row.volume_dry_up.toFixed(2)}%</td>
-                        <td className="p-4 font-mono">₹{row.breakout_pivot.toFixed(2)}</td>
+                        <td className="p-4 font-mono text-amber-500">{safeFixed(row.vcp_latest_contraction, 2)}%</td>
+                        <td className="p-4 font-mono text-emerald-500">{safeFixed(row.volume_dry_up, 2)}%</td>
+                        <td className="p-4 font-mono">₹{safeFixed(row.breakout_pivot, 2)}</td>
                         <td className="p-4">
                           {row.breakout_ready ? (
                             <span className="flex items-center gap-1 text-emerald-400 font-bold text-[10px]">
@@ -756,20 +761,20 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                             <div className="w-16 bg-slate-800 rounded-full h-1.5 overflow-hidden">
                               <div className="bg-brand-500 h-1.5" style={{ width: `${row.trend_template_score}%` }}></div>
                             </div>
-                            <span className="font-mono text-slate-300">{row.trend_template_score.toFixed(0)}%</span>
+                            <span className="font-mono text-slate-300">{safeFixed(row.trend_template_score, 0)}%</span>
                           </div>
                         </td>
-                        <td className="p-4 font-mono text-slate-400">₹{row.sma50.toFixed(1)}</td>
-                        <td className="p-4 font-mono text-slate-400">₹{row.sma150.toFixed(1)}</td>
-                        <td className="p-4 font-mono text-slate-400">₹{row.sma200.toFixed(1)}</td>
-                        <td className="p-4 font-mono text-slate-400">{row.distance_52w_high.toFixed(2)}%</td>
+                        <td className="p-4 font-mono text-slate-400">₹{safeFixed(row.sma50, 1)}</td>
+                        <td className="p-4 font-mono text-slate-400">₹{safeFixed(row.sma150, 1)}</td>
+                        <td className="p-4 font-mono text-slate-400">₹{safeFixed(row.sma200, 1)}</td>
+                        <td className="p-4 font-mono text-slate-400">{safeFixed(row.distance_52w_high, 2)}%</td>
                       </>
                     )}
 
                     {/* RS RANKINGS CELLS */}
                     {activeTab === 'rs' && (
                       <>
-                        <td className="p-4 font-mono font-bold text-slate-200">{row.rs_score.toFixed(1)}</td>
+                        <td className="p-4 font-mono font-bold text-slate-200">{safeFixed(row.rs_score, 1)}</td>
                         <td className="p-4 font-mono">#{row.rs_rank}</td>
                         <td className="p-4 font-mono text-slate-400">#{row.sector_rank}</td>
                         <td className="p-4 font-mono text-slate-400">#{row.industry_rank}</td>
@@ -779,9 +784,9 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                     {/* BREAKOUT CELLS */}
                     {activeTab === 'breakout' && (
                       <>
-                        <td className="p-4 font-mono">₹{row.breakout_price.toFixed(2)}</td>
+                        <td className="p-4 font-mono">₹{safeFixed(row.breakout_price, 2)}</td>
                         <td className={`p-4 font-mono ${row.volume_surge >= 50 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                          {row.volume_surge.toFixed(1)}%
+                          {safeFixed(row.volume_surge, 1)}%
                         </td>
                         <td className="p-4">
                           <span className="px-2 py-0.5 bg-slate-800 rounded text-[10px] text-slate-300">
@@ -805,8 +810,8 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                     {/* DARVAS CELLS */}
                     {activeTab === 'darvas' && (
                       <>
-                        <td className="p-4 font-mono">₹{row.darvas_top.toFixed(2)}</td>
-                        <td className="p-4 font-mono">₹{row.darvas_bottom.toFixed(2)}</td>
+                        <td className="p-4 font-mono">₹{safeFixed(row.darvas_top, 2)}</td>
+                        <td className="p-4 font-mono">₹{safeFixed(row.darvas_bottom, 2)}</td>
                         <td className="p-4 font-mono">{row.darvas_days} Days</td>
                         <td className="p-4">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -823,17 +828,17 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                     {/* CUP & HANDLE CELLS */}
                     {activeTab === 'cup_handle' && (
                       <>
-                        <td className="p-4 font-mono">₹{row.breakout_price.toFixed(2)}</td>
-                        <td className="p-4 font-mono">{row.cup_handle_confidence.toFixed(1)} / 100</td>
-                        <td className="p-4 font-mono">{row.flat_base_depth.toFixed(2)}%</td>
+                        <td className="p-4 font-mono">₹{safeFixed(row.breakout_price, 2)}</td>
+                        <td className="p-4 font-mono">{safeFixed(row.cup_handle_confidence, 1)} / 100</td>
+                        <td className="p-4 font-mono">{safeFixed(row.flat_base_depth, 2)}%</td>
                       </>
                     )}
 
                     {/* DOUBLE BOTTOM CELLS */}
                     {activeTab === 'double_bottom' && (
                       <>
-                        <td className="p-4 font-mono">₹{row.breakout_pivot.toFixed(2)}</td>
-                        <td className="p-4 font-mono">{row.double_bottom_confidence.toFixed(1)} / 100</td>
+                        <td className="p-4 font-mono">₹{safeFixed(row.breakout_pivot, 2)}</td>
+                        <td className="p-4 font-mono">{safeFixed(row.double_bottom_confidence, 1)} / 100</td>
                       </>
                     )}
 
@@ -841,8 +846,8 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                     {activeTab === 'flat_base' && (
                       <>
                         <td className="p-4 font-mono">{row.flat_base_length} Days</td>
-                        <td className="p-4 font-mono text-amber-500">{row.flat_base_depth.toFixed(2)}%</td>
-                        <td className="p-4 font-mono">₹{row.breakout_pivot.toFixed(2)}</td>
+                        <td className="p-4 font-mono text-amber-500">{safeFixed(row.flat_base_depth, 2)}%</td>
+                        <td className="p-4 font-mono">₹{safeFixed(row.breakout_pivot, 2)}</td>
                       </>
                     )}
 
@@ -850,10 +855,10 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
                     {activeTab === 'volume' && (
                       <>
                         <td className={`p-4 font-mono ${row.volume_contraction >= 40 ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
-                          {row.volume_contraction.toFixed(2)}%
+                          {safeFixed(row.volume_contraction, 2)}%
                         </td>
-                        <td className="p-4 font-mono">{row.supply_drying_score.toFixed(1)}</td>
-                        <td className="p-4 font-mono">{row.accumulation_score.toFixed(1)}%</td>
+                        <td className="p-4 font-mono">{safeFixed(row.supply_drying_score, 1)}</td>
+                        <td className="p-4 font-mono">{safeFixed(row.accumulation_score, 1)}%</td>
                       </>
                     )}
 

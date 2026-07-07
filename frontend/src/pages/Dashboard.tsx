@@ -22,6 +22,11 @@ interface DashboardProps {
    onNavigate: (page: Page) => void;
 }
 
+const safeFixed = (val: any, decimals = 2): string => {
+   if (val === null || val === undefined || isNaN(Number(val))) return '—';
+   return Number(val).toFixed(decimals);
+};
+
 const MarketOverviewWidget: React.FC = memo(() => {
    const [indices, setIndices] = useState([
       { name: 'NIFTY 50', value: 0, change: 0, percent: 0, loading: true },
@@ -135,7 +140,7 @@ const MarketOverviewWidget: React.FC = memo(() => {
                                     </span>
                                  )}
                                  <span className="text-sm font-bold font-mono">
-                                    {isPositive ? '+' : ''}{idx.percent.toFixed(2)}%
+                                    {isPositive ? '+' : ''}{safeFixed(idx.percent, 2)}%
                                  </span>
                               </div>
                            )}
@@ -509,7 +514,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                      (volData.price_change_pct || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                   }`}>
                      {(volData.price_change_pct || 0) >= 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-                     {volData.price_change_pct >= 0 ? '+' : ''}{(volData.price_change_pct || 0).toFixed(2)}%
+                     {volData.price_change_pct >= 0 ? '+' : ''}{safeFixed(volData.price_change_pct, 2)}%
                   </div>
                </div>
 
@@ -527,10 +532,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   </span>
                   <div className="mt-2 flex items-baseline gap-1.5">
                      <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
-                        ₹{atrMetrics.atr?.toFixed(2)}
+                        ₹{safeFixed(atrMetrics.atr, 2)}
                      </span>
                      <span className="text-[10px] text-slate-500 font-mono">
-                        ({atrMetrics.atrPct?.toFixed(2)}%)
+                        ({safeFixed(atrMetrics.atrPct, 2)}%)
                      </span>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-1">
@@ -539,7 +544,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                      </div>
                      <div className="text-right">
                         <span className="block text-[8px] text-slate-400 uppercase tracking-wide">Avg ATR</span>
-                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 font-mono">₹{atrMetrics.avgAtr?.toFixed(1)}</span>
+                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 font-mono">₹{safeFixed(atrMetrics.avgAtr, 1)}</span>
                      </div>
                   </div>
                </div>
@@ -549,7 +554,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <span className="text-xs text-slate-500 font-semibold">India VIX</span>
                   <div className="mt-2">
                      <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
-                        {volData.india_vix?.toFixed(2)}%
+                        {safeFixed(volData.india_vix, 2)}%
                      </span>
                   </div>
                   <span className="text-[9px] text-slate-400 mt-2 font-medium">Market volatility index</span>
@@ -560,7 +565,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <span className="text-xs text-slate-500 font-semibold">Implied Vol (IV)</span>
                   <div className="mt-2">
                      <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
-                        {volData.implied_volatility?.toFixed(2)}%
+                        {safeFixed(volData.implied_volatility, 2)}%
                      </span>
                   </div>
                   <span className="text-[9px] text-slate-400 mt-2 font-medium">
@@ -573,7 +578,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <span className="text-xs text-slate-500 font-semibold">Hist Vol (HV)</span>
                   <div className="mt-2">
                      <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
-                        {volData.historical_volatility?.toFixed(2)}%
+                        {safeFixed(volData.historical_volatility, 2)}%
                      </span>
                   </div>
                   <span className="text-[9px] text-slate-400 mt-2 font-medium">{selectedDays}-day standard lookback</span>
@@ -584,7 +589,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <span className="text-xs text-slate-500 font-semibold">IV Rank</span>
                   <div className="mt-2">
                      <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
-                        {volData.iv_rank?.toFixed(1)}
+                        {safeFixed(volData.iv_rank, 1)}
                      </span>
                   </div>
                   <div className="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full mt-3 overflow-hidden">
@@ -597,7 +602,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <span className="text-xs text-slate-500 font-semibold">IV Percentile</span>
                   <div className="mt-2">
                      <span className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
-                        {volData.iv_percentile?.toFixed(1)}%
+                        {safeFixed(volData.iv_percentile, 1)}%
                      </span>
                   </div>
                   <div className="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full mt-3 overflow-hidden">
@@ -646,7 +651,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs">
                      <span className="text-slate-500 font-semibold">Mean Reversion Prob:</span>
                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                        {volData.mean_reversion_probability ? `${(volData.mean_reversion_probability * 100).toFixed(1)}%` : 'N/A'}
+                        {volData.mean_reversion_probability ? `${safeFixed(volData.mean_reversion_probability * 100, 1)}%` : 'N/A'}
                      </span>
                   </div>
                </div>
@@ -733,7 +738,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   (watchlistPerf?.total_pnl || 0) >= 0 ? 'text-green-500' : 'text-rose-500'
                }`}>
                   {(watchlistPerf?.total_pnl || 0) >= 0 ? '+' : ''}
-                  {watchlistPerf?.pnl_percent?.toFixed(1) || '0.0'}% (₹{watchlistPerf?.total_pnl?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || '0'})
+                  {safeFixed(watchlistPerf?.pnl_percent, 1)}% (₹{watchlistPerf?.total_pnl?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || '0'})
                </span>
             </div>
 

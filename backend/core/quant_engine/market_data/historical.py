@@ -121,10 +121,9 @@ class HistoricalMarketDataEngine:
             except Exception as e:
                 logger.error(f"Fallback database fetch failed for {symbol}: {e}")
 
-        # 4. Final Fallback: Generate mock data for testing if no sources found
+        # 4. Final Fallback: NO mock data allowed in production. Return empty DataFrame.
         if df_pd.empty:
-            logger.warning(f"No database or Parquet records for {symbol} ({timeframe}). Generating mock data.")
-            df_pd = self._generate_mock_data(symbol, start_dt, end_dt, timeframe)
+            logger.error(f"No database or Parquet records found for {symbol} ({timeframe}). Returning empty DataFrame.")
 
         # Standardize columns
         if not df_pd.empty:

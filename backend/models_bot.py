@@ -28,6 +28,7 @@ class BotRun(Base):
     triggered_by = Column(String(20), default="manual")  # manual, scheduler
     buy_count = Column(Integer, default=0)
     sell_count = Column(Integer, default=0)
+    universe = Column(String(30), nullable=True, default="NIFTY 500")
 
     __table_args__ = (
         Index("idx_bot_run_started", "started_at"),
@@ -35,7 +36,7 @@ class BotRun(Base):
     )
 
     def __repr__(self):
-        return f"<BotRun(run_id={self.run_id}, status={self.status}, signals={self.buy_count + self.sell_count})>"
+        return f"<BotRun(run_id={self.run_id}, status={self.status}, universe={self.universe}, signals={self.buy_count + self.sell_count})>"
 
 
 class BotSignalRecord(Base):
@@ -45,7 +46,8 @@ class BotSignalRecord(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     run_id = Column(String(16), ForeignKey("bot_run.run_id"), nullable=False, index=True)
     symbol = Column(String(50), nullable=False)
-    signal_type = Column(String(4), nullable=False)  # BUY or SELL
+    sector = Column(String(50), nullable=True)
+    signal_type = Column(String(10), nullable=False)  # BUY, SELL, HOLD, WATCH
     correlation = Column(Float, nullable=True)
     correlation_category = Column(String(10), nullable=True)
     price_change_pct = Column(Float, nullable=True)
@@ -54,7 +56,10 @@ class BotSignalRecord(Base):
     volatility_atr = Column(Float, nullable=True)
     pcr_value = Column(Float, nullable=True)
     pcr_source = Column(String(20), nullable=True)
-    conviction = Column(String(10), nullable=True)
+    conviction = Column(String(20), nullable=True)
+    score = Column(Float, nullable=True)
+    ai_tag = Column(String(20), nullable=True)  # Strong Buy, Buy, Watchlist, etc.
+    ai_details = Column(JSON, nullable=True)     # confidence, risk, horizon, reasoning
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (

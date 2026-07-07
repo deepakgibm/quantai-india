@@ -957,8 +957,8 @@ export const api = {
   },
 
   // --- SIGNAL BOT ---
-  startBot: async () => {
-    const res = await apiPost<any>('/api/bot/run', {});
+  startBot: async (universe?: string) => {
+    const res = await apiPost<any>('/api/bot/run', universe ? { universe } : {});
     if (res.success) return res.data;
     throw res.error;
   },

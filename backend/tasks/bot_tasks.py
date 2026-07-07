@@ -63,7 +63,7 @@ async def _execute_bot_run():
                 "run_id": last_id,
             }
 
-    run_id = await orchestrator.run(history_days=90, triggered_by="scheduler")
+    run_id = await orchestrator.run(history_days=270, triggered_by="scheduler")
     status = orchestrator.get_status(run_id)
 
     return {

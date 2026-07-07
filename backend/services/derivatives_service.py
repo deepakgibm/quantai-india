@@ -41,7 +41,7 @@ class DerivativesData:
     sentiment: Sentiment              # Derived sentiment from PCR
     market_interpretation: str        # Human-readable explanation
     has_derivatives: bool             # Whether stock has F&O available
-    data_source: str = "simulated"    # "upstox" or "simulated"
+    data_source: str = "unavailable"  # "upstox" or "unavailable"
     
     def to_dict(self) -> dict:
         """Convert to API response format."""
@@ -58,8 +58,7 @@ class DerivativesService:
     """
     Service for fetching and calculating derivatives data.
     
-    Currently provides simulated data for demonstration.
-    Replace _fetch_raw_data() with real API calls for production.
+    Uses real option chain cache from Dragonfly.
     """
     
     # Confidence reduction for stocks without derivatives
@@ -90,30 +89,37 @@ class DerivativesService:
                 has_derivatives=False
             )
         
-        # Fetch raw derivatives data (real API first, simulated fallback)
+        # Fetch raw derivatives data (real API first, no simulated fallback)
         raw_data = await self._fetch_raw_data(symbol)
         
-        # Calculate PCR
-        pcr = self.calculate_pcr(raw_data["put_oi"], raw_data["call_oi"])
+        pcr = None
+        oi_change = OIChangeType.NA
+        sentiment = Sentiment.NA
         
-        # Classify OI change based on price and OI movement
-        price_up = price_change_pct >= 0
-        oi_up = raw_data["oi_change_pct"] >= 0
-        oi_change = self.classify_oi_change(price_up, oi_up)
-        
-        # Get sentiment from PCR
-        sentiment = self.get_sentiment_from_pcr(pcr)
-        
-        # Generate human-readable interpretation
-        interpretation = self.generate_market_interpretation(pcr, oi_change, sentiment)
-        
+        if raw_data.get("source") == "upstox":
+            # Calculate PCR
+            pcr = self.calculate_pcr(raw_data["put_oi"], raw_data["call_oi"])
+            
+            # Classify OI change based on price and OI movement
+            price_up = price_change_pct >= 0
+            oi_up = raw_data["oi_change_pct"] >= 0
+            oi_change = self.classify_oi_change(price_up, oi_up)
+            
+            # Get sentiment from PCR
+            sentiment = self.get_sentiment_from_pcr(pcr)
+            
+            # Generate human-readable interpretation
+            interpretation = self.generate_market_interpretation(pcr, oi_change, sentiment)
+        else:
+            interpretation = "PCR unavailable because the connected Upstox account does not have F&O market data permission."
+            
         return DerivativesData(
             pcr=pcr,
             oi_change=oi_change,
             sentiment=sentiment,
             market_interpretation=interpretation,
             has_derivatives=True,
-            data_source=raw_data.get("source", "simulated"),
+            data_source=raw_data.get("source", "unavailable"),
         )
     
     async def _fetch_raw_data(self, symbol: str) -> dict:
@@ -121,8 +127,8 @@ class DerivativesService:
         Fetch raw derivatives data for a symbol.
         
         Strategy:
-        1. Try real Upstox option chain API (if F&O stock)
-        2. Fallback to simulated data if API fails or no F&O access
+        1. Try real Upstox option chain cache (Dragonfly)
+        2. If unavailable, return source="unavailable"
         """
         # ── Try reading from Dragonfly cache first ─────────────────
         if has_derivatives(symbol):
@@ -173,23 +179,16 @@ class DerivativesService:
                             "source": "upstox",
                         }
             except Exception as e:
-                logger.debug(f"Dragonfly option chain failed for {symbol}, using fallback: {e}")
+                logger.debug(f"Dragonfly option chain failed for {symbol}: {e}")
 
-        # ── Simulated fallback ─────────────────────────────────
-        seed = hash(symbol) % 1000
-        random.seed(seed)
-        
-        put_oi = random.randint(500000, 5000000)
-        call_oi = random.randint(500000, 5000000)
-        oi_change_pct = random.uniform(-15, 15)
-        
+        # No simulated fallback
         return {
-            "put_oi": put_oi,
-            "call_oi": call_oi,
-            "oi_change_pct": oi_change_pct,
-            "futures_oi": random.randint(1000000, 10000000),
-            "futures_oi_change_pct": random.uniform(-10, 10),
-            "source": "simulated",
+            "put_oi": 0,
+            "call_oi": 0,
+            "oi_change_pct": 0.0,
+            "futures_oi": 0,
+            "futures_oi_change_pct": 0.0,
+            "source": "unavailable",
         }
     
     @staticmethod

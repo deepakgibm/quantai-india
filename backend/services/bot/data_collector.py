@@ -163,19 +163,29 @@ class DataCollector:
 
     async def fetch_nifty50_history(self, days: int = 90) -> pd.DataFrame:
         """
-        Fetch NIFTY 50 index historical daily candles from PostgreSQL database.
-        
+        Fetch NIFTY 50 index historical daily candles.
+        Priority:
+          1. DB data (if fresh)
+          2. Upstox API (if DB is stale, with 30s timeout)
+          3. Stale DB data (best effort — avoids pipeline failure)
+
         Args:
             days: Number of calendar days to fetch
-            
+
         Returns:
             DataFrame with columns: timestamp, open, high, low, close, volume
         """
         from sqlalchemy import text
         from database import AsyncSessionLocal
 
-        cutoff_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        # FIX: asyncpg requires a datetime.date object, NOT a string
+        cutoff_date = (datetime.now() - timedelta(days=days)).date()
+        STALE_THRESHOLD_DAYS = 5  # Data older than N trading days is considered stale
+        API_TIMEOUT_SECONDS = 30  # Max time to wait for Upstox API
 
+        stale_df = pd.DataFrame()  # Will hold stale DB data for last-resort fallback
+
+        # ── Primary: DB fetch ─────────────────────────────────────────────────
         try:
             async with AsyncSessionLocal() as session:
                 query = text("""
@@ -190,55 +200,118 @@ class DataCollector:
                 result = await session.execute(query, {"cutoff": cutoff_date})
                 rows = result.fetchall()
 
-            if not rows:
-                logger.warning("No NIFTY 50 index data returned from DB")
-                return pd.DataFrame()
-
-            records = []
-            for row in rows:
-                records.append({
+            if rows:
+                records = [{
                     "timestamp": row[0],
                     "open": float(row[1]) if row[1] else 0.0,
                     "high": float(row[2]) if row[2] else 0.0,
                     "low": float(row[3]) if row[3] else 0.0,
                     "close": float(row[4]) if row[4] else 0.0,
                     "volume": int(row[5]) if row[5] else 0,
-                })
+                } for row in rows]
+                df = pd.DataFrame(records)
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
+                df = df.sort_values("timestamp").reset_index(drop=True)
 
-            df = pd.DataFrame(records)
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df = df.sort_values("timestamp").reset_index(drop=True)
-            logger.info(f"Loaded {len(df)} days of NIFTY 50 data from DB")
-            return df
+                latest = df["timestamp"].iloc[-1]
+                days_stale = (datetime.now() - latest).days
+                if days_stale <= STALE_THRESHOLD_DAYS:
+                    logger.info(f"Loaded {len(df)} days of NIFTY 50 data from DB (latest: {latest.date()})")
+                    return df
+                else:
+                    logger.warning(
+                        f"NIFTY 50 DB data is {days_stale} days stale (last: {latest.date()}). "
+                        f"Trying Upstox API fallback (timeout: {API_TIMEOUT_SECONDS}s)."
+                    )
+                    stale_df = df  # Save for last-resort fallback
+            else:
+                logger.warning("No NIFTY 50 index data in DB — trying Upstox API fallback")
 
         except Exception as e:
             logger.error(f"Error fetching NIFTY 50 history from DB: {e}")
-            return pd.DataFrame()
 
-    async def fetch_stock_data_from_db(self, days: int = 90) -> Dict[str, pd.DataFrame]:
+        # ── Fallback 1: Upstox API (with hard timeout) ────────────────────────
+        logger.info(f"Fetching NIFTY 50 historical data from Upstox API (timeout={API_TIMEOUT_SECONDS}s)...")
+        try:
+            from services.upstox_client import get_upstox_client
+            client = get_upstox_client()
+            to_date = datetime.now()
+            from_date = to_date - timedelta(days=days)
+
+            df_api = await asyncio.wait_for(
+                client.get_historical_data(
+                    symbol="NIFTY 50",
+                    instrument_key=self.NIFTY50_INSTRUMENT_KEY,
+                    from_date=from_date,
+                    to_date=to_date,
+                    interval="day",
+                ),
+                timeout=API_TIMEOUT_SECONDS
+            )
+            if df_api is not None and not df_api.empty:
+                df_api = df_api.sort_values("timestamp").reset_index(drop=True)
+                logger.info(
+                    f"Fetched {len(df_api)} days of NIFTY 50 data from Upstox API "
+                    f"(latest: {pd.to_datetime(df_api['timestamp'].iloc[-1]).date()})"
+                )
+                return df_api
+            else:
+                logger.warning("Upstox API returned empty data for NIFTY 50")
+        except asyncio.TimeoutError:
+            logger.error(f"Upstox API timed out after {API_TIMEOUT_SECONDS}s for NIFTY 50 — Upstox token may be expired")
+        except Exception as api_err:
+            logger.error(f"Upstox API fallback failed for NIFTY 50: {api_err}")
+
+        # ── Fallback 2: Use stale DB data (best-effort — avoids pipeline failure) ─
+        if not stale_df.empty:
+            latest = stale_df["timestamp"].iloc[-1]
+            logger.warning(
+                f"Both DB (fresh) and Upstox API failed. Using stale NIFTY 50 data from {latest.date()} "
+                f"({(datetime.now() - latest).days} days old). Run ETL to refresh."
+            )
+            return stale_df
+
+        logger.error("All NIFTY 50 data sources exhausted. Returning empty DataFrame.")
+        return pd.DataFrame()
+
+    async def fetch_stock_data_from_db(self, days: int = 90, symbols: Optional[List[str]] = None) -> Dict[str, pd.DataFrame]:
         """
         Fetch historical daily candle data from PostgreSQL stock_candle table.
-        
+        Optional filtering by symbol list for performance.
+
         Returns:
             Dict mapping symbol → DataFrame of OHLCV data
         """
         from sqlalchemy import text
         from database import AsyncSessionLocal
 
-        cutoff_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        # FIX: asyncpg requires a datetime.date object, NOT a string
+        cutoff_date = (datetime.now() - timedelta(days=days)).date()
         stock_data: Dict[str, pd.DataFrame] = {}
 
         try:
             async with AsyncSessionLocal() as session:
-                query = text("""
-                    SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
-                    FROM stock_candle sc
-                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
-                    WHERE sc.timeframe = 1440
-                      AND sc.candle_ts >= :cutoff
-                    ORDER BY im.symbol, sc.candle_ts
-                """)
-                result = await session.execute(query, {"cutoff": cutoff_date})
+                if symbols:
+                    query = text("""
+                        SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                        FROM stock_candle sc
+                        JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                        WHERE sc.timeframe = 1440
+                          AND im.symbol = ANY(:symbols)
+                          AND sc.candle_ts >= :cutoff
+                        ORDER BY im.symbol, sc.candle_ts
+                    """)
+                    result = await session.execute(query, {"cutoff": cutoff_date, "symbols": symbols})
+                else:
+                    query = text("""
+                        SELECT im.symbol, sc.candle_ts, sc.open, sc.high, sc.low, sc.close, sc.volume
+                        FROM stock_candle sc
+                        JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                        WHERE sc.timeframe = 1440
+                          AND sc.candle_ts >= :cutoff
+                        ORDER BY im.symbol, sc.candle_ts
+                    """)
+                    result = await session.execute(query, {"cutoff": cutoff_date})
                 rows = result.fetchall()
 
             if not rows:
@@ -266,12 +339,65 @@ class DataCollector:
                 df = df.sort_values("timestamp").reset_index(drop=True)
                 stock_data[sym] = df
 
-            logger.info(f"Loaded DB data for {len(stock_data)} stocks")
+            logger.info(f"Loaded DB data for {len(stock_data)} stocks (cutoff: {cutoff_date})")
             return stock_data
 
         except Exception as e:
             logger.error(f"Error fetching stock data from DB: {e}")
             return {}
+
+    @staticmethod
+    def validate_historical_data(stock_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+        """
+        Phase 4: Historical Data Validation.
+        Verify every stock has:
+        - Historical candles (at least 20 daily candles)
+        - Latest trading session (within last 10 calendar days)
+        - No missing OHLC values (no NaN or None)
+        - Valid volume (not all zero)
+        - Correct timestamps (chronological)
+        
+        If a stock fails validation, log it, skip it, and continue.
+        """
+        valid_data = {}
+        for symbol, df in stock_data.items():
+            try:
+                # 1. Check if df is empty or has too few candles
+                if df.empty or len(df) < 20:
+                    logger.warning(f"Validation failed for {symbol}: Insufficient daily candles ({len(df)})")
+                    continue
+                    
+                # 2. Check for missing OHLC values
+                if df[['open', 'high', 'low', 'close']].isnull().any().any():
+                    logger.warning(f"Validation failed for {symbol}: Contains missing/null OHLC values")
+                    continue
+                    
+                # 3. Check for valid volume (at least some non-zero volume)
+                if (df['volume'] == 0).all():
+                    logger.warning(f"Validation failed for {symbol}: All volume values are zero")
+                    continue
+                    
+                # 4. Check chronological ordering
+                if not df['timestamp'].is_monotonic_increasing:
+                    logger.warning(f"Validation failed for {symbol}: Timestamps are not monotonically increasing")
+                    continue
+
+                # 5. Stale data check — warn but do NOT reject (ETL may be temporarily behind)
+                latest_ts = df['timestamp'].iloc[-1]
+                days_stale = (datetime.now() - latest_ts).days
+                if days_stale > 10:
+                    logger.warning(
+                        f"{symbol}: Data is {days_stale} days old (last candle: {latest_ts.date()}). "
+                        f"Proceeding with stale data — run ETL to refresh."
+                    )
+                    # Continue processing — do NOT skip the symbol
+
+                valid_data[symbol] = df
+            except Exception as e:
+                logger.error(f"Error validating historical data for {symbol}: {e}")
+
+        logger.info(f"Historical Validation: {len(stock_data)} stocks evaluated -> {len(valid_data)} valid stocks")
+        return valid_data
 
     async def fetch_live_quotes(
         self, instrument_keys: List[str], batch_size: int = 50

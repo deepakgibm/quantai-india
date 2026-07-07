@@ -91,6 +91,11 @@ interface WatchlistRowProps {
   renderStatusBadge: (status: string) => React.ReactNode;
 }
 
+const safeFixed = (val: any, decimals = 2): string => {
+  if (val === null || val === undefined || isNaN(Number(val))) return '—';
+  return Number(val).toFixed(decimals);
+};
+
 const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, onRemove, renderStatusBadge }) => {
   const quote = useMarketDataStore(state => state.quotes[item.symbol.toUpperCase().trim()]);
   const subscribe = useMarketDataStore(state => state.subscribe);
@@ -104,8 +109,8 @@ const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, on
   const priceSource = quote ? (quote.isLive ? 'WS' : 'CACHED') : 'DB';
   const isStale = quote ? MarketDataService.isPriceStale(quote.timestamp) : false;
 
-  const returnVal = (virtualInvestment / item.watchlist_price) * (livePrice || item.watchlist_price) - virtualInvestment;
-  const changePercent = item.watchlist_price > 0 ? ((livePrice - item.watchlist_price) / item.watchlist_price) * 100 : 0;
+  const returnVal = item.watchlist_price > 0 ? (virtualInvestment / item.watchlist_price) * (livePrice || item.watchlist_price) - virtualInvestment : 0;
+  const changePercent = item.watchlist_price > 0 ? (((livePrice || 0) - item.watchlist_price) / item.watchlist_price) * 100 : 0;
 
   const getStatus = (pct: number) => {
     if (pct >= 10.0) return "Strong Winner";
@@ -126,11 +131,11 @@ const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, on
         </div>
       </td>
       <td className="px-5 py-4 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
-        ₹{item.watchlist_price.toFixed(2)}
+        ₹{safeFixed(item.watchlist_price, 2)}
       </td>
       <td className="px-5 py-4 text-right font-mono font-black text-slate-800 dark:text-white">
         <div className="flex flex-col items-end">
-          <span>₹{livePrice.toFixed(2)}</span>
+          <span>₹{safeFixed(livePrice, 2)}</span>
           <span className={`text-[8px] px-1 rounded font-bold uppercase mt-0.5 ${
             isStale 
               ? 'bg-rose-500/10 text-rose-500 animate-pulse'
@@ -148,7 +153,7 @@ const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, on
         <div>
           <span className="block">
             {changePercent >= 0 ? '+' : ''}
-            {changePercent.toFixed(2)}%
+            {safeFixed(changePercent, 2)}%
           </span>
           <span className="text-[9px] text-slate-400 block mt-0.5 font-medium">
             {returnVal >= 0 ? '₹+' : '₹'}
@@ -402,7 +407,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                 performance.total_pnl >= 0 ? 'text-green-500' : 'text-rose-500'
               }`}>
                 {performance.total_pnl >= 0 ? '+' : ''}
-                {performance.pnl_percent.toFixed(2)}%
+                {safeFixed(performance.pnl_percent, 2)}%
               </span>
               <span className="text-[10px] text-slate-400 mt-1 block">
                 Total ROI on Deployed Cash
@@ -439,7 +444,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Watchlist Accuracy</span>
               <span className="text-xl font-bold text-slate-900 dark:text-white block mt-2 font-mono">
-                {performance.accuracy_percent.toFixed(1)}%
+                {safeFixed(performance.accuracy_percent, 1)}%
               </span>
               <span className="text-[10px] text-slate-400 mt-1 block">
                 % of Stocks with Positive P&L
@@ -618,7 +623,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                     </span>
                   </div>
                   <span className="text-sm font-black text-green-500 font-mono">
-                    +{analytics.best_pick.change_percent.toFixed(1)}%
+                    +{safeFixed(analytics.best_pick.change_percent, 1)}%
                   </span>
                 </div>
               ) : (
@@ -639,7 +644,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-black text-purple-500 font-mono block">
-                      +{analytics.fastest_gainer.change_percent.toFixed(1)}%
+                      +{safeFixed(analytics.fastest_gainer.change_percent, 1)}%
                     </span>
                     <span className="text-[9px] text-slate-400 block mt-0.5">
                       in {analytics.fastest_gainer.days_tracked} days
@@ -663,7 +668,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                     </span>
                   </div>
                   <span className="text-sm font-black text-rose-500 font-mono">
-                    {analytics.worst_pick.change_percent.toFixed(1)}%
+                    {safeFixed(analytics.worst_pick.change_percent, 1)}%
                   </span>
                 </div>
               ) : (
@@ -704,7 +709,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Win Rate</span>
                   <span className="text-lg font-black text-slate-800 dark:text-white font-mono mt-0.5">
-                    {analytics.accuracy_percent.toFixed(0)}%
+                    {safeFixed(analytics.accuracy_percent, 0)}%
                   </span>
                 </div>
               </div>
@@ -750,7 +755,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                       contentStyle={{ background: '#1E293B', border: 'none', borderRadius: '8px' }} 
                       itemStyle={{ color: '#F8FAFC', fontSize: '10px' }}
                       labelStyle={{ color: '#94A3B8', fontSize: '9px', fontWeight: 700 }}
-                      formatter={(val: number) => [`${val.toFixed(2)}%`, 'Gain']}
+                      formatter={(val: number) => [`${safeFixed(val, 2)}%`, 'Gain']}
                     />
                     <Bar dataKey="change_percent" fill="#10B981" radius={[4, 4, 0, 0]}>
                       {analytics.top_performers_chart.map((entry, idx) => (
@@ -782,7 +787,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
             {analytics.roi_over_time_chart && analytics.roi_over_time_chart.length > 0 && (
               <div className="px-3 py-1 bg-brand-500/10 text-brand-500 text-[10px] font-black uppercase tracking-wider rounded-lg border border-brand-500/20 font-mono">
                 Net: {analytics.roi_over_time_chart[analytics.roi_over_time_chart.length - 1].roi_percent >= 0 ? '+' : ''}
-                {analytics.roi_over_time_chart[analytics.roi_over_time_chart.length - 1].roi_percent.toFixed(2)}%
+                {safeFixed(analytics.roi_over_time_chart[analytics.roi_over_time_chart.length - 1].roi_percent, 2)}%
               </div>
             )}
           </div>
@@ -813,7 +818,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                   itemStyle={{ color: '#F8FAFC', fontSize: '11px' }}
                   labelStyle={{ color: '#94A3B8', fontSize: '10px', fontWeight: 700 }}
                   formatter={(val: number, name: string) => {
-                    if (name === 'roi_percent') return [`${val.toFixed(2)}%`, 'ROI'];
+                    if (name === 'roi_percent') return [`${safeFixed(val, 2)}%`, 'ROI'];
                     if (name === 'portfolio_value') return [`₹${val.toLocaleString()}`, 'Portfolio Value'];
                     return [val, name];
                   }}
