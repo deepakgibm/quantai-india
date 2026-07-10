@@ -8,6 +8,7 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import AIPrompt from './pages/AIPrompt';
+import VibeTrading from './pages/VibeTrading';
 import Scanner from './pages/Scanner';
 import SectorHeatmapPage from './pages/SectorHeatmapPage';
 import SectorAnalysisPage from './pages/SectorAnalysisPage';
@@ -28,6 +29,7 @@ import Watchlist from './pages/Watchlist';
 import { HelpCenter } from './pages/HelpCenter';
 import InstitutionalScanner from './pages/InstitutionalScanner';
 import InstitutionalStockDetail from './pages/InstitutionalStockDetail';
+import IndexManagement from './pages/IndexManagement';
 import Sidebar from './components/Sidebar';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -140,6 +142,7 @@ const ProtectedRoute: React.FC<{ element: React.ReactNode; activePage: Page }> =
     else if (page === Page.FORGOT_PASSWORD) path = '/forgot-password';
     else if (page === Page.DASHBOARD) path = '/dashboard';
     else if (page === Page.AI_PROMPT) path = '/ai-prompt';
+    else if (page === Page.VIBE_TRADING) path = '/vibe-trading';
     else if (page === Page.QUANT_WORKSPACE || page === Page.QUANT_BOT || page === Page.WALK_FORWARD_BACKTEST || page === Page.EXPERIMENT_LAB) path = '/quant-workspace';
     else if (page === Page.SCANNER) path = '/scanner';
     else if (page === Page.SECTOR_HEATMAP) path = '/sector-heatmap';
@@ -219,6 +222,7 @@ const AppRoutes: React.FC = () => {
     else if (page === Page.FORGOT_PASSWORD) path = '/forgot-password';
     else if (page === Page.DASHBOARD) path = '/dashboard';
     else if (page === Page.AI_PROMPT) path = '/ai-prompt';
+    else if (page === Page.VIBE_TRADING) path = '/vibe-trading';
     else if (page === Page.QUANT_WORKSPACE || page === Page.QUANT_BOT || page === Page.WALK_FORWARD_BACKTEST || page === Page.EXPERIMENT_LAB) path = '/quant-workspace';
     else if (page === Page.SCANNER) path = '/scanner';
     else if (page === Page.SECTOR_HEATMAP) path = '/sector-heatmap';
@@ -266,9 +270,9 @@ const AppRoutes: React.FC = () => {
         />
       } />} />
       
-      {/* Protected Routes */}
       <Route path="/dashboard" element={<ProtectedRoute activePage={Page.DASHBOARD} element={<Dashboard onNavigate={handleNavigate} />} />} />
       <Route path="/ai-prompt" element={<ProtectedRoute activePage={Page.AI_PROMPT} element={<AIPrompt />} />} />
+      <Route path="/vibe-trading" element={<ProtectedRoute activePage={Page.VIBE_TRADING} element={<VibeTrading />} />} />
       <Route path="/quant-workspace" element={<ProtectedRoute activePage={Page.QUANT_WORKSPACE} element={<QuantWorkspace />} />} />
       <Route path="/scanner" element={<ProtectedRoute activePage={Page.SCANNER} element={<Scanner />} />} />
       <Route path="/sector-heatmap" element={<ProtectedRoute activePage={Page.SECTOR_HEATMAP} element={<SectorHeatmapPage onNavigate={handleNavigate} />} />} />
@@ -289,6 +293,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/help" element={<ProtectedRoute activePage={Page.HELP_CENTER} element={<HelpCenter />} />} />
       <Route path="/institutional-scanner" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_SCANNER} element={<InstitutionalScanner onNavigate={handleNavigate} />} />} />
       <Route path="/institutional-scanner/:symbol" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_STOCK_DETAIL} element={<InstitutionalStockDetailWrapper />} />} />
+      <Route path="/index-management" element={<ProtectedRoute activePage={Page.INSTITUTIONAL_SCANNER} element={<IndexManagement />} />} />
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />

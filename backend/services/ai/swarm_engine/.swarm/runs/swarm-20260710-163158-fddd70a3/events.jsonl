@@ -1,0 +1,125 @@
+{"type":"run_started","agent_id":null,"task_id":null,"data":{},"timestamp":"2026-07-10T16:31:58.843292+00:00"}
+{"type":"layer_started","agent_id":null,"task_id":null,"data":{"layer":0,"tasks":["task-bull","task-bear"]},"timestamp":"2026-07-10T16:31:58.935951+00:00"}
+{"type":"task_started","agent_id":"bull_advocate","task_id":"task-bull","data":{},"timestamp":"2026-07-10T16:31:58.997411+00:00"}
+{"type":"worker_started","agent_id":"bull_advocate","task_id":"task-bull","data":{},"timestamp":"2026-07-10T16:31:59.045386+00:00"}
+{"type":"task_started","agent_id":"bear_advocate","task_id":"task-bear","data":{},"timestamp":"2026-07-10T16:31:59.108293+00:00"}
+{"type":"worker_started","agent_id":"bear_advocate","task_id":"task-bear","data":{},"timestamp":"2026-07-10T16:31:59.117745+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"Technical indic","iteration":0},"timestamp":"2026-07-10T16:31:59.559718+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"ators suggest s","iteration":0},"timestamp":"2026-07-10T16:31:59.575810+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"table consolida","iteration":0},"timestamp":"2026-07-10T16:31:59.592851+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"tion. Recommend","iteration":0},"timestamp":"2026-07-10T16:31:59.607006+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"Technical indic","iteration":0},"timestamp":"2026-07-10T16:31:59.612371+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":" Hold.","iteration":0},"timestamp":"2026-07-10T16:31:59.633553+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"ators suggest s","iteration":0},"timestamp":"2026-07-10T16:31:59.649938+00:00"}
+{"type":"worker_completed","agent_id":"bull_advocate","task_id":"task-bull","data":{"iterations":1},"timestamp":"2026-07-10T16:31:59.670575+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"table consolida","iteration":0},"timestamp":"2026-07-10T16:31:59.688900+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"tion. Recommend","iteration":0},"timestamp":"2026-07-10T16:31:59.732638+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":" Hold.","iteration":0},"timestamp":"2026-07-10T16:31:59.762984+00:00"}
+{"type":"worker_completed","agent_id":"bear_advocate","task_id":"task-bear","data":{"iterations":1},"timestamp":"2026-07-10T16:31:59.795739+00:00"}
+{"type":"task_completed","agent_id":null,"task_id":"task-bull","data":{"status":"completed","iterations":1,"input_tokens":5616,"output_tokens":16},"timestamp":"2026-07-10T16:31:59.972867+00:00"}
+{"type":"task_completed","agent_id":null,"task_id":"task-bear","data":{"status":"completed","iterations":1,"input_tokens":5594,"output_tokens":16},"timestamp":"2026-07-10T16:32:00.131573+00:00"}
+{"type":"layer_started","agent_id":null,"task_id":null,"data":{"layer":1,"tasks":["task-risk"]},"timestamp":"2026-07-10T16:32:00.204735+00:00"}
+{"type":"task_started","agent_id":"risk_officer","task_id":"task-risk","data":{},"timestamp":"2026-07-10T16:32:00.335074+00:00"}
+{"type":"worker_started","agent_id":"risk_officer","task_id":"task-risk","data":{},"timestamp":"2026-07-10T16:32:00.351503+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"**Risk Officer ","iteration":0},"timestamp":"2026-07-10T16:32:01.321734+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"Report:**\n- **V","iteration":0},"timestamp":"2026-07-10T16:32:01.343593+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"olatility**: AT","iteration":0},"timestamp":"2026-07-10T16:32:01.374737+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"R (Average True","iteration":0},"timestamp":"2026-07-10T16:32:01.396775+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":" Range) remains","iteration":0},"timestamp":"2026-07-10T16:32:01.416336+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":" within histori","iteration":0},"timestamp":"2026-07-10T16:32:01.434132+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"cal standard de","iteration":0},"timestamp":"2026-07-10T16:32:01.455028+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"viations.\n- **E","iteration":0},"timestamp":"2026-07-10T16:32:01.481749+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"xposure**: Reco","iteration":0},"timestamp":"2026-07-10T16:32:01.500215+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"mmend keeping t","iteration":0},"timestamp":"2026-07-10T16:32:01.516421+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"he position siz","iteration":0},"timestamp":"2026-07-10T16:32:01.555239+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"e strictly limi","iteration":0},"timestamp":"2026-07-10T16:32:01.580152+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"ted to 2.0% of ","iteration":0},"timestamp":"2026-07-10T16:32:01.608697+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"total capital.\n","iteration":0},"timestamp":"2026-07-10T16:32:01.634852+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"- **Safety**: S","iteration":0},"timestamp":"2026-07-10T16:32:01.669646+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"et strict stop-","iteration":0},"timestamp":"2026-07-10T16:32:01.726202+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"loss orders mat","iteration":0},"timestamp":"2026-07-10T16:32:01.747071+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"ching the recen","iteration":0},"timestamp":"2026-07-10T16:32:01.787312+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"t swing support","iteration":0},"timestamp":"2026-07-10T16:32:01.816763+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":" levels.\n- **Co","iteration":0},"timestamp":"2026-07-10T16:32:01.836812+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"nclusion**: Ris","iteration":0},"timestamp":"2026-07-10T16:32:01.854873+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"k parameters ar","iteration":0},"timestamp":"2026-07-10T16:32:01.874180+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"e fully satisfi","iteration":0},"timestamp":"2026-07-10T16:32:01.907901+00:00"}
+{"type":"worker_text","agent_id":"risk_officer","task_id":"task-risk","data":{"content":"ed. Pass.","iteration":0},"timestamp":"2026-07-10T16:32:01.926640+00:00"}
+{"type":"worker_completed","agent_id":"risk_officer","task_id":"task-risk","data":{"iterations":1},"timestamp":"2026-07-10T16:32:01.962814+00:00"}
+{"type":"task_completed","agent_id":null,"task_id":"task-risk","data":{"status":"completed","iterations":1,"input_tokens":5580,"output_tokens":88},"timestamp":"2026-07-10T16:32:02.165617+00:00"}
+{"type":"layer_started","agent_id":null,"task_id":null,"data":{"layer":2,"tasks":["task-decision"]},"timestamp":"2026-07-10T16:32:02.250850+00:00"}
+{"type":"task_started","agent_id":"portfolio_manager","task_id":"task-decision","data":{},"timestamp":"2026-07-10T16:32:02.342642+00:00"}
+{"type":"worker_started","agent_id":"portfolio_manager","task_id":"task-decision","data":{},"timestamp":"2026-07-10T16:32:02.354719+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"**Investment Co","iteration":0},"timestamp":"2026-07-10T16:32:03.923993+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"mmittee Verdict","iteration":0},"timestamp":"2026-07-10T16:32:03.939262+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":": HOLD**\n\n### C","iteration":0},"timestamp":"2026-07-10T16:32:03.957135+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"onsensus Ration","iteration":0},"timestamp":"2026-07-10T16:32:03.988886+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ale\nThe Swarm C","iteration":0},"timestamp":"2026-07-10T16:32:04.008842+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ommittee has co","iteration":0},"timestamp":"2026-07-10T16:32:04.051160+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"mpleted the deb","iteration":0},"timestamp":"2026-07-10T16:32:04.082441+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ate. A confluen","iteration":0},"timestamp":"2026-07-10T16:32:04.108883+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ce of technical","iteration":0},"timestamp":"2026-07-10T16:32:04.134344+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" indicators and","iteration":0},"timestamp":"2026-07-10T16:32:04.157765+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" quantitative r","iteration":0},"timestamp":"2026-07-10T16:32:04.177692+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"isk factors yie","iteration":0},"timestamp":"2026-07-10T16:32:04.200778+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"lds a HOLD reco","iteration":0},"timestamp":"2026-07-10T16:32:04.219892+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"mmendation with","iteration":0},"timestamp":"2026-07-10T16:32:04.240059+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" 86% confidence","iteration":0},"timestamp":"2026-07-10T16:32:04.260965+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":". Range-bound p","iteration":0},"timestamp":"2026-07-10T16:32:04.280803+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"rice action and","iteration":0},"timestamp":"2026-07-10T16:32:04.301929+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" mixed momentum","iteration":0},"timestamp":"2026-07-10T16:32:04.325357+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" indicators sug","iteration":0},"timestamp":"2026-07-10T16:32:04.345488+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"gest maintainin","iteration":0},"timestamp":"2026-07-10T16:32:04.366359+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"g a neutral pos","iteration":0},"timestamp":"2026-07-10T16:32:04.386795+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ture.\n\n### Key ","iteration":0},"timestamp":"2026-07-10T16:32:04.406067+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"Decision Driver","iteration":0},"timestamp":"2026-07-10T16:32:04.427687+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"s\n- Mixed signa","iteration":0},"timestamp":"2026-07-10T16:32:04.450728+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ls: 8 bullish, ","iteration":0},"timestamp":"2026-07-10T16:32:04.476200+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"3 bearish, 1 ne","iteration":0},"timestamp":"2026-07-10T16:32:04.504496+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"utral out of 12","iteration":0},"timestamp":"2026-07-10T16:32:04.532112+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":".\n- No high-con","iteration":0},"timestamp":"2026-07-10T16:32:04.557946+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"fidence directi","iteration":0},"timestamp":"2026-07-10T16:32:04.584343+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"onal setup exis","iteration":0},"timestamp":"2026-07-10T16:32:04.608331+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ts.\n- MACD (12,","iteration":0},"timestamp":"2026-07-10T16:32:04.637415+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"26,9): MACD (81","iteration":0},"timestamp":"2026-07-10T16:32:04.656981+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":".01) is above s","iteration":0},"timestamp":"2026-07-10T16:32:04.674639+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ignal line (66.","iteration":0},"timestamp":"2026-07-10T16:32:04.693241+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"80), confirming","iteration":0},"timestamp":"2026-07-10T16:32:04.727901+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" upward momentu","iteration":0},"timestamp":"2026-07-10T16:32:04.763394+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"m.\n- EMA 20 vs ","iteration":0},"timestamp":"2026-07-10T16:32:04.799447+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"50: EMA 20 (323","iteration":0},"timestamp":"2026-07-10T16:32:04.862977+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"9.5) is above E","iteration":0},"timestamp":"2026-07-10T16:32:04.883572+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"MA 50 (3127.9),","iteration":0},"timestamp":"2026-07-10T16:32:04.920648+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" confirming int","iteration":0},"timestamp":"2026-07-10T16:32:04.956239+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ermediate uptre","iteration":0},"timestamp":"2026-07-10T16:32:04.991732+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"nd.\n- EMA 50 vs","iteration":0},"timestamp":"2026-07-10T16:32:05.010632+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" 200: EMA 50 (3","iteration":0},"timestamp":"2026-07-10T16:32:05.037450+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"127.9) is above","iteration":0},"timestamp":"2026-07-10T16:32:05.064672+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" EMA 200 (2914.","iteration":0},"timestamp":"2026-07-10T16:32:05.094158+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"8), representin","iteration":0},"timestamp":"2026-07-10T16:32:05.119222+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"g long-term bul","iteration":0},"timestamp":"2026-07-10T16:32:05.143785+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"lish trend.\n- S","iteration":0},"timestamp":"2026-07-10T16:32:05.172330+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"upertrend: Supe","iteration":0},"timestamp":"2026-07-10T16:32:05.202354+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"rtrend indicate","iteration":0},"timestamp":"2026-07-10T16:32:05.230777+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"s SELL -- price","iteration":0},"timestamp":"2026-07-10T16:32:05.259197+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" has broken bel","iteration":0},"timestamp":"2026-07-10T16:32:05.278362+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ow the volatili","iteration":0},"timestamp":"2026-07-10T16:32:05.301411+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ty stop at 3733","iteration":0},"timestamp":"2026-07-10T16:32:05.319381+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":".9.\n- Overall w","iteration":0},"timestamp":"2026-07-10T16:32:05.354553+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"eighted technic","iteration":0},"timestamp":"2026-07-10T16:32:05.397520+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"al score: +2.8\n","iteration":0},"timestamp":"2026-07-10T16:32:05.422013+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"\n### Trade Deta","iteration":0},"timestamp":"2026-07-10T16:32:05.448347+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ils\n- **Verdict","iteration":0},"timestamp":"2026-07-10T16:32:05.472393+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"**: HOLD\n- **Ta","iteration":0},"timestamp":"2026-07-10T16:32:05.491686+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"rget Price**: ₹","iteration":0},"timestamp":"2026-07-10T16:32:05.509764+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"3529.2\n- **Stop","iteration":0},"timestamp":"2026-07-10T16:32:05.526952+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":" Loss**: ₹3390.","iteration":0},"timestamp":"2026-07-10T16:32:05.546160+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"8\n- **Confidenc","iteration":0},"timestamp":"2026-07-10T16:32:05.565312+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"e**: 86%\n- **Ri","iteration":0},"timestamp":"2026-07-10T16:32:05.582630+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"sk Profile**: L","iteration":0},"timestamp":"2026-07-10T16:32:05.621229+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"ow\n- **Strategy","iteration":0},"timestamp":"2026-07-10T16:32:05.651342+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"**: Wait and Wa","iteration":0},"timestamp":"2026-07-10T16:32:05.686658+00:00"}
+{"type":"worker_text","agent_id":"portfolio_manager","task_id":"task-decision","data":{"content":"tch\n","iteration":0},"timestamp":"2026-07-10T16:32:05.714590+00:00"}
+{"type":"worker_completed","agent_id":"portfolio_manager","task_id":"task-decision","data":{"iterations":1},"timestamp":"2026-07-10T16:32:05.787933+00:00"}
+{"type":"task_completed","agent_id":null,"task_id":"task-decision","data":{"status":"completed","iterations":1,"input_tokens":5590,"output_tokens":259},"timestamp":"2026-07-10T16:32:05.964419+00:00"}
+{"type":"run_completed","agent_id":null,"task_id":null,"data":{"status":"completed"},"timestamp":"2026-07-10T16:32:06.174134+00:00"}

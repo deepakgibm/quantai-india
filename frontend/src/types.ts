@@ -4,6 +4,7 @@ export enum Page {
   SIGNUP = 'SIGNUP',
   DASHBOARD = 'DASHBOARD',
   AI_PROMPT = 'AI_PROMPT',
+  VIBE_TRADING = 'VIBE_TRADING',
   ORDERS = 'ORDERS',
   RISK_MANAGER = 'RISK_MANAGER',
   ALGO_BUILDER = 'algo_builder',

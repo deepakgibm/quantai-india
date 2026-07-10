@@ -1,0 +1,6 @@
+{
+  "prompt": "Run the technical scanner for setup 'trend-finder' using the run_scanner tool. Evaluate the top results and summarize the best 3 buying opportunities and 3 selling opportunities with targets.",
+  "context": {
+    "session_id": "user_40"
+  }
+}

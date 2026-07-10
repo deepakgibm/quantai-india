@@ -1,0 +1,25 @@
+{"type":"run_started","agent_id":null,"task_id":null,"data":{},"timestamp":"2026-07-09T14:57:55.603765+00:00"}
+{"type":"layer_started","agent_id":null,"task_id":null,"data":{"layer":0,"tasks":["task-bull","task-bear"]},"timestamp":"2026-07-09T14:57:55.795268+00:00"}
+{"type":"task_started","agent_id":"bull_advocate","task_id":"task-bull","data":{},"timestamp":"2026-07-09T14:57:55.893404+00:00"}
+{"type":"worker_started","agent_id":"bull_advocate","task_id":"task-bull","data":{},"timestamp":"2026-07-09T14:57:55.918298+00:00"}
+{"type":"task_started","agent_id":"bear_advocate","task_id":"task-bear","data":{},"timestamp":"2026-07-09T14:57:55.982109+00:00"}
+{"type":"worker_started","agent_id":"bear_advocate","task_id":"task-bear","data":{},"timestamp":"2026-07-09T14:57:55.995478+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"Technical indic","iteration":0},"timestamp":"2026-07-09T14:57:56.983733+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"ators suggest s","iteration":0},"timestamp":"2026-07-09T14:57:57.004054+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"table consolida","iteration":0},"timestamp":"2026-07-09T14:57:57.027117+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"Technical indic","iteration":0},"timestamp":"2026-07-09T14:57:57.028938+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":"tion. Recommend","iteration":0},"timestamp":"2026-07-09T14:57:57.048358+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"ators suggest s","iteration":0},"timestamp":"2026-07-09T14:57:57.066798+00:00"}
+{"type":"worker_text","agent_id":"bull_advocate","task_id":"task-bull","data":{"content":" Hold.","iteration":0},"timestamp":"2026-07-09T14:57:57.084688+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"table consolida","iteration":0},"timestamp":"2026-07-09T14:57:57.106063+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":"tion. Recommend","iteration":0},"timestamp":"2026-07-09T14:57:57.140574+00:00"}
+{"type":"worker_incomplete","agent_id":"bull_advocate","task_id":"task-bull","data":{"iterations":1,"reason":"data agent produced no tool calls and no report.md"},"timestamp":"2026-07-09T14:57:57.143804+00:00"}
+{"type":"worker_text","agent_id":"bear_advocate","task_id":"task-bear","data":{"content":" Hold.","iteration":0},"timestamp":"2026-07-09T14:57:57.168751+00:00"}
+{"type":"worker_incomplete","agent_id":"bear_advocate","task_id":"task-bear","data":{"iterations":1,"reason":"data agent produced no tool calls and no report.md"},"timestamp":"2026-07-09T14:57:57.243929+00:00"}
+{"type":"task_failed","agent_id":null,"task_id":"task-bull","data":{"error":"output contract not met: data agent produced no tool calls and no report.md","input_tokens":5618,"output_tokens":16},"timestamp":"2026-07-09T14:57:57.422243+00:00"}
+{"type":"task_failed","agent_id":null,"task_id":"task-bear","data":{"error":"output contract not met: data agent produced no tool calls and no report.md","input_tokens":5596,"output_tokens":16},"timestamp":"2026-07-09T14:57:57.500315+00:00"}
+{"type":"layer_started","agent_id":null,"task_id":null,"data":{"layer":1,"tasks":["task-risk"]},"timestamp":"2026-07-09T14:57:57.648188+00:00"}
+{"type":"task_blocked","agent_id":"risk_officer","task_id":"task-risk","data":{"blocked_by":["task-bull","task-bear"],"reason":"task-bull=failed, task-bear=failed"},"timestamp":"2026-07-09T14:57:57.828439+00:00"}
+{"type":"layer_started","agent_id":null,"task_id":null,"data":{"layer":2,"tasks":["task-decision"]},"timestamp":"2026-07-09T14:57:58.066981+00:00"}
+{"type":"task_blocked","agent_id":"portfolio_manager","task_id":"task-decision","data":{"blocked_by":["task-risk"],"reason":"task-risk=blocked"},"timestamp":"2026-07-09T14:57:58.188486+00:00"}
+{"type":"run_completed","agent_id":null,"task_id":null,"data":{"status":"failed"},"timestamp":"2026-07-09T14:57:58.616789+00:00"}

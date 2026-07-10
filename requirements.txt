@@ -29,3 +29,8 @@ certifi
 protobuf
 firebase-admin==6.5.0
 polars==1.38.0
+langchain-google-genai
+fastmcp>=2.14.0
+langchain-core
+langchain
+pyyaml

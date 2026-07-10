@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_URL, getAuthHeaders } from '../services/api';
 import { Page } from '../types';
+import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
+import UniverseFilter from '../components/UniverseFilter';
 import { 
   TrendingUp, 
   Search, 
@@ -76,6 +78,7 @@ interface ScannerProps {
 }
 
 const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
+  const { selectedUniverse } = useGlobalSymbol();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [results, setResults] = useState<ScannerResult[]>([]);
   const [filteredResults, setFilteredResults] = useState<ScannerResult[]>([]);
@@ -111,9 +114,10 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
       }
 
       // Fetch Scan Results
-      const resultsRes = await fetch(`${API_URL}/api/v1/institutional-scanner/results`, {
-        headers: getAuthHeaders()
-      });
+      const resultsRes = await fetch(
+        `${API_URL}/api/v1/institutional-scanner/results?universe=${encodeURIComponent(selectedUniverse)}`,
+        { headers: getAuthHeaders() }
+      );
       if (resultsRes.ok) {
         const resultsData = await resultsRes.json();
         setResults(resultsData);
@@ -315,6 +319,7 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
         </div>
         
         <div className="flex items-center gap-3">
+          <UniverseFilter size="sm" showCount={true} />
           {scanStatus.is_scanning ? (
             <div className="flex items-center gap-3 bg-brand-900/20 px-4 py-2.5 rounded-xl border border-brand-500/30">
               <RefreshCw className="animate-spin text-brand-400" size={16} />

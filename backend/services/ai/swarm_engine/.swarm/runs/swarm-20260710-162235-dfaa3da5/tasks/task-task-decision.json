@@ -1,0 +1,21 @@
+{
+  "id": "task-decision",
+  "agent_id": "portfolio_manager",
+  "prompt_template": "After the debate and risk review on {target}, make the final investment decision and execution plan.",
+  "depends_on": [
+    "task-risk"
+  ],
+  "blocked_by": [],
+  "input_from": {
+    "full_debate": "task-risk"
+  },
+  "status": "completed",
+  "summary": "**Investment Committee Verdict: HOLD**\n\n### Consensus Rationale\nThe Swarm Committee has completed the debate. A confluence of technical indicators and quantitative risk factors yields a HOLD recommendation with 86% confidence. Range-bound price action and mixed momentum indicators suggest maintaining a neutral posture.\n\n### Key Decision Drivers\n- Mixed signals: 8 bullish, 3 bearish, 1 neutral out of 12.\n- No high-confidence directional setup exists.\n- MACD (12,26,9): MACD (81.01) is above signal line (66.80), confirming upward momentum.\n- EMA 20 vs 50: EMA 20 (3239.5) is above EMA 50 (3127.9), confirming intermediate uptrend.\n- EMA 50 vs 200: EMA 50 (3127.9) is above EMA 200 (2914.8), representing long-term bullish trend.\n- Supertrend: Supertrend indicates SELL -- price has broken below the volatility stop at 3733.9.\n- Overall weighted technical score: +2.8\n\n### Trade Details\n- **Verdict**: HOLD\n- **Target Price**: ₹3529.2\n- **Stop Loss**: ₹3390.8\n- **Confidence**: 86%\n- **Risk Profile**: Low\n- **Strategy**: Wait and Watch\n",
+  "artifacts": [
+    "/app/services/ai/swarm_engine/.swarm/runs/swarm-20260710-162235-dfaa3da5/artifacts/portfolio_manager/summary.md"
+  ],
+  "error": null,
+  "started_at": "2026-07-10T16:22:39.046757+00:00",
+  "completed_at": "2026-07-10T16:22:42.047645+00:00",
+  "worker_iterations": 1
+}

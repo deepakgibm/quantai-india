@@ -1,0 +1,24 @@
+{
+  "id": "task-risk",
+  "agent_id": "risk_officer",
+  "prompt_template": "Review bull and bear arguments on {target}; from a risk angle assess validity, suggest position size, and propose risk management.",
+  "depends_on": [
+    "task-bull",
+    "task-bear"
+  ],
+  "blocked_by": [
+    "task-bull",
+    "task-bear"
+  ],
+  "input_from": {
+    "bull_report": "task-bull",
+    "bear_report": "task-bear"
+  },
+  "status": "blocked",
+  "summary": null,
+  "artifacts": [],
+  "error": "Blocked: upstream not completed (task-bull=failed, task-bear=failed)",
+  "started_at": null,
+  "completed_at": "2026-07-09T14:33:08.602203+00:00",
+  "worker_iterations": 0
+}

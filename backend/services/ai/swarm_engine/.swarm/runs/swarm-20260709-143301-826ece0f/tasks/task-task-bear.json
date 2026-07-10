@@ -1,0 +1,15 @@
+{
+  "id": "task-bear",
+  "agent_id": "bear_advocate",
+  "prompt_template": "Conduct full bear-side research on {target}, identifying all bearish risks and downside logic. Market: Indian NSE.",
+  "depends_on": [],
+  "blocked_by": [],
+  "input_from": {},
+  "status": "failed",
+  "summary": null,
+  "artifacts": [],
+  "error": "LLM call failed at iteration 0: provider_stream_error provider=openai model=(unset): ClientError: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}",
+  "started_at": "2026-07-09T14:33:02.121218+00:00",
+  "completed_at": "2026-07-09T14:33:08.158030+00:00",
+  "worker_iterations": 0
+}

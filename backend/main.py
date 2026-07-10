@@ -110,6 +110,7 @@ from api.algorithms import router as algorithms_router
 from api.orders import router as orders_router
 from api.risk import router as risk_router
 from api.settings import router as settings_router
+from api.indices import router as indices_router
 
 
 # 6. Unified API Registration (Flattened for Reliability)
@@ -142,6 +143,7 @@ app.include_router(algorithms_router, prefix="/api/algorithms", tags=["Algorithm
 app.include_router(orders_router, prefix="/api/orders", tags=["Orders"])
 app.include_router(risk_router, prefix="/api/risk", tags=["Risk Settings"])
 app.include_router(settings_router, prefix="/api/settings", tags=["User Settings"])
+app.include_router(indices_router, tags=["Index Management"])
 
 
 from api.v1 import router as v1_router

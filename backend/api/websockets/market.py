@@ -148,12 +148,22 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @router.websocket("/live")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str = None):
     """
     WebSocket Endpoint for live market data.
     Clients can subscribe via:
     {"action": "subscribe", "symbols": ["RELIANCE", "TCS"]}
     """
+    if token:
+        try:
+            from jose import jwt
+            from config import settings
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            user_email = payload.get("sub")
+            logger.info(f"WebSocket Client authenticated for user: {user_email}")
+        except Exception as je:
+            logger.warning(f"WebSocket Client authentication failed/skipped: {je}")
+
     await manager.connect(websocket)
     try:
         while True:

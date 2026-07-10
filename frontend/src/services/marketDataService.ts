@@ -27,15 +27,17 @@ class MarketDataServiceClass {
   // general callbacks for reconnecting status
   private statusListeners = new Set<(connected: boolean, isReconnecting: boolean) => void>();
 
+  private getWsUrl = () => {
+    const baseUrl = API_URL || window.location.origin;
+    const proto = baseUrl.startsWith('https') ? 'wss' : 'ws';
+    const host = baseUrl.replace(/^https?:\/\//, '');
+    const token = localStorage.getItem('access_token');
+    const query = token && token !== 'null' && token !== 'undefined' ? `?token=${encodeURIComponent(token)}` : '';
+    return `${proto}://${host}/api/ws/live${query}`;
+  };
+
   constructor() {
-    // Derive WS URL from API_URL (handle both http/https and relative paths)
-    const getWsUrl = () => {
-      const baseUrl = API_URL || window.location.origin;
-      const proto = baseUrl.startsWith('https') ? 'wss' : 'ws';
-      const host = baseUrl.replace(/^https?:\/\//, '');
-      return `${proto}://${host}/api/ws/live`;
-    };
-    this.wsUrl = getWsUrl();
+    this.wsUrl = this.getWsUrl();
     this.connectWS();
   }
 
@@ -44,6 +46,7 @@ class MarketDataServiceClass {
       this.cleanupWS();
     }
 
+    this.wsUrl = this.getWsUrl();
     console.log('MarketDataService: Connecting to WS:', this.wsUrl);
     try {
       const socket = new WebSocket(this.wsUrl);

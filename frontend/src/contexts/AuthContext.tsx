@@ -35,70 +35,140 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
+
+        const checkExistingAuth = async (): Promise<boolean> => {
+            const token = localStorage.getItem('access_token');
+            if (token && token !== 'null' && token !== 'undefined') {
+                try {
+                    const profile = await api.getCurrentUser();
+                    if (profile && isMounted) {
+                        setUser({
+                            uid: String(profile.id),
+                            email: profile.email,
+                            displayName: profile.full_name || profile.username,
+                            emailVerified: true,
+                        } as any);
+                        return true;
+                    }
+                } catch (e) {
+                    console.warn("[Auth] Failed to restore session from existing token:", e);
+                }
+            }
+            return false;
+        };
+
         const unsubscribe = onIdTokenChanged(auth, async (currentUser) => {
             if (currentUser) {
                 try {
-                    // CRITICAL: Always verify or refresh the backend token to prevent 401s
-                    const idToken = await currentUser.getIdToken(true); // true = force refresh
-
-                    // Sync with backend to get a fresh local JWT
+                    const idToken = await currentUser.getIdToken(true);
                     const syncResult = await api.firebaseLogin(idToken, currentUser.email!, currentUser.displayName || undefined);
-
                     if (syncResult && syncResult.access_token) {
                         console.log('[Auth] Backend token successfully refreshed and synced');
-                        setUser(currentUser);
+                        if (isMounted) setUser(currentUser);
                     } else {
                         console.warn('[Auth] Sync returned no token, clearing legacy state');
                         localStorage.removeItem('access_token');
-                        setUser(null);
+                        localStorage.removeItem('refresh_token');
+                        if (isMounted) setUser(null);
                     }
                 } catch (err: any) {
                     console.error('[Auth] Sync failure:', err);
-
-                    // IMPORTANT: Only clear token if it's a definitive auth failure (401/403)
-                    // Do NOT clear on network errors (fetch failure) as the backend might just be restarting
                     const isAuthError = err.message?.includes('401') || err.message?.includes('403') || err.message?.includes('Unauthorized');
                     if (isAuthError) {
-                        console.warn('[Auth] Definitive auth failure, clearing token');
                         localStorage.removeItem('access_token');
-                        setUser(null);
+                        localStorage.removeItem('refresh_token');
+                        if (isMounted) setUser(null);
                     } else {
-                        console.warn('[Auth] Non-auth failure (network?), retaining existing token');
-                        const existingToken = localStorage.getItem('access_token');
-                        if (existingToken) {
-                            setUser(currentUser);
-                        } else {
+                        const restored = await checkExistingAuth();
+                        if (!restored && isMounted) {
                             setUser(null);
                         }
                     }
                 }
             } else {
-                localStorage.removeItem('access_token');
-                setUser(null);
+                const restored = await checkExistingAuth();
+                if (!restored && isMounted) {
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    setUser(null);
+                }
             }
-
-            setLoading(false);
+            if (isMounted) setLoading(false);
         });
-        return () => unsubscribe();
+
+        // Run initial check on mount
+        checkExistingAuth().then((restored) => {
+            if (restored && isMounted) {
+                setLoading(false);
+            }
+        });
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, []);
 
     const login = async (email: string, pass: string) => {
-        const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-        const idToken = await userCredential.user.getIdToken();
-        await api.firebaseLogin(idToken, userCredential.user.email!, userCredential.user.displayName || undefined);
-        return userCredential;
+        try {
+            console.log("[Auth] Attempting Firebase login...");
+            const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+            const idToken = await userCredential.user.getIdToken();
+            await api.firebaseLogin(idToken, userCredential.user.email!, userCredential.user.displayName || undefined);
+            return userCredential;
+        } catch (firebaseErr: any) {
+            console.warn("[Auth] Firebase login failed, falling back to direct backend login:", firebaseErr);
+            const result = await api.login(email, pass);
+            if (result && result.access_token) {
+                const profile = await api.getCurrentUser();
+                const mockUser = {
+                    uid: String(profile?.id || 1),
+                    email: email,
+                    displayName: profile?.full_name || profile?.username || "User",
+                    emailVerified: true,
+                } as any;
+                setUser(mockUser);
+                return { user: mockUser };
+            }
+            throw firebaseErr;
+        }
     };
 
     const signup = async (email: string, pass: string) => {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const idToken = await userCredential.user.getIdToken();
-        await api.firebaseLogin(idToken, userCredential.user.email!, userCredential.user.displayName || undefined);
-        return userCredential;
+        try {
+            console.log("[Auth] Attempting Firebase signup...");
+            const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+            const idToken = await userCredential.user.getIdToken();
+            await api.firebaseLogin(idToken, userCredential.user.email!, userCredential.user.displayName || undefined);
+            return userCredential;
+        } catch (firebaseErr: any) {
+            console.warn("[Auth] Firebase signup failed, falling back to direct backend signup:", firebaseErr);
+            const result = await api.signup(email, pass, email.split('@')[0], "User");
+            if (result && result.access_token) {
+                const profile = await api.getCurrentUser();
+                const mockUser = {
+                    uid: String(profile?.id || 1),
+                    email: email,
+                    displayName: profile?.full_name || profile?.username || "User",
+                    emailVerified: true,
+                } as any;
+                setUser(mockUser);
+                return { user: mockUser };
+            }
+            throw firebaseErr;
+        }
     };
 
     const logout = async () => {
         localStorage.removeItem('access_token');
-        await signOut(auth);
+        localStorage.removeItem('refresh_token');
+        setUser(null);
+        try {
+            await signOut(auth);
+        } catch (e) {
+            console.warn("Firebase signout failed:", e);
+        }
     };
 
     const resetPassword = (email: string) => sendPasswordResetEmail(auth, email);

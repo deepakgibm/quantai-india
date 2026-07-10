@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from '
 import AgenticBotCard from '../components/AgenticBotCard';
 import { useMarketDataStream } from '../hooks/useMarketDataStream';
 import { Page, Stock, AlgoConfig } from '../types';
-import { Zap, X, Loader2, Play, Activity, Shield, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, AlertTriangle, Calendar, Calculator, CreditCard, Award, Heart, Sparkles, Eye } from 'lucide-react';
+import { Zap, X, Loader2, Play, Activity, Shield, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, AlertTriangle, Calendar, Calculator, CreditCard, Award, Heart, Sparkles, Eye, BrainCircuit } from 'lucide-react';
 
 import { api, apiGet } from '../services/api';
 import PositionSizeCalculator from '../components/PositionSizeCalculator';
@@ -706,7 +706,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
          )}
 
          {/* SaaS Enterprise Cards */}
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Subscription Status Card */}
             <div
                onClick={() => onNavigate(Page.SUBSCRIPTION)}
@@ -754,6 +754,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   {saasSummary}
                </p>
                <span className="text-[8px] text-slate-400 mt-2 uppercase tracking-widest font-bold">Real-time LLM summary</span>
+            </div>
+
+            {/* Vibe Trading Card */}
+            <div
+               onClick={() => onNavigate(Page.VIBE_TRADING)}
+               className="p-4 bg-term-bg-tertiary border border-slate-800/80 rounded-xl flex flex-col justify-between shadow-[0_2px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:bg-[#334155] transition-all border-l-[3px] border-l-brand-500"
+            >
+               <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Vibe Trading / Coding</span>
+                  <BrainCircuit size={15} className="text-brand-500 animate-pulse" />
+               </div>
+               <span className="text-sm font-black text-slate-900 dark:text-white mt-2">
+                  Multi-Agent Swarm
+               </span>
+               <span className="text-[9px] text-slate-400 mt-2">
+                  Run stock debates, scans, and technical research
+               </span>
             </div>
          </div>
 

@@ -369,19 +369,27 @@ class AlphaPrimeConfig(Base):
 
 class IndexMaster(Base):
     """
-    Master table for stock indices (NIFTY 50, NIFTY 100, etc.)
+    Master table for stock indices (NIFTY 50, NIFTY 100, sector indices, etc.)
+    Extended with management metadata for automatic NSE refresh.
     """
     __tablename__ = "index_master"
     index_id = Column(Integer, primary_key=True)
-    index_name = Column(String(50), unique=True, nullable=False)
+    index_name = Column(String(100), unique=True, nullable=False)   # e.g. "NIFTY 50"
+    display_name = Column(String(100), nullable=True)               # e.g. "NIFTY 50 (Large Cap)"
     description = Column(Text, nullable=True)
-    
-    # Hierarchical support (e.g. NIFTY 100 has NIFTY 50 as base)
+    category = Column(String(50), nullable=True)                    # "Broad Market" / "Sector" / "Thematic"
+    nse_index_code = Column(String(100), nullable=True)             # NSE CSV filename key
+    csv_url = Column(Text, nullable=True)                           # NSE constituent CSV URL
+    last_refreshed = Column(DateTime, nullable=True)                # Last successful refresh timestamp
+    constituent_count = Column(Integer, default=0)                  # Cached count for quick UI display
+
+    # Hierarchical support (e.g. NIFTY 100 includes NIFTY 50)
     base_index_id = Column(Integer, ForeignKey('index_master.index_id'), nullable=True)
-    
+
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     # Relationship for hierarchical lookup
     base_index = relationship("IndexMaster", remote_side=[index_id], backref="derived_indices")
 
@@ -389,15 +397,21 @@ class IndexMaster(Base):
 class IndexConstituent(Base):
     """
     Mapping table between indices and instruments.
+    Supports soft-delete via removed_at for historical constituent tracking.
     """
     __tablename__ = "index_constituent"
     index_id = Column(Integer, ForeignKey('index_master.index_id'), primary_key=True)
     instrument_id = Column(BigInteger, ForeignKey('instrument_master.instrument_id'), primary_key=True)
-    
-    # Optional weightage of the stock in the index
-    weight = Column(Float, nullable=True)
+
+    # Index-specific data
+    weight = Column(Float, nullable=True)           # % weight in index
+    sector = Column(String(100), nullable=True)     # Sector from NSE constituent CSV
+    industry = Column(String(100), nullable=True)   # Industry from NSE constituent CSV
+
+    # Lifecycle tracking — never hard-delete, preserve history
     added_at = Column(DateTime, default=datetime.utcnow)
-    
+    removed_at = Column(DateTime, nullable=True)    # NULL = still in index; set when constituent removed
+
     # Relationships
     index = relationship("IndexMaster", backref="constituents")
     instrument = relationship("InstrumentMaster")
@@ -405,6 +419,26 @@ class IndexConstituent(Base):
     __table_args__ = (
         PrimaryKeyConstraint('index_id', 'instrument_id'),
     )
+
+
+class IndexRefreshLog(Base):
+    """
+    Audit log for every index constituent refresh operation.
+    """
+    __tablename__ = "index_refresh_log"
+    id = Column(Integer, primary_key=True)
+    index_id = Column(Integer, ForeignKey('index_master.index_id'), nullable=True)
+    index_name = Column(String(100), nullable=True)   # Stored separately so logs survive index deletion
+    refreshed_at = Column(DateTime, default=datetime.utcnow)
+    added_count = Column(Integer, default=0)
+    removed_count = Column(Integer, default=0)
+    matched_count = Column(Integer, default=0)
+    missing_count = Column(Integer, default=0)
+    total_nse_count = Column(Integer, default=0)
+    coverage_pct = Column(Float, default=0.0)
+    status = Column(String(20), default='success')    # 'success' / 'partial' / 'failed'
+    error_message = Column(Text, nullable=True)
+    missing_symbols = Column(Text, nullable=True)     # JSON list of unmatched NSE symbols
 
 
 class CorporateAction(Base):

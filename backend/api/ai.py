@@ -1,18 +1,243 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 import logging
-from models import User
-from schemas import (
-    AIPromptRequest, AIPromptResponse, MarketAnalysisResponse
-)
+import asyncio
+import queue
+import threading
+import json
+from datetime import datetime
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import User, Holding, Position
+from schemas import AIPromptRequest, AIPromptResponse, MarketAnalysisResponse
 from utils.auth import get_current_user
 from services.ai_service import get_ai_service
 from config import settings
+from database import get_db
 
-# Detectors for scanner logic
+# Initialize path mapping for the Vibe-Trading Swarm Engine
+import services.ai.swarm_engine
+from src.agent.loop import AgentLoop
+from src.agent.tools import ToolRegistry
+from src.providers.chat import ChatLLM
+from src.swarm.runtime import SwarmRuntime
+from src.swarm.store import SwarmStore
+from src.swarm.models import RunStatus
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["AI Services"])
 ai_service = get_ai_service()
+
+
+# Helper to stream a single ReAct AgentLoop execution
+async def stream_agent_execution(prompt: str, user_id: int):
+    q = queue.Queue()
+    
+    def event_callback(event_type: str, data: dict):
+        q.put({"type": event_type, "data": data})
+        
+    def run_loop():
+        try:
+            from src.tools import build_registry
+            registry = build_registry()
+            llm = ChatLLM()
+            loop = AgentLoop(registry=registry, llm=llm, event_callback=event_callback)
+            
+            # Enrich context with User ID
+            loop.run(prompt, session_id=f"user_{user_id}")
+            q.put({"type": "done"})
+        except Exception as e:
+            logger.error(f"Agent execution thread failed: {e}", exc_info=True)
+            q.put({"type": "error", "error": str(e)})
+
+    threading.Thread(target=run_loop, daemon=True).start()
+    
+    loop_event = asyncio.get_running_loop()
+    done = False
+    while not done:
+        try:
+            event = await loop_event.run_in_executor(None, lambda: q.get(timeout=0.5))
+            if event["type"] == "done":
+                done = True
+            elif event["type"] == "error":
+                yield f"data: {json.dumps({'type': 'error', 'error': event['error']})}\n\n"
+                done = True
+            else:
+                yield f"data: {json.dumps(event)}\n\n"
+        except queue.Empty:
+            yield ": keepalive\n\n"
+
+
+# Helper to stream a Swarm Run execution
+async def stream_swarm_execution(preset_name: str, user_vars: dict):
+    q = queue.Queue()
+    
+    def live_callback(event):
+        q.put(event.model_dump())
+        
+    from pathlib import Path
+    from src.config import load_swarm_agent_config
+    
+    swarm_dir = Path(__file__).resolve().parent.parent / "services" / "ai" / "swarm_engine" / ".swarm" / "runs"
+    store = SwarmStore(base_dir=swarm_dir)
+    agent_config = load_swarm_agent_config()
+    runtime = SwarmRuntime(store=store, agent_config=agent_config)
+    
+    try:
+        run = runtime.start_run(
+            preset_name=preset_name,
+            user_vars=user_vars,
+            live_callback=live_callback
+        )
+    except Exception as e:
+        logger.error(f"Failed to start swarm run: {e}")
+        yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+        return
+        
+    from src.swarm.task_store import TaskStore
+    run_dir = store.run_dir(run.id)
+    task_store = TaskStore(run_dir)
+        
+    def _enrich_event(event):
+        if event.get("type") == "task_completed":
+            try:
+                task = task_store.load_task(event.get("task_id"))
+                if task:
+                    event["data"]["summary"] = task.summary
+                    if event.get("task_id") == "task-decision":
+                        symbol = user_vars.get("target", "RELIANCE")
+                        from services.explainable_ai import get_explainable_ai_report, validate_consensus_consistency
+                        report = get_explainable_ai_report(symbol)
+                        event["data"]["explainable_report"] = report
+                        
+                        # Guarantee single source of truth by overriding task.summary with dynamic report
+                        event["data"]["summary"] = report.get("consensus_report")
+                        
+                        # Validate consistency (assert they match)
+                        validate_consensus_consistency(event["data"]["summary"], report)
+            except Exception as e:
+                logger.warning(f"Failed to resolve task summary for {event.get('task_id')}: {e}")
+        return event
+
+    loop_event = asyncio.get_running_loop()
+    done = False
+    while not done:
+        try:
+            event = await loop_event.run_in_executor(None, lambda: q.get(timeout=0.5))
+            yield f"data: {json.dumps(_enrich_event(event))}\n\n"
+            if event.get("type") == "run_completed" or (event.get("type") == "task_completed" and event.get("task_id") == "task-decision"):
+                done = True
+        except queue.Empty:
+            # Check if run has ended in background
+            updated_run = runtime._store.load_run(run.id)
+            if updated_run and updated_run.status in [RunStatus.completed, RunStatus.failed, RunStatus.cancelled]:
+                while not q.empty():
+                    try:
+                        event = q.get_nowait()
+                        yield f"data: {json.dumps(_enrich_event(event))}\n\n"
+                    except queue.Empty:
+                        break
+                done = True
+            else:
+                yield ": keepalive\n\n"
+                
+    yield f"data: {json.dumps({'type': 'run_completed', 'run_id': run.id})}\n\n"
+
+
+# ============================================================================
+# Streaming POST endpoints (Phase 9)
+# ============================================================================
+
+@router.post("/chat")
+async def ai_chat_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Streaming response for conversational stock research chat."""
+    message = payload.get("message", "Search for high momentum stock setups")
+    prompt = f"User asks: {message}. Research the Indian Stock Market and provide a detailed analysis."
+    return StreamingResponse(stream_agent_execution(prompt, current_user.id), media_type="text/event-stream")
+
+
+@router.post("/research")
+async def ai_research_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """General conversational research endpoint."""
+    return await ai_chat_stream(payload, current_user)
+
+
+@router.post("/analyse")
+async def ai_analyse_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Deep stock analysis of a specific symbol."""
+    symbol = payload.get("symbol", "RELIANCE")
+    prompt = (
+        f"Perform a deep technical and fundamental analysis of NSE stock symbol: {symbol}. "
+        "Retrieve technical indicators, check recent candle trends, and evaluate registered strategies to output a recommendation."
+    )
+    return StreamingResponse(stream_agent_execution(prompt, current_user.id), media_type="text/event-stream")
+
+
+@router.post("/market-summary")
+async def ai_market_summary_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Generates daily market summary."""
+    prompt = (
+        "Generate a daily market summary for the Indian Stock Market (NSE). "
+        "Analyze general market breadth, sector details, advance-decline ratios, and highlight any major index signals."
+    )
+    return StreamingResponse(stream_agent_execution(prompt, current_user.id), media_type="text/event-stream")
+
+
+@router.post("/portfolio")
+async def ai_portfolio_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Portfolio health & rebalancing analysis."""
+    prompt = (
+        f"Analyze the portfolio holdings for user ID: {current_user.id}. "
+        "Evaluate total allocation, sector exposures, risk parameters, and suggest rebalancing actions if required."
+    )
+    return StreamingResponse(stream_agent_execution(prompt, current_user.id), media_type="text/event-stream")
+
+
+@router.post("/backtest")
+async def ai_backtest_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Autonomously optimizes strategy, runs backtests, and evaluates results."""
+    symbol = payload.get("symbol", "RELIANCE")
+    strategy = payload.get("strategy", "RSI Mean Reversion")
+    prompt = (
+        f"Trigger a backtest for strategy '{strategy}' on symbol '{symbol}' using the backtest_strategy tool. "
+        "Analyze the resulting capital drawdown, Sharpe ratio, win rate, and provide quantitative suggestions to improve this strategy."
+    )
+    return StreamingResponse(stream_agent_execution(prompt, current_user.id), media_type="text/event-stream")
+
+
+@router.post("/scanner")
+async def ai_scanner_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Scans the Nifty 500 universe using the specified scanner."""
+    scanner_id = payload.get("scanner_id", "trend-finder")
+    prompt = (
+        f"Run the technical scanner for setup '{scanner_id}' using the run_scanner tool. "
+        "Evaluate the top results and summarize the best 3 buying opportunities and 3 selling opportunities with targets."
+    )
+    return StreamingResponse(stream_agent_execution(prompt, current_user.id), media_type="text/event-stream")
+
+
+@router.post("/committee")
+async def ai_committee_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Multi-agent Swarm Investment Committee debate."""
+    symbol = payload.get("symbol", "RELIANCE")
+    user_vars = {"target": symbol, "market": "NSE"}
+    return StreamingResponse(stream_swarm_execution("investment_committee", user_vars), media_type="text/event-stream")
+
+
+@router.post("/watchlist")
+async def ai_watchlist_stream(payload: dict, current_user: User = Depends(get_current_user)):
+    """Watchlist scanner and review."""
+    prompt = (
+        f"Fetch the watchlist for user ID: {current_user.id}. "
+        "For each symbol in the watchlist, retrieve its technical indicators and summarize active trading signals."
+    )
+    return StreamingResponse(stream_agent_execution(prompt, current_user.id), media_type="text/event-stream")
+
+
+# ============================================================================
+# Preserved Legacy Endpoints (Phase 11 Compliance)
+# ============================================================================
 
 @router.get("/trend-finder")
 async def get_trend_finder(current_user: User = Depends(get_current_user)):
@@ -90,11 +315,6 @@ async def get_ai_strategies(current_user: User = Depends(get_current_user)):
         ]
     }
 
-from database import get_db
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from models import Holding, Position
-
 @router.post("/prompt", response_model=AIPromptResponse)
 async def process_ai_prompt(
     request: AIPromptRequest, 
@@ -103,7 +323,6 @@ async def process_ai_prompt(
 ):
     """Natural language market query processing with portfolio and watchlist context."""
     try:
-        # 1. Fetch user holdings & positions context
         holdings_query = select(Holding).where(Holding.user_id == current_user.id)
         holdings_res = await db.execute(holdings_query)
         holdings = holdings_res.scalars().all()
@@ -112,7 +331,6 @@ async def process_ai_prompt(
         positions_res = await db.execute(positions_query)
         positions = positions_res.scalars().all()
         
-        # 2. Formulate context
         portfolio_desc = ""
         if holdings:
             portfolio_desc += "Holdings: " + ", ".join([f"{h.symbol} ({h.quantity} shares @ avg ₹{h.avg_price})" for h in holdings]) + ". "
@@ -126,7 +344,6 @@ async def process_ai_prompt(
             
         portfolio_desc += "Watchlist: INFY, BHEL, SBIN, ITC."
         
-        # 3. Inject context into prompt
         enriched_prompt = f"[USER CONTEXT - {portfolio_desc}] User Query: {request.prompt}"
         
         results = await ai_service.process_prompt(enriched_prompt, getattr(current_user, "upstox_access_token", None))
@@ -142,7 +359,6 @@ async def get_market_analysis(current_user: User = Depends(get_current_user)):
         return await ai_service.get_market_analysis()
     except Exception as e:
         logger.error(f"Market analysis failed: {e}")
-        from datetime import datetime
         return {
             "status": "error",
             "analysis": f"Market analysis unavailable: {str(e)}",
@@ -175,7 +391,7 @@ async def explain_trading_signal(
     if not settings.ENABLE_AI_FEATURES or settings.MOCK_AI_RESPONSES:
         return {
             "status": "success",
-            "explanation": f"The {conviction} conviction {signal_type} signal for {symbol} was triggered at ₹{price} due to a confluence of: (1) RSI bouncing from oversold/overbought boundaries, (2) EMA crossover indicating trend continuation, and (3) volume expansion confirming structural breakout strength."
+            "explanation": f"The {conviction} conviction {signal_type} signal for {symbol} was triggered at ₹{price} due to a confluence of indicators."
         }
         
     try:
@@ -192,12 +408,6 @@ async def generate_ai_market_summary(
     current_user: User = Depends(get_current_user)
 ):
     """Generates AI market summary."""
-    if not settings.ENABLE_AI_FEATURES or settings.MOCK_AI_RESPONSES:
-        return {
-            "status": "unavailable",
-            "message": "Market summary temporarily unavailable."
-        }
-        
     try:
         from services.ai.provider import get_ai_provider
         provider = get_ai_provider()
@@ -210,4 +420,3 @@ async def generate_ai_market_summary(
             "status": "unavailable",
             "message": "Market summary temporarily unavailable."
         }
-

@@ -79,6 +79,7 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.TRADE_SCREENER,       icon: Shield,          label: 'Trade Screener' },
       { page: Page.SIGNAL_BOT,           icon: Bot,             label: 'Signal Bot' },
       { page: Page.AI_PROMPT,            icon: BrainCircuit,    label: 'AI Prompt' },
+      { page: Page.VIBE_TRADING,          icon: BrainCircuit,    label: 'Vibe Trading / Coding', badge: 'SWARM' },
       { page: Page.SCANNER,              icon: Search,          label: 'Scanner' },
       { page: Page.MOMENT_ALERT,         icon: Bell,            label: 'Moment Alert' },
       { page: Page.WEEK52_BREAKOUT,      icon: Target,          label: '52-Week Breakout' },

@@ -78,6 +78,10 @@ celery_app.conf.beat_schedule = {
         "task": "monitor_analytics_token_health",
         "schedule": crontab(hour=8, minute=0),   # 8:00 AM IST — daily health check
     },
+    "refresh-nse-indices-daily": {
+        "task": "tasks.index.refresh_all_indices",
+        "schedule": crontab(hour=21, minute=0),  # 02:30 AM IST (21:00 UTC) — after NSE publishes updates
+    },
 }
 
 from celery.signals import task_failure

@@ -146,6 +146,33 @@ export const refreshBackendToken = async (): Promise<boolean> => {
 
   refreshPromise = (async () => {
     try {
+      // 1. Try to refresh via backend refresh_token first (local auth lifecycle)
+      const storedRefreshToken = localStorage.getItem('refresh_token');
+      if (storedRefreshToken && storedRefreshToken !== 'null' && storedRefreshToken !== 'undefined') {
+        console.log("[Auth] Attempting backend token refresh via refresh_token...");
+        try {
+          const res = await originalFetch(`${API_URL}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: storedRefreshToken })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.access_token) {
+              localStorage.setItem('access_token', data.access_token);
+              if (data.refresh_token) {
+                localStorage.setItem('refresh_token', data.refresh_token);
+              }
+              console.log("[Auth] Backend token successfully refreshed via refresh_token.");
+              return true;
+            }
+          }
+        } catch (e) {
+          console.warn("[Auth] Direct backend refresh failed:", e);
+        }
+      }
+
+      // 2. Fall back to Firebase ID token refresh
       const currentUser = await getFirebaseUser();
       if (!currentUser) {
         console.warn("[Auth] No Firebase user found for token refresh.");
@@ -172,6 +199,9 @@ export const refreshBackendToken = async (): Promise<boolean> => {
       const data = await res.json();
       if (data && data.access_token) {
         localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
         console.log("[Auth] Backend token successfully refreshed and stored.");
         return true;
       }
@@ -192,6 +222,15 @@ const authenticatedFetch = async (
   init?: RequestInit
 ): Promise<Response> => {
   const urlString = typeof input === 'string' ? input : (input as any).url || String(input);
+  
+  const isBackendRequest = urlString.startsWith('/api/') || 
+                           urlString.startsWith('api/') ||
+                           (API_URL && urlString.startsWith(API_URL));
+
+  if (!isBackendRequest) {
+    return originalFetch(input, init);
+  }
+
   const isAuthRequest = urlString.includes('/api/auth/firebase-login') || 
                         urlString.includes('/api/auth/login') || 
                         urlString.includes('/api/auth/signup');
@@ -255,7 +294,8 @@ const authenticatedFetch = async (
   return response;
 };
 
-// Redefine fetch locally in this module
+// Override window.fetch globally to intercept 401s and automatically refresh tokens
+window.fetch = authenticatedFetch;
 const fetch = authenticatedFetch;
 
 const inFlightRequests = new Map<string, Promise<any>>();
@@ -386,6 +426,9 @@ export const api = {
 
       const data = await res.json();
       localStorage.setItem('access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
       return data;
     } catch (err: any) {
       console.error("Login error:", err);

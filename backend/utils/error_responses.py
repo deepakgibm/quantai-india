@@ -50,6 +50,7 @@ def create_error_response(
         "success": False,
         "error": message,
         "error_code": code,
+        "errorCode": code,  # CamelCase support
         "message": message,
         "details": details_str,
         "service": service

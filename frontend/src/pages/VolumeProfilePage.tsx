@@ -473,13 +473,13 @@ const VolumeProfilePage: React.FC<VolumeProfilePageProps> = () => {
     const lineSeries = chart.addLineSeries({ color: '#38bdf8', lineWidth: 2 });
     lineSeriesRef.current = lineSeries;
 
-    const ema20Series = chart.addLineSeries({ color: '#3b82f6', lineWidth: 1.5, visible: showEmas });
+    const ema20Series = chart.addLineSeries({ color: '#3b82f6', lineWidth: 1, visible: showEmas });
     ema20SeriesRef.current = ema20Series;
 
-    const ema50Series = chart.addLineSeries({ color: '#a855f7', lineWidth: 1.5, visible: showEmas });
+    const ema50Series = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, visible: showEmas });
     ema50SeriesRef.current = ema50Series;
 
-    const ema200Series = chart.addLineSeries({ color: '#f97316', lineWidth: 1.5, visible: showEmas });
+    const ema200Series = chart.addLineSeries({ color: '#f97316', lineWidth: 1, visible: showEmas });
     ema200SeriesRef.current = ema200Series;
 
     const vwapSeries = chart.addLineSeries({ color: '#06b6d4', lineWidth: 2, visible: showVwap });

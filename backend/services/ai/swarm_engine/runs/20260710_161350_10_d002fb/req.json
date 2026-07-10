@@ -1,0 +1,6 @@
+{
+  "prompt": "Analyze the portfolio holdings for user ID: 3. Evaluate total allocation, sector exposures, risk parameters, and suggest rebalancing actions if required.",
+  "context": {
+    "session_id": "user_3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "task-decision",
+  "agent_id": "portfolio_manager",
+  "prompt_template": "After the debate and risk review on {target}, make the final investment decision and execution plan.",
+  "depends_on": [
+    "task-risk"
+  ],
+  "blocked_by": [
+    "task-risk"
+  ],
+  "input_from": {
+    "full_debate": "task-risk"
+  },
+  "status": "blocked",
+  "summary": null,
+  "artifacts": [],
+  "error": "Blocked: upstream not completed (task-risk=blocked)",
+  "started_at": null,
+  "completed_at": "2026-07-09T14:55:35.645977+00:00",
+  "worker_iterations": 0
+}
