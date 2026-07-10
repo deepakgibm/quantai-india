@@ -189,6 +189,21 @@ export const VibeTrading: React.FC = () => {
   const [activeAgent, setActiveAgent] = useState<string | null>(null);
   const [pmVerdict, setPmVerdict] = useState<any>(null);
   const [explainableReport, setExplainableReport] = useState<any>(null);
+
+  // Automatic polling refresh during market hours or if data is stale
+  useEffect(() => {
+    if (!pmVerdict || loading) return;
+    const details = explainableReport || parseVerdictDetails(pmVerdict) || {};
+    const isMarketOpen = details.is_market_open;
+    const isStale = details.price_stale;
+    
+    if (isMarketOpen || isStale) {
+      const intervalId = setInterval(() => {
+        runSwarmCommittee(symbol);
+      }, 10000);
+      return () => clearInterval(intervalId);
+    }
+  }, [pmVerdict, symbol, loading, explainableReport]);
   
 
 
@@ -613,8 +628,21 @@ export const VibeTrading: React.FC = () => {
             {/* PM Decision Panel */}
             <div className="w-full lg:w-[560px] bg-slate-950/80 rounded-xl border border-slate-800 p-6 flex flex-col justify-between max-h-[900px] overflow-hidden">
               <div className="flex-1 flex flex-col overflow-hidden">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
-                  <Brain className="text-emerald-400 w-5 h-5" /> Swarm Committee Investment Verdict
+                <h3 className="text-lg font-semibold mb-4 flex items-center justify-between gap-2 flex-shrink-0">
+                  <span className="flex items-center gap-2">
+                    <Brain className="text-emerald-400 w-5 h-5" /> Swarm Committee Investment Verdict
+                  </span>
+                  {pmVerdict && (
+                    <button
+                      onClick={() => runSwarmCommittee(symbol)}
+                      disabled={loading}
+                      title="Force Refresh Latest Price"
+                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-brand-500 rounded-lg text-[10px] text-slate-400 hover:text-white font-semibold transition-all flex items-center gap-1.5"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </button>
+                  )}
                 </h3>
                 {pmVerdict ? (() => {
                   const details = explainableReport || parseVerdictDetails(pmVerdict) || {};
@@ -708,7 +736,16 @@ export const VibeTrading: React.FC = () => {
                         <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-850 text-[11px]">
                           <div>
                             <span className="text-slate-500 block mb-0.5 text-[9px] uppercase tracking-wider">Current Price</span>
-                            <span className="font-semibold text-slate-300">{details.current_price ? `₹${details.current_price}` : '—'}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-300">{details.current_price ? `₹${details.current_price}` : '—'}</span>
+                              {details.is_market_open ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Market Open (Live)" />
+                              ) : (
+                                <span className="px-1 py-0.5 bg-slate-900 border border-slate-800 text-[7px] font-bold text-slate-400 rounded uppercase tracking-wide" title="Market Closed">
+                                  Closed
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <span className="text-slate-500 block mb-0.5 text-[9px] uppercase tracking-wider">Target Price</span>
@@ -718,6 +755,38 @@ export const VibeTrading: React.FC = () => {
                             <span className="text-slate-500 block mb-0.5 text-[9px] uppercase tracking-wider">Stop Loss</span>
                             <span className="font-semibold text-rose-400">{details.stop_loss ? `₹${details.stop_loss}` : '—'}</span>
                           </div>
+                        </div>
+
+                        {/* Data Freshness Indicator */}
+                        <div className="mt-3 pt-2.5 border-t border-slate-800/40 flex flex-col gap-1 text-[9px] text-slate-500">
+                          <div className="flex items-center justify-between">
+                            <span>Last Price Update:</span>
+                            <span className="font-semibold text-slate-400">
+                              {details.price_updated_at ? (() => {
+                                try {
+                                  const date = new Date(details.price_updated_at);
+                                  return date.toLocaleString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                    hour12: true
+                                  });
+                                } catch (e) {
+                                  return details.price_updated_at;
+                                }
+                              })() : '—'}
+                              {details.price_source && ` (${details.price_source})`}
+                            </span>
+                          </div>
+                          {details.price_stale && (
+                            <div className="text-rose-400 font-semibold flex items-center gap-1.5 mt-0.5 bg-rose-950/20 border border-rose-900/30 p-2 rounded-lg text-[9px]">
+                              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block" />
+                              <span>⚠ Live market data may be outdated. Refreshing...</span>
+                            </div>
+                          )}
                         </div>
                         {/* Signal Summary & Weighted Score */}
                         <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-800/40 text-[10px]">

@@ -1,0 +1,23 @@
+{
+  "id": "task-risk",
+  "agent_id": "risk_officer",
+  "prompt_template": "Review bull and bear arguments on {target}; from a risk angle assess validity, suggest position size, and propose risk management.",
+  "depends_on": [
+    "task-bull",
+    "task-bear"
+  ],
+  "blocked_by": [],
+  "input_from": {
+    "bull_report": "task-bull",
+    "bear_report": "task-bear"
+  },
+  "status": "completed",
+  "summary": "**Risk Officer Report:**\n- **Volatility**: ATR (Average True Range) remains within historical standard deviations.\n- **Exposure**: Recommend keeping the position size strictly limited to 2.0% of total capital.\n- **Safety**: Set strict stop-loss orders matching the recent swing support levels.\n- **Conclusion**: Risk parameters are fully satisfied. Pass.",
+  "artifacts": [
+    "/app/services/ai/swarm_engine/.swarm/runs/swarm-20260710-164837-edfad423/artifacts/risk_officer/summary.md"
+  ],
+  "error": null,
+  "started_at": "2026-07-10T16:48:39.305067+00:00",
+  "completed_at": "2026-07-10T16:48:40.908231+00:00",
+  "worker_iterations": 1
+}

@@ -636,6 +636,10 @@ def get_explainable_ai_report(symbol: str) -> dict:
     """
     symbol = symbol.upper().strip()
     data_source = "live"
+    price_updated_at = datetime.now().isoformat()
+    price_source = "DB_EOD"
+    price_stale = True
+    is_market_open_val = False
 
     try:
         service = get_indicator_service()
@@ -644,9 +648,69 @@ def get_explainable_ai_report(symbol: str) -> dict:
         logger.error(f"Error fetching OHLCV data for {symbol}: {e}")
         df = pd.DataFrame()
 
+    # Retrieve live stock price from UpstoxPriceResolver
+    try:
+        from services.upstox_price_resolver import get_upstox_price_resolver
+        import asyncio
+        import concurrent.futures
+        import pytz
+        
+        resolver = get_upstox_price_resolver()
+        
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+            
+        if loop and loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(lambda: asyncio.run(resolver.get_price(symbol)))
+                price_data = future.result()
+        else:
+            price_data = asyncio.run(resolver.get_price(symbol))
+            
+        if price_data and price_data.get("price", 0) > 0:
+            ltp = float(price_data["price"])
+            price_updated_at = price_data.get("timestamp") or datetime.now().isoformat()
+            price_source = price_data.get("price_source") or "UPSTOX_REST"
+            price_stale = price_data.get("stale", False) or price_data.get("data_stale", False)
+            is_market_open_val = price_data.get("is_live", False)
+            
+            # Enrich/sync the dataframe with the latest live price
+            if not df.empty:
+                ist = pytz.timezone('Asia/Kolkata')
+                today_ist = datetime.now(ist).date()
+                
+                last_row_ts = df["timestamp"].iloc[-1]
+                last_row_date = pd.to_datetime(last_row_ts).date()
+                
+                if last_row_date == today_ist:
+                    df.loc[df.index[-1], "close"] = ltp
+                    df.loc[df.index[-1], "high"] = max(float(df["high"].iloc[-1]), ltp)
+                    df.loc[df.index[-1], "low"] = min(float(df["low"].iloc[-1]), ltp)
+                    df.loc[df.index[-1], "volume"] = max(float(df["volume"].iloc[-1]), float(price_data.get("volume") or 0))
+                elif last_row_date < today_ist:
+                    # Append a new daily candle for today if it is a weekday or if the feed is active
+                    is_weekday = today_ist.weekday() < 5
+                    is_live_source = price_data.get("price_source") in ["UPSTOX_WS", "UPSTOX_REST"]
+                    if is_weekday or is_live_source:
+                        new_row = {
+                            "timestamp": pd.Timestamp(today_ist),
+                            "open": float(price_data.get("prev_close") or ltp),
+                            "high": max(float(price_data.get("prev_close") or ltp), ltp),
+                            "low": min(float(price_data.get("prev_close") or ltp), ltp),
+                            "close": ltp,
+                            "volume": int(price_data.get("volume") or 0)
+                        }
+                        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    except Exception as ex:
+        logger.error(f"Upstox price resolver enrichment failed for {symbol}: {ex}")
+
     if df.empty or len(df) < 30:
         logger.warning(f"Using synthetic fallback data for {symbol}")
         data_source = "simulated"
+        price_stale = False
+        is_market_open_val = False
         base_price = {"TCS": 4120.0, "INFY": 1620.0, "HDFCBANK": 1720.0}.get(symbol, 2945.0)
         dates = pd.date_range(end=datetime.now(), periods=250, freq="D")
         np.random.seed(42 + hash(symbol) % 1000)
@@ -885,6 +949,10 @@ def get_explainable_ai_report(symbol: str) -> dict:
         "current_price": round(current_price, 2), "target_price": target_price, "stop_loss": stop_loss,
         "risk_reward": rr_ratio, "final_score": final_score, "data_source": data_source,
         "votes": votes,
+        "price_updated_at": price_updated_at,
+        "price_source": price_source,
+        "price_stale": price_stale,
+        "is_market_open": is_market_open_val,
         "indicators": {i["key"]: {"value": i["value"], "signal": i["signal"], "status": i["signal"], "desc": i["reason"], "score": i["score"], "contribution": i["contribution"]} for i in indicators},
         "indicator_list": indicators,
         "signal_summary": {"bullish": bullish_count, "bearish": bearish_count, "neutral": neutral_count, "total": total_indicators},
@@ -903,6 +971,10 @@ def get_explainable_ai_report(symbol: str) -> dict:
         "audit_trail": audit_trail,
         "consensus_report": consensus_report,
     }
+
+    # Assert current price consistency across sub-structures
+    if abs(report["current_price"] - round(float(df["close"].iloc[-1]), 2)) > 0.05:
+        raise ValueError("MarketDataConsistencyError: Current price mismatch detected across application modules.")
 
     # Phase 6: Validation
     report["validation_warnings"] = _validate_report(report)
