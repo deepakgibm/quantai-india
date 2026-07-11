@@ -21,19 +21,45 @@ async def get_orchestrator_status(current_user: User = Depends(get_current_user)
         return {"error": str(e), "is_healthy": False}
 
 @router.get("/status")
-async def get_market_status():
-    """Get overall market status (Active/Stale/Closed)."""
+async def get_market_status_endpoint():
+    """Get comprehensive market status."""
+    from utils.market_state import get_market_status
     try:
-        from services.nifty100_ranking_service import get_nifty100_ranking_service
-        service = get_nifty100_ranking_service()
-        rankings = await service.get_rankings()
-        return {
-            "status": "active" if rankings.get("source") == "websocket" else "stale",
-            "last_update": rankings.get("timestamp")
-        }
+        return get_market_status()
     except Exception as e:
         logger.error(f"Market status check failed: {e}")
-        return {"status": "unknown"}
+        return {"status": "ERROR", "message": str(e)}
+
+@router.post("/refresh")
+async def manual_market_refresh(current_user: User = Depends(get_current_user)):
+    """
+    Manually invalidate data caches and attempt a fresh fetch.
+    Returns the updated market status.
+    """
+    try:
+        # 1. Invalidate Caches
+        from services.dragonfly_client import get_cache
+        cache = get_cache()
+        if cache:
+            # We flush specific namespaces for market data, scanners, indicators
+            keys_to_delete = cache.keys("cache:nifty100*") + \
+                             cache.keys("nifty100:*") + \
+                             cache.keys("cache:top_movers*") + \
+                             cache.keys("snapshot:*") + \
+                             cache.keys("qai:snap:*")
+            if keys_to_delete:
+                cache.delete(*keys_to_delete)
+                logger.info(f"Invalidated {len(keys_to_delete)} cache keys.")
+
+        # 2. Get updated market status
+        from utils.market_state import get_market_status
+        status = get_market_status()
+        status["message"] = "Cache invalidated. Fresh data will be fetched on next request."
+        
+        return status
+    except Exception as e:
+        logger.error(f"Market refresh failed: {e}")
+        return {"status": "ERROR", "error": str(e)}
 
 @router.get("/nifty100/top-movers")
 async def get_nifty100_top_movers(refresh: bool = False):

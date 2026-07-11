@@ -31,6 +31,7 @@ import InstitutionalScanner from './pages/InstitutionalScanner';
 import InstitutionalStockDetail from './pages/InstitutionalStockDetail';
 import IndexManagement from './pages/IndexManagement';
 import Sidebar from './components/Sidebar';
+import { MarketStatusBanner } from './components/MarketStatusBanner';
 import { Menu } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { GlobalSymbolProvider } from './contexts/GlobalSymbolContext';
@@ -199,14 +200,17 @@ const ProtectedRoute: React.FC<{ element: React.ReactNode; activePage: Page }> =
           />
         </div>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <MarketStatusBanner />
+          <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
           {isFullBleed ? (
             <div className="h-full">{element}</div>
           ) : (
             <div className="p-6 lg:p-8 max-w-7xl mx-auto">{element}</div>
           )}
-        </main>
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -48,6 +48,15 @@ class Settings:
     ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
     PGBOUNCER_ENABLED = os.getenv("PGBOUNCER_ENABLED", "false").lower() == "true"
     
+    # Strictly enforce ALLOW_SIMULATION flag
+    _raw_allow_sim = os.getenv("ALLOW_SIMULATION", "false").lower() == "true"
+    if ENVIRONMENT == "production" and _raw_allow_sim:
+        import logging
+        logging.getLogger(__name__).critical("SECURITY ALERT: Simulation data is strictly forbidden in production! Overriding ALLOW_SIMULATION to False.")
+        ALLOW_SIMULATION = False
+    else:
+        ALLOW_SIMULATION = _raw_allow_sim
+    
     # CORS: Comma-separated allowed origins (use "*" only in development)
     CORS_ORIGINS = [
         origin.strip() 

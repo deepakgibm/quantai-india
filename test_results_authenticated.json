@@ -1,0 +1,115 @@
+{
+  "timestamp": "2026-07-11T17:48:42.443049",
+  "authenticated": true,
+  "user": "dthat53@gmail.com",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "pass_rate": "100.0%"
+  },
+  "api_results": [
+    {
+      "endpoint": "Scanner Strategies",
+      "url": "http://localhost:8000/api/scanner/strategies",
+      "status_code": 200,
+      "response_time_ms": 6.04,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"strategies\":[{\"name\":\"Multi-Timeframe Confluence\",\"description\":\"3-layer confluence: Daily trend + 4H structure + 1H entry trigger\",\"tier\":\"Multi-Timeframe Confluence\",\"min_bars\":210},{\"name\":\"Bollinger Bands Breakout\",\"description\":\"Detects breakouts above upper or below lower "
+    },
+    {
+      "endpoint": "Scanner Timeframes",
+      "url": "http://localhost:8000/api/scanner/timeframes",
+      "status_code": 200,
+      "response_time_ms": 39.24,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"timeframes\":[{\"value\":\"3m\",\"label\":\"3 Minutes\"},{\"value\":\"5m\",\"label\":\"5 Minutes\"},{\"value\":\"15m\",\"label\":\"15 Minutes\"},{\"value\":\"30m\",\"label\":\"30 Minutes\"},{\"value\":\"60m\",\"label\":\"60 Minutes\"},{\"value\":\"1d\",\"label\":\"1 Day\"}]}"
+    },
+    {
+      "endpoint": "Scanner Indices",
+      "url": "http://localhost:8000/api/scanner/indices",
+      "status_code": 200,
+      "response_time_ms": 19.2,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"indices\":[{\"name\":\"NIFTY 50\",\"symbol\":\"^NSEI\",\"count\":50},{\"name\":\"NIFTY NEXT 50\",\"symbol\":\"^NSMIDCP\",\"count\":50},{\"name\":\"NIFTY 100\",\"symbol\":\"^CNX100\",\"count\":100},{\"name\":\"NIFTY 200\",\"symbol\":\"^NSE200\",\"count\":200}]}"
+    },
+    {
+      "endpoint": "Scanner Momentum",
+      "url": "http://localhost:8000/api/scanner/momentum",
+      "status_code": 200,
+      "response_time_ms": 48.82,
+      "pass": true,
+      "data_preview": "{\"type\":\"bucket_update\",\"data\":[{\"symbol\":\"ABSLAMC\",\"interval\":\"1day\",\"ltp\":1030.4,\"prev_close\":1068.2,\"change_pct\":-3.54,\"indicators\":{\"sma_20\":1051.4425,\"sma_50\":1051.4425,\"ema_9\":1049.0234,\"ema_21\":1034.4645,\"ema_50\":986.0855,\"rsi_14\":51.3299,\"macd_line\":22.006,\"macd_signal\":28.6651,\"macd_histogr"
+    },
+    {
+      "endpoint": "Scanner Breakout",
+      "url": "http://localhost:8000/api/scanner/breakout",
+      "status_code": 200,
+      "response_time_ms": 44.29,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"timestamp\":\"2026-07-11T12:18:40.257999\",\"data\":[{\"symbol\":\"APOLLOTYRE\",\"ltp\":394.5,\"high_52w\":523.2,\"low_52w\":392.0,\"prev_close\":394.5,\"change_pct\":0.0,\"breakout_type\":\"Yearly Low\",\"breakout_pct\":0.64,\"volume_ratio\":1.0,\"volume_strength\":\"Normal\",\"industry\":\"Tyres & Allied\",\"tim"
+    },
+    {
+      "endpoint": "Week52 Breakouts",
+      "url": "http://localhost:8000/api/scanner/week52-breakouts",
+      "status_code": 200,
+      "response_time_ms": 40.83,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"timestamp\":\"2026-07-11T12:18:40.298815\",\"data\":[{\"symbol\":\"APOLLOTYRE\",\"ltp\":394.5,\"high_52w\":523.2,\"low_52w\":392.0,\"prev_close\":394.5,\"change_pct\":0.0,\"breakout_type\":\"Yearly Low\",\"breakout_pct\":0.64,\"volume_ratio\":1.0,\"volume_strength\":\"Normal\",\"industry\":\"Tyres & Allied\",\"tim"
+    },
+    {
+      "endpoint": "Scanner Reversal",
+      "url": "http://localhost:8000/api/scanner/reversal",
+      "status_code": 200,
+      "response_time_ms": 13.11,
+      "pass": true,
+      "data_preview": "{\"type\":\"reversal_scan\",\"timestamp\":\"2026-07-11T12:18:40.313345\",\"data\":[{\"symbol\":\"ADANIPORTS\",\"interval\":\"1day\",\"ltp\":1795.1,\"prev_close\":1773.4,\"change_pct\":1.22,\"indicators\":{\"sma_20\":1665.63,\"sma_50\":1559.39,\"ema_9\":1736.6207,\"ema_21\":1668.0144,\"ema_50\":1583.7667,\"rsi_14\":70.102,\"macd_line\":71."
+    },
+    {
+      "endpoint": "Scanner TrendFinder",
+      "url": "http://localhost:8000/api/ai/trend-finder",
+      "status_code": 200,
+      "response_time_ms": 414.16,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"count\":3,\"stocks\":[{\"symbol\":\"AEGISLOG\",\"name\":\"AEGISLOG\",\"trend\":\"BEARISH\",\"strength\":75,\"current_price\":674.15,\"entry_price\":674.15,\"target_price\":640.44,\"stop_loss\":694.37,\"indicators\":{\"rsi\":47.67,\"vol_ratio\":1.0,\"signals\":[\"MACD_BEARISH\",\"EMA_BEARISH_STACK\"]},\"scores\":{\"tot"
+    },
+    {
+      "endpoint": "Trading Dashboard",
+      "url": "http://localhost:8000/api/trading/dashboard",
+      "status_code": 200,
+      "response_time_ms": 66.02,
+      "pass": true,
+      "data_preview": "{\"total_pnl\":0.0,\"daily_pnl\":0.0,\"capital_used\":0.0,\"total_capital\":1000000.0,\"active_algorithms\":2,\"win_rate\":70.0,\"total_trades\":0}"
+    },
+    {
+      "endpoint": "Top Gainers",
+      "url": "http://localhost:8000/api/trading/top-gainers",
+      "status_code": 200,
+      "response_time_ms": 30.05,
+      "pass": true,
+      "data_preview": "[{\"symbol\":\"JPPOWER\",\"price\":19.54,\"change\":9.41},{\"symbol\":\"KIRLOSENG\",\"price\":1740.2,\"change\":8.99},{\"symbol\":\"CARBORUNIV\",\"price\":1102.4,\"change\":6.27},{\"symbol\":\"CHAMBLFERT\",\"price\":449.9,\"change\":5.96},{\"symbol\":\"LATENTVIEW\",\"price\":307.25,\"change\":5.84},{\"symbol\":\"WELSPUNLIV\",\"price\":141.02,\"c"
+    },
+    {
+      "endpoint": "Gainers Losers",
+      "url": "http://localhost:8000/api/trading/gainers-losers",
+      "status_code": 200,
+      "response_time_ms": 21.66,
+      "pass": true,
+      "data_preview": "[{\"ticker\":\"JPPOWER\",\"change\":9.41,\"color\":\"bg-green-500\",\"price\":19.54},{\"ticker\":\"KIRLOSENG\",\"change\":8.99,\"color\":\"bg-green-500\",\"price\":1740.2},{\"ticker\":\"CARBORUNIV\",\"change\":6.27,\"color\":\"bg-green-500\",\"price\":1102.4},{\"ticker\":\"NAVA\",\"change\":-10.67,\"color\":\"bg-red-500\",\"price\":628.5},{\"ticke"
+    },
+    {
+      "endpoint": "AI Breakout Stocks",
+      "url": "http://localhost:8000/api/ai/breakout-detector",
+      "status_code": 200,
+      "response_time_ms": 1496.4,
+      "pass": true,
+      "data_preview": "{\"status\":\"success\",\"count\":10,\"stocks\":[{\"symbol\":\"GRAPHITE\",\"name\":\"GRAPHITE\",\"breakout_type\":\"52W_HIGH\",\"volume_ratio\":2.66,\"strength\":97,\"current_price\":774.45,\"breakout_level\":767.6,\"atr\":33.06,\"target_price\":840.57,\"stop_loss\":724.86,\"indicators\":{\"rsi\":65.63,\"atr_expansion\":1.21,\"high_52w\":76"
+    }
+  ],
+  "db_validations": {
+    "instrument_count": 3202,
+    "daily_candle_count": 56622,
+    "latest_daily_candle": "2026-05-15 00:00:00",
+    "symbols_with_daily_candles": 439
+  }
+}

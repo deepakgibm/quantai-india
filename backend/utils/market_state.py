@@ -10,8 +10,16 @@ from typing import Optional, Any, Callable
 import logging
 
 import pytz
+import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+try:
+    import exchange_calendars as xcals
+    _nse_cal = xcals.get_calendar("BSE")
+except ImportError:
+    _nse_cal = None
+    logger.warning("exchange_calendars not installed. Holiday detection will be limited.")
 
 IST = pytz.timezone('Asia/Kolkata')
 
@@ -28,23 +36,30 @@ def is_market_open() -> bool:
     """
     now = datetime.now(IST)
     
-    # Weekend check
-    if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
-        return False
+    # 1. Check if today is a valid trading session (handles holidays & weekends)
+    if _nse_cal is not None:
+        # exchange_calendars expects dates like '2023-10-15'
+        if not _nse_cal.is_session(now.strftime("%Y-%m-%d")):
+            return False
+    else:
+        # Fallback Weekend check
+        if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
+            return False
     
     # Convert to minutes from midnight for easy comparison
     current_minutes = now.hour * 60 + now.minute
     market_open = 9 * 60 + 15   # 09:15 = 555 minutes
     market_close = 15 * 60 + 30  # 15:30 = 930 minutes
     
-    return market_open <= current_minutes <= market_close
+    # Market closes EXACTLY at 15:30. So < 930 is strict.
+    return market_open <= current_minutes < market_close
 
 
 def get_trading_date() -> date:
     """
-    Get the current trading date.
+    Get the current or most recent verified trading date.
     
-    If weekend, returns last Friday.
+    If weekend or holiday, returns the most recent trading session.
     If before market open, returns previous trading day.
     
     Returns:
@@ -53,15 +68,31 @@ def get_trading_date() -> date:
     now = datetime.now(IST)
     today = now.date()
     
-    # Weekend handling
+    current_minutes = now.hour * 60 + now.minute
+    market_open_minutes = 9 * 60 + 15
+    
+    if _nse_cal is not None:
+        today_str = now.strftime("%Y-%m-%d")
+        
+        # If it's a trading session and we are at or past market open, use today
+        if _nse_cal.is_session(today_str) and current_minutes >= market_open_minutes:
+            return today
+            
+        # Otherwise, find the previous valid session by traversing backwards
+        curr = today - timedelta(days=1)
+        while not _nse_cal.is_session(curr.strftime("%Y-%m-%d")):
+            curr -= timedelta(days=1)
+            
+        return curr
+    
+    # Fallback Weekend handling if library is missing
     if today.weekday() == 5:  # Saturday
         return today - timedelta(days=1)
     elif today.weekday() == 6:  # Sunday
         return today - timedelta(days=2)
     
     # Before market open, use previous day's data
-    current_minutes = now.hour * 60 + now.minute
-    if current_minutes < 555:  # Before 09:15
+    if current_minutes < market_open_minutes:  # Before 09:15
         if today.weekday() == 0:  # Monday -> Friday
             return today - timedelta(days=3)
         return today - timedelta(days=1)
@@ -144,10 +175,10 @@ async def get_with_snapshot_fallback(
 
 def get_market_status() -> dict:
     """
-    Get detailed market status information.
+    Get detailed market status information for frontend UI display.
     
     Returns:
-        Dict with market state details
+        Dict with market state details: status, is_open, trading_date, current_time, next_event, data_source
     """
     now = datetime.now(IST)
     is_open = is_market_open()
@@ -156,25 +187,43 @@ def get_market_status() -> dict:
     market_open = 555   # 09:15
     market_close = 930  # 15:30
     
+    trading_date = get_trading_date()
+    today_str = now.strftime("%Y-%m-%d")
+    is_holiday = False
+    is_weekend = now.weekday() >= 5
+    
+    if _nse_cal is not None:
+        is_holiday = (not _nse_cal.is_session(today_str)) and (not is_weekend)
+        
     if is_open:
         minutes_to_close = market_close - current_minutes
         status = "OPEN"
         next_event = f"Closes in {minutes_to_close} minutes"
-    elif now.weekday() >= 5:
+        data_source = "Live Upstox"
+    elif is_holiday:
+        status = "HOLIDAY"
+        next_event = "Check NSE Calendar for next opening"
+        data_source = "Verified Closing Snapshot"
+    elif is_weekend:
         status = "WEEKEND"
         next_event = "Opens Monday 09:15 IST"
+        data_source = "Verified Closing Snapshot"
     elif current_minutes < market_open:
         minutes_to_open = market_open - current_minutes
         status = "PRE_MARKET"
         next_event = f"Opens in {minutes_to_open} minutes"
+        data_source = "Verified Closing Snapshot"
     else:
         status = "CLOSED"
         next_event = "Opens tomorrow 09:15 IST"
+        data_source = "Verified Closing Snapshot"
     
     return {
         "status": status,
         "is_open": is_open,
-        "trading_date": str(get_trading_date()),
+        "trading_date": str(trading_date),
         "current_time": now.strftime("%H:%M:%S IST"),
-        "next_event": next_event
+        "last_updated": now.strftime("%Y-%m-%d %H:%M:%S IST"),
+        "next_event": next_event,
+        "data_source": data_source
     }

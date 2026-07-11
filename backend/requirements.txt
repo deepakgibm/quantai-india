@@ -85,3 +85,4 @@ opentelemetry-api>=1.20.0
 py-key-value-aio[filetree,keyring,memory]>=0.4.4
 mcp>=1.24.0
 
+exchange_calendars==4.5

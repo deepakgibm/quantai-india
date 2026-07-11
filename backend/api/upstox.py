@@ -116,28 +116,25 @@ async def get_portfolio(current_user: User = Depends(get_current_user)):
             "data": None
         }
     
-    headers = {
-        "Authorization": f"Bearer {current_user.upstox_access_token}",
-        "Accept": "application/json"
-    }
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get("https://api.upstox.com/v2/portfolio/long-term-holdings", headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            return {
-                "status": "error",
-                "message": f"Failed to fetch portfolio: {e.response.text}",
-                "data": None
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Failed to fetch portfolio: {str(e)}",
-                "data": None
-            }
+    from services.upstox_client import UpstoxClient
+    client = UpstoxClient(access_token=current_user.upstox_access_token)
+    try:
+        response = await client._make_request("GET", "/portfolio/long-term-holdings")
+        return response
+    except httpx.HTTPStatusError as e:
+        return {
+            "status": "error",
+            "message": f"Failed to fetch portfolio: {e.response.text}",
+            "data": None
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to fetch portfolio: {str(e)}",
+            "data": None
+        }
+    finally:
+        await client.aclose()
 
 @router.get("/positions")
 async def get_positions(current_user: User = Depends(get_current_user)):
@@ -148,28 +145,25 @@ async def get_positions(current_user: User = Depends(get_current_user)):
             "data": None
         }
     
-    headers = {
-        "Authorization": f"Bearer {current_user.upstox_access_token}",
-        "Accept": "application/json"
-    }
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get("https://api.upstox.com/v2/portfolio/short-term-positions", headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            return {
-                "status": "error",
-                "message": f"Failed to fetch positions: {e.response.text}",
-                "data": None
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Failed to fetch positions: {str(e)}",
-                "data": None
-            }
+    from services.upstox_client import UpstoxClient
+    client = UpstoxClient(access_token=current_user.upstox_access_token)
+    try:
+        response = await client._make_request("GET", "/portfolio/short-term-positions")
+        return response
+    except httpx.HTTPStatusError as e:
+        return {
+            "status": "error",
+            "message": f"Failed to fetch positions: {e.response.text}",
+            "data": None
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to fetch positions: {str(e)}",
+            "data": None
+        }
+    finally:
+        await client.aclose()
 
 @router.get("/market-quote/{symbol}")
 async def get_market_quote(symbol: str, current_user: User = Depends(get_current_user)):

@@ -707,20 +707,14 @@ def get_explainable_ai_report(symbol: str) -> dict:
         logger.error(f"Upstox price resolver enrichment failed for {symbol}: {ex}")
 
     if df.empty or len(df) < 30:
-        logger.warning(f"Using synthetic fallback data for {symbol}")
-        data_source = "simulated"
-        price_stale = False
-        is_market_open_val = False
-        base_price = {"TCS": 4120.0, "INFY": 1620.0, "HDFCBANK": 1720.0}.get(symbol, 2945.0)
-        dates = pd.date_range(end=datetime.now(), periods=250, freq="D")
-        np.random.seed(42 + hash(symbol) % 1000)
-        changes = np.random.normal(0.0005, 0.015, 250)
-        prices = base_price * np.exp(np.cumsum(changes))
-        df = pd.DataFrame({
-            "timestamp": dates, "open": prices * 0.995, "high": prices * 1.012,
-            "low": prices * 0.991, "close": prices,
-            "volume": np.random.randint(500000, 3000000, 250),
-        })
+        logger.error(f"Insufficient historical data for {symbol}. Found {len(df)} candles, 30 required.")
+        from core.exceptions import DataUnavailableError
+        raise DataUnavailableError(
+            message=f"Insufficient historical data for {symbol} to perform AI analysis. Minimum 30 candles required.",
+            symbol=symbol,
+            required_candles=30,
+            available_candles=len(df)
+        )
 
     # Phase 1: Compute all indicators
     indicators, raw = _evaluate_indicators(df)

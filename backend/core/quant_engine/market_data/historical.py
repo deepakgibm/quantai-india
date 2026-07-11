@@ -121,9 +121,14 @@ class HistoricalMarketDataEngine:
             except Exception as e:
                 logger.error(f"Fallback database fetch failed for {symbol}: {e}")
 
-        # 4. Final Fallback: NO mock data allowed in production. Return empty DataFrame.
+        # 4. Final Fallback: NO mock data allowed in production. Raise error if empty.
         if df_pd.empty:
-            logger.error(f"No database or Parquet records found for {symbol} ({timeframe}). Returning empty DataFrame.")
+            logger.error(f"No database or Parquet records found for {symbol} ({timeframe}).")
+            from core.exceptions import DataUnavailableError
+            raise DataUnavailableError(
+                message=f"No historical data available for {symbol} ({timeframe}).",
+                symbol=symbol
+            )
 
         # Standardize columns
         if not df_pd.empty:
@@ -142,30 +147,6 @@ class HistoricalMarketDataEngine:
             logger.warning(f"[CANDLE CACHE] loaded empty candles for {symbol}")
 
         return df_pd
-
-    def _generate_mock_data(self, symbol: str, start_dt: Optional[datetime], end_dt: Optional[datetime], timeframe: str) -> pd.DataFrame:
-        import numpy as np
-        
-        start = start_dt or datetime(2023, 1, 1)
-        end = end_dt or datetime(2024, 1, 1)
-        freq = "1D" if timeframe == "1d" else "15T"
-        
-        dates = pd.date_range(start=start, end=end, freq=freq)
-        if len(dates) == 0:
-            dates = pd.date_range(start=start, periods=100, freq=freq)
-            
-        np.random.seed(42)
-        prices = 1000.0 + np.random.randn(len(dates)).cumsum() * 10.0
-        
-        df = pd.DataFrame({
-            "timestamp": dates,
-            "open": prices,
-            "high": prices + np.abs(np.random.randn(len(dates)) * 5),
-            "low": prices - np.abs(np.random.randn(len(dates)) * 5),
-            "close": prices + np.random.randn(len(dates)) * 2,
-            "volume": np.random.randint(1000, 100000, len(dates))
-        })
-        return df
 
 
 _data_engine = None

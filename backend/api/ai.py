@@ -117,7 +117,17 @@ async def stream_swarm_execution(preset_name: str, user_vars: dict):
                         # Validate consistency (assert they match)
                         validate_consensus_consistency(event["data"]["summary"], report)
             except Exception as e:
-                logger.warning(f"Failed to resolve task summary for {event.get('task_id')}: {e}")
+                from core.exceptions import DataUnavailableError
+                if isinstance(e, DataUnavailableError):
+                    logger.error(f"DataUnavailableError: {e.message}")
+                    event["data"]["explainable_report"] = {
+                        "error": "Data Unavailable",
+                        "message": e.message,
+                        "required_candles": e.required_candles,
+                        "available_candles": e.available_candles
+                    }
+                else:
+                    logger.warning(f"Failed to resolve task summary for {event.get('task_id')}: {e}")
         return event
 
     loop_event = asyncio.get_running_loop()

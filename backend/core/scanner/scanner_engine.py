@@ -203,8 +203,10 @@ class ScannerEngine:
             return self._data_cache[cache_key]
         
         try:
-            # Try Upstox API first
-            if self.upstox_client:
+            from utils.market_state import is_market_open
+            
+            # Try Upstox API first if market is open
+            if self.upstox_client and is_market_open():
                 df = await self._fetch_from_upstox(symbol, timeframe)
                 if df is not None:
                     self._data_cache[cache_key] = df
@@ -217,10 +219,8 @@ class ScannerEngine:
                     self._data_cache[cache_key] = df
                     return df
             
-            # Generate sample data for testing (remove in production)
-            df = self._generate_sample_data(symbol)
-            self._data_cache[cache_key] = df
-            return df
+            logger.warning(f"Historical data unavailable for {symbol}; excluded from scan.")
+            return None
             
         except Exception as e:
             logger.error(f"Failed to fetch data for {symbol}: {e}")
@@ -244,28 +244,7 @@ class ScannerEngine:
             return None  # Placeholder
         except Exception:
             return None
-    
-    def _generate_sample_data(self, symbol: str, bars: int = 250) -> pd.DataFrame:
-        """Generate sample OHLCV data for testing."""
-        import numpy as np
-        
-        dates = pd.date_range(end=datetime.now(), periods=bars, freq='D')
-        base_price = 1000 + hash(symbol) % 2000
-        
-        # Generate realistic price movement
-        returns = np.random.randn(bars) * 0.02
-        prices = base_price * np.exp(np.cumsum(returns))
-        
-        df = pd.DataFrame({
-            'date': dates,
-            'open': prices * (1 + np.random.randn(bars) * 0.005),
-            'high': prices * (1 + np.abs(np.random.randn(bars) * 0.01)),
-            'low': prices * (1 - np.abs(np.random.randn(bars) * 0.01)),
-            'close': prices,
-            'volume': np.random.randint(100000, 10000000, bars)
-        })
-        
-        return df
+
     
     async def get_momentum_scan(self) -> Dict[str, Any]:
         """Get momentum scan data with caching and fallback."""
