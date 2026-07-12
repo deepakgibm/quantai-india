@@ -299,57 +299,73 @@ async def get_week52_breakouts(
         logger.warning(f"HP Cache read failed for week52: {e}")
 
     # 2. Fallback to Legacy Engine (DB/Scan)
-    from services.yearly_breakout_engine import YearlyBreakoutEngine
+    from services.week52_breakout_service import get_week52_breakout_service
     
     try:
-        engine = YearlyBreakoutEngine()
-        results = await engine.get_cached_results()
+        service = get_week52_breakout_service()
+        results_dict = service.get_cached_data()
         
         # If cache is empty or force refresh, run the scanner
-        if not results or force_refresh:
+        if (not results_dict.get("high_breakouts") and not results_dict.get("low_breakdowns")) or force_refresh:
             logger.info("week52-breakouts: Cache empty or refresh requested, running scanner...")
-            await engine.run_scanner(timeout=15.0)
-            results = await engine.get_cached_results()
+            import concurrent.futures
+            loop = asyncio.get_running_loop()
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                results_dict = await loop.run_in_executor(pool, service.detect_breakouts)
         
         # Map to frontend structure
         mapped_results = []
-        for res in results:
-            # Normalize breakout_type from engine to frontend format
-            breakout_type = res.get("breakout_type", "")
-            if breakout_type == "Breakout":
-                breakout_type = "52W_HIGH"
-            elif breakout_type == "Yearly High":
-                breakout_type = "Yearly High"
-            elif breakout_type == "Yearly Low":
-                breakout_type = "52W_LOW"
-            
-            # Calculate breakout_pct for frontend (positive for high, negative for low)
-            breakout_pct = res.get("breakout_pct", 0)
-            if breakout_type in ["52W_HIGH", "Yearly High"]:
-                breakout_pct = abs(breakout_pct)  # Enforce positive for highs
-            elif breakout_type in ["52W_LOW", "Yearly Low"]:
-                breakout_pct = -abs(breakout_pct) if breakout_pct > 0 else breakout_pct  # Enforce negative for lows
-
+        
+        # High breakouts
+        for res in results_dict.get("high_breakouts", []):
+            breakout_pct = res.get("breakout_pct", 0.0)
             mapped_results.append({
                 "symbol": res.get("symbol"),
-                "ltp": res.get("current_price"),
-                "current_price": res.get("current_price"), # ALIAS
-                "high_52w": res.get("yearly_high"),
-                "fifty_two_week_high": res.get("yearly_high"), # ALIAS
-                "low_52w": res.get("yearly_low"),
-                "fifty_two_week_low": res.get("yearly_low"), # ALIAS
-                "prev_close": res.get("current_price"), 
-                "change_pct": res.get("change_pct", 0),
-                "breakout_type": breakout_type,
+                "ltp": res.get("ltp"),
+                "current_price": res.get("ltp"), # ALIAS
+                "high_52w": res.get("high_52w"),
+                "fifty_two_week_high": res.get("high_52w"), # ALIAS
+                "low_52w": res.get("low_52w"),
+                "fifty_two_week_low": res.get("low_52w"), # ALIAS
+                "prev_close": res.get("prev_close"), 
+                "change_pct": res.get("change_pct", 0.0),
+                "breakout_type": "52W_HIGH",
                 "breakout_pct": round(breakout_pct, 2),
                 "breakout_percentage": round(breakout_pct, 2), # ALIAS
                 "breakdown_percentage": round(breakout_pct, 2), # ALIAS
                 "volume_ratio": res.get("volume_ratio", 1.0),
-                "volume_strength": res.get("volume_strength", "Normal"),
+                "volume_strength": "Strong" if res.get("volume_ratio", 1.0) >= 1.5 else "Normal",
                 "industry": res.get("industry", "N/A"),
-                "price_source": res.get("price_source", "DB_EOD"),
-                "source_timestamp": res.get("source_timestamp", res.get("timestamp")),
-                "timestamp": res.get("timestamp")
+                "price_source": "DB_EOD",
+                "source_timestamp": res.get("last_update"),
+                "timestamp": res.get("last_update")
+            })
+            
+        # Low breakdowns
+        for res in results_dict.get("low_breakdowns", []):
+            breakout_pct = res.get("breakout_pct", 0.0)
+            # Enforce negative breakout_pct for breakdowns
+            breakout_pct_neg = -abs(breakout_pct)
+            mapped_results.append({
+                "symbol": res.get("symbol"),
+                "ltp": res.get("ltp"),
+                "current_price": res.get("ltp"), # ALIAS
+                "high_52w": res.get("high_52w"),
+                "fifty_two_week_high": res.get("high_52w"), # ALIAS
+                "low_52w": res.get("low_52w"),
+                "fifty_two_week_low": res.get("low_52w"), # ALIAS
+                "prev_close": res.get("prev_close"), 
+                "change_pct": res.get("change_pct", 0.0),
+                "breakout_type": "52W_LOW",
+                "breakout_pct": round(breakout_pct_neg, 2),
+                "breakout_percentage": round(breakout_pct_neg, 2), # ALIAS
+                "breakdown_percentage": round(breakout_pct_neg, 2), # ALIAS
+                "volume_ratio": res.get("volume_ratio", 1.0),
+                "volume_strength": "Strong" if res.get("volume_ratio", 1.0) >= 1.5 else "Normal",
+                "industry": res.get("industry", "N/A"),
+                "price_source": "DB_EOD",
+                "source_timestamp": res.get("last_update"),
+                "timestamp": res.get("last_update")
             })
 
         # SYNC: Update Real-time Breakout Engine so WebSocket feed remains consistent

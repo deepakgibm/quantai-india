@@ -1,23 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Zap,
     TrendingUp,
     TrendingDown,
     Activity,
-    AlertCircle,
-    ChevronRight,
-    Maximize2,
-    Filter,
     RefreshCw,
-    Bell,
-    Clock,
-    ArrowUpCircle,
-    ArrowDownCircle,
-    Target,
-    BarChart3
+    Clock
 } from 'lucide-react';
 import { getAuthHeaders, API_URL } from '../services/api';
-import { isMarketOpen } from '../utils/marketHours';
+import { useMarketDataStream } from '../hooks/useMarketDataStream';
 
 interface StockTick {
     symbol: string;
@@ -69,67 +60,33 @@ const BUCKETS = [
 
 const MomentAlert: React.FC = () => {
     const [ticks, setTicks] = useState<StockTick[]>([]);
-    const [isConnected, setIsConnected] = useState(false);
     const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
     const [lastUpdate, setLastUpdate] = useState<string>('');
-    const [connectionMode, setConnectionMode] = useState<'WS' | 'REST'>('WS');
     const [highBreakouts, setHighBreakouts] = useState<Week52BreakoutStock[]>([]);
     const [lowBreakdowns, setLowBreakdowns] = useState<Week52BreakoutStock[]>([]);
     const [week52Loading, setWeek52Loading] = useState(true);
-    const ws = useRef<WebSocket | null>(null);
-    const pollInterval = useRef<NodeJS.Timeout | null>(null);
-    const wsRetryCount = useRef(0);
-    const maxWsRetries = 3;
 
-    // Check market hours
-    const checkMarketStatus = () => {
-        // We import dynamically or assuming valid import exists from top level
-        // For now, let's implement validation logic here or rely on the imported util
-        // We need to import it at the top of the file
-        return isMarketOpen();
-    };
-
-    const wsReconnectTimeout = useRef<NodeJS.Timeout | null>(null);
-
-    useEffect(() => {
-        const initializeConnection = () => {
-            const marketOpen = checkMarketStatus();
-            if (marketOpen) {
-                connectWS();
-            } else {
-                console.log("Market closed. Using REST polling.");
-                startRestPolling();
-            }
-        };
-
-        initializeConnection();
-        fetchWeek52Breakouts();
-
-        // Refresh 52-week data every 5 minutes
-        const week52Interval = setInterval(fetchWeek52Breakouts, 300000);
-
-        return () => {
-            cleanupConnections();
-            clearInterval(week52Interval);
-        };
+    // ── Singleton WS via shared hook (no duplicate socket) ──────────────────
+    const handleDataUpdate = useCallback((message: any) => {
+        if (message.type === 'bucket_update' && Array.isArray(message.data)) {
+            const sortedTicks = (message.data as StockTick[]).sort(
+                (a, b) => b.momentum_score - a.momentum_score
+            );
+            setTicks(sortedTicks);
+            setLastUpdate(message.timestamp);
+            if (message.status) setDataStatus(message.status);
+        }
     }, []);
 
-    const cleanupConnections = () => {
-        if (ws.current) {
-            ws.current.onclose = null; // Prevent reconnect loop during intentional close
-            ws.current.close();
-            ws.current = null;
-        }
-        if (pollInterval.current) {
-            clearInterval(pollInterval.current);
-            pollInterval.current = null;
-        }
-        if (wsReconnectTimeout.current) {
-            clearTimeout(wsReconnectTimeout.current);
-            wsReconnectTimeout.current = null;
-        }
-        setIsConnected(false);
-    };
+    const { isConnected } = useMarketDataStream({ onMessage: handleDataUpdate });
+
+    useEffect(() => {
+        fetchWeek52Breakouts();
+        const week52Interval = setInterval(fetchWeek52Breakouts, 300_000);
+        return () => clearInterval(week52Interval);
+    }, []);
+
+
 
     const fetchWeek52Breakouts = async (forceRefresh: boolean = false) => {
         try {
@@ -150,124 +107,7 @@ const MomentAlert: React.FC = () => {
         }
     };
 
-    const handleDataUpdate = (message: any) => {
-        if (message.type === 'bucket_update' && Array.isArray(message.data)) {
-            const sortedTicks = (message.data as StockTick[]).sort((a, b) => b.momentum_score - a.momentum_score);
-            
-            setTicks(sortedTicks);
-            setLastUpdate(message.timestamp);
 
-            // Update status info
-            if (message.status) {
-                setDataStatus(message.status);
-            }
-        }
-    };
-
-    const connectWS = () => {
-        // Clear any existing connections or timeouts first
-        cleanupConnections();
-
-        if (!checkMarketStatus()) {
-            console.log("Market closed during connect attempt. Switching to REST.");
-            startRestPolling();
-            return;
-        }
-
-        setConnectionMode('WS');
-        const getWsUrl = () => {
-            const baseUrl = API_URL || window.location.origin;
-            const proto = baseUrl.startsWith('https') ? 'wss' : 'ws';
-            const host = baseUrl.replace(/^https?:\/\//, '');
-            return `${proto}://${host}/api/scanner/ws`;
-        };
-        const wsUrl = getWsUrl();
-        console.log(`Connecting to Market WS: ${wsUrl}`);
-        
-        try {
-            const socket = new WebSocket(wsUrl);
-            ws.current = socket;
-
-            socket.onopen = () => {
-                setIsConnected(true);
-                wsRetryCount.current = 0;
-                console.log('Market WS Connected');
-            };
-
-            socket.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    handleDataUpdate(message);
-                } catch (e) {
-                    console.error('Error parsing WS message:', e);
-                }
-            };
-
-            socket.onerror = (error) => {
-                console.warn('Market WS Error:', error);
-            };
-
-            socket.onclose = (event) => {
-                ws.current = null;
-                setIsConnected(false);
-                
-                if (event.wasClean) {
-                    console.log('Market WS Closed Cleanly');
-                    return;
-                }
-
-                wsRetryCount.current += 1;
-                if (wsRetryCount.current <= maxWsRetries) {
-                    const delay = Math.min(1000 * Math.pow(2, wsRetryCount.current), 30000);
-                    console.log(`Market WS Closed. Scheduling reconnect in ${delay}ms (Attempt ${wsRetryCount.current}/${maxWsRetries})`);
-                    wsReconnectTimeout.current = setTimeout(connectWS, delay);
-                } else {
-                    console.log('Max WebSocket retries reached, switching to REST polling');
-                    startRestPolling();
-                }
-            };
-        } catch (e) {
-            console.error('Failed to create WebSocket:', e);
-            startRestPolling();
-        }
-    };
-
-    const startRestPolling = () => {
-        // Ensure no WS is running
-        if (ws.current) {
-            ws.current.onclose = null;
-            ws.current.close();
-            ws.current = null;
-        }
-        if (wsReconnectTimeout.current) {
-            clearTimeout(wsReconnectTimeout.current);
-            wsReconnectTimeout.current = null;
-        }
-
-        if (pollInterval.current) return; // Already polling
-
-        setConnectionMode('REST');
-        setIsConnected(true);
-        console.log('Starting REST polling mode');
-
-        fetchMomentumData();
-        pollInterval.current = setInterval(fetchMomentumData, 5000);
-    };
-
-    const fetchMomentumData = async (forceRefresh: boolean = false) => {
-        try {
-            const url = `${API_URL}/api/scanner/momentum${forceRefresh ? '?force_refresh=true' : ''}`;
-            const response = await fetch(url, {
-                headers: getAuthHeaders()
-            });
-            if (response.ok) {
-                const message = await response.json();
-                handleDataUpdate(message);
-            }
-        } catch (error) {
-            console.error('REST polling error:', error);
-        }
-    };
 
     const bucketedStocks = useMemo(() => {
         const groups: Record<string, StockTick[]> = {};
@@ -291,10 +131,7 @@ const MomentAlert: React.FC = () => {
     const handleRefresh = async () => {
         setIsRefreshing(true);
         try {
-            await Promise.all([
-                fetchMomentumData(true),
-                fetchWeek52Breakouts(true)
-            ]);
+            await fetchWeek52Breakouts(true);
         } catch (error) {
             console.error('Refresh error:', error);
         } finally {
@@ -315,7 +152,7 @@ const MomentAlert: React.FC = () => {
                         <div className="flex items-center gap-3 mt-1">
                             <div className={`flex items-center gap-1.5 text-xs font-semibold ${isConnected ? 'text-emerald-500' : 'text-rose-500'}`}>
                                 <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
-                                {isConnected ? `Connected (${connectionMode})` : 'Disconnected'}
+                            {isConnected ? 'Live' : 'Reconnecting...'}
                             </div>
                             {lastUpdate && (
                                 <span className="text-xs text-slate-400 flex items-center gap-1">

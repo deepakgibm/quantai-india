@@ -58,8 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
       { page: Page.DASHBOARD,            icon: LayoutDashboard, label: 'Dashboard' },
       { page: Page.VOLATILITY_DASHBOARD, icon: Activity,        label: 'Volatility Index' },
       { page: Page.OPTION_FLOW,          icon: TrendingUp,      label: 'Option Flow' },
-      { page: Page.SECTOR_HEATMAP,       icon: Zap,             label: 'NIFTY 50 Heatmap' },
-      { page: Page.SECTOR_ANALYSIS,      icon: LayoutGrid,      label: 'Sector Analysis' },
+      { page: Page.SECTOR_HEATMAP,       icon: LayoutGrid,      label: 'Sector Heatmap & Analysis' },
       { page: Page.VOLUME_PROFILE,       icon: Cpu,             label: 'Volume Profile' },
     ],
   },
@@ -76,7 +75,6 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Intelligence & Signals',
     items: [
       { page: Page.INSTITUTIONAL_SCANNER, icon: TrendingUp,     label: 'Institutional Scanner', badge: 'VCP' },
-      { page: Page.TRADE_SCREENER,       icon: Shield,          label: 'Trade Screener' },
       { page: Page.SIGNAL_BOT,           icon: Bot,             label: 'Signal Bot' },
       { page: Page.AI_PROMPT,            icon: BrainCircuit,    label: 'AI Prompt' },
       { page: Page.VIBE_TRADING,          icon: BrainCircuit,    label: 'Vibe Trading / Coding', badge: 'SWARM' },

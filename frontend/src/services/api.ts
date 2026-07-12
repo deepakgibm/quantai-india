@@ -1086,13 +1086,15 @@ export const api = {
   },
 
   getHeatmapData: async (mode: string, timeframe: string = "1D") => {
-    const res = await apiGet<any>(`/api/heatmap?mode=${mode}&timeframe=${timeframe}`);
+    // Heatmap involves sector aggregation — allow 60s on cold load
+    const res = await apiGet<any>(`/api/heatmap?mode=${mode}&timeframe=${timeframe}`, 60000);
     if (res.success) return res.data;
     throw res.error;
   },
 
   getSectorAnalysisData: async (timeframe: string = "1D") => {
-    const res = await apiGet<any>(`/api/sector-analysis?timeframe=${timeframe}`);
+    // Sector analysis fetches 500+ stocks with indicators — allow 90s on first cold load
+    const res = await apiGet<any>(`/api/sector-analysis?timeframe=${timeframe}`, 90000);
     if (res.success) return res.data;
     throw res.error;
   },

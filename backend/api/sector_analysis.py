@@ -221,45 +221,50 @@ async def get_sector_analysis(
             symbol_data[sym]["volumes"].append(int(r.volume))
             symbol_data[sym]["candle_ts"].append(r.candle_ts)
 
-        # Enrich latest closes with live prices from UpstoxPriceResolver for all timeframes
+        # Enrich latest closes with live prices from PriceService ONLY during live market hours.
+        # Off-hours: skip the costly 500-symbol Upstox REST bulk call; use DB prices directly.
         if symbol_data:
             try:
-                from services.upstox_price_resolver import get_upstox_price_resolver
+                from services.price_manager import get_price_service
                 from services.market_hours_service import get_market_hours_service
                 from datetime import date
-                
-                resolver = get_upstox_price_resolver()
+
                 market_hours = get_market_hours_service()
-                
-                today_date_str = market_hours.get_trading_date()
-                today_date = date.fromisoformat(today_date_str)
-                
-                symbols = list(symbol_data.keys())
-                live_prices = await resolver.get_prices_bulk(symbols)
-                for sym, p_data in live_prices.items():
-                    if sym in symbol_data and p_data and p_data.get("price", 0) > 0:
-                        ltp = p_data["price"]
-                        s_data = symbol_data[sym]
-                        
-                        if s_data["closes"]:
-                            last_ts = s_data["candle_ts"][-1]
-                            last_date = last_ts.date() if isinstance(last_ts, datetime) else (last_ts if isinstance(last_ts, date) else None)
-                            
-                            if last_date:
-                                gap_days = (today_date - last_date).days
-                                if gap_days <= 3:
-                                    if last_date < today_date:
-                                        # Only append if price differs or market is open to avoid flat duplicates
-                                        if ltp != s_data["closes"][-1] or market_hours.is_market_open():
-                                            s_data["closes"].append(ltp)
-                                            s_data["volumes"].append(0)
-                                            s_data["candle_ts"].append(datetime.combine(today_date, datetime.min.time()))
+
+                if market_hours.is_market_open():
+                    price_svc = get_price_service()
+                    today_date_str = market_hours.get_trading_date()
+                    today_date = date.fromisoformat(today_date_str)
+
+                    symbols = list(symbol_data.keys())
+                    live_prices = await price_svc.get_prices_bulk(symbols)
+                    for sym, p_data in live_prices.items():
+                        if sym in symbol_data and p_data and p_data.get("ltp", 0.0) > 0.0:
+                            ltp = p_data["ltp"]
+                            s_data = symbol_data[sym]
+
+                            if s_data["closes"]:
+                                last_ts = s_data["candle_ts"][-1]
+                                last_date = last_ts.date() if isinstance(last_ts, datetime) else (
+                                    last_ts if isinstance(last_ts, date) else None
+                                )
+
+                                if last_date:
+                                    gap_days = (today_date - last_date).days
+                                    if gap_days <= 3:
+                                        if last_date < today_date:
+                                            if ltp != s_data["closes"][-1]:
+                                                s_data["closes"].append(ltp)
+                                                s_data["volumes"].append(0)
+                                                s_data["candle_ts"].append(
+                                                    datetime.combine(today_date, datetime.min.time())
+                                                )
+                                        else:
+                                            s_data["closes"][-1] = ltp
                                     else:
                                         s_data["closes"][-1] = ltp
-                                else:
-                                    # Stale DB. Update EOD last close ONLY if market is open and we have fresh active LTP
-                                    if market_hours.is_market_open() and ltp != s_data["closes"][-1]:
-                                        s_data["closes"][-1] = ltp
+                else:
+                    logger.debug("Sector analysis: market closed, using DB prices without live enrichment.")
             except Exception as e:
                 logger.error(f"Failed to enrich sector analysis with live prices: {e}")
 
@@ -707,11 +712,14 @@ async def get_sector_analysis(
             "lineage": lineage
         }
 
-        # Cache for 60s
+        # Cache: 120s during live market hours, 300s during off-hours
         sanitized_response = sanitize_numpy(response_data)
         if cache.is_available():
             try:
-                cache.set(cache_key, sanitized_response, ttl=60)
+                from services.market_hours_service import get_market_hours_service
+                _mh = get_market_hours_service()
+                cache_ttl = 120 if _mh.is_market_open() else 300
+                cache.set(cache_key, sanitized_response, ttl=cache_ttl)
             except Exception as ce:
                 logger.warning(f"Cache write error in sector analysis: {ce}")
                 

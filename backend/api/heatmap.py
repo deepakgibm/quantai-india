@@ -293,19 +293,19 @@ async def get_heatmap(
             "market_cap": float(r.market_cap) if r.market_cap is not None else 5000000000.0 # 500Cr default only if absolutely null
         } for r in rows])
         
-        # Enrich latest close with live prices from UpstoxPriceResolver
+        # Enrich latest close with live prices from PriceService
         try:
-            from services.upstox_price_resolver import get_upstox_price_resolver
-            resolver = get_upstox_price_resolver()
+            from services.price_manager import get_price_service
+            price_svc = get_price_service()
             symbols = df["symbol"].tolist()
-            live_prices = await resolver.get_prices_bulk(symbols)
+            live_prices = await price_svc.get_prices_bulk(symbols)
             for idx, row in df.iterrows():
                 sym = row["symbol"]
                 p_data = live_prices.get(sym)
-                if p_data and p_data.get("price", 0) > 0:
-                    df.at[idx, "close"] = p_data["price"]
-                    if timeframe == "1D" and p_data.get("prev_close", 0) > 0 and p_data["prev_close"] != p_data["price"]:
-                        df.at[idx, "prev_close"] = p_data["prev_close"]
+                if p_data and p_data.get("ltp", 0.0) > 0.0:
+                    df.at[idx, "close"] = p_data["ltp"]
+                    if timeframe == "1D" and p_data.get("previous_close", 0.0) > 0.0 and p_data["previous_close"] != p_data["ltp"]:
+                        df.at[idx, "prev_close"] = p_data["previous_close"]
         except Exception as e:
             logger.error(f"Failed to enrich heatmap with live prices: {e}")
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Zap,
     TrendingUp,
@@ -16,7 +16,7 @@ import {
     ChevronDown
 } from 'lucide-react';
 import { API_URL, getAuthHeaders } from '../services/api';
-import { isMarketOpen } from '../utils/marketHours';
+import { useMarketDataStream } from '../hooks/useMarketDataStream';
 import { PriceWithSource } from '../components/PriceSourceBadge';
 
 interface Week52BreakoutStock {
@@ -41,10 +41,6 @@ const Week52Breakout: React.FC = () => {
     const [lowBreakdowns, setLowBreakdowns] = useState<Week52BreakoutStock[]>([]);
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<string>('');
-    const [isConnected, setIsConnected] = useState(false);
-    const ws = useRef<WebSocket | null>(null);
-    const wsRetryCount = useRef(0);
-    const maxWsRetries = 3;
 
     // Search state
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -57,115 +53,31 @@ const Week52Breakout: React.FC = () => {
     const [lowSortField, setLowSortField] = useState<SortField>('breakout_pct');
     const [lowSortOrder, setLowSortOrder] = useState<SortOrder>('desc');
 
-    const wsReconnectTimeout = useRef<NodeJS.Timeout | null>(null);
+    // ── Receive breakout updates from the singleton WS (no duplicate socket) ─
+    const handleWsMessage = useCallback((message: any) => {
+        if (message.type === 'bucket_update' && message.breakouts) {
+            handleBreakoutUpdate(message.breakouts);
+            setLastRefresh(new Date().toLocaleTimeString());
+            setLoading(false);
+        }
+    }, []);
+
+    const { isConnected } = useMarketDataStream({ onMessage: handleWsMessage });
 
     useEffect(() => {
-        const initializeConnection = () => {
-            const marketOpen = isMarketOpen();
-            if (marketOpen) {
-                connectWS();
-            } else {
-                console.log("Market closed. Fetching via REST.");
-                fetchBreakouts();
-            }
-        };
-
-        initializeConnection();
-
-        return () => {
-            cleanupConnections();
-        };
+        // Initial data load via REST
+        fetchBreakouts();
     }, []);
 
     useEffect(() => {
-        console.log("Breakout State Updated:", highBreakouts);
+        console.log('Breakout State Updated:', highBreakouts);
     }, [highBreakouts]);
 
     useEffect(() => {
-        console.log("Breakdown State Updated:", lowBreakdowns);
+        console.log('Breakdown State Updated:', lowBreakdowns);
     }, [lowBreakdowns]);
 
-    const cleanupConnections = () => {
-        if (ws.current) {
-            ws.current.onclose = null;
-            ws.current.close();
-            ws.current = null;
-        }
-        if (wsReconnectTimeout.current) {
-            clearTimeout(wsReconnectTimeout.current);
-            wsReconnectTimeout.current = null;
-        }
-        setIsConnected(false);
-    };
 
-    const connectWS = () => {
-        cleanupConnections();
-
-        if (!isMarketOpen()) {
-            fetchBreakouts();
-            return;
-        }
-
-        const getWsUrl = () => {
-            const baseUrl = API_URL || window.location.origin;
-            const proto = baseUrl.startsWith('https') ? 'wss' : 'ws';
-            const host = baseUrl.replace(/^https?:\/\//, '');
-            return `${proto}://${host}/api/scanner/ws`;
-        };
-        const wsUrl = getWsUrl();
-        console.log(`Connecting to Breakouts WS: ${wsUrl}`);
-
-        try {
-            const socket = new WebSocket(wsUrl);
-            ws.current = socket;
-
-            socket.onopen = () => {
-                setIsConnected(true);
-                setLoading(false);
-                wsRetryCount.current = 0;
-                console.log('Breakouts WS Connected');
-            };
-
-            socket.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    if (message.type === 'bucket_update' && message.breakouts) {
-                        handleBreakoutUpdate(message.breakouts);
-                        setLastRefresh(new Date().toLocaleTimeString());
-                    }
-                } catch (e) {
-                    console.error("WS Message Error", e);
-                }
-            };
-
-            socket.onerror = (error) => {
-                console.warn('Breakouts WS Error:', error);
-            };
-
-            socket.onclose = (event) => {
-                ws.current = null;
-                setIsConnected(false);
-
-                if (event.wasClean) {
-                    console.log('Breakouts WS Closed Cleanly');
-                    return;
-                }
-
-                wsRetryCount.current += 1;
-                if (wsRetryCount.current <= maxWsRetries) {
-                    const delay = Math.min(1000 * Math.pow(2, wsRetryCount.current), 30000);
-                    console.log(`Breakouts WS Closed. Scheduling reconnect in ${delay}ms (Attempt ${wsRetryCount.current}/${maxWsRetries})`);
-                    wsReconnectTimeout.current = setTimeout(connectWS, delay);
-                } else {
-                    console.log('Max WebSocket retries reached for Breakouts, switching to REST');
-                    fetchBreakouts();
-                }
-            };
-        } catch (e) {
-            console.error('Failed to create WebSocket for Breakouts:', e);
-            fetchBreakouts();
-        }
-    };
 
     const handleBreakoutUpdate = (breakouts: Week52BreakoutStock[]) => {
         if (!Array.isArray(breakouts)) return;

@@ -11,13 +11,11 @@ import AIPrompt from './pages/AIPrompt';
 import VibeTrading from './pages/VibeTrading';
 import Scanner from './pages/Scanner';
 import SectorHeatmapPage from './pages/SectorHeatmapPage';
-import SectorAnalysisPage from './pages/SectorAnalysisPage';
 import VolumeProfilePage from './pages/VolumeProfilePage';
 import VolatilityDashboard from './pages/VolatilityDashboard';
 import OptionFlow from './pages/OptionFlow';
 import MomentAlert from './pages/MomentAlert';
 import Week52Breakout from './pages/Week52Breakout';
-import TradeScreener from './pages/TradeScreener';
 import BotTab from './pages/BotTab';
 import QuantWorkspace from './pages/QuantWorkspace';
 import Subscription from './pages/Subscription';
@@ -280,13 +278,13 @@ const AppRoutes: React.FC = () => {
       <Route path="/quant-workspace" element={<ProtectedRoute activePage={Page.QUANT_WORKSPACE} element={<QuantWorkspace />} />} />
       <Route path="/scanner" element={<ProtectedRoute activePage={Page.SCANNER} element={<Scanner />} />} />
       <Route path="/sector-heatmap" element={<ProtectedRoute activePage={Page.SECTOR_HEATMAP} element={<SectorHeatmapPage onNavigate={handleNavigate} />} />} />
-      <Route path="/sector-analysis" element={<ProtectedRoute activePage={Page.SECTOR_ANALYSIS} element={<SectorAnalysisPage onNavigate={handleNavigate} />} />} />
+      <Route path="/sector-analysis" element={<ProtectedRoute activePage={Page.SECTOR_ANALYSIS} element={<SectorHeatmapPage onNavigate={handleNavigate} />} />} />
       <Route path="/volume-profile" element={<ProtectedRoute activePage={Page.VOLUME_PROFILE} element={<VolumeProfilePage onNavigate={handleNavigate} />} />} />
       <Route path="/volatility" element={<ProtectedRoute activePage={Page.VOLATILITY_DASHBOARD} element={<VolatilityDashboard />} />} />
       <Route path="/option-flow" element={<ProtectedRoute activePage={Page.OPTION_FLOW} element={<OptionFlow />} />} />
       <Route path="/moment-alert" element={<ProtectedRoute activePage={Page.MOMENT_ALERT} element={<MomentAlert />} />} />
       <Route path="/week52-breakout" element={<ProtectedRoute activePage={Page.WEEK52_BREAKOUT} element={<Week52Breakout />} />} />
-      <Route path="/trade-screener" element={<ProtectedRoute activePage={Page.TRADE_SCREENER} element={<TradeScreener />} />} />
+      <Route path="/trade-screener" element={<ProtectedRoute activePage={Page.TRADE_SCREENER} element={<Scanner />} />} />
       <Route path="/signal-bot" element={<ProtectedRoute activePage={Page.SIGNAL_BOT} element={<BotTab />} />} />
       <Route path="/subscription" element={<ProtectedRoute activePage={Page.SUBSCRIPTION} element={<Subscription />} />} />
       <Route path="/smc-analysis" element={<ProtectedRoute activePage={Page.SMC_ANALYSIS} element={<SMCAnalysis />} />} />
