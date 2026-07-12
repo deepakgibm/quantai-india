@@ -171,7 +171,7 @@ class Nifty100RankingService:
         
         Strategy:
         1. Try Dragonfly cache first (our own cache key, short TTL)
-        2. If cache miss, explicitly fetch from UpstoxPriceResolver (Single Source of Truth)
+        2. If cache miss, explicitly fetch from PriceService (Single Source of Truth)
         
         Returns:
             TopMoversResult as dict
@@ -194,24 +194,24 @@ class Nifty100RankingService:
         
         logger.info(f"CACHE MISS (bypass={bypass_cache}): {cache_key}, fetching live data")
         
-        # 2. Compute exclusively from UpstoxPriceResolver (Single Source of Truth)
+        # 2. Compute exclusively from PriceService (Single Source of Truth)
         try:
-            from services.upstox_price_resolver import get_upstox_price_resolver
-            resolver = get_upstox_price_resolver()
+            from services.price_manager import get_price_service
+            price_svc = get_price_service()
             
             nifty100_symbols = get_nifty_symbols()
             # Expanded indices list
             indices = ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "NIFTY NEXT 50", "MIDCPNIFTY"]
             symbols_to_fetch = list(set([s.upper() for s in (nifty100_symbols + indices)]))
             
-            # Fetch directly from resolver - this will internally handle Cache -> REST -> DB EOD routing reliably
-            prices = await resolver.get_prices_bulk(symbols_to_fetch)
+            # Fetch directly from unified PriceService
+            prices = await price_svc.get_prices_bulk(symbols_to_fetch)
             
             if prices and len(prices) >= 5:
                 # Format data for ranking computation
                 ticks = []
                 for symbol, data in prices.items():
-                    if data.get("price") and data.get("price") > 0:
+                    if data.get("ltp") and data.get("ltp") > 0:
                         ticks.append(data)
                 
                 if len(ticks) >= 5:
@@ -219,9 +219,9 @@ class Nifty100RankingService:
                     await self._write_to_cache(result)
                     return asdict(result)
             
-            logger.warning(f"UpstoxPriceResolver returned insufficient data ({len(prices)} symbols). Cannot compute rankings.")
+            logger.warning(f"PriceService returned insufficient data ({len(prices)} symbols). Cannot compute rankings.")
         except Exception as e:
-            logger.error(f"UpstoxPriceResolver bulk fetch failed: {e}")
+            logger.error(f"PriceService bulk fetch failed: {e}")
         
         # 3. Return empty result with error (Strict failure state)
         return {
@@ -367,18 +367,17 @@ class Nifty100RankingService:
             try:
                 await asyncio.sleep(Config.REFRESH_INTERVAL)
                 
-                # Use UpstoxPriceResolver instead of orchestrator
-                from services.upstox_price_resolver import get_upstox_price_resolver
-                resolver = get_upstox_price_resolver()
+                from services.price_manager import get_price_service
+                price_svc = get_price_service()
                 
                 nifty100_symbols = get_nifty_symbols()
                 indices = ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "NIFTY NEXT 50", "MIDCPNIFTY"]
                 symbols_to_fetch = list(set([s.upper() for s in (nifty100_symbols + indices)]))
                 
-                prices = await resolver.get_prices_bulk(symbols_to_fetch)
+                prices = await price_svc.get_prices_bulk(symbols_to_fetch)
                 
                 if len(prices) >= 5:
-                    ticks = [data for symbol, data in prices.items() if data.get("price")]
+                    ticks = [data for symbol, data in prices.items() if data.get("ltp")]
                     result = self._compute_rankings_from_resolver(ticks)
                     await self._write_to_cache(result, ttl=Config.CACHE_TTL_LIVE)
                     
@@ -407,37 +406,32 @@ class Nifty100RankingService:
     # =========================================================================
     
     def _compute_rankings_from_resolver(self, ticks: List[Dict]) -> TopMoversResult:
-        """Compute rankings from PriceResolver unified JSON packets."""
+        """Compute rankings from PriceService unified DTO packets."""
         valid_stocks = []
         
-        # We need previous close to compute change_pct if resolver doesn't provide it
-        # Actually, let's try to get change_pct from snapshots or DB fallback if missing
-        
         for tick in ticks:
-            # Consume metrics from Resolver's enhanced contract
-            price = tick.get("price", 0)
+            price = tick.get("ltp", 0)
             symbol = tick.get("symbol", "UNKNOWN").upper()
-            change_pct = tick.get("change_pct", 0)
-            prev_close = tick.get("prev_close", 0)
+            change_percent = tick.get("change_percent", 0)
+            previous_close = tick.get("previous_close", 0)
             instrument_key = tick.get("instrument_key", "")
             
             # Determine segment
             segment = "EQUITY"
-            if "INDEX" in instrument_key or symbol in ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "MIDCPNIFTY", "NIFTY NEXT 50"]:
+            if instrument_key and "INDEX" in instrument_key or symbol in ["NIFTY 50", "NIFTY BANK", "INDIA VIX", "FINNIFTY", "MIDCPNIFTY", "NIFTY NEXT 50"]:
                 segment = "INDEX"
-            elif "F&O" in instrument_key or "NSE_FO" in instrument_key:
+            elif instrument_key and ("F&O" in instrument_key or "NSE_FO" in instrument_key):
                 segment = "F&O"
                 
             # Filter out "neutral" stocks (exactly 0.0 change or no movement)
-            # but only if we have enough other data
-            if abs(change_pct) < 0.0001 and len(ticks) > 20:
+            if abs(change_percent) < 0.0001 and len(ticks) > 20:
                 continue
 
             valid_stocks.append({
                 "symbol": symbol,
                 "ltp": price,
-                "change_pct": round(change_pct, 4),
-                "prev_close": prev_close,
+                "change_pct": round(change_percent, 4),
+                "prev_close": previous_close,
                 "volume": tick.get("volume", 0),
                 "day_high": tick.get("high", price),
                 "day_low": tick.get("low", price),

@@ -277,13 +277,13 @@ class YearlyBreakoutEngine:
             logger.error(f"Failed to query breakout candles from database: {e}")
             return
             
-        # Bulk resolve live prices using UpstoxPriceResolver
+        # Bulk resolve live prices using PriceService
         symbols_list = [r.symbol for r in rows]
-        from services.upstox_price_resolver import get_upstox_price_resolver
-        resolver = get_upstox_price_resolver()
+        from services.price_manager import get_price_service
+        price_svc = get_price_service()
         live_prices = {}
         try:
-            live_prices = await resolver.get_prices_bulk(symbols_list)
+            live_prices = await price_svc.get_prices_bulk(symbols_list)
             logger.info(f"Yearly Breakout: Bulk resolved prices for {len(live_prices)}/{len(symbols_list)} symbols.")
         except Exception as e:
             logger.error(f"Yearly Breakout: Bulk price resolution failed: {e}")
@@ -301,12 +301,12 @@ class YearlyBreakoutEngine:
             low_52w = float(r.year_low) if r.year_low else 0
             prev_high_52w = float(r.prev_year_high) if r.prev_year_high else high_52w
             
-            # Fetch live price from resolver
+            # Fetch live price from PriceService DTO
             price_data = live_prices.get(symbol)
-            if price_data and price_data.get("price", 0) > 0:
-                ltp = float(price_data["price"])
-                prev_close = float(price_data.get("prev_close") or r.prev_close or ltp)
-                price_source = price_data.get("price_source", "UNKNOWN")
+            if price_data and price_data.get("ltp", 0.0) > 0.0:
+                ltp = float(price_data["ltp"])
+                prev_close = float(price_data.get("previous_close") or r.prev_close or ltp)
+                price_source = price_data.get("source", "UNKNOWN")
                 source_timestamp = price_data.get("timestamp") or datetime.now().isoformat()
             else:
                 ltp = float(r.last_price) if r.last_price else 0

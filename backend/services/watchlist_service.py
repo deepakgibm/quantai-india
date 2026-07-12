@@ -7,7 +7,7 @@ from sqlalchemy import text
 from models import WatchlistItem
 from schemas import WatchlistItemCreate
 from repositories.watchlist_repository import WatchlistRepository
-from services.upstox_price_resolver import get_upstox_price_resolver
+from services.price_manager import get_price_service
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +40,13 @@ class WatchlistService:
 
         # Fallback price recovery
         if not watchlist_price or watchlist_price <= 0:
-            # Attempt 1: Fetch live quote LTP using UpstoxPriceResolver
+            # Attempt 1: Fetch live quote LTP using PriceService
             try:
-                resolver = get_upstox_price_resolver()
-                price_res = await resolver.get_price(symbol)
-                if price_res and price_res.get("price", 0) > 0:
-                    watchlist_price = float(price_res["price"])
-                    logger.info(f"Resolved live price for {symbol} via Resolver: {watchlist_price}")
+                price_svc = get_price_service()
+                price_res = await price_svc.get_price(symbol)
+                if price_res and price_res.get("ltp", 0.0) > 0.0:
+                    watchlist_price = float(price_res["ltp"])
+                    logger.info(f"Resolved live price for {symbol} via PriceService: {watchlist_price}")
             except Exception as e:
                 logger.warning(f"Failed to fetch live quote for {symbol} on watchlist addition: {e}")
 
@@ -141,19 +141,19 @@ class WatchlistService:
         if not items:
             return []
 
-        # Batch resolve prices via UpstoxPriceResolver
+        # Batch resolve prices via PriceService
         symbols = [item.symbol for item in items]
         
         if symbols:
-            resolver = get_upstox_price_resolver()
+            price_svc = get_price_service()
             try:
-                prices_map = await resolver.get_prices_bulk(symbols)
+                prices_map = await price_svc.get_prices_bulk(symbols)
                 
                 # Update items with live quote data from resolver
                 for item in items:
                     p_data = prices_map.get(item.symbol.upper())
-                    if p_data and p_data.get("price", 0) > 0:
-                        ltp = float(p_data["price"])
+                    if p_data and p_data.get("ltp", 0.0) > 0.0:
+                        ltp = float(p_data["ltp"])
                         item.current_price = ltp
                         wp = item.watchlist_price or 0.0
                         item.change_amount = ltp - wp

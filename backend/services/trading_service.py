@@ -153,79 +153,32 @@ class TradingService:
         return [{"symbol": g['symbol'], "price": g['ltp'], "change": g['change_pct']} for g in rankings.get('gainers', [])]
 
     async def _fetch_market_indices_internal(self) -> List[Dict[str, Any]]:
-        """Internal multi-source fetcher for indices."""
-        INDEX_MAPPINGS = [
-            ("NIFTY 50", "NSE_INDEX|Nifty 50"),
-            ("BANK NIFTY", "NSE_INDEX|Nifty Bank"),
-            ("INDIA VIX", "NSE_INDEX|India VIX"),
-        ]
-        results_map = {} 
-        needed_names = [name for name, _ in INDEX_MAPPINGS]
-
-        # 1. Cache
-        try:
-            orchestrator = get_market_data_orchestrator()
-            cached_data = orchestrator.get_all_data()
-            if cached_data:
-                for name, _ in INDEX_MAPPINGS:
-                    for item in cached_data:
-                        if item.get("symbol") == name:
-                            results_map[name] = {"name": name, "value": round(item.get("ltp", 0), 2), "change": round(item.get("change_pct", 0), 2), "percent": round(item.get("change_pct", 0), 2), "source": f"cache:{item.get('source', 'unknown')}"}
-                            break
-        except Exception: pass
-
-        if len(results_map) == len(needed_names): return list(results_map.values())
-
-        # 2. Upstox
-        try:
-            missing_keys = [key for name, key in INDEX_MAPPINGS if name not in results_map]
-            if missing_keys:
-                client = get_upstox_client()
-                quotes = await asyncio.wait_for(client.get_live_quotes(missing_keys), timeout=3.5)
-                for name, key in INDEX_MAPPINGS:
-                    if name not in results_map and key in quotes:
-                        quote = quotes[key]
-                        results_map[name] = {"name": name, "value": round(quote['last_price'], 2), "change": round(quote.get('net_change', 0), 2), "percent": round(quote.get('change_percent', 0), 2), "source": "upstox_rest"}
-        except Exception: pass
-
-        if len(results_map) == len(needed_names): return list(results_map.values())
-
-        # 3. yFinance
-        try:
-            yf_indices = await asyncio.wait_for(fetch_live_indices_yfinance(), timeout=3.0)
-            if yf_indices:
-                for item in yf_indices:
-                    if item.get("name") in needed_names and item.get("name") not in results_map:
-                        results_map[item.get("name")] = item
-        except Exception: pass
-
-        if len(results_map) == len(needed_names): return list(results_map.values())
-
-        # 4. DB
-        try:
-            async with AsyncSessionLocal() as session:
-                for name in [n for n in needed_names if n not in results_map]:
-                    # Fetch last 2 daily candles to calculate change
-                    res = await session.execute(text("SELECT sc.close, sc.candle_ts FROM stock_candle sc JOIN instrument_master im ON sc.instrument_id = im.instrument_id WHERE im.symbol = :sym AND sc.timeframe = 1440 ORDER BY sc.candle_ts DESC LIMIT 2"), {"sym": name})
-                    rows = res.fetchall()
-                    if rows:
-                        current_close = float(rows[0][0])
-                        prev_close = float(rows[1][0]) if len(rows) > 1 else current_close
-                        change = current_close - prev_close
-                        percent = (change / prev_close * 100) if prev_close != 0 else 0.0
-                        
-                        results_map[name] = {
-                            "name": name, 
-                            "value": round(current_close, 2), 
-                            "change": round(change, 2), 
-                            "percent": round(percent, 2), 
-                            "source": "database", 
-                            "stale": True
-                        }
-        except Exception as e:
-            logger.warning(f"Database indices fetch failed: {e}")
-
-        return list(results_map.values())
+        """Internal unified fetcher for indices using PriceService."""
+        INDEX_MAPPINGS = {
+            "NIFTY 50": "NIFTY 50",
+            "BANK NIFTY": "NIFTY BANK",
+            "INDIA VIX": "INDIA VIX",
+        }
+        
+        from services.price_manager import get_price_service
+        price_svc = get_price_service()
+        
+        symbols_to_fetch = list(INDEX_MAPPINGS.values())
+        prices = await price_svc.get_prices_bulk(symbols_to_fetch)
+        
+        results = []
+        for name, sym in INDEX_MAPPINGS.items():
+            p_data = prices.get(sym)
+            if p_data:
+                results.append({
+                    "name": name,
+                    "value": round(p_data.get("ltp", 0.0), 2),
+                    "change": round(p_data.get("change", 0.0), 2),
+                    "percent": round(p_data.get("change_percent", 0.0), 2),
+                    "source": p_data.get("source", "UNKNOWN"),
+                    "stale": p_data.get("market_status") != "OPEN"
+                })
+        return results
 
 _trading_service = None
 def get_trading_service():

@@ -179,17 +179,17 @@ async def get_volatility_data(
             'volume': int(r.volume) if r.volume is not None else 0
         } for r in candles_rows])
         
-        # Inject live/EOD price from resolver to construct today's session candle
+        # Inject live/EOD price from PriceService to construct today's session candle
         try:
-            from services.upstox_price_resolver import get_upstox_price_resolver
+            from services.price_manager import get_price_service
             from services.market_hours_service import get_market_hours_service
             
-            resolver = get_upstox_price_resolver()
-            price_res = await resolver.get_price(symbol)
+            price_svc = get_price_service()
+            price_res = await price_svc.get_price(symbol)
             
-            if price_res and price_res.get("price") and price_res.get("price") > 0:
-                ltp = float(price_res["price"])
-                prev_close = float(price_res.get("prev_close") or df['close'].iloc[-1])
+            if price_res and price_res.get("ltp") and price_res.get("ltp") > 0:
+                ltp = float(price_res["ltp"])
+                prev_close = float(price_res.get("previous_close") or df['close'].iloc[-1])
                 
                 market_hours = get_market_hours_service()
                 today_date_str = market_hours.get_trading_date()

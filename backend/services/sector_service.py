@@ -15,7 +15,7 @@ import logging
 from typing import List, Dict, Any
 
 from services.dragonfly_client import get_cache
-from services.upstox_price_resolver import get_upstox_price_resolver
+from services.price_manager import get_price_service
 from utils.symbol_utils import _symbol_manager
 
 logger = logging.getLogger(__name__)
@@ -70,9 +70,9 @@ class SectorPerformanceService:
             return
 
         # 2. Get Live Prices
-        resolver = get_upstox_price_resolver()
+        price_svc = get_price_service()
         # Fetch in batches if needed, but resolver handles bulk
-        prices = await resolver.get_prices_bulk(all_symbols)
+        prices = await price_svc.get_prices_bulk(all_symbols)
         
         if not prices:
             logger.warning("No prices available for sector calculation")
@@ -91,9 +91,9 @@ class SectorPerformanceService:
             # Enhance data with company name if needed
             company_name = _symbol_manager.get_stock_name(symbol)
             
-            # Use data from resolver
-            ltp = data.get("price", 0)
-            change_pct = data.get("change_pct", 0)
+            # Use data from PriceService DTO
+            ltp = data.get("ltp", 0.0)
+            change_pct = data.get("change_percent", 0.0)
             
             if ltp > 0:
                 sectors_data[sector].append({

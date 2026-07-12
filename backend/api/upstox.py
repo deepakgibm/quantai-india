@@ -168,21 +168,21 @@ async def get_positions(current_user: User = Depends(get_current_user)):
 @router.get("/market-quote/{symbol}")
 async def get_market_quote(symbol: str, current_user: User = Depends(get_current_user)):
     try:
-        from services.upstox_price_resolver import get_upstox_price_resolver
-        resolver = get_upstox_price_resolver()
-        price_data = await resolver.get_price(symbol)
+        from services.price_manager import get_price_service
+        price_svc = get_price_service()
+        price_data = await price_svc.get_price(symbol)
         
         # Format response to match the expected Upstox structure for client compatibility
         return {
             "status": "success",
             "data": {
                 f"NSE_EQ:{symbol.upper()}": {
-                    "last_price": price_data.get("price", 0.0),
-                    "close_price": price_data.get("prev_close", 0.0),
-                    "previous_close": price_data.get("prev_close", 0.0),
+                    "last_price": price_data.get("ltp", 0.0),
+                    "close_price": price_data.get("previous_close", 0.0),
+                    "previous_close": price_data.get("previous_close", 0.0),
                     "volume": price_data.get("volume", 0),
                     "timestamp": price_data.get("timestamp"),
-                    "price_source": price_data.get("price_source")
+                    "price_source": price_data.get("source")
                 }
             }
         }

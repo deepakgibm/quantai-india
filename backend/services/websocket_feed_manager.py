@@ -26,9 +26,7 @@ class WebSocketFeedManager:
         if self._initialized:
             return
         
-        from services.upstox_price_resolver import get_upstox_price_resolver
         self.ws_manager: UpstoxWSManager = get_upstox_ws_manager()
-        self.resolver = get_upstox_price_resolver()
         self._subscribed_keys: Set[str] = set()
         self._initialized = True
         
@@ -37,35 +35,38 @@ class WebSocketFeedManager:
         logger.info("WebSocketFeedManager: Initialized")
 
     def _handle_tick(self, tick: dict):
-        """Process raw ticks and update caches."""
+        """Process raw ticks, write to unified PriceCache, and publish process-wide."""
         try:
             symbol = tick.get("symbol")
             ltp = tick.get("last_price")
             
             if symbol and ltp:
-                ts = datetime.now(pytz.UTC)
-                prev_close = tick.get("prev_close") or tick.get("previous_close", 0)
-                change_pct = tick.get("change_pct", 0)
+                from services.price_manager import get_price_cache, get_price_event_publisher, PriceSource
+                cache = get_price_cache()
+                publisher = get_price_event_publisher()
                 
-                # Update resolver's high-speed local cache
-                self.resolver.update_local_cache(
-                    symbol=symbol,
-                    ltp=ltp,
-                    prev_close=prev_close,
-                    change_pct=change_pct,
-                    ts=ts
-                )
+                prev_close = tick.get("prev_close") or tick.get("previous_close", 0.0)
+                change_pct = tick.get("change_pct", 0.0)
+                ts = datetime.now(pytz.UTC).isoformat()
                 
-                # Push to Dragonfly for global consistency
-                cache = get_cache()
-                if cache.is_available():
-                    cache.set(f"qai:tick:{symbol}", {
-                        "ltp": ltp,
-                        "prev_close": prev_close,
-                        "change_pct": change_pct,
-                        "timestamp": ts.isoformat(),
-                        "source": "UPSTOX_WS"
-                    }, ttl=60) # Short TTL for live ticks
+                price_dict = {
+                    "symbol": symbol.upper(),
+                    "ltp": float(ltp),
+                    "open": float(tick.get("open") or ltp),
+                    "high": float(tick.get("high") or ltp),
+                    "low": float(tick.get("low") or ltp),
+                    "close": float(tick.get("close") or ltp),
+                    "prev_close": float(prev_close),
+                    "volume": int(tick.get("volume") or 0),
+                    "timestamp": ts,
+                    "price_source": PriceSource.UPSTOX_WS.value
+                }
+                
+                # 1. Update unified cache (handles local memory & Dragonfly)
+                cache.set(symbol, price_dict)
+                
+                # 2. Publish real-time event
+                publisher.publish(symbol, price_dict)
                 
         except Exception as e:
             logger.error(f"FeedManager: Tick handling error: {e}")

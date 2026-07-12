@@ -648,14 +648,14 @@ def get_explainable_ai_report(symbol: str) -> dict:
         logger.error(f"Error fetching OHLCV data for {symbol}: {e}")
         df = pd.DataFrame()
 
-    # Retrieve live stock price from UpstoxPriceResolver
+    # Retrieve live stock price from PriceService
     try:
-        from services.upstox_price_resolver import get_upstox_price_resolver
+        from services.price_manager import get_price_service
         import asyncio
         import concurrent.futures
         import pytz
         
-        resolver = get_upstox_price_resolver()
+        price_svc = get_price_service()
         
         try:
             loop = asyncio.get_running_loop()
@@ -664,17 +664,17 @@ def get_explainable_ai_report(symbol: str) -> dict:
             
         if loop and loop.is_running():
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(lambda: asyncio.run(resolver.get_price(symbol)))
+                future = executor.submit(lambda: asyncio.run(price_svc.get_price(symbol)))
                 price_data = future.result()
         else:
-            price_data = asyncio.run(resolver.get_price(symbol))
+            price_data = asyncio.run(price_svc.get_price(symbol))
             
-        if price_data and price_data.get("price", 0) > 0:
-            ltp = float(price_data["price"])
+        if price_data and price_data.get("ltp", 0.0) > 0.0:
+            ltp = float(price_data["ltp"])
             price_updated_at = price_data.get("timestamp") or datetime.now().isoformat()
-            price_source = price_data.get("price_source") or "UPSTOX_REST"
-            price_stale = price_data.get("stale", False) or price_data.get("data_stale", False)
-            is_market_open_val = price_data.get("is_live", False)
+            price_source = price_data.get("source") or "UPSTOX_REST"
+            price_stale = price_data.get("source") == "DB_EOD" or price_data.get("market_status") != "OPEN"
+            is_market_open_val = price_data.get("market_status") == "OPEN" and price_data.get("source") != "DB_EOD"
             
             # Enrich/sync the dataframe with the latest live price
             if not df.empty:
@@ -692,19 +692,19 @@ def get_explainable_ai_report(symbol: str) -> dict:
                 elif last_row_date < today_ist:
                     # Append a new daily candle for today if it is a weekday or if the feed is active
                     is_weekday = today_ist.weekday() < 5
-                    is_live_source = price_data.get("price_source") in ["UPSTOX_WS", "UPSTOX_REST"]
+                    is_live_source = price_data.get("source") in ["UPSTOX_WS", "UPSTOX_REST"]
                     if is_weekday or is_live_source:
                         new_row = {
                             "timestamp": pd.Timestamp(today_ist),
-                            "open": float(price_data.get("prev_close") or ltp),
-                            "high": max(float(price_data.get("prev_close") or ltp), ltp),
-                            "low": min(float(price_data.get("prev_close") or ltp), ltp),
+                            "open": float(price_data.get("previous_close") or ltp),
+                            "high": max(float(price_data.get("previous_close") or ltp), ltp),
+                            "low": min(float(price_data.get("previous_close") or ltp), ltp),
                             "close": ltp,
                             "volume": int(price_data.get("volume") or 0)
                         }
                         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     except Exception as ex:
-        logger.error(f"Upstox price resolver enrichment failed for {symbol}: {ex}")
+        logger.error(f"PriceService enrichment failed for {symbol}: {ex}")
 
     if df.empty or len(df) < 30:
         logger.error(f"Insufficient historical data for {symbol}. Found {len(df)} candles, 30 required.")
