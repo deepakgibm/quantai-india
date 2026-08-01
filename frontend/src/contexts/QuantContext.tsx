@@ -17,15 +17,10 @@ import React, {
 import {
   StrategyInfo,
   BacktestResult,
-  WalkForwardResult,
-  MonteCarloResult,
-  OptimizationResult,
   QuantRunResponse,
   WorkspaceMode,
   DiscoveryScan,
   PortfolioEntry,
-  OptimizationParamConfig,
-  buildParamGrid,
 } from '../types/quant';
 import { API_URL, getAuthHeaders } from '../services/api';
 
@@ -66,23 +61,8 @@ interface QuantContextValue {
   // ── Results ───────────────────────────────────────────────────────────
   backtestData: BacktestResult | null;
   backtestRecharts: { date: string; equity: number; drawdown: number }[];
-  walkForwardData: WalkForwardResult | null;
-  monteCarloData: MonteCarloResult | null;
-  optimizationData: OptimizationResult | null;
   discoveryScans: Record<string, DiscoveryScan>;
   portfolioData: PortfolioEntry[];
-
-  // ── Optimization config ───────────────────────────────────────────────
-  optParamConfigs: Record<string, OptimizationParamConfig>;
-  setOptParamConfigs: React.Dispatch<React.SetStateAction<Record<string, OptimizationParamConfig>>>;
-  maxWorkers: number;
-  setMaxWorkers: (w: number) => void;
-
-  // ── Monte Carlo settings ──────────────────────────────────────────────
-  mcRuinThreshold: number;
-  setMcRuinThreshold: (t: number) => void;
-  mcSimRuns: number;
-  setMcSimRuns: (r: number) => void;
 
   // ── Status ────────────────────────────────────────────────────────────
   loading: boolean;
@@ -90,15 +70,10 @@ interface QuantContextValue {
   setError: (e: string | null) => void;
 
   // ── Derived memos ─────────────────────────────────────────────────────
-  monteCarloChartData: Record<string, any>[];
-  optimizationScatterData: Record<string, any>[];
   portfolioCombinedCurve: { date: string; equity: number; average: number }[];
 
   // ── Actions ───────────────────────────────────────────────────────────
   runBacktest: () => Promise<void>;
-  runOptimization: () => Promise<void>;
-  runWalkForward: () => Promise<void>;
-  runMonteCarlo: () => Promise<void>;
   runDiscoveryScan: () => Promise<void>;
   addCurrentToPortfolio: () => void;
   removePortfolioItem: (idx: number) => void;
@@ -149,19 +124,8 @@ export function QuantProvider({ children }: QuantProviderProps) {
   // Results
   const [backtestData, setBacktestData] = useState<BacktestResult | null>(null);
   const [backtestRecharts, setBacktestRecharts] = useState<{ date: string; equity: number; drawdown: number }[]>([]);
-  const [walkForwardData, setWalkForwardData] = useState<WalkForwardResult | null>(null);
-  const [monteCarloData, setMonteCarloData] = useState<MonteCarloResult | null>(null);
-  const [optimizationData, setOptimizationData] = useState<OptimizationResult | null>(null);
   const [discoveryScans, setDiscoveryScans] = useState<Record<string, DiscoveryScan>>({});
   const [portfolioData, setPortfolioData] = useState<PortfolioEntry[]>([]);
-
-  // Optimization config
-  const [optParamConfigs, setOptParamConfigs] = useState<Record<string, OptimizationParamConfig>>({});
-  const [maxWorkers, setMaxWorkers] = useState(4);
-
-  // Monte Carlo settings
-  const [mcRuinThreshold, setMcRuinThreshold] = useState(50.0);
-  const [mcSimRuns, setMcSimRuns] = useState(500);
 
   // Status
   const [loading, setLoading] = useState(false);
@@ -190,9 +154,6 @@ export function QuantProvider({ children }: QuantProviderProps) {
       console.log("QUANTCONTEXT CLEARING dependent states");
       setBacktestData(null);
       setBacktestRecharts([]);
-      setWalkForwardData(null);
-      setMonteCarloData(null);
-      setOptimizationData(null);
       setDiscoveryScans({});
       setPortfolioData([]);
     }
@@ -245,60 +206,15 @@ export function QuantProvider({ children }: QuantProviderProps) {
   useEffect(() => {
     if (!activeStrategy) return;
     const defaults: Record<string, any> = {};
-    const optDefaults: Record<string, OptimizationParamConfig> = {};
     (Object.entries(activeStrategy.parameters || {}) as [string, import('../types/quant').StrategyParameterSpec][]).forEach(([k, spec]) => {
       defaults[k] = spec.default;
-      if (typeof spec.default === 'number') {
-        const val = spec.default as number;
-        optDefaults[k] = {
-          start: spec.min ?? Math.max(1, Math.floor(val * 0.5)),
-          end: spec.max ?? Math.floor(val * 1.5),
-          step: spec.type === 'float' ? 0.5 : Math.max(1, Math.floor(val * 0.2)),
-        };
-      }
     });
     setStrategyParams(defaults);
-    setOptParamConfigs(optDefaults);
   }, [activeStrategy]);
-
 
   const handleParamChange = (key: string, val: any) => {
     setStrategyParams(prev => ({ ...prev, [key]: val }));
   };
-
-  // ── Derived memos ─────────────────────────────────────────────────────
-  const monteCarloChartData = useMemo(() => {
-    if (!monteCarloData) return [];
-    const len = monteCarloData.median_equity.length;
-    return Array.from({ length: len }).map((_, i) => {
-      const pt: Record<string, any> = {
-        tradeIndex: i,
-        median: Math.round(monteCarloData.median_equity[i]),
-        upper95: Math.round(monteCarloData.upper_95_percentile[i]),
-        lower5: Math.round(monteCarloData.lower_5_percentile[i]),
-      };
-      for (let p = 0; p < Math.min(5, monteCarloData.sample_paths.length); p++) {
-        pt[`path_${p}`] = Math.round(monteCarloData.sample_paths[p][i]);
-      }
-      return pt;
-    });
-  }, [monteCarloData]);
-
-  const optimizationScatterData = useMemo(() => {
-    if (!optimizationData?.all_runs) return [];
-    return optimizationData.all_runs.map(run => {
-      const keys = Object.keys(run.params);
-      const xKey = keys[0] || 'param1';
-      const yKey = keys[1] || 'param2';
-      return {
-        xVal: Number(run.params[xKey]),
-        yVal: Number(run.params[yKey] || 0),
-        sharpe: run.metrics.sharpe_ratio,
-        return: run.metrics.total_return_pct,
-        name: `${xKey}:${run.params[xKey]} | ${yKey}:${run.params[yKey] ?? 'N/A'}`,
-      };
-    });
-  }, [optimizationData]);
 
   const portfolioCombinedCurve = useMemo(() => {
     if (portfolioData.length === 0) return [];
@@ -387,95 +303,7 @@ export function QuantProvider({ children }: QuantProviderProps) {
     }
   }, [selectedSymbol, timeframe, selectedStrategyId, startDate, endDate, capital, riskMode, riskPercent, executionType, strategyParams, loading]);
 
-  const runOptimization = useCallback(async () => {
-    if (!selectedSymbol) {
-      setError("Please select a symbol before running optimization.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const grid = buildParamGrid(optParamConfigs);
-      if (grid.length === 0) throw new Error('No numeric parameters found to optimize.');
-      if (grid.length > 100 && !window.confirm(`You are about to scan ${grid.length} parameter configurations. Continue?`)) {
-        setLoading(false);
-        return;
-      }
-      const res = await fetch(`${API_URL}/api/v1/quant/optimize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({
-          symbol: selectedSymbol, timeframe, strategy_id: selectedStrategyId,
-          start_date: startDate, end_date: endDate, initial_capital: capital,
-          param_grid: grid, max_workers: maxWorkers,
-        }),
-      });
-      if (!res.ok) { const b = await res.json(); throw new Error(b.detail || 'Optimization failed'); }
-      setOptimizationData(await res.json());
-    } catch (err: any) {
-      setError(err.message || 'Strategy parameter optimization failed.');
-    } finally {
-      setLoading(false);
-    }
-  }, [optParamConfigs, selectedSymbol, timeframe, selectedStrategyId, startDate, endDate, capital, maxWorkers]);
 
-  const runWalkForward = useCallback(async () => {
-    if (!selectedSymbol) {
-      setError("Please select a symbol before running walk-forward validation.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const grid = buildParamGrid(optParamConfigs);
-      if (grid.length === 0) throw new Error('Please select parameters to optimize in rolling windows.');
-      const res = await fetch(`${API_URL}/api/v1/quant/walk-forward`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({
-          symbol: selectedSymbol, timeframe, strategy_id: selectedStrategyId,
-          start_date: startDate, end_date: endDate, initial_capital: capital,
-          param_grid: grid.slice(0, 50),
-          train_window_bars: 120, test_window_bars: 30, step_bars: 30, anchored: false,
-        }),
-      });
-      if (!res.ok) { const b = await res.json(); throw new Error(b.detail || 'Walk-Forward run failed'); }
-      setWalkForwardData(await res.json());
-    } catch (err: any) {
-      setError(err.message || 'Walk-forward validation failed.');
-    } finally {
-      setLoading(false);
-    }
-  }, [optParamConfigs, selectedSymbol, timeframe, selectedStrategyId, startDate, endDate, capital]);
-
-  const runMonteCarlo = useCallback(async () => {
-    if (!backtestData?.trades?.length) {
-      setError('Run a backtest first to generate trade return distributions for Monte Carlo.');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const returns = backtestData.trades.map(t => t.pnl_percent);
-      const res = await fetch(`${API_URL}/api/v1/quant/monte-carlo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({
-          trade_returns_pct: returns,
-          initial_capital: capital,
-          num_simulations: mcSimRuns,
-          num_trades_per_path: Math.max(30, returns.length),
-          risk_of_ruin_pct: mcRuinThreshold,
-        }),
-      });
-      if (!res.ok) { const b = await res.json(); throw new Error(b.detail || 'Monte Carlo failed'); }
-      setMonteCarloData(await res.json());
-    } catch (err: any) {
-      setError(err.message || 'Monte Carlo simulation failed.');
-    } finally {
-      setLoading(false);
-    }
-  }, [backtestData, capital, mcSimRuns, mcRuinThreshold]);
 
   const runDiscoveryScan = useCallback(async () => {
     if (!selectedSymbol) {
@@ -610,15 +438,10 @@ export function QuantProvider({ children }: QuantProviderProps) {
     executionType, setExecutionType,
     activeMode, setActiveMode,
     backtestData, backtestRecharts,
-    walkForwardData, monteCarloData, optimizationData,
     discoveryScans, portfolioData,
-    optParamConfigs, setOptParamConfigs,
-    maxWorkers, setMaxWorkers,
-    mcRuinThreshold, setMcRuinThreshold,
-    mcSimRuns, setMcSimRuns,
     loading, error, setError,
-    monteCarloChartData, optimizationScatterData, portfolioCombinedCurve,
-    runBacktest, runOptimization, runWalkForward, runMonteCarlo, runDiscoveryScan,
+    portfolioCombinedCurve,
+    runBacktest, runDiscoveryScan,
     addCurrentToPortfolio, removePortfolioItem,
   };
 

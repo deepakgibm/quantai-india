@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 from services.price_manager.models import StockPrice, PriceSource
 from services.price_manager.price_repository import get_price_repository
@@ -60,7 +60,7 @@ class PriceService:
         if not symbols:
             return results
             
-        unique_symbols = list(set([s.upper().strip() for s in symbols if s]))
+        unique_symbols = list(set([s.upper().strip() for s in symbols if s and s.strip()]))
         
         # 1. Resolve what we can from WS Cache
         ws_tasks = [self._repo.get_from_ws(s) for s in unique_symbols]
@@ -90,17 +90,7 @@ class PriceService:
         if not pending_symbols:
             return results
 
-        # 3. Resolve final leftovers from EOD DB
-        try:
-            db_results = await self._repo.get_from_db_bulk(pending_symbols)
-            for s, res in db_results.items():
-                results[s] = self._build_dto(s, res).to_dict()
-                
-            pending_symbols = [s for s in pending_symbols if s not in results]
-        except Exception as e:
-            logger.error(f"PriceService: Bulk DB fallback failed: {e}")
-
-        # 4. Fill defaults for completely failed symbols
+        # 3. Fill defaults for completely failed symbols (DB fallback disabled per Phase 7 specs)
         for s in pending_symbols:
             results[s] = self._empty_stock_price_dict(s)
 
@@ -118,11 +108,6 @@ class PriceService:
         if res:
             return res
             
-        # 3. DB
-        res = await self._repo.get_from_db(symbol)
-        if res:
-            return res
-            
         raise ValueError(f"No price data available for {symbol}")
 
     def _build_dto(self, symbol: str, data: Dict[str, Any]) -> StockPrice:
@@ -131,9 +116,18 @@ class PriceService:
         info = resolve_instrument_info(symbol)
         inst_key = info.instrument_key if info else None
         
-        ltp = self._formatter.round_field(data.get("ltp") or data.get("price"))
-        prev_close = self._formatter.round_field(data.get("prev_close"))
+        ltp = self._formatter.round_field(data.get("ltp") or data.get("price") or 0.0)
+        prev_close = self._formatter.round_field(data.get("prev_close") or 0.0)
         
+        # Reconstruct previous_close if missing but change_percent is present in data
+        api_change_pct = data.get("change_percent") or data.get("change_pct")
+        if prev_close <= 0.0 and ltp > 0.0 and api_change_pct is not None:
+            try:
+                raw_prev = ltp / (1.0 + float(api_change_pct) / 100.0)
+                prev_close = self._formatter.round_field(raw_prev)
+            except Exception:
+                pass
+                
         change = self._calc.calculate_change(ltp, prev_close)
         change_pct = self._calc.calculate_change_percent(ltp, prev_close)
         

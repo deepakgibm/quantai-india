@@ -75,7 +75,7 @@ class AlertService:
 
         lines = [
             f"⚡ *QuantAI Signal Bot*  (Run: `{run_id}`)",
-            f"",
+            "",
             f"{trend_emoji} *Market Trend:* {trend_label}",
         ]
 
@@ -109,7 +109,7 @@ class AlertService:
                 )
             lines.append("")
 
-        lines.append(f"_All signals are STRONG conviction._")
+        lines.append("_All signals are STRONG conviction._")
         return "\n".join(lines)
 
     async def _send_message(self, text: str) -> bool:

@@ -7,7 +7,6 @@ REST endpoints for the signal generation bot.
 import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Request
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

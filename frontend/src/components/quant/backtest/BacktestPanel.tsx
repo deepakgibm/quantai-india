@@ -1,5 +1,5 @@
-import React from 'react';
-import { Play, DollarSign, TrendingUp, Shield, Percent } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, DollarSign, TrendingUp, Shield, Percent, Loader2, CheckCircle2 } from 'lucide-react';
 import { useQuantContext } from '../../../contexts/QuantContext';
 import KpiCard from '../shared/KpiCard';
 import EmptyState from '../shared/EmptyState';
@@ -16,7 +16,108 @@ const fmtCcy = (n: number) =>
  * Backtest Mode Panel — KPI cards, equity & drawdown charts, trade log table.
  */
 const BacktestPanel: React.FC = () => {
-  const { backtestData, backtestRecharts } = useQuantContext();
+  const { backtestData, backtestRecharts, loading } = useQuantContext();
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    if (loading) {
+      setActiveStep(0);
+      const timer1 = setTimeout(() => setActiveStep(1), 350);
+      const timer2 = setTimeout(() => setActiveStep(2), 700);
+      const timer3 = setTimeout(() => setActiveStep(3), 1050);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+      };
+    }
+  }, [loading]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[450px] bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center backdrop-blur-sm relative overflow-hidden">
+        {/* Glow effect */}
+        <div className="absolute -top-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-violet-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="relative mb-6">
+          <div className="w-16 h-16 rounded-full border-4 border-slate-800 border-t-blue-500 animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 text-blue-400 animate-pulse" />
+          </div>
+        </div>
+
+        <div className="space-y-2 mb-8">
+          <h3 className="text-base font-bold text-white tracking-wide">Executing Backtest Simulation</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            Processing database candles, preloading technical indicators, evaluating strategy rules, and simulating bar-by-bar executions.
+          </p>
+        </div>
+
+        {/* Stage Progress Tracker */}
+        <div className="w-full max-w-xs bg-slate-950/80 border border-slate-800/80 rounded-xl p-4 space-y-4 text-left shadow-2xl relative z-10">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Simulation Steps</span>
+            <span className="text-[10px] font-bold text-blue-400">{Math.round(((activeStep + 1) / 4) * 100)}%</span>
+          </div>
+          
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-3">
+              {activeStep > 0 ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              ) : activeStep === 0 ? (
+                <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border border-slate-700 flex-shrink-0" />
+              )}
+              <span className={`text-xs font-medium ${activeStep >= 0 ? 'text-white' : 'text-slate-500'}`}>
+                Loading EOD Candles from DB
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {activeStep > 1 ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              ) : activeStep === 1 ? (
+                <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border border-slate-700 flex-shrink-0" />
+              )}
+              <span className={`text-xs font-medium ${activeStep >= 1 ? 'text-white' : 'text-slate-500'}`}>
+                Preloading Technical Indicators
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {activeStep > 2 ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              ) : activeStep === 2 ? (
+                <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border border-slate-700 flex-shrink-0" />
+              )}
+              <span className={`text-xs font-medium ${activeStep >= 2 ? 'text-white' : 'text-slate-500'}`}>
+                Running Strategy Crossover Signals
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {activeStep > 3 ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              ) : activeStep === 3 ? (
+                <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border border-slate-700 flex-shrink-0" />
+              )}
+              <span className={`text-xs font-medium ${activeStep >= 3 ? 'text-white' : 'text-slate-500'}`}>
+                Compiling Portfolio MTM & Metrics
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!backtestData) {
     return (

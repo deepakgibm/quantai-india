@@ -159,7 +159,7 @@ class IchimokuStrategy(BaseStrategy):
                     stop_loss=stop_loss,
                     take_profit=take_profit,
                     confidence=0.8,
-                    reason=f"Ichimoku bullish (Price > Cloud, TK cross up)"
+                    reason="Ichimoku bullish (Price > Cloud, TK cross up)"
                 )
         
         # Exit

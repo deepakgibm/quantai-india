@@ -82,9 +82,16 @@ class UpstoxReferenceClient:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("status") == "success" and data.get("data"):
-                    quote_data = data["data"].get(instrument_key, {})
-                    self._set_cached(cache_key, quote_data)
-                    return quote_data
+                    # Find matching quote data in response (which might be keyed differently)
+                    quote_data = data["data"].get(instrument_key)
+                    if not quote_data:
+                        for k, v in data["data"].items():
+                            if v.get("instrument_token") == instrument_key or k.replace(":", "|") == instrument_key:
+                                quote_data = v
+                                break
+                    if quote_data:
+                        self._set_cached(cache_key, quote_data)
+                        return quote_data
             elif response.status_code == 429:
                 time.sleep(2)  # Rate limited, wait and retry
                 return self.get_ltp(instrument_key)
@@ -119,9 +126,15 @@ class UpstoxReferenceClient:
             if response.status_code == 200:
                 data = response.json()
                 if data.get("status") == "success" and data.get("data"):
-                    quote_data = data["data"].get(instrument_key, {})
-                    self._set_cached(cache_key, quote_data)
-                    return quote_data
+                    quote_data = data["data"].get(instrument_key)
+                    if not quote_data:
+                        for k, v in data["data"].items():
+                            if v.get("instrument_token") == instrument_key or k.replace(":", "|") == instrument_key:
+                                quote_data = v
+                                break
+                    if quote_data:
+                        self._set_cached(cache_key, quote_data)
+                        return quote_data
             
             return None
         except Exception as e:

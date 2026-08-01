@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 
 from services.market_hours_service import get_market_hours_service
-from services.dragonfly_client import get_cache, CacheKeys
+from services.dragonfly_client import get_cache
 
 logger = logging.getLogger(__name__)
 

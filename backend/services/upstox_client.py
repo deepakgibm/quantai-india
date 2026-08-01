@@ -156,7 +156,7 @@ class UpstoxClient:
             except (httpx.ConnectError, httpx.TimeoutException) as e:
                 logger.error(f"Upstox Network Error: {e}")
                 raise self.UpstoxSystemFailure(f"Upstox Network Error: {str(e)}")
-            except httpx.HTTPStatusError as e:
+            except httpx.HTTPStatusError:
                 # 4xx errors (except 429) do NOT trigger the circuit breaker
                 # but we still want to raise them to the caller
                 raise
@@ -229,6 +229,8 @@ class UpstoxClient:
         
         # Upstox API endpoint for historical data
         # Historical candle uses path parameters, so we must manually encode the key
+        # v2 endpoint: /historical-candle/{key}/{interval}/{to_date}/{from_date}
+        # This works for ALL intervals (1minute, 30minute, day, week, month)
         encoded_key = urllib.parse.quote(instrument_key, safe='')
         endpoint = f"/historical-candle/{encoded_key}/{interval}/{to_date.strftime('%Y-%m-%d')}/{from_date.strftime('%Y-%m-%d')}"
         

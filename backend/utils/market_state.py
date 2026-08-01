@@ -21,6 +21,18 @@ except ImportError:
     _nse_cal = None
     logger.warning("exchange_calendars not installed. Holiday detection will be limited.")
 
+def _safe_is_session(date_str: str) -> bool:
+    if _nse_cal is None:
+        return False
+    try:
+        return _nse_cal.is_session(date_str)
+    except Exception:
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            dt = pd.to_datetime(date_str).date()
+        return dt.weekday() < 5
+
 IST = pytz.timezone('Asia/Kolkata')
 
 
@@ -39,7 +51,7 @@ def is_market_open() -> bool:
     # 1. Check if today is a valid trading session (handles holidays & weekends)
     if _nse_cal is not None:
         # exchange_calendars expects dates like '2023-10-15'
-        if not _nse_cal.is_session(now.strftime("%Y-%m-%d")):
+        if not _safe_is_session(now.strftime("%Y-%m-%d")):
             return False
     else:
         # Fallback Weekend check
@@ -75,12 +87,12 @@ def get_trading_date() -> date:
         today_str = now.strftime("%Y-%m-%d")
         
         # If it's a trading session and we are at or past market open, use today
-        if _nse_cal.is_session(today_str) and current_minutes >= market_open_minutes:
+        if _safe_is_session(today_str) and current_minutes >= market_open_minutes:
             return today
             
         # Otherwise, find the previous valid session by traversing backwards
         curr = today - timedelta(days=1)
-        while not _nse_cal.is_session(curr.strftime("%Y-%m-%d")):
+        while not _safe_is_session(curr.strftime("%Y-%m-%d")):
             curr -= timedelta(days=1)
             
         return curr

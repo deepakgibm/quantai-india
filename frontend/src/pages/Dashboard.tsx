@@ -8,6 +8,7 @@ import { api, apiGet } from '../services/api';
 import PositionSizeCalculator from '../components/PositionSizeCalculator';
 import { PriceWithSource } from '../components/PriceSourceBadge';
 import TopMoversCard from '../components/TopMoversCard';
+import { calculatePriceChange } from '../utils/marketPrice';
 
 // New Dashboard Restoration Imports
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
@@ -510,12 +511,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         ₹{volData.latest_price?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                      </span>
                   </div>
-                  <div className={`mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold w-fit ${
-                     (volData.price_change_pct || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                  }`}>
-                     {(volData.price_change_pct || 0) >= 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-                     {volData.price_change_pct >= 0 ? '+' : ''}{safeFixed(volData.price_change_pct, 2)}%
-                  </div>
+                  {(() => {
+                     const dailyDetails = calculatePriceChange(
+                        volData.latest_price,
+                        volData.prev_close || volData.previous_close,
+                        volData.price_change_pct
+                     );
+                     const isUp = dailyDetails.direction === 'up';
+                     const isDown = dailyDetails.direction === 'down';
+                     return (
+                        <div className={`mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold w-fit ${
+                           isUp 
+                             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                             : isDown 
+                               ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' 
+                               : 'bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400'
+                        }`}>
+                           {isUp ? '▲ ' : isDown ? '▼ ' : '▬ '}
+                           {Math.abs(dailyDetails.changePercent).toFixed(2)}%
+                        </div>
+                     );
+                  })()}
                </div>
 
                {/* ATR Analytics Card */}

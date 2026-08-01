@@ -1,10 +1,7 @@
 import React from 'react';
 import {
   Play,
-  TrendingUp,
-  Sliders,
   Grid,
-  Activity,
   Briefcase,
   Info,
   SlidersHorizontal,
@@ -25,11 +22,9 @@ const WorkspaceSidebar: React.FC = () => {
     activeStrategy, strategyParams, handleParamChange,
     riskMode, setRiskMode, riskPercent, setRiskPercent,
     executionType, setExecutionType,
-    optParamConfigs, setOptParamConfigs, maxWorkers, setMaxWorkers,
-    mcRuinThreshold, setMcRuinThreshold, mcSimRuns, setMcSimRuns,
     activeMode, loading, error, setError,
     backtestData,
-    runBacktest, runOptimization, runWalkForward, runMonteCarlo,
+    runBacktest,
     runDiscoveryScan, addCurrentToPortfolio,
   } = useQuantContext();
 
@@ -41,7 +36,7 @@ const WorkspaceSidebar: React.FC = () => {
       {/* ── Strategy Select ──────────────────────────────────────────── */}
       <div className="p-4 border-b border-slate-800/80 space-y-3">
         <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-          <Sliders size={11} /> Strategy
+          <SlidersHorizontal size={11} /> Strategy
         </h3>
         <select
           value={selectedStrategyId}
@@ -160,91 +155,6 @@ const WorkspaceSidebar: React.FC = () => {
         </div>
       )}
 
-      {/* ── Optimization range config ─────────────────────────────────── */}
-      {(activeMode === 'optimization' || activeMode === 'walk_forward') && numericParams.length > 0 && (
-        <div className="p-4 border-b border-slate-800/80 space-y-3">
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-            <Sliders size={11} /> Param Sweep Ranges
-          </h3>
-          {numericParams.map(([key]) => {
-            const cfg = optParamConfigs[key] || { start: 1, end: 50, step: 5 };
-            return (
-              <div key={key} className="space-y-1.5 bg-slate-900/60 rounded-lg p-2.5">
-                <div className="text-[10px] font-bold text-slate-400 mb-1">{key}</div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(['start', 'end', 'step'] as const).map(field => (
-                    <div key={field}>
-                      <div className="text-[9px] text-slate-600 uppercase mb-0.5">{field}</div>
-                      <input
-                        type="number"
-                        value={cfg[field]}
-                        onChange={e => setOptParamConfigs(prev => ({
-                          ...prev,
-                          [key]: { ...cfg, [field]: parseFloat(e.target.value) || 1 }
-                        }))}
-                        className="w-full px-2 py-1 rounded-md border border-slate-700 bg-slate-950 text-white text-[10px] outline-none focus:ring-1 focus:ring-brand-500"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          {activeMode === 'optimization' && (
-            <div className="space-y-1.5">
-              <div className="flex justify-between">
-                <label className="text-[10px] font-semibold text-slate-400">Parallel Workers</label>
-                <span className="text-[10px] font-black text-brand-400">{maxWorkers}</span>
-              </div>
-              <input
-                type="range" min={1} max={8} step={1}
-                value={maxWorkers}
-                onChange={e => setMaxWorkers(parseInt(e.target.value))}
-                className="w-full h-1.5 accent-brand-500 cursor-pointer"
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── MC Settings ───────────────────────────────────────────────── */}
-      {activeMode === 'monte_carlo' && (
-        <div className="p-4 border-b border-slate-800/80 space-y-3">
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-            <Activity size={11} /> MC Settings
-          </h3>
-          <div className="space-y-1.5">
-            <div className="flex justify-between">
-              <label className="text-[10px] font-semibold text-slate-400">Simulations</label>
-              <span className="text-[10px] font-black text-purple-400">{mcSimRuns.toLocaleString()}</span>
-            </div>
-            <input
-              type="range" min={50} max={2000} step={50}
-              value={mcSimRuns}
-              onChange={e => setMcSimRuns(parseInt(e.target.value))}
-              className="w-full h-1.5 accent-purple-500 cursor-pointer"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between">
-              <label className="text-[10px] font-semibold text-slate-400">Ruin Threshold</label>
-              <span className="text-[10px] font-black text-red-400">{mcRuinThreshold.toFixed(0)}%</span>
-            </div>
-            <input
-              type="range" min={10} max={90} step={5}
-              value={mcRuinThreshold}
-              onChange={e => setMcRuinThreshold(parseFloat(e.target.value))}
-              className="w-full h-1.5 accent-red-500 cursor-pointer"
-            />
-          </div>
-          {!backtestData && (
-            <p className="text-[9px] text-amber-500/80 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 leading-relaxed">
-              ⚠ Run a Backtest first — Monte Carlo bootstraps from historical trade returns.
-            </p>
-          )}
-        </div>
-      )}
-
       {/* ── Action Buttons ────────────────────────────────────────────── */}
       <div className="p-4 space-y-2">
         {activeMode === 'discovery' && (
@@ -275,33 +185,6 @@ const WorkspaceSidebar: React.FC = () => {
               />
             )}
           </>
-        )}
-        {activeMode === 'optimization' && (
-          <ActionButton
-            onClick={runOptimization}
-            loading={loading}
-            icon={<Sliders size={13} />}
-            label="Run Parameter Sweep"
-            loadingLabel="Optimizing…"
-          />
-        )}
-        {activeMode === 'walk_forward' && (
-          <ActionButton
-            onClick={runWalkForward}
-            loading={loading}
-            icon={<TrendingUp size={13} />}
-            label="Run Walk-Forward"
-            loadingLabel="Validating…"
-          />
-        )}
-        {activeMode === 'monte_carlo' && (
-          <ActionButton
-            onClick={runMonteCarlo}
-            loading={loading}
-            icon={<Activity size={13} />}
-            label="Run Monte Carlo"
-            loadingLabel="Simulating…"
-          />
         )}
         {activeMode === 'portfolio' && backtestData && (
           <ActionButton

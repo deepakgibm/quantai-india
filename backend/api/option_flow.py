@@ -769,20 +769,21 @@ async def get_option_flow(
                     minDiff = diff
                     atmStrike = strike_price
 
-        # Fetch Spot Price using Quotes
+        # Fetch Spot Price using Centralized PriceService
         spot_price = 0.0
         spot_change = 0.0
         spot_change_pct = 0.0
+        prev_close = 0.0
         try:
-            from services.upstox_price_resolver import get_upstox_price_resolver
-            resolver = get_upstox_price_resolver()
-            p_res = await resolver.get_price(symbol)
-            spot_price = p_res.get("price", 0.0)
-            spot_change_pct = p_res.get("change_pct", 0.0)
-            prev_close = p_res.get("prev_close", 0.0)
-            spot_change = spot_price - prev_close if prev_close > 0 else 0.0
+            from services.price_manager import get_price_service
+            price_svc = get_price_service()
+            p_res = await price_svc.get_price(symbol)
+            spot_price = p_res.get("ltp", 0.0)
+            spot_change_pct = p_res.get("change_percent", 0.0)
+            prev_close = p_res.get("previous_close", 0.0)
+            spot_change = p_res.get("change", 0.0)
         except Exception as qe:
-            logger.warning(f"Failed to fetch live spot price via resolver: {qe}")
+            logger.warning(f"Failed to fetch live spot price via PriceService: {qe}")
 
         if spot_price <= 0.0:
             spot_price = atmStrike if atmStrike > 0 else (float(raw_strikes[len(raw_strikes)//2].get("strike_price", 0)) if raw_strikes else 0.0)
@@ -1029,6 +1030,8 @@ async def get_option_flow(
             "spot_price": round(spot_price, 2),
             "spot_change": round(spot_change, 2),
             "spot_change_pct": round(spot_change_pct, 2),
+            "prev_close": round(prev_close, 2),
+            "previous_close": round(prev_close, 2),
             "total_call_oi": total_call_oi,
             "total_put_oi": total_put_oi,
             "total_call_volume": total_call_vol,

@@ -50,5 +50,5 @@ async def get_algorithms(
             "status": "success",
             "algorithms": serialized
         }
-    except Exception as e:
+    except Exception:
         return {"status": "success", "algorithms": []}

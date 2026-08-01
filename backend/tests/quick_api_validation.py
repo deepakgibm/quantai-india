@@ -136,7 +136,7 @@ def main():
     print(f"\nAPI Results: {passed} passed, {failed} failed")
     
     # Database validations
-    print(f"\n[3] Database Ground Truth Validations...")
+    print("\n[3] Database Ground Truth Validations...")
     print("-" * 80)
     
     try:
@@ -184,7 +184,7 @@ def main():
     with open("test_results.json", "w") as f:
         json.dump(output, f, indent=2, default=str)
     
-    print(f"\nDetailed results saved to: test_results.json")
+    print("\nDetailed results saved to: test_results.json")
     
     return 0 if failed == 0 else 1
 

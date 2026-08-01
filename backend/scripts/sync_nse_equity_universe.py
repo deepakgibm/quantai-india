@@ -120,7 +120,7 @@ def sync():
                 symbol_map[(symbol, 'EQ', 'NSE')] = new_inst
                 
         db.commit()
-        print(f"[CSV_IMPORT] Sync complete.")
+        print("[CSV_IMPORT] Sync complete.")
         print(f"[CSV_IMPORT] Summary - Inserted: {inserted}, Updated: {updated}, Ignored/Invalid: {ignored}")
     except Exception as e:
         db.rollback()

@@ -7,7 +7,6 @@ Create Date: 2026-06-23 18:00:00
 """
 from typing import Sequence, Union
 from alembic import op
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '001_create_optimized_indexes'

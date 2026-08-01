@@ -60,10 +60,10 @@ async def test_watchlist_complete_flow():
             "volume": 100000
         }
         
-        with patch('services.upstox_price_resolver.UpstoxPriceResolver.get_price', new_callable=AsyncMock) as mock_get_price:
+        with patch('services.price_manager.PriceService.get_price', new_callable=AsyncMock) as mock_get_price:
             mock_get_price.return_value = {
                 "symbol": test_symbol,
-                "price": 3200.0,
+                "ltp": 3200.0,
                 "prev_close": 3150.0,
                 "change_pct": 1.58,
                 "is_live": True,
@@ -79,13 +79,13 @@ async def test_watchlist_complete_flow():
             assert item.symbol == test_symbol
             assert item.watchlist_price == 3200.0
             assert item.current_price == 3200.0
-
+ 
         # 3. Test get_watchlist and batch live quotes update
         async def mock_resolver_bulk_side_effect(symbols):
             return {
                 sym: {
                     "symbol": sym,
-                    "price": 3520.0,  # 10% gain
+                    "ltp": 3520.0,  # 10% gain
                     "prev_close": 3200.0,
                     "change_pct": 10.0,
                     "is_live": True,
@@ -96,7 +96,7 @@ async def test_watchlist_complete_flow():
                 for sym in symbols
             }
         
-        with patch('services.upstox_price_resolver.UpstoxPriceResolver.get_prices_bulk', new_callable=AsyncMock) as mock_bulk_prices:
+        with patch('services.price_manager.PriceService.get_prices_bulk', new_callable=AsyncMock) as mock_bulk_prices:
             mock_bulk_prices.side_effect = mock_resolver_bulk_side_effect
             
             watchlist = await WatchlistService.get_watchlist(db, user_id)

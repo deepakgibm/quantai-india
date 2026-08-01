@@ -34,7 +34,6 @@ class ClickHouseClient:
         """Query ClickHouse and return a Pandas DataFrame for vectorized indicators."""
         client = self.connect()
         try:
-            import pandas as pd
             # Use query_df to get pandas dataframe
             return client.query_df(query, parameters)
         except Exception as e:

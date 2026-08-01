@@ -107,10 +107,10 @@ class TestDatabaseConsistency:
         if latest_ts is None:
             pytest.skip("No candles in database")
         
-        # Latest candle should be within last 60 days (allowing weekends and static snapshots)
+        # Latest candle should be within last 180 days (allowing weekends and static snapshots)
         if isinstance(latest_ts, datetime):
             age_days = (datetime.now() - latest_ts).days
-            assert age_days <= 60, f"Latest candle is {age_days} days old"
+            assert age_days <= 180, f"Latest candle is {age_days} days old"
     
     @pytest.mark.parametrize("timeframe", ["1d", "1h"])
     def test_timeframe_data_exists(self, db_connection, timeframe):

@@ -80,10 +80,11 @@ async def custom_http_exception_handler(request, exc):
 async def custom_api_error_handler(request, exc):
     return await api_error_handler(request, exc)
 
+
 # 5. Router Imports (Unified Layer)
 from api.auth import router as auth_router
 from api.ai import router as ai_router
-from api.scanners import router as scanner_router
+from api.scanners import router as scanner_router, ws_router as scanner_ws_router
 from api.market_data import router as market_router
 from api.indicators import router as indicator_router
 from api.health import router as health_router
@@ -119,6 +120,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(market_router, prefix="/api/market", tags=["Market Data"])
 app.include_router(indicator_router, prefix="/api/indicators", tags=["Technical Indicators"])
 app.include_router(scanner_router, prefix="/api/scanner", tags=["Standard Scanners"])
+app.include_router(scanner_ws_router, prefix="/api/scanner", tags=["Standard Scanners"])
 app.include_router(trading_router, prefix="/api/trading", tags=["Trading Operations"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Performance Analytics"])
 app.include_router(ai_router, prefix="/api/ai", tags=["AI Engine"])
@@ -168,6 +170,14 @@ async def startup_event():
         from services.corporate_action_service import seed_corporate_actions
         await seed_corporate_actions()
         logger.info("?? Corporate actions database seeded.")
+        
+        # Seed default coupons
+        from services.saas.subscription_service import SubscriptionService
+        from database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            await SubscriptionService.seed_coupons(session)
+        logger.info("🎟️ Default subscription coupons seeded.")
+
         
         # Warm instrument resolver cache in a background executor
         from services.instrument_resolver import warm_cache

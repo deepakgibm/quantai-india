@@ -9,7 +9,6 @@ Schedule:
 """
 
 import logging
-from typing import Optional
 
 from celery_app import celery_app
 

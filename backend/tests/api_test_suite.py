@@ -203,7 +203,7 @@ def main():
             "results": results
         }, f, indent=2)
     
-    print(f"\nResults saved to api_test_results.json")
+    print("\nResults saved to api_test_results.json")
     
     return passed, failed
 

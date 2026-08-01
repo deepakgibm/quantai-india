@@ -444,7 +444,7 @@ class MarketDataOrchestrator:
     async def get_ltp(self, symbol: str) -> Optional[float]:
         """
         Get Last Traded Price for a symbol with hierarchical routing.
-        Routes: Cache -> on-demand REST -> DB fallback.
+        Routes: Cache -> on-demand REST (DB fallback disabled per Phase 7 specs).
         """
         symbol = symbol.upper()
         
@@ -468,15 +468,6 @@ class MarketDataOrchestrator:
         except Exception as e:
             logger.debug(f"On-demand LTP fetch failed for {symbol}: {e}")
             
-        # 3. DB Fallback
-        if not tick:
-            try:
-                db_data = self.db_fetcher.fetch_latest_data([symbol])
-                if symbol in db_data:
-                    return db_data[symbol].ltp
-            except:
-                pass
-                
         return tick.ltp if tick else None
 
     async def get_ltp_bulk(self, symbols: List[str]) -> Dict[str, float]:

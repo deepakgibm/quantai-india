@@ -109,6 +109,14 @@ async def api_error_handler(request: Request, exc: APIError):
 
 async def generic_exception_handler(request: Request, exc: Exception):
     """Fallback handler for unhandled exceptions."""
+    if exc.__class__.__name__ == "DataUnavailableError":
+        return create_error_response(
+            status_code=404,
+            code="DATA_UNAVAILABLE",
+            message=getattr(exc, "message", str(exc)),
+            details={"symbol": getattr(exc, "symbol", None)}
+        )
+        
     import logging
     import traceback
     logger = logging.getLogger(__name__)

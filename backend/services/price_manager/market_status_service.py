@@ -1,5 +1,4 @@
-from datetime import datetime, date, time
-from typing import Optional
+from datetime import time
 from services.market_hours_service import get_market_hours_service, NSE_HOLIDAYS
 from services.price_manager.models import MarketStatus
 

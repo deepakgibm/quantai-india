@@ -321,7 +321,8 @@ class BotOrchestrator:
                 price_changes=price_changes,
                 pcr_data=pcr_data,
                 indicators=indicators_mapping,
-                sector_results=sector_results
+                sector_results=sector_results,
+                filter_neutral=False
             )
 
             # ─── Step 11 & 12: Ranking & AI Classification ──────────
@@ -522,7 +523,7 @@ class BotOrchestrator:
 
             db.commit()
             logger.info(f"Bot run {run_id} persisted to DB ({len(result.buy_signals)} buys, {len(result.sell_signals)} sells, {len(result.hold_signals)} holds, {len(result.watch_signals)} watches)")
-        except Exception as e:
+        except Exception:
             db.rollback()
             raise
         finally:

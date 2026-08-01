@@ -24,7 +24,7 @@ async def health_check():
         start = time.perf_counter()
         cache = get_cache()
         if cache.is_available():
-            cache.get("health_ping") # Test ping
+            await cache.get_async("health_ping") # Test ping asynchronously to avoid blocking event loop
             latency = (time.perf_counter() - start) * 1000
             health["checks"]["dragonfly"] = {
                 "status": "healthy", 

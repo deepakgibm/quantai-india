@@ -71,7 +71,7 @@ class GlobalMarketService:
         try:
             cached = self._cache.get(self.CACHE_KEY)
             if cached:
-                logger.debug(f"Global indices cache hit")
+                logger.debug("Global indices cache hit")
                 return cached
         except Exception as e:
             logger.warning(f"Cache read error: {e}")

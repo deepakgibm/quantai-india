@@ -33,5 +33,5 @@ async def get_orders(
             "status": "success",
             "orders": serialized
         }
-    except Exception as e:
+    except Exception:
         return {"status": "success", "orders": []}

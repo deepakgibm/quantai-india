@@ -6,7 +6,6 @@ Refactored to pure ASGI middleware to avoid Starlette BaseHTTPMiddleware concurr
 """
 
 import time
-from typing import Callable
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Scope, Receive, Send
 
@@ -173,7 +172,7 @@ class MetricsMiddleware:
                     route=self._normalize_route(path),
                     error_code=f"HTTP_{status_code[0]}"
                 )
-        except Exception as e:
+        except Exception:
             duration = time.perf_counter() - start_time
             
             # Record failed request

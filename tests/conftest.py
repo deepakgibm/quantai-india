@@ -12,13 +12,21 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # Add parent directory to path for imports
+os.environ["TESTING"] = "true"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'backend'))
 
 # Load environment variables
 load_dotenv()
+load_dotenv("backend/.env")
 load_dotenv("config/.env")
 load_dotenv("config/.env.test")
+
+# Re-route host.docker.internal to localhost for local test runs
+if "DATABASE_URL" in os.environ:
+    os.environ["DATABASE_URL"] = os.environ["DATABASE_URL"].replace("host.docker.internal", "localhost")
+if "READ_DATABASE_URL" in os.environ:
+    os.environ["READ_DATABASE_URL"] = os.environ["READ_DATABASE_URL"].replace("host.docker.internal", "localhost")
 
 # =============================================================================
 # Configuration

@@ -463,7 +463,7 @@ class TestScannerAPIs:
             "/api/scanner/strategies",
             "PASS",
             elapsed_ms,
-            f"Returned strategies",
+            "Returned strategies",
             ""
         )
 

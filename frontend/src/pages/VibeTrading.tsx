@@ -190,6 +190,16 @@ export const VibeTrading: React.FC = () => {
   const [pmVerdict, setPmVerdict] = useState<any>(null);
   const [explainableReport, setExplainableReport] = useState<any>(null);
 
+  // Ref for autoscrolling swarm logs
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Autoscroll to bottom when new logs arrive
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [swarmEvents]);
+
   // Automatic polling refresh during market hours or if data is stale
   useEffect(() => {
     if (!pmVerdict || loading) return;
@@ -605,7 +615,7 @@ export const VibeTrading: React.FC = () => {
                 <p className="text-xs text-slate-500 mb-2">Swarm Execution Logs:</p>
                 {swarmEvents.length === 0 && <p className="text-xs text-slate-600">Enter a symbol and click Debate to launch the Swarm Agents.</p>}
                 {swarmEvents.map((evt, idx) => (
-                  <div key={idx} className="mb-2 text-xs font-mono text-slate-300">
+                  <div key={idx} className="mb-2 text-xs font-mono text-slate-300 whitespace-pre-wrap break-words">
                     {(evt.type === 'worker_started' || evt.type === 'worker_start') && (
                       <span className="text-blue-400">[{evt.timestamp || new Date().toISOString()}] Agent {evt.agent_id} started.</span>
                     )}
@@ -623,6 +633,7 @@ export const VibeTrading: React.FC = () => {
                     )}
                   </div>
                 ))}
+                <div ref={logsEndRef} />
               </div>
             </div>
             {/* PM Decision Panel */}

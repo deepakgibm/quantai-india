@@ -132,7 +132,17 @@ def resolve_instrument_info(
         symbol_upper = "NIFTY 50"
         
     key = f"{symbol_upper}:{series.upper()}:{exchange.upper()}"
-    return _instruments_by_sym.get(key)
+    info = _instruments_by_sym.get(key)
+    if info:
+        return info
+        
+    # SRE Fallback: If exact EQ series lookup fails, search for matching symbol with SM, BE, or other series
+    prefix = f"{symbol_upper}:"
+    for k, val in _instruments_by_sym.items():
+        if k.startswith(prefix):
+            return val
+            
+    return None
 
 
 def resolve_instrument_key(

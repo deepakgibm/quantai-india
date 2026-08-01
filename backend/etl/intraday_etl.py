@@ -130,7 +130,7 @@ class Database:
                     inserted += 1
                 else:
                     skipped += 1
-            except Exception as e:
+            except Exception:
                 skipped += 1
         
         self.conn.commit()
@@ -326,7 +326,7 @@ class IntradayETL:
                     
                     if df.empty:
                         state["failed"].append(symbol)
-                        self.logger.warning(f"  ✗ No data")
+                        self.logger.warning("  ✗ No data")
                         continue
                     
                     inserted, skipped = self.db.insert_candles(df, symbol, self.db_interval)

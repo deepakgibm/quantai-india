@@ -1,16 +1,259 @@
 {
-  "timestamp": "2026-06-29T21:46:48.723869",
+  "timestamp": "2026-07-24T21:24:41.510240",
   "endpoints_tested": [
-    "/api/market/nifty100/top-movers"
+    "/api/market/nifty100/top-movers",
+    "/api/ai/top5-picks",
+    "/api/ai/breakout-detector",
+    "/api/scanners/v3/momentum"
   ],
-  "symbols_validated": [],
-  "results": [],
+  "symbols_validated": [
+    "AARON",
+    "ORIENTLTD",
+    "KCPSUGIND",
+    "TECHNVISN",
+    "BTML",
+    "ULTRACEMCO",
+    "M&M",
+    "SUNPHARMA",
+    "360ONE",
+    "AAKASH",
+    "KIRLOSENG",
+    "GRAPHITE",
+    "CROMPTON",
+    "SOLARINDS",
+    "IPCALAB",
+    "BAJAJ-AUTO",
+    "SBILIFE",
+    "EICHERMOT"
+  ],
+  "results": [
+    {
+      "endpoint": "/api/market/nifty100/top-movers",
+      "symbol": "AARON",
+      "backend_price": 135.25,
+      "reference_price": 135.25,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/market/nifty100/top-movers",
+      "symbol": "ORIENTLTD",
+      "backend_price": 89.29,
+      "reference_price": 89.29,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/market/nifty100/top-movers",
+      "symbol": "KCPSUGIND",
+      "backend_price": 27.85,
+      "reference_price": 27.85,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/market/nifty100/top-movers",
+      "symbol": "TECHNVISN",
+      "backend_price": 5074.5,
+      "reference_price": 5074.5,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/market/nifty100/top-movers",
+      "symbol": "BTML",
+      "backend_price": 6.96,
+      "reference_price": 6.96,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/top5-picks",
+      "symbol": "ULTRACEMCO",
+      "backend_price": 11840.0,
+      "reference_price": 11840.0,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/top5-picks",
+      "symbol": "M&M",
+      "backend_price": 3161.4,
+      "reference_price": 3161.4,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/top5-picks",
+      "symbol": "SUNPHARMA",
+      "backend_price": 1942.9,
+      "reference_price": 1942.9,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/top5-picks",
+      "symbol": "360ONE",
+      "backend_price": 1102.3,
+      "reference_price": 1102.3,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/top5-picks",
+      "symbol": "AAKASH",
+      "backend_price": 8.92,
+      "reference_price": 8.92,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/breakout-detector",
+      "symbol": "KIRLOSENG",
+      "backend_price": 2196.0,
+      "reference_price": 2196.0,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/breakout-detector",
+      "symbol": "GRAPHITE",
+      "backend_price": 672.75,
+      "reference_price": 672.75,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/breakout-detector",
+      "symbol": "CROMPTON",
+      "backend_price": 250.15,
+      "reference_price": 250.15,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/breakout-detector",
+      "symbol": "SOLARINDS",
+      "backend_price": 18494.0,
+      "reference_price": 18494.0,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/ai/breakout-detector",
+      "symbol": "IPCALAB",
+      "backend_price": 1762.7,
+      "reference_price": 1762.7,
+      "absolute_difference": 0.0,
+      "percentage_difference": 0.0,
+      "tolerance": 0.1,
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "endpoint": "/api/scanners/v3/momentum",
+      "symbol": "BAJAJ-AUTO",
+      "backend_price": 11283.5,
+      "reference_price": 11130.0,
+      "absolute_difference": 153.5,
+      "percentage_difference": 1.3792,
+      "tolerance": 0.1,
+      "passed": false,
+      "status": "FAIL"
+    },
+    {
+      "endpoint": "/api/scanners/v3/momentum",
+      "symbol": "SBILIFE",
+      "backend_price": 1853.5,
+      "reference_price": 1858.6,
+      "absolute_difference": 5.1,
+      "percentage_difference": 0.2744,
+      "tolerance": 0.1,
+      "passed": false,
+      "status": "FAIL"
+    },
+    {
+      "endpoint": "/api/scanners/v3/momentum",
+      "symbol": "AAKASH",
+      "backend_price": 9.22,
+      "reference_price": 8.92,
+      "absolute_difference": 0.3,
+      "percentage_difference": 3.3632,
+      "tolerance": 0.1,
+      "passed": false,
+      "status": "FAIL"
+    },
+    {
+      "endpoint": "/api/scanners/v3/momentum",
+      "symbol": "EICHERMOT",
+      "backend_price": 7718.0,
+      "reference_price": 7628.0,
+      "absolute_difference": 90.0,
+      "percentage_difference": 1.1799,
+      "tolerance": 0.1,
+      "passed": false,
+      "status": "FAIL"
+    },
+    {
+      "endpoint": "/api/scanners/v3/momentum",
+      "symbol": "M&M",
+      "backend_price": 3229.7,
+      "reference_price": 3161.4,
+      "absolute_difference": 68.3,
+      "percentage_difference": 2.1604,
+      "tolerance": 0.1,
+      "passed": false,
+      "status": "FAIL"
+    }
+  ],
   "summary": {
-    "total_endpoints": 1,
-    "total_symbols": 0,
-    "total_validations": 0,
-    "passed": 0,
-    "failed": 0,
-    "pass_rate": 0
+    "total_endpoints": 4,
+    "total_symbols": 18,
+    "total_validations": 20,
+    "passed": 15,
+    "failed": 5,
+    "pass_rate": 75.0
   }
 }

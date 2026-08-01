@@ -13,7 +13,6 @@ Architecture:
 import logging
 import math
 import pandas as pd
-import numpy as np
 from datetime import datetime, timezone
 from services.indicator_compute_service import get_indicator_service
 

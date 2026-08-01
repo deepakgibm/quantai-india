@@ -1,0 +1,17 @@
+{
+  "id": "task-bull",
+  "agent_id": "bull_advocate",
+  "prompt_template": "Conduct full bull-side research on {target} and build a complete bullish investment case. Market: Indian NSE.",
+  "depends_on": [],
+  "blocked_by": [],
+  "input_from": {},
+  "status": "completed",
+  "summary": "Technical indicators suggest stable consolidation. Recommend Hold.",
+  "artifacts": [
+    "/app/services/ai/swarm_engine/.swarm/runs/swarm-20260712-155351-1732ead0/artifacts/bull_advocate/summary.md"
+  ],
+  "error": null,
+  "started_at": "2026-07-12T15:53:51.768916+00:00",
+  "completed_at": "2026-07-12T15:53:58.346150+00:00",
+  "worker_iterations": 1
+}

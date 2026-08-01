@@ -87,6 +87,33 @@ async def verify_subscription_payment(
         logger.error(f"Payment verification failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/subscription/verify-coupon/{coupon_code}")
+async def verify_coupon(
+    coupon_code: str,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        from models_saas import SaaSCoupon
+        from datetime import datetime
+        coupon_query = select(SaaSCoupon).where(
+            SaaSCoupon.code == coupon_code.upper(),
+            SaaSCoupon.is_active == True,
+            SaaSCoupon.valid_until > datetime.utcnow()
+        )
+        coupon_res = await db.execute(coupon_query)
+        coupon = coupon_res.scalars().first()
+        if not coupon:
+            return {"status": "error", "message": "Invalid or expired coupon code."}
+        return {
+            "status": "success",
+            "code": coupon.code,
+            "discount_pct": coupon.discount_pct
+        }
+    except Exception as e:
+        logger.error(f"Coupon validation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/subscription/revenue")
 async def get_billing_revenue_analytics(
     current_user: User = Depends(get_current_user),
@@ -105,14 +132,38 @@ async def get_billing_revenue_analytics(
 @router.get("/smc")
 async def get_smc_analysis(
     symbol: str = Query(..., description="NSE Stock Symbol"),
+    timeframe: str = Query("1D", description="Timeframe: 5m, 15m, 30m, 1H, 1D"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Validate timeframe
+    timeframe_upper = timeframe.upper()
+    if timeframe_upper not in ("5M", "15M", "30M", "1H", "1D"):
+        raise HTTPException(status_code=400, detail="Invalid timeframe. Supported: 5m, 15m, 30m, 1H, 1D")
+        
     try:
-        analysis = await SMCService.detect_smc_patterns(db, symbol)
+        analysis = await SMCService.detect_smc_patterns(db, symbol, timeframe_upper)
         return {"status": "success", "analysis": analysis}
     except Exception as e:
-        logger.error(f"SMC analysis failed for {symbol}: {e}")
+        logger.error(f"SMC analysis failed for {symbol} ({timeframe}): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/debug/smc/{symbol}")
+async def get_smc_diagnostics(
+    symbol: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Diagnostic endpoint: returns dataset alignment between live LTP and DB candles.
+    Use this to verify whether the SMC engine is using the correct price dataset.
+    """
+    try:
+        diag = await SMCService.get_diagnostics(db, symbol.upper())
+        return {"status": "success", "diagnostics": diag}
+    except Exception as e:
+        logger.error(f"SMC diagnostics failed for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ─── PATTERN RECOGNITION ROUTES ───────────────────────────────────────────────
@@ -201,11 +252,11 @@ async def get_broker_affiliate_dashboard(
         aff_res = await db.execute(aff_query)
         trackers = aff_res.scalars().all()
         
-        # If no trackers, create seeded mock tracking dashboard
+        # If no trackers, create seeded tracking dashboard with zero metrics
         if not trackers:
             trackers = [
-                AffiliateTracker(user_id=current_user.id, broker_name="UPSTOX", referral_code=f"REF_UP_{current_user.id}", clicks=42, conversions=5, total_commission=2500.0),
-                AffiliateTracker(user_id=current_user.id, broker_name="ZERODHA", referral_code=f"REF_ZD_{current_user.id}", clicks=18, conversions=2, total_commission=1000.0),
+                AffiliateTracker(user_id=current_user.id, broker_name="UPSTOX", referral_code=f"REF_UP_{current_user.id}", clicks=0, conversions=0, total_commission=0.0),
+                AffiliateTracker(user_id=current_user.id, broker_name="ZERODHA", referral_code=f"REF_ZD_{current_user.id}", clicks=0, conversions=0, total_commission=0.0),
             ]
             for t in trackers:
                 db.add(t)

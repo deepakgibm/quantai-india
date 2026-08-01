@@ -135,7 +135,9 @@ async def get_hp_breakout():
 
 # --- WebSocket Feed ---
 
-@router.websocket("/ws")
+ws_router = APIRouter(tags=["Scanners WebSocket"])
+
+@ws_router.websocket("/ws")
 async def scanner_websocket(websocket: WebSocket):
     """Real-time scanner update feed with heartbeat."""
     logger.info("New WebSocket connection request")

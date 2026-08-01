@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
+import logging
 from database import get_db
 from models import User
 from schemas import UpstoxAuthResponse, UpstoxCallback, UpstoxTokenResponse
 from utils.auth import get_current_user
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 from utils.rate_limit import rate_limit
 

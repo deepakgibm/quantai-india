@@ -1,5 +1,6 @@
 import pytest
 import os
+from datetime import datetime, timedelta
 from playwright.sync_api import Page, expect
 
 # Test credentials matching standard E2E configuration
@@ -20,7 +21,98 @@ def test_institutional_scanner_e2e_wiring(page: Page):
     """
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
+    # Inoculate database VCP data for HINDCOPPER
+    import psycopg2
+    from dotenv import load_dotenv
+    load_dotenv()
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+        try:
+            conn = psycopg2.connect(db_url)
+            cursor = conn.cursor()
+            
+            # Ensure HINDCOPPER exists in instrument_master
+            cursor.execute("SELECT instrument_id FROM instrument_master WHERE symbol = 'HINDCOPPER'")
+            inst = cursor.fetchone()
+            if not inst:
+                cursor.execute("""
+                    INSERT INTO instrument_master (symbol, instrument_type, exchange, lot_size, tick_size, name)
+                    VALUES ('HINDCOPPER', 'EQUITY', 'NSE', 1, 0.05, 'Hindustan Copper Limited')
+                    RETURNING instrument_id
+                """)
+                inst_id = cursor.fetchone()[0]
+            else:
+                inst_id = inst[0]
+                
+            # Ensure stock candles exist for HINDCOPPER
+            cursor.execute("SELECT COUNT(*) FROM stock_candle WHERE instrument_id = %s", (inst_id,))
+            if cursor.fetchone()[0] == 0:
+                for i in range(30):
+                    ts = datetime.utcnow() - timedelta(days=i)
+                    cursor.execute("""
+                        INSERT INTO stock_candle (instrument_id, timeframe, candle_ts, open, high, low, close, volume)
+                        VALUES (%s, 1440, %s, 150.0, 155.0, 148.0, 152.0, 100000)
+                    """, (inst_id, ts))
+
+            # Ensure VCP Score exists
+            cursor.execute("SELECT COUNT(*) FROM vcp_scores WHERE symbol = 'HINDCOPPER'")
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("""
+                    INSERT INTO vcp_scores (symbol, current_price, distance_from_52w_high, vcp_score, num_contractions, latest_contraction_pct, volume_dry_up_pct, atr_contraction_pct, breakout_pivot, breakout_ready, category)
+                    VALUES ('HINDCOPPER', 152.0, 5.0, 85.0, 3, 2.5, 45.0, 12.0, 155.0, true, 'Elite')
+                """)
+                
+            # Ensure Trend Template Score exists
+            cursor.execute("SELECT COUNT(*) FROM trend_template_scores WHERE symbol = 'HINDCOPPER'")
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("""
+                    INSERT INTO trend_template_scores (symbol, trend_template_score, price_above_sma50, price_above_sma150, price_above_sma200, sma50, sma150, sma200, distance_to_52w_high)
+                    VALUES ('HINDCOPPER', 7.0, true, true, true, 145.0, 140.0, 135.0, 5.0)
+                """)
+                
+            # Ensure RS Ranking exists
+            cursor.execute("SELECT COUNT(*) FROM relative_strength_rankings WHERE symbol = 'HINDCOPPER'")
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("""
+                    INSERT INTO relative_strength_rankings (rank, symbol, rs_score, sector, market_cap)
+                    VALUES (12, 'HINDCOPPER', 89.5, 'Metals', 15000000000.0)
+                """)
+                
+            # Ensure Darvas Box exists
+            cursor.execute("SELECT COUNT(*) FROM darvas_boxes WHERE symbol = 'HINDCOPPER'")
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("""
+                    INSERT INTO darvas_boxes (symbol, box_top, box_bottom, days_inside_box)
+                    VALUES ('HINDCOPPER', 160.0, 145.0, 15)
+                """)
+                
+            conn.commit()
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print("DB: Inoculated VCP scanner mock data successfully.")
+            
+            # Clear Redis cache synchronously
+            try:
+                import redis
+                redis_host = os.getenv("REDIS_HOST", "localhost")
+                redis_port = int(os.getenv("REDIS_PORT", 6379))
+                redis_db = int(os.getenv("REDIS_DB", 0))
+                r = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
+                r.delete("qai:scanner:institutional:results")
+                r.delete("qai:scanner:institutional:dashboard")
+                print("DB: Synchronously cleared Redis VCP scanner cache.")
+            except Exception as cache_err:
+                print("Cache clear error:", cache_err)
+        except Exception as e:
+            print("DB Inoculation error:", e)
+
     try:
+        # Enable console log and pageerror listening
+        page.on("pageerror", lambda err: print(f"[Browser JS Error] {getattr(err, 'message', err)}\nSTACK: {getattr(err, 'stack', 'No stack')}"))
+        page.on("console", lambda msg: print(f"[Browser Console] {msg.text}"))
+
         # 1. Login Flow
         print("\n[Step 1] Navigating to http://127.0.0.1:3000")
         page.goto("http://127.0.0.1:3000")

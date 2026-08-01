@@ -181,7 +181,8 @@ class TestWebSocketReconnect:
             mgr.ws = None
             return mgr
 
-    def test_stop_requested_exits_loop_immediately(self):
+    @pytest.mark.asyncio
+    async def test_stop_requested_exits_loop_immediately(self):
         """If _stop_requested is True, _auto_reconnect must exit without calling connect."""
         mgr = self._make_manager()
         mgr._stop_requested = True
@@ -192,14 +193,13 @@ class TestWebSocketReconnect:
 
         mgr.connect = mock_connect
 
-        async def run():
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                await mgr._auto_reconnect()
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            await mgr._auto_reconnect()
 
-        asyncio.get_event_loop().run_until_complete(run())
         assert len(connect_calls) == 0, "_auto_reconnect must not call connect when stop requested"
 
-    def test_reconnect_calls_connect_on_dropped_feed(self):
+    @pytest.mark.asyncio
+    async def test_reconnect_calls_connect_on_dropped_feed(self):
         """When not stopped and not running, _auto_reconnect must call connect at least once."""
         mgr = self._make_manager()
         mgr._stop_requested = False
@@ -212,11 +212,9 @@ class TestWebSocketReconnect:
 
         mgr.connect = mock_connect
 
-        async def run():
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                await mgr._auto_reconnect()
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            await mgr._auto_reconnect()
 
-        asyncio.get_event_loop().run_until_complete(run())
         assert len(connect_calls) >= 1, "_auto_reconnect must call connect at least once"
 
     def test_backoff_capped_at_60_seconds(self):

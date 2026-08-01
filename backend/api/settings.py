@@ -22,7 +22,7 @@ async def get_settings(
             "auto_trade": settings.auto_trade,
             "notifications": settings.notifications
         }
-    except Exception as e:
+    except Exception:
         return {
             "max_capital": 1000000.0,
             "max_risk_per_trade": 2.0,

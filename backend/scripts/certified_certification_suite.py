@@ -155,7 +155,7 @@ class CertificationSuite:
             else:
                 self.results["market_data"] = "FAILED"
                 self.results["errors"].append(f"MarketData: {resp.status_code} - {resp.text}")
-        except Exception as e:
+        except Exception:
             self.results["market_data"] = "ERROR"
 
     async def test_scanners(self):

@@ -63,6 +63,14 @@ class TestPriceAccuracy:
             # Get reference price from Upstox
             instrument_key = symbol_to_instrument_key.get(symbol)
             if not instrument_key:
+                try:
+                    from services.instrument_resolver import resolve_instrument_info
+                    info = resolve_instrument_info(symbol)
+                    if info:
+                        instrument_key = info.instrument_key
+                except Exception:
+                    pass
+            if not instrument_key:
                 continue
             
             ref_quote = upstox_client.get_ltp(instrument_key)
@@ -116,9 +124,12 @@ class TestPriceAccuracy:
         data = response.json()
         
         stocks = []
-        for key in ["gainers", "losers", "top_gainers", "top_losers", "data", "stocks"]:
-            if key in data and isinstance(data[key], list):
-                stocks.extend(data[key])
+        if isinstance(data, list):
+            stocks = data
+        else:
+            for key in ["gainers", "losers", "top_gainers", "top_losers", "data", "stocks"]:
+                if key in data and isinstance(data[key], list):
+                    stocks.extend(data[key])
         
         if not stocks:
             pytest.skip("No stocks in response")
@@ -131,9 +142,11 @@ class TestPriceAccuracy:
         )
     
     @pytest.mark.price_validation
-    def test_ai_top5_picks_prices(self, api_client, upstox_client, symbol_to_instrument_key):
+    def test_ai_top5_picks_prices(self, api_client, auth_token, upstox_client, symbol_to_instrument_key):
         """Validate prices in AI top5-picks response."""
-        response = api_client.get("/api/ai/top5-picks", auth=False)
+        if not auth_token:
+            pytest.skip("No auth token")
+        response = api_client.get("/api/ai/top5-picks", auth=True)
         
         if response.status_code != 200:
             pytest.skip(f"Endpoint returned {response.status_code}")
@@ -156,9 +169,11 @@ class TestPriceAccuracy:
         )
     
     @pytest.mark.price_validation
-    def test_ai_breakout_stocks_prices(self, api_client, upstox_client, symbol_to_instrument_key):
-        """Validate prices in AI breakout-stocks response."""
-        response = api_client.get("/api/ai/breakout-stocks", auth=False)
+    def test_ai_breakout_stocks_prices(self, api_client, auth_token, upstox_client, symbol_to_instrument_key):
+        """Validate prices in AI breakout-detector response."""
+        if not auth_token:
+            pytest.skip("No auth token")
+        response = api_client.get("/api/ai/breakout-detector", auth=True)
         
         if response.status_code != 200:
             pytest.skip(f"Endpoint returned {response.status_code}")
@@ -172,15 +187,17 @@ class TestPriceAccuracy:
         
         self._validate_stock_prices(
             stocks[:5],
-            "/api/ai/breakout-stocks",
+            "/api/ai/breakout-detector",
             upstox_client,
             symbol_to_instrument_key
         )
     
     @pytest.mark.price_validation
-    def test_hp_scanner_momentum_prices(self, api_client, upstox_client, symbol_to_instrument_key):
+    def test_hp_scanner_momentum_prices(self, api_client, auth_token, upstox_client, symbol_to_instrument_key):
         """Validate prices in HP Scanner momentum response."""
-        response = api_client.get("/api/v3/scanner/momentum", auth=False)
+        if not auth_token:
+            pytest.skip("No auth token")
+        response = api_client.get("/api/scanners/v3/momentum", auth=True)
         
         if response.status_code != 200:
             pytest.skip(f"Endpoint returned {response.status_code}")
@@ -194,15 +211,17 @@ class TestPriceAccuracy:
         
         self._validate_stock_prices(
             stocks[:5],
-            "/api/v3/scanner/momentum",
+            "/api/scanners/v3/momentum",
             upstox_client,
             symbol_to_instrument_key
         )
     
     @pytest.mark.price_validation
-    def test_hp_scanner_snapshots_prices(self, api_client, upstox_client, symbol_to_instrument_key):
-        """Validate prices in HP Scanner snapshots response."""
-        response = api_client.get("/api/v3/scanner/snapshots", auth=False)
+    def test_hp_scanner_snapshots_prices(self, api_client, auth_token, upstox_client, symbol_to_instrument_key):
+        """Validate prices in HP Scanner breakout response."""
+        if not auth_token:
+            pytest.skip("No auth token")
+        response = api_client.get("/api/scanners/v3/breakout", auth=True)
         
         if response.status_code != 200:
             pytest.skip(f"Endpoint returned {response.status_code}")
@@ -244,7 +263,7 @@ class TestPriceAccuracy:
             
             # Log result
             self.validation_report.append({
-                "endpoint": "/api/v3/scanner/snapshots",
+                "endpoint": "/api/scanners/v3/breakout",
                 "symbol": symbol,
                 "backend_price": backend_price,
                 "reference_price": ref_price,
@@ -254,8 +273,10 @@ class TestPriceAccuracy:
     
     @pytest.mark.price_validation
     @pytest.mark.parametrize("symbol", QUICK_TEST_SYMBOLS)
-    def test_individual_symbol_price(self, api_client, upstox_client, symbol_to_instrument_key, symbol):
+    def test_individual_symbol_price(self, api_client, auth_token, upstox_client, symbol_to_instrument_key, symbol):
         """Validate price for individual symbol across APIs."""
+        if not auth_token:
+            pytest.skip("No auth token")
         instrument_key = symbol_to_instrument_key.get(symbol)
         if not instrument_key:
             pytest.skip(f"No instrument key for {symbol}")
@@ -270,21 +291,21 @@ class TestPriceAccuracy:
             pytest.skip(f"No LTP in reference data for {symbol}")
         
         # Get price from HP Scanner snapshot
-        response = api_client.get(f"/api/v3/scanner/snapshot/{symbol}", auth=False)
+        response = api_client.get(f"/api/scanners/v3/symbol/{symbol}", auth=True)
+        assert response.status_code == 200, f"Snapshot endpoint returned {response.status_code}"
         
-        if response.status_code == 200:
-            data = response.json()
-            backend_price = data.get("ltp") or data.get("close") or data.get("price")
+        data = response.json()
+        backend_price = data.get("ltp") or data.get("close") or data.get("price")
+        
+        if backend_price:
+            is_valid, abs_diff, pct_diff = compare_prices(
+                float(backend_price), float(ref_price), TOLERANCE_LTP
+            )
             
-            if backend_price:
-                is_valid, abs_diff, pct_diff = compare_prices(
-                    float(backend_price), float(ref_price), TOLERANCE_LTP
-                )
-                
-                assert is_valid, (
-                    f"{symbol}: Backend={backend_price}, "
-                    f"Reference={ref_price}, Diff={pct_diff:.4f}%"
-                )
+            assert is_valid, (
+                f"{symbol}: Backend={backend_price}, "
+                f"Reference={ref_price}, Diff={pct_diff:.4f}%"
+            )
     
     def _validate_stock_prices(
         self,
@@ -357,8 +378,10 @@ class TestOHLCAccuracy:
     
     @pytest.mark.price_validation
     @pytest.mark.parametrize("symbol", QUICK_TEST_SYMBOLS)
-    def test_candle_ohlc_accuracy(self, api_client, upstox_client, symbol_to_instrument_key, symbol):
+    def test_candle_ohlc_accuracy(self, api_client, auth_token, upstox_client, symbol_to_instrument_key, symbol):
         """Validate OHLC data matches reference."""
+        if not auth_token:
+            pytest.skip("No auth token")
         instrument_key = symbol_to_instrument_key.get(symbol)
         if not instrument_key:
             pytest.skip(f"No instrument key for {symbol}")
@@ -371,7 +394,7 @@ class TestOHLCAccuracy:
         ref_ohlc = ref_quote["ohlc"]
         
         # Get from HP Scanner
-        response = api_client.get(f"/api/v3/scanner/snapshot/{symbol}", auth=False)
+        response = api_client.get(f"/api/scanners/v3/symbol/{symbol}", auth=True)
         
         if response.status_code != 200:
             pytest.skip(f"Could not get snapshot for {symbol}")
@@ -403,7 +426,7 @@ class TestPriceValidationReport:
         return {"results": [], "summary": {}}
     
     @pytest.mark.price_validation
-    def test_generate_validation_report(self, api_client, upstox_client, symbol_to_instrument_key):
+    def test_generate_validation_report(self, api_client, auth_token, upstox_client, symbol_to_instrument_key):
         """Generate comprehensive price validation report."""
         report = {
             "timestamp": datetime.now().isoformat(),
@@ -415,15 +438,17 @@ class TestPriceValidationReport:
         
         endpoints = [
             ("/api/market/nifty100/top-movers", False),
-            ("/api/ai/top5-picks", False),
-            ("/api/ai/breakout-stocks", False),
-            ("/api/v3/scanner/momentum", False),
+            ("/api/ai/top5-picks", True),
+            ("/api/ai/breakout-detector", True),
+            ("/api/scanners/v3/momentum", True),
         ]
         
         total_validated = 0
         total_passed = 0
         
         for endpoint, auth_required in endpoints:
+            if auth_required and not auth_token:
+                continue
             response = api_client.get(endpoint, auth=auth_required)
             
             if response.status_code != 200:
@@ -434,9 +459,12 @@ class TestPriceValidationReport:
             
             # Extract stocks
             stocks = []
-            for key in ["stocks", "gainers", "losers", "data", "results", "buy_signals", "sell_signals"]:
-                if key in data and isinstance(data[key], list):
-                    stocks.extend(data[key])
+            if isinstance(data, list):
+                stocks = data
+            else:
+                for key in ["stocks", "gainers", "losers", "data", "results", "buy_signals", "sell_signals"]:
+                    if key in data and isinstance(data[key], list):
+                        stocks.extend(data[key])
             
             for stock in stocks[:5]:
                 symbol = stock.get("symbol") or stock.get("trading_symbol")
@@ -446,6 +474,14 @@ class TestPriceValidationReport:
                     continue
                 
                 instrument_key = symbol_to_instrument_key.get(symbol)
+                if not instrument_key:
+                    try:
+                        from services.instrument_resolver import resolve_instrument_info
+                        info = resolve_instrument_info(symbol)
+                        if info:
+                            instrument_key = info.instrument_key
+                    except Exception:
+                        pass
                 if not instrument_key:
                     continue
                 

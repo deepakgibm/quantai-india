@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 
 from database import get_read_db
@@ -7,49 +7,8 @@ from services.dragonfly_client import get_cache
 
 router = APIRouter()
 
-@router.get("/dashboard")
-async def get_dashboard_stats(db: Session = Depends(get_read_db)):
-    """Retrieve summarized institutional scanner opportunity dashboard stats."""
-    cache = get_cache()
-    cached = await cache.get_async("qai:scanner:institutional:dashboard")
-    if cached:
-        return cached
-        
-    # Cache miss: compute from database tables
-    try:
-        from sqlalchemy import text
-        # Count total scanned from vcp_scores
-        vcp_res = await db.execute(text("SELECT COUNT(*), COUNT(CASE WHEN vcp_score >= 80 THEN 1 END), COUNT(CASE WHEN breakout_ready = TRUE THEN 1 END) FROM vcp_scores"))
-        vcp_count = vcp_res.fetchone()
-        
-        bo_res = await db.execute(text("SELECT COUNT(*) FROM breakout_candidates"))
-        bo_count = bo_res.fetchone()
-        
-        rs_res = await db.execute(text("SELECT COUNT(CASE WHEN rs_score >= 80 THEN 1 END) FROM relative_strength_rankings"))
-        rs_count = rs_res.fetchone()
-        
-        total = vcp_count[0] if vcp_count else 0
-        vcp_cands = vcp_count[1] if vcp_count else 0
-        bo_ready = vcp_count[2] if vcp_count else 0
-        fresh_bo = bo_count[0] if bo_count else 0
-        near_52w = bo_count[0] if bo_count else 0  # fallback approximate
-        rs_leaders = rs_count[0] if rs_count else 0
-        
-        return {
-            "total_scanned": total,
-            "vcp_candidates": vcp_cands,
-            "breakout_ready": bo_ready,
-            "fresh_breakouts": fresh_bo,
-            "near_52w_high": near_52w,
-            "rs_leaders": rs_leaders,
-            "last_updated": None
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database aggregation failed: {e}")
-
-@router.get("/results")
-async def get_scanner_results(db: Session = Depends(get_read_db)):
-    """Retrieve detailed, filterable pattern scan results."""
+async def get_all_results_list(db: Session) -> list:
+    """Helper to fetch all results list from cache or fall back to database."""
     cache = get_cache()
     cached = await cache.get_async("qai:scanner:institutional:results")
     if cached:
@@ -135,12 +94,55 @@ async def get_scanner_results(db: Session = Depends(get_read_db)):
                 "accumulation_score": 0.0
             })
             
+        # Cache results in Dragonfly
+        await cache.set_async("qai:scanner:institutional:results", results_list, ttl=3600)
         return results_list
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
         return []
 
+@router.get("/dashboard")
+async def get_dashboard_stats(universe: str = Query("ALL"), db: Session = Depends(get_read_db)):
+    """Retrieve summarized institutional scanner opportunity dashboard stats, filtered by universe."""
+    results = await get_scanner_results(universe, db)
+    
+    total = len(results)
+    vcp_cands = sum(1 for r in results if r.get("vcp_score", 0) >= 80)
+    bo_ready = sum(1 for r in results if r.get("breakout_ready"))
+    
+    # Check if there are breakouts or 52W high proximity candidates
+    fresh_bo = sum(1 for r in results if r.get("is_breakout", False))
+    near_52w = sum(1 for r in results if r.get("distance_52w_high", 100.0) <= 5.0)
+    rs_leaders = sum(1 for r in results if r.get("rs_score", 0) >= 80)
+    
+    return {
+        "total_scanned": total,
+        "vcp_candidates": vcp_cands,
+        "breakout_ready": bo_ready,
+        "fresh_breakouts": fresh_bo,
+        "near_52w_high": near_52w,
+        "rs_leaders": rs_leaders,
+        "last_updated": None
+    }
+
+@router.get("/results")
+async def get_scanner_results(universe: str = Query("ALL"), db: Session = Depends(get_read_db)):
+    """Retrieve detailed, filterable pattern scan results, filtered by universe."""
+    results = await get_all_results_list(db)
+    
+    universe = universe.upper().strip()
+    if universe != "ALL" and universe != "ALL STOCKS":
+        from services.bot.universe_service import UniverseService
+        constituents = UniverseService.get_universe_symbols(universe)
+        if constituents:
+            symbols_set = {sym for sym, _ in constituents}
+            results = [r for r in results if r["symbol"] in symbols_set]
+        else:
+            # If a specific universe is selected but has 0 constituents, return empty
+            return []
+            
+    return results
 
 @router.post("/scan")
 async def trigger_scan(background_tasks: BackgroundTasks):
@@ -149,7 +151,11 @@ async def trigger_scan(background_tasks: BackgroundTasks):
     if service.scan_status["is_scanning"]:
         return {"status": "scanning", "progress": service.scan_status["progress"]}
         
-    # Start scan in background
+    # Start scan in background and invalidate cache
+    cache = get_cache()
+    await cache.delete_async("qai:scanner:institutional:results")
+    await cache.delete_async("qai:scanner:institutional:dashboard")
+    
     background_tasks.add_task(service.scan_all_stocks)
     return {"status": "started", "message": "Background scanning task initialized."}
 

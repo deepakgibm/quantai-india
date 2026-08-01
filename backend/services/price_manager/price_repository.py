@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import pytz
@@ -83,15 +82,28 @@ class PriceRepository:
             
             client = get_upstox_client()
             
-            # Resolve instrument keys
-            keys_to_sym = {}
+            # Resolve instrument keys - separate API keys from response-matching lookup
+            keys_to_sym = {}        # Broad lookup map for matching API response keys
+            real_inst_keys = set()  # Only valid instrument keys to send to Upstox
             for s in symbols:
                 info = resolve_instrument_info(s)
                 if info and info.instrument_key:
-                    keys_to_sym[info.instrument_key] = s.upper()
+                    real_key = info.instrument_key  # e.g. NSE_EQ|INE371A01025
+                    real_inst_keys.add(real_key)
                     
-            if keys_to_sym:
-                rest_res = await client.get_live_quotes(list(keys_to_sym.keys()))
+                    # Map all possible response key formats back to the symbol
+                    keys_to_sym[real_key] = s.upper()
+                    keys_to_sym[real_key.upper()] = s.upper()
+                    keys_to_sym[real_key.replace("|", ":")] = s.upper()
+                    # Upstox sometimes returns NSE_EQ:SYMBOL format
+                    symbol_key_pipe = f"{info.exchange.upper()}_{info.series.upper()}|{info.symbol.upper()}"
+                    symbol_key_colon = f"{info.exchange.upper()}_{info.series.upper()}:{info.symbol.upper()}"
+                    keys_to_sym[symbol_key_pipe] = s.upper()
+                    keys_to_sym[symbol_key_colon] = s.upper()
+                    keys_to_sym[f"{info.exchange.upper()}:{info.symbol.upper()}"] = s.upper()
+                    
+            if real_inst_keys:
+                rest_res = await client.get_live_quotes(list(real_inst_keys))
                 
                 for inst_key, quote in rest_res.items():
                     s = keys_to_sym.get(inst_key)
@@ -121,71 +133,14 @@ class PriceRepository:
         return results
 
     async def get_from_db(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Retrieve price from the local EOD stock_candle database."""
-        try:
-            from services.live_price_enricher import get_database_movers_data
-            data_map = await get_database_movers_data([symbol])
-            data = data_map.get(symbol.upper())
-            
-            if data and data.get("ltp"):
-                ltp = float(data["ltp"])
-                prev_close = float(data.get("prev_close") or ltp)
-                
-                price_dict = {
-                    "symbol": symbol.upper(),
-                    "ltp": ltp,
-                    "open": ltp,
-                    "high": ltp,
-                    "low": ltp,
-                    "close": ltp,
-                    "prev_close": prev_close,
-                    "volume": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "price_source": PriceSource.DB_EOD.value
-                }
-                
-                if self._validator.validate_price_dict(symbol, price_dict):
-                    return price_dict
-        except Exception as e:
-            logger.error(f"Repository: DB fallback failed for {symbol}: {e}")
-            
+        """Retrieve price from the local EOD stock_candle database. Disabled per Phase 7 specifications."""
+        logger.debug(f"PriceRepository: Database fallback is disabled for live prices. Symbol: {symbol}")
         return None
 
     async def get_from_db_bulk(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
-        results = {}
-        if not symbols:
-            return results
-            
-        try:
-            from services.live_price_enricher import get_database_movers_data
-            db_data = await get_database_movers_data(symbols)
-            
-            for s in symbols:
-                s_upper = s.upper()
-                data = db_data.get(s_upper)
-                if data and data.get("ltp"):
-                    ltp = float(data["ltp"])
-                    prev_close = float(data.get("prev_close") or ltp)
-                    
-                    price_dict = {
-                        "symbol": s_upper,
-                        "ltp": ltp,
-                        "open": ltp,
-                        "high": ltp,
-                        "low": ltp,
-                        "close": ltp,
-                        "prev_close": prev_close,
-                        "volume": 0,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "price_source": PriceSource.DB_EOD.value
-                    }
-                    
-                    if self._validator.validate_price_dict(s_upper, price_dict):
-                        results[s_upper] = price_dict
-        except Exception as e:
-            logger.error(f"Repository: Bulk DB fetch failed: {e}")
-            
-        return results
+        """Retrieve price in batch from the local EOD stock_candle database. Disabled per Phase 7 specifications."""
+        logger.debug(f"PriceRepository: Database fallback is disabled for live prices. Symbols: {symbols}")
+        return {}
 
 _price_repository = None
 

@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-08-01T22:39:36.326757",
+  "summary": {
+    "total_validated": 3,
+    "passed": 3,
+    "failed": 0
+  },
+  "results": [
+    {
+      "symbol": "INFY",
+      "backend": {
+        "ltp": 1130.1,
+        "close": 1155.1,
+        "previous_close": 1155.1,
+        "volume": 14367075
+      },
+      "reference_upstox": {
+        "ltp": 1130.1,
+        "close": 0.0,
+        "previous_close": 1155.1,
+        "volume": 14367075
+      },
+      "metrics": {
+        "ltp_diff": 0.0,
+        "ltp_pct_diff": 0.0
+      },
+      "passed": true,
+      "possible_reason": null
+    },
+    {
+      "symbol": "TCS",
+      "backend": {
+        "ltp": 2365.6,
+        "close": 2431.8,
+        "previous_close": 2431.8,
+        "volume": 4343683
+      },
+      "reference_upstox": {
+        "ltp": 2365.6,
+        "close": 0.0,
+        "previous_close": 2431.7999999999997,
+        "volume": 4343683
+      },
+      "metrics": {
+        "ltp_diff": 0.0,
+        "ltp_pct_diff": 0.0
+      },
+      "passed": true,
+      "possible_reason": null
+    },
+    {
+      "symbol": "RELIANCE",
+      "backend": {
+        "ltp": 1307.8,
+        "close": 1292.9,
+        "previous_close": 1292.9,
+        "volume": 8624996
+      },
+      "reference_upstox": {
+        "ltp": 1307.8,
+        "close": 0.0,
+        "previous_close": 1292.8999999999999,
+        "volume": 8624996
+      },
+      "metrics": {
+        "ltp_diff": 0.0,
+        "ltp_pct_diff": 0.0
+      },
+      "passed": true,
+      "possible_reason": null
+    }
+  ]
+}

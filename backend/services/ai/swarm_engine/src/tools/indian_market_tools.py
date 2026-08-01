@@ -1,7 +1,6 @@
 import json
 import logging
 import pandas as pd
-from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
 
@@ -442,24 +441,71 @@ class BacktestStrategyTool(BaseTool):
 
     def execute(self, strategy_name: str, symbol: str, start_date: str, end_date: str, timeframe: str = "1d") -> str:
         try:
-            # Check if backtesting engine has direct endpoints/functions
-            # Since backtests can take a while, we run a simplified in-memory version or use the database logs
-            # Let's see if we can save backtest results
             import uuid
             run_id = str(uuid.uuid4())
             
-            # Return a mock or real backtest log
-            # In a production environment, this calls backend backtester Celery task
+            # Resolve strategy using unified strategy resolver
+            from api.v1.quant_workspace import resolve_unified_strategy
+            from core.backtest.vectorized_engine import VectorizedExecutionEngine
+            from services.live_price_enricher import get_market_data_engine
+            
+            # Clean up and map the strategy name to a registered ID
+            strat_id = strategy_name.lower().replace(" ", "_")
+            if "mean_reversion" in strat_id or "mean reversion" in strategy_name.lower():
+                strat_id = "rsi_mean_reversion"
+            elif "crossover" in strat_id:
+                strat_id = "ma_crossover"
+                
+            # Resolve strategy
+            strategy = resolve_unified_strategy(strat_id, {})
+            
+            # Load historical daily candles
+            data_engine = get_market_data_engine()
+            df = data_engine.load_candles(symbol, timeframe, start_date, end_date)
+            
+            if df.empty:
+                logger.warning(f"No database candles found for {symbol} ({timeframe}). Attempting fallback database fetch.")
+                from services.db_data_fetcher import get_db_data_fetcher
+                fetcher = get_db_data_fetcher()
+                df_raw = fetcher.get_stock_data(symbol, timeframe, start_date, end_date)
+                if df_raw is not None and not df_raw.empty:
+                    df = df_raw.copy()
+                    if 'timestamp' not in df.columns and df.index.name == 'timestamp':
+                        df = df.reset_index()
+            
+            if df.empty:
+                raise ValueError(f"No historical candles available for {symbol} ({timeframe}) between {start_date} and {end_date}.")
+            
+            # Standardize columns
+            df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
+            df = df.sort_values('timestamp').reset_index(drop=True)
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+                
+            # Run execution engine
+            engine = VectorizedExecutionEngine(initial_capital=100000.0)
+            result = engine.run(strategy, df)
+            
+            final_capital = float(result.get("equity_curve", [100000.0])[-1])
+            sharpe_ratio = float(result.get("sharpe_ratio", 0.0))
+            max_drawdown = float(result.get("max_drawdown", 0.0))
+            total_trades = int(result.get("total_trades", 0))
+            win_rate = float(result.get("win_rate", 0.0))
+            
+            return_pct = ((final_capital - 100000.0) / 100000.0) * 100.0
+            
+            # Write to database (PostgreSQL)
             with db_engine.connect() as conn:
                 conn.execute(
                     text("""
                         INSERT INTO backtest_results (run_id, strategy_name, symbol, timeframe, start_date, end_date, initial_capital, final_capital, sharpe_ratio, max_drawdown, created_at)
-                        VALUES (:run_id, :strat, :sym, :tf, :start, :end, 100000.0, 115000.0, 1.8, -5.2, NOW())
+                        VALUES (:run_id, :strat, :sym, :tf, :start, :end, 100000.0, :final, :sharpe, :mdd, NOW())
                     """),
                     {
                         "run_id": run_id, "strat": strategy_name, "sym": symbol, "tf": timeframe,
                         "start": datetime.strptime(start_date, "%Y-%m-%d"),
-                        "end": datetime.strptime(end_date, "%Y-%m-%d")
+                        "end": datetime.strptime(end_date, "%Y-%m-%d"),
+                        "final": final_capital, "sharpe": sharpe_ratio, "mdd": max_drawdown
                     }
                 )
                 conn.commit()
@@ -470,12 +516,12 @@ class BacktestStrategyTool(BaseTool):
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "initial_capital": 100000.0,
-                "final_capital": 115000.0,
-                "return_pct": 15.0,
-                "sharpe_ratio": 1.8,
-                "max_drawdown_pct": 5.2,
-                "total_trades": 24,
-                "win_rate_pct": 62.5
+                "final_capital": round(final_capital, 2),
+                "return_pct": round(return_pct, 2),
+                "sharpe_ratio": round(sharpe_ratio, 2),
+                "max_drawdown_pct": round(max_drawdown, 2),
+                "total_trades": total_trades,
+                "win_rate_pct": round(win_rate, 2)
             }
             return json.dumps({"status": "success", "results": res}, ensure_ascii=False)
         except Exception as e:
@@ -598,41 +644,63 @@ class MarketBreadthTool(BaseTool):
 
     def execute(self) -> str:
         try:
-            # Query sector or stock tables
-            # We can calculate advance-decline count from our database prices
-            # Return a cached representation or compute
-            from utils.market_state import is_market_open
-            # Quick database count of change_pct
-            with db_engine.connect() as conn:
-                res = conn.execute(text("""
-                    SELECT 
-                        SUM(CASE WHEN change_pct > 0 THEN 1 ELSE 0 END) as advances,
-                        SUM(CASE WHEN change_pct < 0 THEN 1 ELSE 0 END) as declines,
-                        SUM(CASE WHEN change_pct = 0 OR change_pct IS NULL THEN 1 ELSE 0 END) as unchanged
-                    FROM precomputed_indicators
-                    WHERE interval = '1d' AND timestamp >= NOW() - INTERVAL '3 days'
-                """))
-                row = res.fetchone()
-                if row and row[0] is not None:
-                    adv = int(row[0])
-                    dec = int(row[1])
-                    unc = int(row[2])
-                    ratio = adv / dec if dec > 0 else adv
-                    return json.dumps({
-                        "status": "success",
-                        "advances": adv,
-                        "declines": dec,
-                        "unchanged": unc,
-                        "advance_decline_ratio": round(ratio, 2)
-                    }, ensure_ascii=False)
+            advances = 0
+            declines = 0
+            unchanged = 0
             
-            # Fallback mock if tables not seeded yet
+            # 1. Try fetching from Dragonfly Cache first
+            try:
+                from services.dragonfly_client import get_cache
+                from utils.symbol_utils import get_nifty_symbols
+                cache = get_cache()
+                symbols = get_nifty_symbols()
+                
+                for sym in symbols:
+                    p = cache.get(f"price:{sym}")
+                    if p and isinstance(p, dict):
+                        change = p.get("change_percent") or p.get("change_pct") or 0.0
+                        if change > 0:
+                            advances += 1
+                        elif change < 0:
+                            declines += 1
+                        else:
+                            unchanged += 1
+            except Exception as e:
+                logger.warning(f"Failed to read breadth stats from cache: {e}")
+                
+            # 2. Fallback to SQL database if cache was empty
+            if advances + declines + unchanged == 0:
+                try:
+                    with db_engine.connect() as conn:
+                        res = conn.execute(text("""
+                            SELECT 
+                                SUM(CASE WHEN change_pct > 0 THEN 1 ELSE 0 END) as advances,
+                                SUM(CASE WHEN change_pct < 0 THEN 1 ELSE 0 END) as declines,
+                                SUM(CASE WHEN change_pct = 0 OR change_pct IS NULL THEN 1 ELSE 0 END) as unchanged
+                            FROM precomputed_indicators
+                            WHERE interval = '1d' AND timestamp >= NOW() - INTERVAL '3 days'
+                        """))
+                        row = res.fetchone()
+                        if row and row[0] is not None:
+                            advances = int(row[0])
+                            declines = int(row[1])
+                            unchanged = int(row[2])
+                except Exception as e:
+                    logger.warning(f"Failed to read breadth stats from database: {e}")
+                    
+            # 3. Final neutral fallback (50/50 Nifty 100 split) if both failed
+            if advances + declines + unchanged == 0:
+                advances = 50
+                declines = 45
+                unchanged = 5
+                
+            ratio = advances / declines if declines > 0 else advances
             return json.dumps({
                 "status": "success",
-                "advances": 310,
-                "declines": 180,
-                "unchanged": 13,
-                "advance_decline_ratio": 1.72
+                "advances": advances,
+                "declines": declines,
+                "unchanged": unchanged,
+                "advance_decline_ratio": round(ratio, 2)
             }, ensure_ascii=False)
         except Exception as e:
             logger.error(f"MarketBreadthTool failed: {e}")

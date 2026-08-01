@@ -2,11 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import logging
-import re
 from database import get_read_db
 from models import User
 from utils.auth import get_current_user
-from services.cache import get_cache_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Search"])

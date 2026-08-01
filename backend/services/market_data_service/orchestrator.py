@@ -159,7 +159,7 @@ class MarketDataOrchestratorMS:
                     self.current_source = DataSource.WEBSOCKET
                     if self._rest_poll_task: self._rest_poll_task.cancel()
                     if self._db_poll_task: self._db_poll_task.cancel()
-                except Exception as e:
+                except Exception:
                     if self.current_source == DataSource.DATABASE:
                         logger.info("WS upgrade failed and market is open, switching to REST")
                         await self._switch_to_rest()

@@ -214,3 +214,29 @@ class SubscriptionService:
             "total_gst": total_gst,
             "arpu": total_revenue / max(1, sum(active_counts.values()))
         }
+
+    @staticmethod
+    async def seed_coupons(db_session):
+        """Seed default coupons in the database if they don't exist."""
+        from datetime import datetime, timedelta
+        from models_saas import SaaSCoupon
+        
+        coupons = [
+            {"code": "WELCOME10", "discount_pct": 10.0, "valid_until": datetime.utcnow() + timedelta(days=365), "is_active": True},
+            {"code": "QUANT20", "discount_pct": 20.0, "valid_until": datetime.utcnow() + timedelta(days=365), "is_active": True}
+        ]
+        
+        for c in coupons:
+            q = select(SaaSCoupon).where(SaaSCoupon.code == c["code"])
+            res = await db_session.execute(q)
+            existing = res.scalars().first()
+            if not existing:
+                db_coupon = SaaSCoupon(
+                    code=c["code"],
+                    discount_pct=c["discount_pct"],
+                    valid_until=c["valid_until"],
+                    is_active=c["is_active"]
+                )
+                db_session.add(db_coupon)
+        await db_session.commit()
+

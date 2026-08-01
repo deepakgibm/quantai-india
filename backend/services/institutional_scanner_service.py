@@ -848,16 +848,28 @@ class InstitutionalScannerService:
         logger.info("Starting Institutional Pattern Scan Job...")
         
         try:
-            # 1. Fetch symbols
-            symbols = get_all_symbols()
+            # 1. Fetch symbols that have historical daily candles in the database
+            from sqlalchemy import text
+            db = SessionLocal()
+            try:
+                res = db.execute(text("""
+                    SELECT DISTINCT im.symbol
+                    FROM stock_candle sc
+                    JOIN instrument_master im ON sc.instrument_id = im.instrument_id
+                    WHERE sc.timeframe = 1440
+                """))
+                symbols = [row[0] for row in res.fetchall() if row[0]]
+                logger.info(f"Loaded {len(symbols)} symbols with daily candles from DB")
+            except Exception as se:
+                logger.error(f"Failed to query active symbols with daily candles from DB: {se}")
+                symbols = get_all_symbols()
+            finally:
+                db.close()
+                
             if not symbols:
                 logger.error("No active symbols loaded in symbol manager")
                 self._is_scanning = False
                 return self.scan_status
-                
-            # Limit universe size to 300 for execution speed, but keep representative
-            if len(symbols) > 300:
-                symbols = symbols[:300]
                 
             total = len(symbols)
             logger.info(f"Targeting {total} symbols for VCP and breakout screening...")

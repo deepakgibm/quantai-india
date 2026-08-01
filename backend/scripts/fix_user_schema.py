@@ -25,7 +25,7 @@ def fix_schema():
     # If using host.docker.internal on host, replace with localhost
     if "host.docker.internal" in sync_url:
         sync_url = sync_url.replace("host.docker.internal", "localhost")
-        print(f"[INFO] Using localhost instead of host.docker.internal for host-level connection")
+        print("[INFO] Using localhost instead of host.docker.internal for host-level connection")
 
     print(f"[INFO] Connecting to: {sync_url.split('@')[1] if '@' in sync_url else 'unknown'}")
     

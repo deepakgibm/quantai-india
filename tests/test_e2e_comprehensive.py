@@ -444,8 +444,8 @@ class TestQuantWorkspace:
             "symbol": "RELIANCE",
             "timeframe": "1D",
             "strategy_id": "ma_crossover",
-            "start_date": "2023-01-01",
-            "end_date": "2024-01-01",
+            "start_date": "2025-05-01",
+            "end_date": "2025-12-31",
             "initial_capital": 100000,
             "risk_mode": "percent_capital",
             "risk_percent": 2.0,
@@ -468,8 +468,8 @@ class TestQuantWorkspace:
             "symbol": "TCS",
             "timeframe": "1D",
             "strategy_id": "rsi_mean_reversion",
-            "start_date": "2023-01-01",
-            "end_date": "2023-06-30",
+            "start_date": "2025-05-01",
+            "end_date": "2025-10-31",
             "initial_capital": 100000,
             "risk_mode": "percent_capital",
             "risk_percent": 2.0,
@@ -485,8 +485,8 @@ class TestQuantWorkspace:
             "symbol": "INVALID_SYMBOL_XYZ",
             "timeframe": "1D",
             "strategy_id": "ma_crossover",
-            "start_date": "2023-01-01",
-            "end_date": "2024-01-01",
+            "start_date": "2025-05-01",
+            "end_date": "2025-12-31",
             "initial_capital": 100000,
         }
         r = post("/api/v1/quant/run", payload)
@@ -498,8 +498,8 @@ class TestQuantWorkspace:
             "symbol": "RELIANCE",
             "timeframe": "1D",
             "strategy_id": "ma_crossover",
-            "start_date": "2023-01-01",
-            "end_date": "2024-01-01",
+            "start_date": "2025-05-01",
+            "end_date": "2025-12-31",
             "initial_capital": 100000,
             "param_grid": [
                 {"fast_period": 10, "slow_period": 30},
@@ -541,8 +541,8 @@ class TestQuantWorkspace:
         payload = {
             "symbol": "RELIANCE",
             "timeframe": "1D",
-            "start_date": "2023-01-01",
-            "end_date": "2024-01-01",
+            "start_date": "2025-05-01",
+            "end_date": "2025-12-31",
         }
         r = post("/api/v1/quant/run", payload)
         # strategy_id defaults to ma_crossover — so API succeeds. Not a validation error.
@@ -554,8 +554,8 @@ class TestQuantWorkspace:
             "symbols": ["RELIANCE", "TCS"],
             "timeframe": "1D",
             "strategy_id": "ma_crossover",
-            "start_date": "2023-01-01",
-            "end_date": "2024-01-01",
+            "start_date": "2025-05-01",
+            "end_date": "2025-12-31",
             "initial_capital": 100000,
             "risk_mode": "percent_capital",
             "risk_percent": 2.0,
@@ -729,8 +729,8 @@ class TestDataIntegrity:
             "symbol": "RELIANCE",
             "timeframe": "1D",
             "strategy_id": "ma_crossover",
-            "start_date": "2023-01-01",
-            "end_date": "2024-01-01",
+            "start_date": "2025-05-01",
+            "end_date": "2025-12-31",
             "initial_capital": 100000,
             "risk_mode": "percent_capital",
             "risk_percent": 2.0,
@@ -821,8 +821,8 @@ class TestDataIntegrity:
             "symbol": "RELIANCE",
             "timeframe": "1D",
             "strategy_id": "ma_crossover",
-            "start_date": "2023-01-01",
-            "end_date": "2024-01-01",
+            "start_date": "2025-05-01",
+            "end_date": "2025-12-31",
             "initial_capital": 100000,
             "execution_type": "vectorized",
         }
@@ -879,7 +879,7 @@ class TestEdgeCases:
         """Zero capital should now return 422 (backend validates > 0)."""
         payload = {
             "symbol": "RELIANCE", "timeframe": "1D", "strategy_id": "ma_crossover",
-            "start_date": "2023-01-01", "end_date": "2024-01-01", "initial_capital": 0,
+            "start_date": "2025-05-01", "end_date": "2025-12-31", "initial_capital": 0,
         }
         r = post("/api/v1/quant/run", payload)
         assert r.status_code in (400, 422), f"Expected 422, got {r.status_code}: {r.text[:100]}"
@@ -896,7 +896,7 @@ class TestEdgeCases:
         payload = {
             "symbol": "RELIANCE", "timeframe": "1D",
             "strategy_id": "TOTALLY_FAKE_STRATEGY_XYZ",
-            "start_date": "2023-01-01", "end_date": "2024-01-01", "initial_capital": 100000,
+            "start_date": "2025-05-01", "end_date": "2025-12-31", "initial_capital": 100000,
         }
         r = post("/api/v1/quant/run", payload)
         assert r.status_code != 500

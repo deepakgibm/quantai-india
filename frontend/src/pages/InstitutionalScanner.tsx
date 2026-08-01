@@ -105,9 +105,10 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
     setLoading(true);
     try {
       // Fetch Dashboard Stats
-      const statsRes = await fetch(`${API_URL}/api/v1/institutional-scanner/dashboard`, {
-        headers: getAuthHeaders()
-      });
+      const statsRes = await fetch(
+        `${API_URL}/api/v1/institutional-scanner/dashboard?universe=${encodeURIComponent(selectedUniverse)}`,
+        { headers: getAuthHeaders() }
+      );
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats(statsData);
@@ -137,7 +138,7 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedUniverse]);
 
   // Poll scan status when scanning
   useEffect(() => {
@@ -523,14 +524,28 @@ const InstitutionalScanner: React.FC<ScannerProps> = ({ onNavigate }) => {
       {/* Main Scanners Tables */}
       <div className="bg-slate-900/40 rounded-2xl border border-slate-800 overflow-hidden backdrop-blur">
         {loading ? (
-          <div className="p-12 text-center text-slate-500">
-            <RefreshCw className="animate-spin mx-auto mb-4 text-brand-500" size={24} />
-            Loading scanning candidates...
+          <div className="p-12 text-center text-slate-400 space-y-4">
+            <RefreshCw className="animate-spin mx-auto text-blue-500" size={32} />
+            <div className="space-y-1">
+              <p className="font-bold text-sm text-slate-200">Loading {selectedUniverse} Universe...</p>
+              <p className="text-xs text-slate-500">Fetching stocks and running institutional VCP scanner...</p>
+            </div>
           </div>
         ) : filteredResults.length === 0 ? (
-          <div className="p-12 text-center text-slate-500">
-            <AlertCircle className="mx-auto mb-4 text-slate-600" size={28} />
-            No stocks matched your screen filters.
+          <div className="p-16 text-center text-slate-400 space-y-6 max-w-md mx-auto">
+            <div className="p-4 bg-slate-900/60 rounded-full w-fit mx-auto border border-slate-800">
+              <AlertCircle className="text-slate-500" size={32} />
+            </div>
+            <div className="space-y-2">
+              <p className="font-display font-bold text-base text-slate-200">No stocks matched the current scanner filters</p>
+              <div className="text-xs text-slate-500 space-y-1 bg-slate-950/40 p-3 rounded-xl border border-slate-900 font-mono text-left">
+                <div>• Universe: <span className="text-blue-400 font-bold">{selectedUniverse}</span></div>
+                <div>• Stocks Scanned: <span className="text-slate-300 font-bold">{stats?.total_scanned ?? 0}</span></div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              Try adjusting your active filters (e.g. lowering the VCP score threshold, changing the market cap filter, or searching for a different symbol).
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">

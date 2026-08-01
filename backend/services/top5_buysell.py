@@ -63,7 +63,7 @@ class Top5BuySellEngine:
                 return df
             finally:
                 session.close()
-        except Exception as e:
+        except Exception:
             return None
     
     def analyze_stock(self, symbol: str) -> Optional[Dict]:
@@ -338,11 +338,11 @@ class Top5BuySellEngine:
                     if action == 'BUY':
                         target = round(price * 1.03, 2)
                         stop = round(price * 0.985, 2)
-                        expected = f"+3%"
+                        expected = "+3%"
                     else:
                         target = round(price * 0.97, 2)
                         stop = round(price * 1.015, 2)
-                        expected = f"-3%"
+                        expected = "-3%"
                     
                     # Sanitize indicators for JSON
                     def s(val):

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
 import { api } from '../services/api';
+import { calculatePriceChange } from '../utils/marketPrice';
 import GlobalSymbolSearch from '../components/GlobalSymbolSearch';
 import ErrorCard from '../components/ErrorCard';
 import { 
@@ -786,7 +787,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
   // Extract latest candle to calculate fallback price and changes
   const latestCandle = chartData?.candles?.[chartData.candles.length - 1];
   const spotPrice = data?.spot_price ?? latestCandle?.close ?? 0;
-  const spotChange = data?.spot_change_pct ?? (latestCandle && chartData?.candles && chartData.candles.length > 1 ? ((latestCandle.close - chartData.candles[0].close) / chartData.candles[0].close) * 100 : 0);
+  
+  const dailyPriceDetails = calculatePriceChange(
+    spotPrice,
+    data?.previous_close || data?.prev_close,
+    data?.spot_change_pct
+  );
+  
+  const spotChange = dailyPriceDetails.changePercent;
   
   let signal = 'NO TRADE';
   let bias = 'Neutral';
@@ -904,8 +912,14 @@ export const OptionFlow: React.FC<OptionFlowProps> = React.memo(({ isWidget = fa
         <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl backdrop-blur-md flex flex-col justify-between hover:border-slate-700/60 transition-all">
           <div className="flex justify-between items-center">
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Asset Quote</span>
-            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded ${spotChange >= 0 ? 'bg-emerald-950/40 text-emerald-400' : 'bg-red-950/40 text-red-400'}`}>
-              {spotChange >= 0 ? '+' : ''}{spotChange.toFixed(2)}%
+            <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded ${
+              dailyPriceDetails.direction === 'up' 
+                ? 'bg-emerald-950/40 text-emerald-400' 
+                : dailyPriceDetails.direction === 'down' 
+                  ? 'bg-red-950/40 text-red-400' 
+                  : 'bg-slate-800 text-slate-400'
+            }`}>
+              {dailyPriceDetails.direction === 'up' ? '▲ +' : dailyPriceDetails.direction === 'down' ? '▼ ' : '▬ '}{Math.abs(spotChange).toFixed(2)}%
             </span>
           </div>
           <div className="my-3">

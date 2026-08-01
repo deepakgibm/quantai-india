@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, RefreshCw, AlertCircle, Wifi, WifiOff, Clock } from 'lucide-react';
 import { api } from '../services/api';
+import { calculatePriceChange } from '../utils/marketPrice';
 
 interface StockMover {
     symbol: string;
@@ -197,51 +198,61 @@ const TopMoversCard: React.FC<TopMoversCardProps> = ({ onSymbolClick }) => {
         );
     };
 
-    const StockRow: React.FC<{ stock: StockMover; isGainer: boolean }> = ({ stock, isGainer }) => (
-        <div
-            className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.02] ${getChangeBg(stock.change_pct)}`}
-            onClick={() => onSymbolClick?.(stock.symbol)}
-            title={`Prev Close: ₹${stock.prev_close.toLocaleString()}\nDay High: ₹${stock.day_high.toLocaleString()}\nDay Low: ₹${stock.day_low.toLocaleString()}`}
-        >
-            <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-lg ${isGainer ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-                    {isGainer ? (
-                        <TrendingUp size={14} className="text-green-600 dark:text-green-400" />
-                    ) : (
-                        <TrendingDown size={14} className="text-red-600 dark:text-red-400" />
-                    )}
-                </div>
-                <div>
-                    <div className="flex items-center gap-2">
-                        <p className="font-bold text-sm text-slate-800 dark:text-white">{stock.symbol}</p>
-                        {stock.segment && (
-                            <span className={`text-[10px] font-bold px-1 rounded ${
-                                stock.segment === 'INDEX' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 
-                                stock.segment === 'F&O' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' :
-                                'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                            }`}>
-                                {stock.segment}
-                            </span>
+    const StockRow: React.FC<{ stock: StockMover; isGainer: boolean }> = ({ stock, isGainer }) => {
+        const details = calculatePriceChange(stock.ltp, stock.prev_close, stock.change_pct);
+        const isUp = details.direction === 'up';
+        const isDown = details.direction === 'down';
+        
+        return (
+            <div
+                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.02] ${
+                    isUp ? 'bg-green-50 dark:bg-green-900/20' : isDown ? 'bg-red-50 dark:bg-red-900/20' : 'bg-slate-50 dark:bg-slate-700/50'
+                }`}
+                onClick={() => onSymbolClick?.(stock.symbol)}
+                title={`Prev Close: ₹${details.previousClose.toLocaleString()}\nChange: ₹${details.change.toLocaleString()}`}
+            >
+                <div className="flex items-center gap-3">
+                    <div className={`p-1.5 rounded-lg ${isUp ? 'bg-green-100 dark:bg-green-900/30' : isDown ? 'bg-red-100 dark:bg-red-900/30' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                        {isUp ? (
+                            <TrendingUp size={14} className="text-green-600 dark:text-green-400" />
+                        ) : (
+                            <TrendingDown size={14} className="text-red-600 dark:text-red-400" />
                         )}
                     </div>
-                    {stock.volume > 0 && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Vol: {formatVolume(stock.volume)}
-                        </p>
-                    )}
-                </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <p className="font-bold text-sm text-slate-800 dark:text-white">{stock.symbol}</p>
+                            {stock.segment && (
+                                <span className={`text-[10px] font-bold px-1 rounded ${
+                                    stock.segment === 'INDEX' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 
+                                    stock.segment === 'F&O' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' :
+                                    'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                }`}>
+                                    {stock.segment}
+                                </span>
+                            )}
+                        </div>
+                        {stock.volume > 0 && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Vol: {formatVolume(stock.volume)}
+                            </p>
+                        )}
+                    </div>
 
+                </div>
+                <div className="text-right">
+                    <p className="font-bold text-sm text-slate-800 dark:text-white">
+                        ₹{details.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className={`text-xs font-semibold ${
+                        isUp ? 'text-green-600 dark:text-green-400' : isDown ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'
+                    }`}>
+                        {isUp ? '▲ +' : isDown ? '▼ ' : '▬ '}{Math.abs(details.changePercent).toFixed(2)}%
+                    </p>
+                </div>
             </div>
-            <div className="text-right">
-                <p className="font-bold text-sm text-slate-800 dark:text-white">
-                    ₹{stock.ltp.toLocaleString()}
-                </p>
-                <p className={`text-xs font-semibold ${getChangeColor(stock.change_pct)}`}>
-                    {stock.change_pct >= 0 ? '+' : ''}{stock.change_pct.toFixed(2)}%
-                </p>
-            </div>
-        </div>
-    );
+        );
+    };
 
     // Loading state with explicit message
     if (status === 'loading' && !data) {

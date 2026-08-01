@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import UserSettings

@@ -3,7 +3,7 @@ DragonflyDB/Redis Caching Layer - Wrapper delegating to dragonfly_client.py
 PRODUCTION MANDATE: No in-memory fallbacks. Fail-fast if cache unavailable.
 """
 
-from typing import Any, Optional, Callable
+from typing import Any, Optional
 from services.dragonfly_client import get_cache
 
 class CacheManager:

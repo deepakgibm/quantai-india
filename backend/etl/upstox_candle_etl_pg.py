@@ -179,8 +179,8 @@ def get_last_data_date(cur, instrument_key, timeframe, instrument_id=None, tf_mi
 
 def check_data_freshness(cur, instrument_key, symbol, timeframe, instrument_id=None, tf_minutes=None):
     """
-    Check if data exists up to two weeks back.
-    Returns the date to resume from.
+    Check last available data date and return the date to resume from.
+    Does not cap at two weeks to prevent data gaps.
     """
     last_date = get_last_data_date(cur, instrument_key, timeframe, instrument_id, tf_minutes)
     
@@ -189,14 +189,9 @@ def check_data_freshness(cur, instrument_key, symbol, timeframe, instrument_id=N
         print(f"  [NEW] {symbol}/{timeframe}: No existing data, starting from {DEFAULT_START_DATE}")
         return DEFAULT_START_DATE
     
-    if last_date >= TWO_WEEKS_AGO:
-        # Data is fresh enough (within 2 weeks)
-        print(f"  [FRESH] {symbol}/{timeframe}: Data up to {last_date}, resuming from next day")
-        return last_date + timedelta(days=1)
-    else:
-        # Data is stale (older than 2 weeks) - CAP AT TWO WEEKS
-        print(f"  [STALE] {symbol}/{timeframe}: Last data {last_date}, CAP AT {TWO_WEEKS_AGO}")
-        return TWO_WEEKS_AGO
+    # SRE Correction: Always resume from the day after the last stored candle to prevent gaps
+    print(f"  [RESUME] {symbol}/{timeframe}: Last data {last_date}, resuming from {last_date + timedelta(days=1)}")
+    return last_date + timedelta(days=1)
 
 # ==========================
 # CHECKPOINT HELPERS
@@ -233,12 +228,12 @@ def update_checkpoint(cur, instrument_key, timeframe, last_date):
 # API FETCH
 # ==========================
 
-def fetch_candles(instrument_key, v3_tf, from_date, to_date):
-    """Fetch candles from Upstox V3 API."""
+def fetch_candles(instrument_key, unit, interval, from_date, to_date):
+    """Fetch candles from Upstox V3 API using correct {unit}/{interval} path parameters."""
     url = (
         f"{BASE_URL}/"
         f"{instrument_key}/"
-        f"{v3_tf}/"
+        f"{unit}/{interval}/"
         f"{to_date}/{from_date}"
     )
     print(f"  [API] Fetching: {url}")
@@ -275,7 +270,7 @@ def fetch_candles(instrument_key, v3_tf, from_date, to_date):
 
 INTRADAY_BASE_URL = "https://api.upstox.com/v3/historical-candle/intraday"
 
-def fetch_intraday_candles(instrument_key, v3_tf):
+def fetch_intraday_candles(instrument_key, unit, interval):
     """
     Fetch today's candles from Upstox Intraday Candle V3 API.
     
@@ -283,12 +278,13 @@ def fetch_intraday_candles(instrument_key, v3_tf):
     
     Args:
         instrument_key: e.g., "NSE_EQ|INE002A01018"
-        v3_tf: e.g., "5minute", "1hour"
+        unit: e.g., "minutes", "hours"
+        interval: e.g., "5", "1"
     
     Returns:
         dict with 'data' -> 'candles' array
     """
-    url = f"{INTRADAY_BASE_URL}/{instrument_key}/{v3_tf}"
+    url = f"{INTRADAY_BASE_URL}/{instrument_key}/{unit}/{interval}"
     print(f"  [API] Fetching Intraday: {url}")
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -482,10 +478,10 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
         symbols = load_symbols()
         print(f"[INFO] Loaded {len(symbols)} symbols from {SYMBOL_FILE} (legacy mode)")
     
-    print(f"[INFO] Token length: {len(ACCESS_TOKEN)} chars")
+    print(f"[INFO] Token configured: {'Authorization' in get_auth_headers()}")
     print(f"[INFO] Two weeks ago: {TWO_WEEKS_AGO}")
     print(f"[INFO] Today: {today}")
-    print(f"[INFO] Target table: stock_candle\n")
+    print("[INFO] Target table: stock_candle\n")
 
     # Filter symbols if specified
     if symbols_filter:
@@ -541,7 +537,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                 )
                 
                 if start_date > today:
-                    print(f"  [SKIP] Already up-to-date")
+                    print("  [SKIP] Already up-to-date")
                     continue
 
                 window_fn = {
@@ -555,7 +551,8 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                     try:
                         data = fetch_candles(
                             instrument_key,
-                            cfg["v3_tf"],
+                            cfg["unit"],
+                            cfg["interval"],
                             start.isoformat(),
                             end.isoformat()
                         )
@@ -614,7 +611,8 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                 try:
                     intraday_data = fetch_intraday_candles(
                         instrument_key,
-                        cfg["v3_tf"]
+                        cfg["unit"],
+                        cfg["interval"]
                     )
                     
                     intraday_candles = intraday_data.get("data", {}).get("candles", [])
@@ -640,7 +638,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
                                         c[5],
                                     ))
                                 intraday_rows += 1
-                            except Exception as intraday_insert_err:
+                            except Exception:
                                 pass  # Likely duplicate, ignore
                         
                         conn.commit()
@@ -662,7 +660,7 @@ def run_etl(symbols_filter=None, intervals_filter=None, use_db_source=True, miss
 
     
     print(f"\n{'='*50}")
-    print(f"ETL COMPLETED")
+    print("ETL COMPLETED")
     print(f"{'='*50}")
     print(f"Total rows inserted: {total_rows}")
     print(f"Errors: {len(errors)}")

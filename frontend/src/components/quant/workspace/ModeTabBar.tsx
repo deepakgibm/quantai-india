@@ -20,9 +20,6 @@ interface ModeConfig {
 const MODES: ModeConfig[] = [
   { mode: 'discovery',    icon: <Grid size={14} />,       label: 'Discovery',     description: 'Multi-strategy scan' },
   { mode: 'backtest',     icon: <Play size={14} />,       label: 'Backtest',      description: 'High-fidelity simulation' },
-  { mode: 'walk_forward', icon: <TrendingUp size={14} />, label: 'Walk-Forward',  description: 'IS/OOS validation' },
-  { mode: 'monte_carlo',  icon: <Activity size={14} />,   label: 'Monte Carlo',   description: 'Probability cones' },
-  { mode: 'optimization', icon: <Sliders size={14} />,    label: 'Optimization',  description: 'Parameter sweep' },
   { mode: 'portfolio',    icon: <Briefcase size={14} />,  label: 'Portfolio',     description: 'Multi-strategy compare' },
 ];
 

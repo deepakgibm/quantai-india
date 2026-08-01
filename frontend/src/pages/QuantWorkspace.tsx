@@ -13,9 +13,6 @@ import ModeTabBar from '../components/quant/workspace/ModeTabBar';
 import WorkspaceSidebar from '../components/quant/workspace/WorkspaceSidebar';
 import DiscoveryPanel from '../components/quant/discovery/DiscoveryPanel';
 import BacktestPanel from '../components/quant/backtest/BacktestPanel';
-import WalkForwardPanel from '../components/quant/walkforward/WalkForwardPanel';
-import MonteCarloPanel from '../components/quant/montecarlo/MonteCarloPanel';
-import OptimizationPanel from '../components/quant/optimization/OptimizationPanel';
 import PortfolioPanel from '../components/quant/portfolio/PortfolioPanel';
 
 // ─── Inner workspace (must be inside QuantProvider) ──────────────────────────
@@ -25,9 +22,6 @@ function ActiveModePanel() {
   switch (activeMode) {
     case 'discovery':    return <DiscoveryPanel />;
     case 'backtest':     return <BacktestPanel />;
-    case 'walk_forward': return <WalkForwardPanel />;
-    case 'monte_carlo':  return <MonteCarloPanel />;
-    case 'optimization': return <OptimizationPanel />;
     case 'portfolio':    return <PortfolioPanel />;
     default:             return <BacktestPanel />;
   }

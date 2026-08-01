@@ -38,22 +38,22 @@ const Subscription: React.FC = () => {
     fetchSubscriptionDashboard();
   }, []);
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     setCouponError(null);
     setDiscountPercent(0);
     setCouponApplied(false);
     if (!couponCode) return;
     
-    // Simulate/mock coupon verification for frontend robustness
-    const code = couponCode.toUpperCase();
-    if (code === 'WELCOME10') {
-      setDiscountPercent(10);
-      setCouponApplied(true);
-    } else if (code === 'QUANT20') {
-      setDiscountPercent(20);
-      setCouponApplied(true);
-    } else {
-      setCouponError('Invalid or expired coupon code.');
+    try {
+      const result = await api.verifyCoupon(couponCode);
+      if (result && result.status === 'success') {
+        setDiscountPercent(result.discount_pct);
+        setCouponApplied(true);
+      } else {
+        setCouponError(result?.message || 'Invalid or expired coupon code.');
+      }
+    } catch (e: any) {
+      setCouponError(e.message || 'Error validating coupon code.');
     }
   };
 

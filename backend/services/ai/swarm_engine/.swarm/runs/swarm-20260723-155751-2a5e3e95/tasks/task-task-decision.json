@@ -1,0 +1,21 @@
+{
+  "id": "task-decision",
+  "agent_id": "portfolio_manager",
+  "prompt_template": "After the debate and risk review on {target}, make the final investment decision and execution plan.",
+  "depends_on": [
+    "task-risk"
+  ],
+  "blocked_by": [],
+  "input_from": {
+    "full_debate": "task-risk"
+  },
+  "status": "completed",
+  "summary": "**Investment Committee Verdict: SELL**\n\n### Consensus Rationale\nThe Swarm Committee has completed the debate. A confluence of technical indicators and quantitative risk factors yields a SELL recommendation with 76% confidence. Key moving average breakdowns and negative momentum signals indicate elevated downside risk.\n\n### Key Decision Drivers\n- 8 of 12 technical indicators are bearish.\n- RSI (14): RSI at 34.1 is weak (<40), indicating bearish momentum.\n- MACD (12,26,9): MACD (-12.29) is below signal line (0.37), indicating selling pressure.\n- EMA 20 vs 50: EMA 20 (1374.9) is below EMA 50 (1393.0), indicating descending pressure.\n- EMA 50 vs 200: EMA 50 (1393.0) is below EMA 200 (1419.3), showing long-term bearish structure.\n- Supertrend: Supertrend indicates SELL -- price has broken below the volatility stop at 1382.2.\n- VWAP: Price (1272.2) is below VWAP (1426.4), indicating sellers dominate.\n- Bollinger Bands: Price is below the lower Bollinger Band (1284.5), indicating breakdown.\n- Ichimoku Cloud: Price is Below Cloud, indicating structural long-term bearish bias.\n- 5 of 5 timeframes confirm bearish alignment.\n- Overall weighted technical score: -4.4\n\n### Trade Details\n- **Verdict**: SELL\n- **Target Price**: ₹1221.3\n- **Stop Loss**: ₹1310.4\n- **Confidence**: 76%\n- **Risk Profile**: Low\n- **Strategy**: Risk Reduction -- Exit / Short\n",
+  "artifacts": [
+    "/app/services/ai/swarm_engine/.swarm/runs/swarm-20260723-155751-2a5e3e95/artifacts/portfolio_manager/summary.md"
+  ],
+  "error": null,
+  "started_at": "2026-07-23T15:57:58.532820+00:00",
+  "completed_at": "2026-07-23T15:58:05.351057+00:00",
+  "worker_iterations": 1
+}

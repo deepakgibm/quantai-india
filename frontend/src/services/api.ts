@@ -1132,14 +1132,21 @@ export const api = {
     throw res.error;
   },
 
+  verifyCoupon: async (couponCode: string) => {
+    const res = await apiGet<any>(`/api/saas/subscription/verify-coupon/${encodeURIComponent(couponCode)}`);
+    if (res.success) return res.data;
+    throw res.error;
+  },
+
+
   verifySubscriptionPayment: async (subscriptionId: number, razorpayPaymentId: string, razorpaySignature: string = 'mock_sig') => {
     const res = await apiPost<any>(`/api/saas/subscription/verify?subscription_id=${subscriptionId}&razorpay_payment_id=${razorpayPaymentId}&razorpay_signature=${razorpaySignature}`, {});
     if (res.success) return res.data;
     throw res.error;
   },
 
-  getSMCAnalysis: async (symbol: string) => {
-    const res = await apiGet<any>(`/api/saas/smc?symbol=${encodeURIComponent(symbol)}`);
+  getSMCAnalysis: async (symbol: string, timeframe: string = '1D') => {
+    const res = await apiGet<any>(`/api/saas/smc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`);
     if (res.success) return res.data;
     throw res.error;
   },
@@ -1178,6 +1185,37 @@ export const api = {
     const res = await apiGet<any>('/api/saas/affiliate');
     if (res.success) return res.data;
     throw res.error;
+  },
+
+  getWeek52Breakouts: async (forceRefresh = false) => {
+    try {
+      const url = `${API_URL}/api/scanner/week52-breakouts${forceRefresh ? '?force_refresh=true' : ''}`;
+      const res = await fetch(url, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) return await res.json();
+    } catch (e: any) {
+      console.warn("Failed to fetch week52 breakouts:", e.message);
+    }
+    return null;
+  },
+
+  agenticBotAnalyze: async (prompt: string) => {
+    try {
+      const url = `${API_URL}/api/agentic-bot/analyze`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prompt })
+      });
+      if (res.ok) return await res.json();
+    } catch (e: any) {
+      console.warn("Agentic bot analyze failed:", e.message);
+    }
+    return null;
   },
 
   explainTradingSignal: async (symbol: string, signalType: string, price: number, conviction: string) => {

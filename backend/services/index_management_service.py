@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Tuple
 
 import httpx
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

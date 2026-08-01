@@ -10,6 +10,7 @@ import json
 import logging
 from typing import Optional, Any, Dict, List, Callable
 import os
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -178,10 +179,18 @@ class CacheManager:
         self._ensure_sync_connected()
         # DEV_MODE: Use in-memory fallback if Redis not connected
         if DEV_MODE and not self._is_connected_sync:
-            val = _in_memory_cache.get(key)
-            if val is not None:
-                self._hits += 1
-                return val
+            entry = _in_memory_cache.get(key)
+            if entry is not None:
+                val_serialized, expiry = entry
+                if expiry is None or time.time() < expiry:
+                    self._hits += 1
+                    return self._deserialize(val_serialized)
+                else:
+                    # Expired
+                    try:
+                        del _in_memory_cache[key]
+                    except KeyError:
+                        pass
             self._misses += 1
             return None
         try:
@@ -200,7 +209,8 @@ class CacheManager:
         self._ensure_sync_connected()
         # DEV_MODE: Use in-memory fallback if Redis not connected
         if DEV_MODE and not self._is_connected_sync:
-            _in_memory_cache[key] = value
+            expiry = time.time() + ttl if ttl else None
+            _in_memory_cache[key] = (self._serialize(value), expiry)
             return True
         try:
             self._sync_client.setex(key, ttl, self._serialize(value))
@@ -303,10 +313,18 @@ class CacheManager:
         await self._ensure_async_connected()
         # DEV_MODE: Use in-memory fallback if Redis not connected
         if DEV_MODE and not self._is_connected_async:
-            val = _in_memory_cache.get(key)
-            if val is not None:
-                self._hits += 1
-                return val
+            entry = _in_memory_cache.get(key)
+            if entry is not None:
+                val_serialized, expiry = entry
+                if expiry is None or time.time() < expiry:
+                    self._hits += 1
+                    return self._deserialize(val_serialized)
+                else:
+                    # Expired
+                    try:
+                        del _in_memory_cache[key]
+                    except KeyError:
+                        pass
             self._misses += 1
             return None
         try:
@@ -326,7 +344,16 @@ class CacheManager:
             return [self.get(key) for key in keys]
         await self._ensure_async_connected()
         if DEV_MODE and not self._is_connected_async:
-            return [_in_memory_cache.get(key) for key in keys]
+            res = []
+            for k in keys:
+                entry = _in_memory_cache.get(k)
+                if entry is not None:
+                    val_serialized, expiry = entry
+                    if expiry is None or time.time() < expiry:
+                        res.append(self._deserialize(val_serialized))
+                        continue
+                res.append(None)
+            return res
         try:
             raw_vals = await self._async_client.mget(keys)
             vals = []
@@ -351,7 +378,8 @@ class CacheManager:
         await self._ensure_async_connected()
         # DEV_MODE: Use in-memory fallback if Redis not connected
         if DEV_MODE and not self._is_connected_async:
-            _in_memory_cache[key] = value
+            expiry = time.time() + ttl if ttl else None
+            _in_memory_cache[key] = (self._serialize(value), expiry)
             return True
         try:
             await self._async_client.setex(key, ttl, self._serialize(value))

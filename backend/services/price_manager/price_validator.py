@@ -1,7 +1,7 @@
 import math
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from services.price_manager.market_status_service import get_market_status_service
 
 logger = logging.getLogger(__name__)

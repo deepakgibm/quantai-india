@@ -1,0 +1,17 @@
+{
+  "id": "task-bear",
+  "agent_id": "bear_advocate",
+  "prompt_template": "Conduct full bear-side research on {target}, identifying all bearish risks and downside logic. Market: Indian NSE.",
+  "depends_on": [],
+  "blocked_by": [],
+  "input_from": {},
+  "status": "completed",
+  "summary": "Technical indicators suggest stable consolidation. Recommend Hold.",
+  "artifacts": [
+    "/app/services/ai/swarm_engine/.swarm/runs/swarm-20260723-155816-a163aa8f/artifacts/bear_advocate/summary.md"
+  ],
+  "error": null,
+  "started_at": "2026-07-23T15:58:17.252581+00:00",
+  "completed_at": "2026-07-23T15:58:18.984100+00:00",
+  "worker_iterations": 1
+}

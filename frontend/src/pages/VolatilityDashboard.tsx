@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Shield, TrendingUp, Info, AlertTriangle, TrendingDown, ArrowUpRight, ArrowDownRight, BarChart2 } from 'lucide-react';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
 import { api } from '../services/api';
+import { calculatePriceChange } from '../utils/marketPrice';
 import GlobalSymbolSearch from '../components/GlobalSymbolSearch';
 import DayFilter from '../components/DayFilter';
 import ErrorCard from '../components/ErrorCard';
@@ -173,8 +174,11 @@ export const VolatilityDashboard: React.FC = () => {
 
   if (!data) return null;
 
-  const priceChangeColor = data.price_change_pct >= 0 ? 'text-emerald-500' : 'text-red-500';
-  const priceChangeBg = data.price_change_pct >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10';
+  const dailyDetails = calculatePriceChange(data.latest_price, data.prev_close || data.previous_close, data.price_change_pct);
+  const isUp = dailyDetails.direction === 'up';
+  const isDown = dailyDetails.direction === 'down';
+  const priceChangeColor = isUp ? 'text-green-500' : isDown ? 'text-rose-500' : 'text-slate-400';
+  const priceChangeBg = isUp ? 'bg-emerald-500/10' : isDown ? 'bg-rose-500/10' : 'bg-slate-800';
 
   // Determine Regime color themes
   const isHighVol = data.regime.toLowerCase().includes('high');
@@ -228,8 +232,8 @@ export const VolatilityDashboard: React.FC = () => {
             </span>
           </div>
           <div className={`mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold w-fit ${priceChangeBg} ${priceChangeColor}`}>
-            {data.price_change_pct >= 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-            {data.price_change_pct >= 0 ? '+' : ''}{data.price_change_pct.toFixed(2)}%
+            {isUp ? '▲ ' : isDown ? '▼ ' : '▬ '}
+            {Math.abs(dailyDetails.changePercent).toFixed(2)}%
           </div>
         </div>
 

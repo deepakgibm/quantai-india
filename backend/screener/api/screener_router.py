@@ -217,15 +217,17 @@ async def get_rankings(
 
         if stocks:
             try:
-                from services.upstox_price_resolver import get_upstox_price_resolver
-                resolver = get_upstox_price_resolver()
+                from services.price_manager import get_price_service
+                price_svc = get_price_service()
                 symbols = [s["symbol"] for s in stocks]
-                live_prices = await resolver.get_prices_bulk(symbols)
+                live_prices = await price_svc.get_prices_bulk(symbols)
                 for s in stocks:
                     sym = s["symbol"].upper()
                     p_data = live_prices.get(sym)
-                    if p_data and p_data.get("price", 0) > 0:
-                        s["cmp"] = p_data["price"]
+                    if p_data:
+                        price_val = p_data.get("ltp") or p_data.get("price") or 0.0
+                        if price_val > 0:
+                            s["cmp"] = price_val
             except Exception as le:
                 logger.warning(f"Screener rankings: live price resolution failed: {le}")
 
@@ -276,15 +278,17 @@ async def get_conviction_list(
 
         if stocks:
             try:
-                from services.upstox_price_resolver import get_upstox_price_resolver
-                resolver = get_upstox_price_resolver()
+                from services.price_manager import get_price_service
+                price_svc = get_price_service()
                 symbols = [s["symbol"] for s in stocks]
-                live_prices = await resolver.get_prices_bulk(symbols)
+                live_prices = await price_svc.get_prices_bulk(symbols)
                 for s in stocks:
                     sym = s["symbol"].upper()
                     p_data = live_prices.get(sym)
-                    if p_data and p_data.get("price", 0) > 0:
-                        s["cmp"] = p_data["price"]
+                    if p_data:
+                        price_val = p_data.get("ltp") or p_data.get("price") or 0.0
+                        if price_val > 0:
+                            s["cmp"] = price_val
             except Exception as le:
                 logger.warning(f"Screener conviction list: live price resolution failed: {le}")
 
@@ -330,15 +334,17 @@ async def get_avoid_list(
 
         if stocks:
             try:
-                from services.upstox_price_resolver import get_upstox_price_resolver
-                resolver = get_upstox_price_resolver()
+                from services.price_manager import get_price_service
+                price_svc = get_price_service()
                 symbols = [s["symbol"] for s in stocks]
-                live_prices = await resolver.get_prices_bulk(symbols)
+                live_prices = await price_svc.get_prices_bulk(symbols)
                 for s in stocks:
                     sym = s["symbol"].upper()
                     p_data = live_prices.get(sym)
-                    if p_data and p_data.get("price", 0) > 0:
-                        s["cmp"] = p_data["price"]
+                    if p_data:
+                        price_val = p_data.get("ltp") or p_data.get("price") or 0.0
+                        if price_val > 0:
+                            s["cmp"] = price_val
             except Exception as le:
                 logger.warning(f"Screener avoid list: live price resolution failed: {le}")
 
@@ -378,11 +384,13 @@ async def get_stock_detail(
         stock_data = _safe_row_dict(row._mapping)
 
         try:
-            from services.upstox_price_resolver import get_upstox_price_resolver
-            resolver = get_upstox_price_resolver()
-            p_data = await resolver.get_price(symbol)
-            if p_data and p_data.get("price", 0) > 0:
-                stock_data["cmp"] = p_data["price"]
+            from services.price_manager import get_price_service
+            price_svc = get_price_service()
+            p_data = await price_svc.get_price(symbol)
+            if p_data:
+                price_val = p_data.get("ltp") or p_data.get("price") or 0.0
+                if price_val > 0:
+                    stock_data["cmp"] = price_val
         except Exception as le:
             logger.warning(f"Screener stock detail: live price resolution failed: {le}")
 

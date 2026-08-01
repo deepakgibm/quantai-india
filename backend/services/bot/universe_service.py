@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple
 import logging
 from sqlalchemy import text
 from database import SessionLocal

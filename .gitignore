@@ -49,3 +49,7 @@ Thumbs.db
 # Data
 data/
 *.parquet
+
+# Coverage
+.coverage
+.pytest_cache/

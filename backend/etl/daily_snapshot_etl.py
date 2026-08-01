@@ -429,9 +429,9 @@ class DailySnapshotETL:
         start_time = datetime.now()
         trade_date = self.get_trading_date()
         
-        logger.info(f"="*60)
+        logger.info("="*60)
         logger.info(f"Daily Snapshot ETL - {trade_date}")
-        logger.info(f"="*60)
+        logger.info("="*60)
         
         # Step 1: Fetch quotes from Upstox (primary source)
         quotes = await self.fetch_upstox_quotes()

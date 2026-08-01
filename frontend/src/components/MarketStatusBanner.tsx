@@ -19,7 +19,7 @@ export const MarketStatusBanner: React.FC = () => {
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch('/api/v1/market/status');
+            const res = await fetch('/api/market/status');
             if (!res.ok) throw new Error('Failed to fetch market status');
             const data = await res.json();
             setStatus(data);
@@ -32,7 +32,7 @@ export const MarketStatusBanner: React.FC = () => {
     const handleRefresh = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/v1/market/refresh', { method: 'POST' });
+            const res = await fetch('/api/market/refresh', { method: 'POST' });
             if (!res.ok) throw new Error('Failed to refresh market data');
             const data = await res.json();
             setStatus(data);
@@ -50,7 +50,36 @@ export const MarketStatusBanner: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    if (!status) return null;
+    if (!status) {
+        if (error) {
+            return (
+                <div className="w-full border-b px-4 py-2 flex items-center justify-between text-xs font-medium bg-rose-50 border-rose-200 text-rose-800 transition-colors">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                            <span className="font-bold uppercase tracking-wider">ERROR</span>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-3 text-rose-700/80">
+                            <span>Trading Day: <strong>—</strong></span>
+                            <span className="opacity-40">|</span>
+                            <span className="truncate max-w-[300px]" title={error}>Connection Error: {error}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleRefresh}
+                            disabled={loading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-300 rounded-md shadow-sm hover:bg-rose-100/50 disabled:opacity-50 transition-all text-rose-700"
+                        >
+                            <RefreshCw size={14} className={loading ? 'animate-spin text-rose-600' : ''} />
+                            <span>{loading ? 'Retrying...' : 'Retry Connection'}</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    }
 
     const isMarketOpen = status.is_open;
     const isHoliday = status.status === 'HOLIDAY';

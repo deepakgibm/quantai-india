@@ -114,16 +114,21 @@ class LegacyStrategyAdapter(UnifiedStrategy):
                     reason=getattr(legacy_sig, "reason", "")
                 )
         
-        # For Experiment Lab strategies, run batch signals first and retrieve matching timestamp signal
-        df_bar = pd.DataFrame([bar])
-        df_sig = self.generate_signals_batch(df_bar)
-        sig_str = df_sig["signal"].iloc[0] if not df_sig.empty else "HOLD"
+        # Run batch signals on the entire history to calculate stateful indicators correctly
+        df_sig = self.generate_signals_batch(history)
+        sig_str = df_sig["signal"].iloc[-1] if not df_sig.empty else "HOLD"
         
         if sig_str != "HOLD":
+            # Extract stop_loss and target from the last row if present
+            stop_loss = float(df_sig["stop_loss"].iloc[-1]) if "stop_loss" in df_sig.columns and not pd.isna(df_sig["stop_loss"].iloc[-1]) else None
+            take_profit = float(df_sig["target"].iloc[-1]) if "target" in df_sig.columns and not pd.isna(df_sig["target"].iloc[-1]) else None
+            
             return SignalResult(
                 timestamp=bar['timestamp'],
                 signal=SignalType(sig_str),
-                price=float(bar['close'])
+                price=float(bar['close']),
+                stop_loss=stop_loss,
+                take_profit=take_profit
             )
             
         return None

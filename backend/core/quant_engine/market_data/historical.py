@@ -52,9 +52,15 @@ class HistoricalMarketDataEngine:
         symbol = symbol.upper().strip()
         timeframe = timeframe.lower()
         
-        # 1. Parse dates
-        start_dt = pd.to_datetime(start_date) if start_date else None
-        end_dt = pd.to_datetime(end_date) if end_date else None
+        # 1. Parse dates with defaults
+        if not start_date:
+            start_date = "2020-01-01"
+        if not end_date:
+            from datetime import datetime
+            end_date = datetime.now().strftime("%Y-%m-%d")
+
+        start_dt = pd.to_datetime(start_date)
+        end_dt = pd.to_datetime(end_date)
 
         cache_key = (symbol, timeframe, str(start_date), str(end_date), limit)
         logger.debug(f"[CANDLE CACHE] Checking key={cache_key} | in_cache={hasattr(self, '_candle_cache') and cache_key in self._candle_cache}")

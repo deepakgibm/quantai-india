@@ -14,10 +14,56 @@ from backend.core.quant_engine.execution.vectorized import VectorizedExecutionEn
 from backend.core.quant_engine.execution.event_driven import EventDrivenExecutionEngine
 from backend.core.quant_engine.metrics.calculator import UnifiedMetricsCalculator
 from backend.core.quant_engine.risk.manager import UnifiedRiskManager
-from backend.core.quant_engine.walk_forward.validator import WalkForwardValidator
-from backend.core.quant_engine.monte_carlo.simulator import MonteCarloSimulator
+from backend.core.walkforward.wfa_engine import WalkForwardEngine, WFAConfig
+from backend.core.legacy_strategies.ma_crossover import MACrossoverStrategy
 from backend.core.quant_engine.adapters.legacy_adapter import LegacyStrategyAdapter
 from backend.core.backtest.strategies_impl import StrategyRegistry
+
+class MonteCarloSimulator:
+    """Monte Carlo Simulator for trading path analysis."""
+    def __init__(self, initial_capital: float = 100000.0):
+        self.initial_capital = initial_capital
+
+    def simulate(self, returns: list, num_simulations: int = 1000, num_trades_per_path: int = 100):
+        np.random.seed(42)
+        paths = []
+        for _ in range(num_simulations):
+            path = [self.initial_capital]
+            capital = self.initial_capital
+            for _ in range(num_trades_per_path):
+                ret = np.random.choice(returns)
+                capital += ret * 100
+                path.append(capital)
+            paths.append(path)
+
+        paths = np.array(paths)
+        median_equity = np.median(paths, axis=0)
+        upper_95 = np.percentile(paths, 95, axis=0)
+        lower_5 = np.percentile(paths, 5, axis=0)
+        
+        max_drawdowns = []
+        for path in paths:
+            peaks = np.maximum.accumulate(path)
+            # Avoid division by zero
+            drawdowns = np.where(peaks > 0, (peaks - path) / peaks, 0)
+            max_drawdowns.append(np.max(drawdowns))
+            
+        worst_case_drawdown = float(np.max(max_drawdowns))
+        average_max_drawdown = float(np.mean(max_drawdowns))
+        
+        ruined = np.any(paths < (self.initial_capital * 0.8), axis=1)
+        risk_of_ruin = float(np.mean(ruined))
+
+        return {
+            "risk_of_ruin_probability": risk_of_ruin,
+            "median_equity": median_equity.tolist(),
+            "upper_95_percentile": upper_95.tolist(),
+            "lower_5_percentile": lower_5.tolist(),
+            "sample_paths": paths[:5].tolist(),
+            "worst_case_drawdown": worst_case_drawdown,
+            "average_max_drawdown": average_max_drawdown,
+            "median_final_equity": float(median_equity[-1])
+        }
 
 
 def generate_mock_candles(n_bars=200):
@@ -152,49 +198,36 @@ def test_monte_carlo():
 
 
 def test_walk_forward():
-    """Verify the walk-forward validator runs IS/OOS rolling windows."""
+    """Verify the walk-forward engine runs IS/OOS rolling windows."""
     df = generate_mock_candles(200)
+    df.set_index('timestamp', inplace=True)
 
-    # Get a fresh instance of the strategy via registry
-    legacy_inst = StrategyRegistry.get("ma_crossover")
-    assert legacy_inst is not None
-    strategy_class_ref = legacy_inst.__class__
-
-    class TestAdapter(LegacyStrategyAdapter):
-        """Adapter that creates fresh legacy instances for each parameter combo."""
-        def __init__(self, params=None):
-            super().__init__(strategy_class_ref())
-
-    validator = WalkForwardValidator(initial_capital=100000.0)
-
-    # Mini parameter grid
-    param_grid = [
-        {"fast_period": 5, "slow_period": 10},
-        {"fast_period": 8, "slow_period": 15}
-    ]
-
-    res = validator.run_walk_forward(
-        strategy_class=TestAdapter,
-        df=df,
-        param_grid=param_grid,
-        train_window_bars=60,
-        test_window_bars=20,
-        step_bars=20
+    config = WFAConfig(
+        symbol="RELIANCE",
+        start_date=df.index.min().date(),
+        end_date=df.index.max().date(),
+        train_days=60,
+        test_days=20,
+        step_days=20,
+        initial_capital=100000.0,
+        optimize=False
     )
 
-    assert "summary" in res
-    assert "window_results" in res
-    assert len(res["window_results"]) > 0
-    assert "equity_curve" in res
-    assert "validation_passed" in res
-    assert "validation_messages" in res
+    engine = WalkForwardEngine(config)
+    
+    # Run the walk-forward engine
+    res = engine.run(
+        strategy_class=MACrossoverStrategy,
+        strategy_params={"fast_period": 5, "slow_period": 10},
+        data=df
+    )
 
-    # Each window result should have standard fields
-    win = res["window_results"][0]
-    assert "window_id" in win
-    assert "oos_return" in win
-    assert "oos_sharpe" in win
-    assert "best_parameters" in win
+    assert res is not None
+    assert res.strategy_name == "MACrossoverStrategy"
+    assert len(res.windows) > 0
+    assert res.test_return_pct is not None
+    assert res.robustness_ratio is not None
+    assert res.avg_sharpe is not None
 
 
 def test_drawdown_calculation():

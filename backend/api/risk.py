@@ -27,7 +27,7 @@ async def get_risk_config(
             "max_position_size": config.max_position_size,
             "max_open_positions": config.max_open_positions
         }
-    except Exception as e:
+    except Exception:
         return {
             "max_daily_loss": 5000.0,
             "max_position_size": 50000.0,

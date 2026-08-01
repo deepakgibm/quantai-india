@@ -25,32 +25,31 @@ export const useMarketDataStore = create<MarketDataState>((set, get) => ({
 
   subscribe: (symbol: string) => {
     const cleanSymbol = symbol.toUpperCase().trim();
+    let unsubscribeService: (() => void) | null = null;
     
-    // Increment subscription count
+    // Increment subscription count and subscribe if it is the first subscriber
     set((state) => {
       const count = state.subscriptions[cleanSymbol] || 0;
+      const nextCount = count + 1;
+      
+      if (nextCount === 1) {
+        const callback = (quote: MarketQuote) => {
+          get().updateQuote(cleanSymbol, quote);
+        };
+        
+        // Subscribe via MarketDataService
+        if (typeof MarketDataService.subscribe === 'function') {
+          unsubscribeService = MarketDataService.subscribe(cleanSymbol, callback);
+        }
+      }
+
       return {
         subscriptions: {
           ...state.subscriptions,
-          [cleanSymbol]: count + 1,
+          [cleanSymbol]: nextCount,
         },
       };
     });
-
-    // If this is the first subscriber, register callback with MarketDataService
-    const currentCount = get().subscriptions[cleanSymbol];
-    let unsubscribeService: (() => void) | null = null;
-    
-    if (currentCount === 1) {
-      const callback = (quote: MarketQuote) => {
-        get().updateQuote(cleanSymbol, quote);
-      };
-      
-      // Subscribe via MarketDataService
-      if (typeof MarketDataService.subscribe === 'function') {
-        unsubscribeService = MarketDataService.subscribe(cleanSymbol, callback);
-      }
-    }
 
     // Return cleanup function
     return () => {

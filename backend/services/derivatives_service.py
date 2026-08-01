@@ -6,7 +6,6 @@ Uses real Upstox option chain API with simulated fallback.
 """
 
 import logging
-import random
 from dataclasses import dataclass
 from typing import Optional
 from enum import Enum

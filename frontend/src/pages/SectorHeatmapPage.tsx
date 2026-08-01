@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { api } from '../services/api';
 import { useGlobalSymbol } from '../contexts/GlobalSymbolContext';
+import { calculatePriceChange } from '../utils/marketPrice';
 import { Page } from '../types';
 import { 
   TrendingUp, TrendingDown, ArrowLeft, Loader2, Search, Info, ZoomIn, 
@@ -68,22 +69,50 @@ const computeTreemapLayout = (
 
 // Normalize sector names to keep categories clean
 const normalizeSector = (sec: string | null): string => {
-  if (!sec) return 'Others';
+  if (!sec) return 'Miscellaneous';
   const lower = sec.toLowerCase().trim();
 
-  if (lower.includes('financial') || lower.includes('bank') || lower.includes('insurance') || lower.includes('credit')) return 'Financial Services';
-  if (lower.includes('it') || lower.includes('software') || lower.includes('computer') || lower.includes('technology')) return 'Technology';
-  if (lower.includes('auto') || lower.includes('car') || lower.includes('vehicle') || lower.includes('automotive')) return 'Automobile';
-  if (lower.includes('pharma') || lower.includes('health') || lower.includes('biotech') || lower.includes('medical') || lower.includes('hospital')) return 'Healthcare';
-  if (lower.includes('consumer') || lower.includes('fmcg') || lower.includes('food') || lower.includes('beverage') || lower.includes('household')) return 'Consumer Goods';
-  if (lower.includes('power') || lower.includes('energy') || lower.includes('oil') || lower.includes('gas') || lower.includes('petro') || lower.includes('utilities')) return 'Energy & Utilities';
-  if (lower.includes('metal') || lower.includes('steel') || lower.includes('mining') || lower.includes('aluminium')) return 'Metals & Mining';
-  if (lower.includes('construction') || lower.includes('infra') || lower.includes('cement') || lower.includes('real estate') || lower.includes('building')) return 'Construction & Materials';
-  if (lower.includes('telecom') || lower.includes('communication') || lower.includes('media') || lower.includes('entertainment')) return 'Telecommunication';
-  if (lower.includes('chemical') || lower.includes('fertilizer') || lower.includes('paints')) return 'Chemicals';
-  if (lower.includes('textile') || lower.includes('apparel') || lower.includes('fashion') || lower.includes('garments')) return 'Textiles';
-  if (lower.includes('retail') || lower.includes('ecommerce')) return 'Retail';
-  if (lower.includes('logistics') || lower.includes('transport') || lower.includes('shipping')) return 'Logistics';
+  // Financial Services
+  if (lower.includes('financial') || lower.includes('bank') || lower.includes('insurance') || lower.includes('credit') || lower.includes('nbfc') || lower.includes('finance') || lower.includes('investment')) return 'Financial Services';
+  
+  // Information Technology
+  if (lower.includes('it - software') || lower.includes('it') || lower.includes('software') || lower.includes('computer') || lower.includes('technology')) return 'Information Technology';
+  
+  // Healthcare (Checked first to avoid "car" collision)
+  if (lower.includes('healthcare') || lower.includes('hospital') || lower.includes('medical') || lower.includes('clinical')) return 'Healthcare';
+  
+  // Pharma
+  if (lower.includes('pharma') || lower.includes('biotech') || lower.includes('drugs') || lower.includes('medicine') || lower.includes('pharmaceuticals')) return 'Pharma';
+  
+  // Automobile
+  if (lower.includes('automobile') || lower.includes('automotive') || lower.includes('motorcycle') || lower.includes('scooter') || lower.includes('car') || lower.includes('vehicle') || lower.includes('others')) return 'Automobile';
+  
+  // Oil & Gas
+  if (lower.includes('refineries') || lower.includes('oil') || lower.includes('gas') || lower.includes('petro') || lower.includes('refinery')) return 'Oil & Gas';
+  
+  // Power
+  if (lower.includes('power') || lower.includes('electricity') || lower.includes('utilities')) return 'Power';
+  
+  // Metals
+  if (lower.includes('metal') || lower.includes('steel') || lower.includes('mining') || lower.includes('iron') || lower.includes('aluminium') || lower.includes('minerals') || lower.includes('coal')) return 'Metals';
+  
+  // FMCG
+  if (lower.includes('fmcg') || lower.includes('food') || lower.includes('beverage') || lower.includes('household') || lower.includes('tobacco') || lower.includes('tea') || lower.includes('coffee') || lower.includes('consumer product')) return 'FMCG';
+  
+  // Consumer Durables
+  if (lower.includes('jewellery') || lower.includes('paints') || lower.includes('durables') || lower.includes('appliances')) return 'Consumer Durables';
+  
+  // Cement
+  if (lower.includes('cement') || lower.includes('construction materials')) return 'Cement';
+  
+  // Construction
+  if (lower.includes('construction') || lower.includes('infra') || lower.includes('real estate') || lower.includes('building') || lower.includes('engineering')) return 'Construction';
+  
+  // Telecom
+  if (lower.includes('telecom') || lower.includes('communication')) return 'Telecom';
+  
+  // Services/Logistics/Others fallback
+  if (lower.includes('trading') || lower.includes('retail') || lower.includes('ecommerce') || lower.includes('e-commerce') || lower.includes('port') || lower.includes('airlines') || lower.includes('logistics') || lower.includes('transport') || lower.includes('shipping') || lower.includes('diversified')) return 'Services';
 
   return 'Miscellaneous';
 };
@@ -577,7 +606,7 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
                     >
                       {selectedSector ? (
                         // Zoomed Sector View
-                        (Array.isArray(rootNode?.children) ? rootNode.children : []).map(stock => {
+                        (Array.isArray(computedZoomedSector?.children) ? computedZoomedSector.children : []).map(stock => {
                           const tileColor = getColorForValue(stock.colorValue, mode);
                           const isHighlighted = isQueryMatching(stock.symbol || '');
                           const showLabel = (stock.width || 0) > 40 && (stock.height || 0) > 28;
@@ -708,7 +737,13 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
                                         fontSize={7}
                                         fontWeight="semibold"
                                       >
-                                        {stock.change_pct !== undefined ? `${stock.change_pct >= 0 ? '+' : ''}${stock.change_pct.toFixed(1)}%` : ''}
+                                        {(() => {
+                                          if (stock.change_pct === undefined) return '';
+                                          const details = calculatePriceChange(stock.price, undefined, stock.change_pct);
+                                          const isUp = details.direction === 'up';
+                                          const isDown = details.direction === 'down';
+                                          return `${isUp ? '▲ +' : isDown ? '▼ ' : '▬ '}${Math.abs(details.changePercent).toFixed(1)}%`;
+                                        })()}
                                       </text>
                                     )}
                                   </g>
@@ -747,9 +782,16 @@ export const SectorHeatmapPage: React.FC<SectorHeatmapPageProps> = React.memo(({
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-slate-500 font-semibold">Change:</span>
-                          <span className={`font-bold ${tooltip.change_pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {tooltip.change_pct >= 0 ? '+' : ''}{tooltip.change_pct.toFixed(2)}%
-                          </span>
+                          {(() => {
+                            const details = calculatePriceChange(tooltip.price, undefined, tooltip.change_pct);
+                            const isUp = details.direction === 'up';
+                            const isDown = details.direction === 'down';
+                            return (
+                              <span className={`font-bold ${isUp ? 'text-green-500' : isDown ? 'text-rose-500' : 'text-slate-400'}`}>
+                                {isUp ? '▲ +' : isDown ? '▼ ' : '▬ '}{Math.abs(details.changePercent).toFixed(2)}%
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-slate-500 font-semibold">

@@ -18,9 +18,6 @@ from core.quant_engine.market_data.historical import get_market_data_engine
 from core.quant_engine.strategy.base import UnifiedStrategy
 from core.quant_engine.execution.vectorized import VectorizedExecutionEngine
 from core.quant_engine.execution.event_driven import EventDrivenExecutionEngine
-from core.quant_engine.walk_forward.validator import WalkForwardValidator
-from core.quant_engine.monte_carlo.simulator import MonteCarloSimulator
-from core.quant_engine.optimization.grid_search import ParameterOptimizer
 from core.quant_engine.adapters.legacy_adapter import LegacyStrategyAdapter
 
 # Legacy Registries
@@ -31,7 +28,7 @@ from utils.rate_limit import rate_limit
 
 router = APIRouter(
     tags=["Unified Quant Workspace"],
-    dependencies=[Depends(rate_limit(120, 60, "quant_workspace"))]
+    dependencies=[Depends(rate_limit(2000, 60, "quant_workspace"))]
 )
 
 
@@ -49,39 +46,6 @@ class QuantRunRequest(BaseModel):
     risk_percent: float = Field(2.0, description="Risk percent per trade")
     execution_type: str = Field("event_driven", description="event_driven or vectorized")
     strategy_params: Dict[str, Any] = Field(default_factory=dict, description="Custom parameters overrides")
-
-
-class OptimizeRequest(BaseModel):
-    symbol: str
-    timeframe: str = "1D"
-    strategy_id: str
-    start_date: str
-    end_date: str
-    initial_capital: float = 100000.0
-    param_grid: List[Dict[str, Any]] = Field(..., description="List of parameter combination dictionaries to test")
-    max_workers: int = 4
-
-
-class WalkForwardRequest(BaseModel):
-    symbol: str
-    timeframe: str = "1D"
-    strategy_id: str
-    start_date: str
-    end_date: str
-    initial_capital: float = 100000.0
-    param_grid: List[Dict[str, Any]]
-    train_window_bars: int = 120
-    test_window_bars: int = 30
-    step_bars: int = 30
-    anchored: bool = False
-
-
-class MonteCarloRequest(BaseModel):
-    trade_returns_pct: List[float] = Field(..., min_length=1, description="List of trade return percentages")
-    initial_capital: float = 100000.0
-    num_simulations: int = 1000
-    num_trades_per_path: int = 50
-    risk_of_ruin_pct: float = 50.0
 
 
 # ==================== Helper Resolver ====================
@@ -272,99 +236,7 @@ async def run_quant_backtest(
         raise HTTPException(status_code=500, detail=f"Quant engine run failed: {str(e)}")
 
 
-@router.post("/optimize")
-async def run_quant_optimization(
-    request: OptimizeRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Execute parallel parameter sweep optimization.
-    """
-    # 1. Validate strategy exists
-    strategy = resolve_unified_strategy(request.strategy_id, {})
-    strategy_module = strategy.legacy.__class__.__module__
-    strategy_class_name = strategy.legacy.__class__.__name__
 
-    # 2. Fetch candles
-    data_engine = get_market_data_engine()
-    df = data_engine.load_candles(request.symbol, request.timeframe, request.start_date, request.end_date)
-    if df.empty:
-        raise HTTPException(status_code=404, detail="Empty historical dataset for optimization.")
-
-    try:
-        optimizer = ParameterOptimizer(request.initial_capital)
-        result = optimizer.optimize_grid(
-            strategy_module=strategy_module,
-            strategy_class_name=strategy_class_name,
-            df=df,
-            param_grid=request.param_grid,
-            max_workers=request.max_workers
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
-
-
-@router.post("/walk-forward")
-async def run_quant_walk_forward(
-    request: WalkForwardRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Perform rolling window Walk-Forward parameter validation.
-    """
-    # 1. Validate strategy exists
-    strategy = resolve_unified_strategy(request.strategy_id, {})
-    strategy_class = strategy.legacy.__class__
-
-    # 2. Fetch candles
-    data_engine = get_market_data_engine()
-    df = data_engine.load_candles(request.symbol, request.timeframe, request.start_date, request.end_date)
-    if df.empty:
-        raise HTTPException(status_code=404, detail="Empty historical dataset for walk-forward evaluation.")
-
-    try:
-        # Wrap the class to inject the legacy class into adapter
-        class WrappedAdapter(LegacyStrategyAdapter):
-            def __init__(self, params=None):
-                super().__init__(strategy_class(params))
-
-        validator = WalkForwardValidator(request.initial_capital)
-        result = validator.run_walk_forward(
-            strategy_class=WrappedAdapter,
-            df=df,
-            param_grid=request.param_grid,
-            train_window_bars=request.train_window_bars,
-            test_window_bars=request.test_window_bars,
-            step_bars=request.step_bars,
-            anchored=request.anchored
-        )
-        return result
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Walk forward run failed: {str(e)}")
-
-
-@router.post("/monte-carlo")
-async def run_quant_monte_carlo(
-    request: MonteCarloRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Compute randomized Monte Carlo paths from trading returns.
-    """
-    try:
-        simulator = MonteCarloSimulator(request.initial_capital)
-        result = simulator.simulate(
-            trade_returns_pct=request.trade_returns_pct,
-            num_simulations=request.num_simulations,
-            num_trades_per_path=request.num_trades_per_path,
-            risk_of_ruin_pct=request.risk_of_ruin_pct
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Monte Carlo simulation failed: {str(e)}")
 
 
 @router.get("/strategies")
@@ -756,3 +628,144 @@ async def list_quant_symbols(
             ],
             "count": 10
         }
+
+
+class OptimizeRequest(BaseModel):
+    symbol: str
+    timeframe: str = "1D"
+    strategy_id: str
+    start_date: str
+    end_date: str
+    initial_capital: float = 100000.0
+    param_grid: List[Dict[str, Any]]
+    max_workers: Optional[int] = 2
+
+
+@router.post("/optimize")
+async def optimize_strategy(
+    request: OptimizeRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Optimize parameters for a strategy by sweeping param_grid.
+    """
+    # 1. Set dates
+    end_date = request.end_date or datetime.now().strftime("%Y-%m-%d")
+    start_date = request.start_date or (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+    
+    # 2. Get market data
+    data_engine = get_market_data_engine()
+    df = data_engine.load_candles(request.symbol, request.timeframe, start_date, end_date)
+    if df.empty:
+        raise HTTPException(status_code=404, detail=f"No historical candles found for symbol: {request.symbol}")
+
+    import logging
+    logger = logging.getLogger(__name__)
+
+    all_runs = []
+    best_sharpe = -9999.0
+    best_run = None
+
+    for params in request.param_grid:
+        try:
+            strategy = resolve_unified_strategy(request.strategy_id, params)
+            engine = VectorizedExecutionEngine(request.initial_capital)
+            result = engine.run(strategy, df)
+            
+            # Format equity curve for Recharts compatibility
+            recharts_equity = []
+            for i, eq in enumerate(result.get("equity_curve", [])):
+                if i < len(df):
+                    try:
+                        ts_raw = df["timestamp"].iloc[i]
+                        ts = pd.Timestamp(ts_raw).date().isoformat()
+                    except Exception:
+                        ts = str(i)
+                    recharts_equity.append({"date": ts, "equity": round(float(eq), 2)})
+            result["equity_curve_recharts"] = recharts_equity
+            
+            run_result = {
+                "params": params,
+                "metrics": result
+            }
+            all_runs.append(run_result)
+            
+            sharpe = result.get("sharpe_ratio", 0.0)
+            if sharpe is None:
+                sharpe = 0.0
+            if sharpe > best_sharpe:
+                best_sharpe = sharpe
+                best_run = run_result
+        except Exception as e:
+            logger.warning(f"Failed run with params {params}: {e}")
+            all_runs.append({"params": params, "error": str(e), "success": False})
+
+    if best_run is None and all_runs:
+        best_run = all_runs[0]
+
+    return {
+        "best_run": best_run,
+        "all_runs": all_runs,
+        "success": True
+    }
+
+
+class MonteCarloRequest(BaseModel):
+    trade_returns_pct: List[float]
+    initial_capital: float = 100000.0
+    num_simulations: int = 100
+    num_trades_per_path: int = 20
+    risk_of_ruin_pct: float = 50.0
+
+
+@router.post("/monte-carlo")
+async def run_monte_carlo(
+    request: MonteCarloRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Run Monte Carlo stress testing based on trade returns distribution.
+    """
+    import numpy as np
+    
+    returns = np.array(request.trade_returns_pct)
+    if len(returns) == 0:
+        returns = np.array([0.5, -0.4, 0.2, -0.1, 0.3])
+        
+    num_sim = request.num_simulations
+    num_trades = request.num_trades_per_path
+    
+    # risk of ruin capital threshold
+    ruin_threshold = request.initial_capital * (request.risk_of_ruin_pct / 100.0)
+    
+    final_equities = []
+    ruined_paths = 0
+    
+    # Use standard random seed for testing consistency
+    np.random.seed(42)
+    
+    for _ in range(num_sim):
+        sampled_returns = np.random.choice(returns, size=num_trades, replace=True)
+        multipliers = 1.0 + (sampled_returns / 100.0)
+        
+        equity = request.initial_capital
+        path_ruined = False
+        
+        for mult in multipliers:
+            equity *= mult
+            if equity < ruin_threshold:
+                path_ruined = True
+        
+        final_equities.append(equity)
+        if path_ruined:
+            ruined_paths += 1
+            
+    risk_of_ruin_probability = ruined_paths / num_sim
+    median_final_equity = float(np.median(final_equities))
+    
+    return {
+        "risk_of_ruin_probability": risk_of_ruin_probability,
+        "median_final_equity": median_final_equity,
+        "num_simulations": num_sim,
+        "success": True
+    }

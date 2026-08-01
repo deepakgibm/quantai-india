@@ -281,7 +281,7 @@ def timed_operation(operation_type: str = "db", operation_name: str = "query"):
                 if operation_type == "db":
                     get_metrics().record_db_query(operation_name, duration)
                 return result
-            except Exception as e:
+            except Exception:
                 duration = time.perf_counter() - start
                 if operation_type == "db":
                     get_metrics().record_db_query(operation_name, duration)
@@ -296,7 +296,7 @@ def timed_operation(operation_type: str = "db", operation_name: str = "query"):
                 if operation_type == "db":
                     get_metrics().record_db_query(operation_name, duration)
                 return result
-            except Exception as e:
+            except Exception:
                 duration = time.perf_counter() - start
                 if operation_type == "db":
                     get_metrics().record_db_query(operation_name, duration)

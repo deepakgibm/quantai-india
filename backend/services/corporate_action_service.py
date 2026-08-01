@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from typing import List, Any
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import logging

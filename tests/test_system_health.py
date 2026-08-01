@@ -1,7 +1,7 @@
-import pytest
+import os
 import requests
 
-BASE_URL = "http://localhost:3000"
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 def test_system_health():
     """Verify GET /api/system/health returns correct structure."""

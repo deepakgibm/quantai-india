@@ -23,7 +23,6 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from services.explainable_ai import (
-    get_explainable_ai_report,
     _evaluate_indicators,
     _compute_weighted_score,
     _determine_verdict,

@@ -1,0 +1,21 @@
+{
+  "id": "task-decision",
+  "agent_id": "portfolio_manager",
+  "prompt_template": "After the debate and risk review on {target}, make the final investment decision and execution plan.",
+  "depends_on": [
+    "task-risk"
+  ],
+  "blocked_by": [],
+  "input_from": {
+    "full_debate": "task-risk"
+  },
+  "status": "completed",
+  "summary": "**Investment Committee Verdict: SELL**\n\n### Consensus Rationale\nThe Swarm Committee has completed the debate. A confluence of technical indicators and quantitative risk factors yields a SELL recommendation with 73% confidence. Key moving average breakdowns and negative momentum signals indicate elevated downside risk.\n\n### Key Decision Drivers\n- 7 of 12 technical indicators are bearish.\n- MACD (12,26,9): MACD (-7.90) is below signal line (1.25), indicating selling pressure.\n- EMA 20 vs 50: EMA 20 (1380.2) is below EMA 50 (1395.2), indicating descending pressure.\n- EMA 50 vs 200: EMA 50 (1395.2) is below EMA 200 (1419.9), showing long-term bearish structure.\n- Supertrend: Supertrend indicates SELL -- price has broken below the volatility stop at 1406.4.\n- VWAP: Price (1327.2) is below VWAP (1426.3), indicating sellers dominate.\n- Bollinger Bands: Price is near the lower Bollinger Band, showing bearish compression (B%=0.16).\n- Ichimoku Cloud: Price is Below Cloud, indicating structural long-term bearish bias.\n- 5 of 5 timeframes confirm bearish alignment.\n- Overall weighted technical score: -4.1\n\n### Trade Details\n- **Verdict**: SELL\n- **Target Price**: ₹1274.1\n- **Stop Loss**: ₹1367.0\n- **Confidence**: 73%\n- **Risk Profile**: Moderate\n- **Strategy**: Risk Reduction -- Exit / Short\n",
+  "artifacts": [
+    "/app/services/ai/swarm_engine/.swarm/runs/swarm-20260717-163135-12502227/artifacts/portfolio_manager/summary.md"
+  ],
+  "error": null,
+  "started_at": "2026-07-17T16:31:44.012803+00:00",
+  "completed_at": "2026-07-17T16:31:50.294983+00:00",
+  "worker_iterations": 1
+}

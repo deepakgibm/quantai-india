@@ -13,8 +13,6 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass, asdict
 import pandas as pd
-from config import settings
-from urllib.parse import urlparse
 
 # Import new schema utilities
 
@@ -279,8 +277,8 @@ class DatabaseDataFetcher:
                     SELECT candle_ts, open, high, low, close, volume
                     FROM stock_candle
                     WHERE instrument_id = :instrument_id AND timeframe = :timeframe
-                    AND candle_ts::date >= :start_date::date
-                    AND candle_ts::date <= :end_date::date
+                    AND CAST(candle_ts AS DATE) >= CAST(:start_date AS DATE)
+                    AND CAST(candle_ts AS DATE) <= CAST(:end_date AS DATE)
                     ORDER BY candle_ts ASC
                 """), {
                     "instrument_id": instrument_id,

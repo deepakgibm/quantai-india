@@ -4,6 +4,7 @@ export interface MarketQuote {
   symbol: string;
   ltp: number;
   prev_close: number;
+  change_pct: number;
   volume: number;
   timestamp: number; // local milliseconds timestamp
   isLive: boolean;
@@ -88,13 +89,20 @@ class MarketDataServiceClass {
             // Extract attributes to satisfy WS ticks verification
             const ltp = Number(tick.ltp || tick.last_price || 0);
             const volume = Number(tick.volume || 0);
-            const prev_close = Number(tick.prev_close || tick.previous_close || 0);
+            const change_pct = Number(tick.change_percent || tick.change_pct || tick.percentage_change || 0);
+            let prev_close = Number(tick.prev_close || tick.previous_close || tick.close_price || 0);
+            
+            if (prev_close <= 0 && ltp > 0 && change_pct !== 0) {
+              prev_close = ltp / (1 + change_pct / 100);
+            }
+            
             const timestamp = tick.timestamp ? new Date(tick.timestamp).getTime() : Date.now();
             
             const quote: MarketQuote = {
               symbol,
               ltp,
               prev_close,
+              change_pct,
               volume,
               timestamp,
               isLive: true
@@ -224,13 +232,19 @@ class MarketDataServiceClass {
 
         if (quoteData) {
           const ltp = Number(quoteData.last_price || quoteData.ltp || 0);
-          const prev_close = Number(quoteData.close_price || quoteData.previous_close || quoteData.prev_close || 0);
-          const volume = Number(quoteData.volume || 0);
+          const change_pct = Number(quoteData.change_percent || quoteData.change_pct || quoteData.percentage_change || 0);
+          let prev_close = Number(quoteData.close_price || quoteData.previous_close || quoteData.prev_close || 0);
+          
+          if (prev_close <= 0 && ltp > 0 && change_pct !== 0) {
+            prev_close = ltp / (1 + change_pct / 100);
+          }
+          
           const quote: MarketQuote = {
             symbol: upperSymbol,
             ltp,
             prev_close,
-            volume,
+            change_pct,
+            volume: Number(quoteData.volume || 0),
             timestamp: Date.now(),
             isLive: true
           };
@@ -247,6 +261,7 @@ class MarketDataServiceClass {
       symbol: upperSymbol,
       ltp: 0,
       prev_close: 0,
+      change_pct: 0,
       volume: 0,
       timestamp: Date.now(),
       isLive: false

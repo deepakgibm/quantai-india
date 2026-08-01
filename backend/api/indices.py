@@ -108,7 +108,7 @@ async def list_indices(db: AsyncSession = Depends(get_db)):
         ]
 
         # Supplement with catalogue entries not yet in DB
-        from services.index_management_service import IndexManagementService, NSE_INDICES
+        from services.index_management_service import NSE_INDICES
         db_names = {i["index_name"] for i in indices}
         for entry in NSE_INDICES:
             if entry["index_name"] not in db_names:

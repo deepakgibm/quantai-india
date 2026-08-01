@@ -32,6 +32,7 @@ import {
 import { apiGet, apiPost, apiRequest, API_URL, getAuthHeaders } from '../services/api';
 import { MarketDataService, MarketQuote } from '../services/marketDataService';
 import { useMarketDataStore } from '../store/useMarketDataStore';
+import { calculatePriceChange } from '../utils/marketPrice';
 import { Page } from '../types';
 import {
   useWatchlistQuery,
@@ -112,6 +113,13 @@ const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, on
   const returnVal = item.watchlist_price > 0 ? (virtualInvestment / item.watchlist_price) * (livePrice || item.watchlist_price) - virtualInvestment : 0;
   const changePercent = item.watchlist_price > 0 ? (((livePrice || 0) - item.watchlist_price) / item.watchlist_price) * 100 : 0;
 
+  // Centralized Daily Change % calculation
+  const dailyPriceDetails = calculatePriceChange(
+    livePrice,
+    quote?.prev_close || item.previous_close || item.watchlist_price,
+    quote?.change_pct
+  );
+
   const getStatus = (pct: number) => {
     if (pct >= 10.0) return "Strong Winner";
     if (pct >= 2.0) return "Winner";
@@ -147,6 +155,20 @@ const WatchlistRow: React.FC<WatchlistRowProps> = ({ item, virtualInvestment, on
           </span>
         </div>
       </td>
+      {/* Centralized Daily Change % Column */}
+      <td className={`px-5 py-4 text-right font-mono font-bold ${
+        dailyPriceDetails.direction === 'up' 
+          ? 'text-green-500' 
+          : dailyPriceDetails.direction === 'down' 
+            ? 'text-rose-500' 
+            : 'text-slate-400'
+      }`}>
+        <span>
+          {dailyPriceDetails.direction === 'up' ? '▲ ' : dailyPriceDetails.direction === 'down' ? '▼ ' : '▬ '}
+          {Math.abs(dailyPriceDetails.changePercent).toFixed(2)}%
+        </span>
+      </td>
+      {/* Portfolio Returns Column */}
       <td className={`px-5 py-4 text-right font-mono font-bold ${
         changePercent >= 0 ? 'text-green-500' : 'text-rose-500'
       }`}>
@@ -577,6 +599,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onNavigate }) => {
                       <th className="px-5 py-3.5">Stock</th>
                       <th className="px-5 py-3.5 text-right">Entry Price</th>
                       <th className="px-5 py-3.5 text-right">Live Price</th>
+                      <th className="px-5 py-3.5 text-right">Daily Change</th>
                       <th className="px-5 py-3.5 text-right">Virtual Returns</th>
                       <th className="px-5 py-3.5 text-center">Days</th>
                       <th className="px-5 py-3.5 text-center">Status</th>

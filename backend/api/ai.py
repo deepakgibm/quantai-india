@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 import logging
 import asyncio
@@ -17,9 +17,8 @@ from config import settings
 from database import get_db
 
 # Initialize path mapping for the Vibe-Trading Swarm Engine
-import services.ai.swarm_engine
+import services.ai.swarm_engine  # noqa: F401
 from src.agent.loop import AgentLoop
-from src.agent.tools import ToolRegistry
 from src.providers.chat import ChatLLM
 from src.swarm.runtime import SwarmRuntime
 from src.swarm.store import SwarmStore
@@ -345,7 +344,7 @@ async def process_ai_prompt(
         if holdings:
             portfolio_desc += "Holdings: " + ", ".join([f"{h.symbol} ({h.quantity} shares @ avg ₹{h.avg_price})" for h in holdings]) + ". "
         else:
-            portfolio_desc += "Holdings: RELIANCE (100 shares @ ₹2400), TCS (50 shares @ ₹3200), HDFCBANK (150 shares @ ₹1450). "
+            portfolio_desc += "Holdings: None. "
             
         if positions:
             portfolio_desc += "Open Positions: " + ", ".join([f"{p.symbol} ({p.quantity} @ ₹{p.avg_price}, PnL: ₹{p.pnl})" for p in positions]) + ". "

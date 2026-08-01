@@ -197,7 +197,7 @@ class IntradayDataLoader:
             print(f"    Resuming from {from_date.date()}")
         
         if from_date >= to_date:
-            print(f"    Already up to date")
+            print("    Already up to date")
             return 0
         
         # Fetch in chunks (max 15 days for intraday)
@@ -238,7 +238,7 @@ class IntradayDataLoader:
             except Exception as e:
                 error_msg = str(e)
                 if "rate" in error_msg.lower() or "limit" in error_msg.lower():
-                    print(f"    Rate limited - waiting 30s...")
+                    print("    Rate limited - waiting 30s...")
                     await asyncio.sleep(30)
                 else:
                     self.stats["errors"] += 1
@@ -290,7 +290,7 @@ class IntradayDataLoader:
         job_id = f"load_{years}y_nifty500"
         
         print(f"Date range: {from_date.date()} to {to_date.date()} ({years} years)")
-        print(f"Intervals: 1m, 3m, 5m, 15m, 30m")
+        print("Intervals: 1m, 3m, 5m, 15m, 30m")
         print(f"Job ID: {job_id}")
         
         symbols = self.get_nifty500_symbols()

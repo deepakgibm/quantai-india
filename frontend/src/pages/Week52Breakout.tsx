@@ -18,6 +18,7 @@ import {
 import { API_URL, getAuthHeaders } from '../services/api';
 import { useMarketDataStream } from '../hooks/useMarketDataStream';
 import { PriceWithSource } from '../components/PriceSourceBadge';
+import { calculatePriceChange } from '../utils/marketPrice';
 
 interface Week52BreakoutStock {
     symbol: string;
@@ -92,12 +93,8 @@ const Week52Breakout: React.FC = () => {
     const fetchBreakouts = async (forceRefresh: boolean = true) => {
         try {
             setLoading(true);
-            const url = `${API_URL}/api/scanner/week52-breakouts${forceRefresh ? '?force_refresh=true' : ''}`;
-            const response = await fetch(url, {
-                headers: getAuthHeaders()
-            });
-            if (response.ok) {
-                const data = await response.json();
+            const data = await api.getWeek52Breakouts(forceRefresh);
+            if (data) {
                 console.log("52W Breakout API Response:", data);
 
                 // Extra safety: Filter out any rows with missing critical data
@@ -379,7 +376,7 @@ const Week52Breakout: React.FC = () => {
                                 console.log("Rendering High Breakout Stock:", {
                                     symbol: stock.symbol,
                                     currentPrice: stock.ltp,
-                                    previousClose: (stock as any).prev_close || stock.ltp,
+                                    previousClose: (stock as any).prev_close,
                                     high52Week: stock.high_52w,
                                     low52Week: stock.low_52w,
                                     breakoutPercent: stock.breakout_pct,
@@ -410,9 +407,16 @@ const Week52Breakout: React.FC = () => {
                                                     source={(stock as any).price_source}
                                                     className="justify-end text-xl"
                                                 />
-                                                <div className={`text-sm font-black ${stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    {stock.change_pct >= 0 ? '↑' : '↓'} {Math.abs(stock.change_pct).toFixed(2)}%
-                                                </div>
+                                                {(() => {
+                                                    const details = calculatePriceChange(stock.ltp, (stock as any).prev_close, stock.change_pct);
+                                                    const isUp = details.direction === 'up';
+                                                    const isDown = details.direction === 'down';
+                                                    return (
+                                                        <div className={`text-sm font-black ${isUp ? 'text-green-500' : isDown ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                            {isUp ? '▲ ' : isDown ? '▼ ' : '▬ '}{Math.abs(details.changePercent).toFixed(2)}%
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
 
@@ -533,7 +537,7 @@ const Week52Breakout: React.FC = () => {
                                 console.log("Rendering Low Breakdown Stock:", {
                                     symbol: stock.symbol,
                                     currentPrice: stock.ltp,
-                                    previousClose: (stock as any).prev_close || stock.ltp,
+                                    previousClose: (stock as any).prev_close,
                                     high52Week: stock.high_52w,
                                     low52Week: stock.low_52w,
                                     breakoutPercent: stock.breakout_pct,
@@ -561,9 +565,16 @@ const Week52Breakout: React.FC = () => {
                                                     source={(stock as any).price_source}
                                                     className="justify-end text-xl"
                                                 />
-                                                <div className={`text-sm font-black ${stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    {stock.change_pct >= 0 ? '↑' : '↓'} {Math.abs(stock.change_pct).toFixed(2)}%
-                                                </div>
+                                                {(() => {
+                                                    const details = calculatePriceChange(stock.ltp, (stock as any).prev_close, stock.change_pct);
+                                                    const isUp = details.direction === 'up';
+                                                    const isDown = details.direction === 'down';
+                                                    return (
+                                                        <div className={`text-sm font-black ${isUp ? 'text-green-500' : isDown ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                            {isUp ? '▲ ' : isDown ? '▼ ' : '▬ '}{Math.abs(details.changePercent).toFixed(2)}%
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
 

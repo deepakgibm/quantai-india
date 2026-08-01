@@ -616,22 +616,42 @@ class MockChatGoogleGenerativeAI:
         elif "portfolio_manager" in prompt_lower or "portfolio manager" in prompt_lower:
             symbol = "RELIANCE"
             import re
-            match = re.search(r'\b(RELIANCE|TCS|INFY|HDFCBANK|ICICIBANK)\b', prompt_lower)
-            if match:
-                symbol = match.group(1).upper()
+            # Extract symbol from the user prompt (last message) specifically
+            user_message_text = ""
+            if messages:
+                last_msg = messages[-1]
+                if hasattr(last_msg, "content"):
+                    user_message_text = str(last_msg.content)
+                elif isinstance(last_msg, dict):
+                    user_message_text = str(last_msg.get("content", ""))
+                elif isinstance(last_msg, tuple) and len(last_msg) >= 2:
+                    user_message_text = str(last_msg[1])
+                else:
+                    user_message_text = str(last_msg)
+            
+            match_on = re.search(r'\bon\s+([A-Za-z0-9_-]+)', user_message_text)
+            if match_on:
+                symbol = match_on.group(1).upper()
             else:
-                words = re.findall(r'\b[A-Z]{3,10}\b', prompt_text)
-                if words:
-                    agent_words = {"BULL", "BEAR", "RISK", "PM", "LLM", "SSE", "DAG", "NSE", "API", "RSI", "MACD", "EMA", "ADX", "VWAP", "ATR", "OBV"}
-                    for w in words:
-                        if w not in agent_words:
-                            symbol = w
-                            break
+                match = re.search(r'\b(RELIANCE|TCS|INFY|HDFCBANK|ICICIBANK)\b', prompt_lower)
+                if match:
+                    symbol = match.group(1).upper()
+                else:
+                    words = re.findall(r'\b[A-Z]{3,10}\b', prompt_text)
+                    if words:
+                        agent_words = {
+                            "BULL", "BEAR", "RISK", "PM", "LLM", "SSE", "DAG", "NSE", "API", "RSI", "MACD", "EMA", "ADX", "VWAP", 
+                            "ATR", "OBV", "CRO", "BUY", "SELL", "HOLD", "STRONG", "WEEKEND", "HOLIDAY", "MFI", "ROC", "SMA"
+                        }
+                        for w in words:
+                            if w not in agent_words:
+                                symbol = w
+                                break
             try:
                 from services.explainable_ai import get_explainable_ai_report
                 report = get_explainable_ai_report(symbol)
                 return report.get("consensus_report")
-            except Exception as e:
+            except Exception:
                 return (
                     "**Investment Committee Verdict: HOLD**\n\n"
                     "### Consensus Rationale\n"

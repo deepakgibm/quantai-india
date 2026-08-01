@@ -67,7 +67,7 @@ class BaseStrategy(ABC):
         """
         pass
     
-    def on_init(self) -> None:
+    def on_init(self, *args, **kwargs) -> None:
         """Called once at strategy initialization"""
         self._initialized = True
     

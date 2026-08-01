@@ -94,7 +94,7 @@ def test_frontend_routes():
         # Check /vibe-trading endpoint (Nginx should fall back to index.html and return 200)
         resp = requests.get(f"{BASE_URL_FRONTEND}/vibe-trading", timeout=10)
         if resp.status_code == 200 and "<div id=\"root\">" in resp.text:
-            print(f"  [PASS] GET /vibe-trading returned 200 OK and valid index.html template.")
+            print("  [PASS] GET /vibe-trading returned 200 OK and valid index.html template.")
             return True
         else:
             print(f"  [FAIL] GET /vibe-trading returned status {resp.status_code}: {resp.text[:200]}")
@@ -148,7 +148,7 @@ def main():
         print("[CRITICAL] Could not obtain auth token from backend. Exiting.")
         sys.exit(1)
         
-    print(f"[OK] Auth token acquired successfully.")
+    print("[OK] Auth token acquired successfully.")
     
     backend_tests = [
         ("chat", {"message": "Is TCS showing mean reversion signs?"}),

@@ -125,8 +125,6 @@ class EventDrivenExecutionEngine:
                         "quantity": pos.quantity,
                         "reason": risk_sig.reason
                     })
-                    # Mark to avoid double evaluation
-                    portfolio.positions["STOCK"].quantity = 0
 
             # --- D. EVALUATE STRATEGY ENTRY / EXIT RULES ---
             if "STOCK" not in portfolio.positions and not pending_orders:

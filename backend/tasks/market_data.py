@@ -31,14 +31,21 @@ async def _fetch_candles_async(interval: str):
     from_dt = datetime.now() - timedelta(days=1) 
     to_dt = datetime.now()
     
+    # Configurable symbol limit with rate-limiting delay for larger lists
+    limit_str = os.getenv("CANDLE_FETCH_LIMIT", "")
+    limit = int(limit_str) if limit_str.isdigit() else None
+    target_symbols = symbols[:limit] if limit is not None else symbols
+    
     async with AsyncSessionLocal() as session:
-        # Limit to first 20 for demo to respect rate limits
-        for sym, key in symbols[:20]:
+        for sym, key in target_symbols:
             try:
                 df = await client.get_historical_data(sym, key, from_dt, to_dt, interval)
                 if not df.empty:
                     print(f"Fetched {len(df)} candles for {sym} ({interval})")
                     # Push historical table straight to Parquet datalake!
                     duckdb_engine.save_to_parquet(sym, interval, df)
+                # Apply rate limiting delay when fetching bulk data
+                if len(target_symbols) > 20:
+                    await asyncio.sleep(0.3)
             except Exception as e:
                 print(f"Error fetching {sym}: {e}")

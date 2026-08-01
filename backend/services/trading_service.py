@@ -9,9 +9,6 @@ from models import User, Order, Algorithm, UserSettings, Position, BacktestResul
 from database import AsyncSessionLocal
 from services.dragonfly_client import get_cache
 from services.market_hours_service import get_market_hours_service
-from services.upstox_client import get_upstox_client
-from utils.market_fallback import fetch_live_indices_yfinance
-from services.market_data_orchestrator import get_market_data_orchestrator
 from utils.symbol_utils import get_all_symbols, get_company_name
 
 logger = logging.getLogger(__name__)

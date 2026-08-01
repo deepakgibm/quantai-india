@@ -368,12 +368,12 @@ async def get_volatility_data(
             if vix_row:
                 india_vix = float(vix_row.close)
             else:
-                # Try fetching resolved price for India VIX index via price resolver
-                from services.upstox_price_resolver import get_upstox_price_resolver
-                resolver = get_upstox_price_resolver()
-                p_res = await resolver.get_price("INDIA VIX")
-                if p_res and p_res.get("price"):
-                    india_vix = float(p_res["price"])
+                # Try fetching resolved price for India VIX index via centralized PriceService
+                from services.price_manager import get_price_service
+                price_svc = get_price_service()
+                p_res = await price_svc.get_price("INDIA VIX")
+                if p_res and p_res.get("ltp"):
+                    india_vix = float(p_res["ltp"])
         except Exception as vix_err:
             logger.debug(f"Failed to fetch India VIX: {vix_err}")
             

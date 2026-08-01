@@ -32,10 +32,9 @@ export default defineConfig(({ mode }) => {
               if (id.includes('lucide-react')) {
                 return 'vendor-lucide';
               }
-              if (id.includes('react') || id.includes('scheduler') || id.includes('use-sync-external-store')) {
-                return 'vendor-react-core';
-              }
-              return 'vendor-common';
+              // Merge all other libraries (react, framer-motion, firebase, etc.)
+              // into a single vendor chunk to prevent circular dependency cycles.
+              return 'vendor';
             }
           }
         }

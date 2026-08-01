@@ -7,8 +7,9 @@ import {
     RefreshCw,
     Clock
 } from 'lucide-react';
-import { getAuthHeaders, API_URL } from '../services/api';
+import { getAuthHeaders, API_URL, api } from '../services/api';
 import { useMarketDataStream } from '../hooks/useMarketDataStream';
+import { calculatePriceChange } from '../utils/marketPrice';
 
 interface StockTick {
     symbol: string;
@@ -91,12 +92,8 @@ const MomentAlert: React.FC = () => {
     const fetchWeek52Breakouts = async (forceRefresh: boolean = false) => {
         try {
             setWeek52Loading(true);
-            const url = `${API_URL}/api/scanner/week52-breakouts${forceRefresh ? '?force_refresh=true' : ''}`;
-            const response = await fetch(url, {
-                headers: getAuthHeaders()
-            });
-            if (response.ok) {
-                const data = await response.json();
+            const data = await api.getWeek52Breakouts(forceRefresh);
+            if (data) {
                 setHighBreakouts(Array.isArray(data.high_breakouts) ? data.high_breakouts : []);
                 setLowBreakdowns(Array.isArray(data.low_breakdowns) ? data.low_breakdowns : []);
             }
@@ -235,9 +232,16 @@ const MomentAlert: React.FC = () => {
                                                 <h4 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-tight">{stock.symbol}</h4>
                                                 <div className="text-right">
                                                     <span className="text-xs font-black text-slate-800 dark:text-slate-200 block">₹{stock.ltp.toLocaleString()}</span>
-                                                    <span className={`text-[10px] font-bold ${stock.change_pct && stock.change_pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                        {stock.change_pct && stock.change_pct >= 0 ? '+' : ''}{stock.change_pct?.toFixed(2)}%
-                                                    </span>
+                                                    {(() => {
+                                                        const details = calculatePriceChange(stock.ltp, stock.prev_close, stock.change_pct);
+                                                        const isUp = details.direction === 'up';
+                                                        const isDown = details.direction === 'down';
+                                                        return (
+                                                            <span className={`text-[10px] font-bold ${isUp ? 'text-green-500' : isDown ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                                {isUp ? '▲ +' : isDown ? '▼ ' : '▬ '}{Math.abs(details.changePercent).toFixed(2)}%
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         </div>

@@ -207,7 +207,7 @@ class CircuitBreaker:
                 result = await func(*args, **kwargs)
                 self.record_success()
                 return result
-            except self.expected_exceptions as e:
+            except self.expected_exceptions:
                 self.record_failure()
                 raise
         

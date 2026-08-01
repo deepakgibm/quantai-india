@@ -211,7 +211,7 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-[10px] font-bold text-slate-500 uppercase">Current Close</div>
-                <div className="text-xl font-mono font-bold text-white mt-1">₹{data.breakout.current_price.toFixed(2)}</div>
+                <div className="text-xl font-mono font-bold text-white mt-1">₹{data.breakout?.current_price?.toFixed(2) ?? '—'}</div>
               </div>
               <div>
                 <div className="text-[10px] font-bold text-slate-500 uppercase">Sector</div>
@@ -227,34 +227,34 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
               <div>
                 <div className="text-slate-500">P/E Ratio</div>
                 <div className="text-slate-200 mt-1">
-                  {data.fundamentals?.pe_ratio ? data.fundamentals.pe_ratio.toFixed(2) : '—'}
+                  {data.fundamentals?.pe_ratio?.toFixed(2) ?? '—'}
                   {data.fundamentals?.sector_pe_benchmark && (
-                    <span className="text-[10px] text-slate-500 ml-1">(Sec: {data.fundamentals.sector_pe_benchmark.toFixed(1)})</span>
+                    <span className="text-[10px] text-slate-500 ml-1">(Sec: {data.fundamentals.sector_pe_benchmark?.toFixed(1) ?? '—'})</span>
                   )}
                 </div>
               </div>
               <div>
                 <div className="text-slate-500">P/B Ratio</div>
                 <div className="text-slate-200 mt-1">
-                  {data.fundamentals?.pb_ratio ? data.fundamentals.pb_ratio.toFixed(2) : '—'}
+                  {data.fundamentals?.pb_ratio?.toFixed(2) ?? '—'}
                 </div>
               </div>
               <div>
                 <div className="text-slate-500">Debt to Equity</div>
                 <div className="text-slate-200 mt-1">
-                  {data.fundamentals?.debt_to_equity !== undefined ? data.fundamentals.debt_to_equity.toFixed(2) : '—'}
+                  {data.fundamentals?.debt_to_equity !== undefined && data.fundamentals.debt_to_equity !== null ? data.fundamentals.debt_to_equity.toFixed(2) : '—'}
                 </div>
               </div>
               <div>
                 <div className="text-slate-500">Dividend Yield</div>
                 <div className="text-slate-200 mt-1">
-                  {data.fundamentals?.dividend_yield !== undefined ? `${data.fundamentals.dividend_yield.toFixed(2)}%` : '—'}
+                  {data.fundamentals?.dividend_yield !== undefined && data.fundamentals.dividend_yield !== null ? `${data.fundamentals.dividend_yield.toFixed(2)}%` : '—'}
                 </div>
               </div>
               <div>
                 <div className="text-slate-500">EPS</div>
                 <div className="text-slate-200 mt-1">
-                  {data.fundamentals?.eps !== undefined ? `₹${data.fundamentals.eps.toFixed(2)}` : '—'}
+                  {data.fundamentals?.eps !== undefined && data.fundamentals.eps !== null ? `₹${data.fundamentals.eps.toFixed(2)}` : '—'}
                 </div>
               </div>
             </div>
@@ -274,7 +274,7 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
                   <div key={idx} className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-850/60 flex items-center justify-between">
                     <div>
                       <div className="text-xs font-bold text-slate-200">{p.pattern_type}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Pivot: ₹{p.breakout_pivot.toFixed(1)}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Pivot: ₹{p.breakout_pivot?.toFixed(1) ?? '—'}</div>
                     </div>
                     <div className="text-right">
                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
@@ -282,7 +282,7 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
                       }`}>
                         {p.breakout_status}
                       </span>
-                      <div className="text-[10px] text-brand-400 font-bold mt-1.5">{p.confidence_score.toFixed(0)}% Conf.</div>
+                      <div className="text-[10px] text-brand-400 font-bold mt-1.5">{p.confidence_score?.toFixed(0) ?? '—'}% Conf.</div>
                     </div>
                   </div>
                 ))}
@@ -332,38 +332,38 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold">
                       <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                         <div className="text-slate-500">VCP score</div>
-                        <div className="text-lg font-bold text-white mt-1">{data.vcp.vcp_score.toFixed(1)} / 100</div>
+                        <div className="text-lg font-bold text-white mt-1">{data.vcp.vcp_score?.toFixed(1) ?? '0.0'} / 100</div>
                       </div>
                       <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                         <div className="text-slate-500">Contractions</div>
-                        <div className="text-lg font-bold text-amber-400 mt-1">{data.vcp.num_contractions}T</div>
+                        <div className="text-lg font-bold text-amber-400 mt-1">{data.vcp.num_contractions ?? 0}T</div>
                       </div>
                       <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                         <div className="text-slate-500">Last Contraction</div>
-                        <div className="text-lg font-bold text-amber-500 mt-1">{data.vcp.latest_contraction_pct.toFixed(2)}%</div>
+                        <div className="text-lg font-bold text-amber-500 mt-1">{data.vcp.latest_contraction_pct?.toFixed(2) ?? '0.00'}%</div>
                       </div>
                       <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                         <div className="text-slate-500">Breakout Pivot</div>
-                        <div className="text-lg font-bold text-emerald-400 mt-1">₹{data.vcp.breakout_pivot.toFixed(1)}</div>
+                        <div className="text-lg font-bold text-emerald-400 mt-1">₹{data.vcp.breakout_pivot?.toFixed(1) ?? '0.0'}</div>
                       </div>
                     </div>
 
                     <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-xl space-y-3 text-xs font-semibold">
                       <div className="flex justify-between">
                         <span className="text-slate-400">Volatility Compression Quality</span>
-                        <span className="text-slate-200">{data.vcp.volatility_compression.toFixed(1)}%</span>
+                        <span className="text-slate-200">{data.vcp.volatility_compression?.toFixed(1) ?? '0.0'}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">MA Trend Quality</span>
-                        <span className="text-slate-200">{data.vcp.trend_quality.toFixed(1)}%</span>
+                        <span className="text-slate-200">{data.vcp.trend_quality?.toFixed(1) ?? '0.0'}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Volume contraction dry-up</span>
-                        <span className="text-emerald-400">{data.vcp.volume_dry_up_pct.toFixed(2)}%</span>
+                        <span className="text-emerald-400">{data.vcp.volume_dry_up_pct?.toFixed(2) ?? '0.00'}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">ATR Contraction Percentage</span>
-                        <span className="text-slate-200">{data.vcp.atr_contraction_pct.toFixed(2)}%</span>
+                        <span className="text-slate-200">{data.vcp.atr_contraction_pct?.toFixed(2) ?? '0.00'}%</span>
                       </div>
                     </div>
                   </div>
@@ -382,23 +382,23 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold">
                     <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                       <div className="text-slate-500">Box Top</div>
-                      <div className="text-sm font-mono mt-1">₹{data.darvas.box_top.toFixed(1)}</div>
+                      <div className="text-sm font-mono mt-1">₹{data.darvas.box_top?.toFixed(1) ?? '0.0'}</div>
                     </div>
                     <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                       <div className="text-slate-500">Box Bottom</div>
-                      <div className="text-sm font-mono mt-1">₹{data.darvas.box_bottom.toFixed(1)}</div>
+                      <div className="text-sm font-mono mt-1">₹{data.darvas.box_bottom?.toFixed(1) ?? '0.0'}</div>
                     </div>
                     <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                       <div className="text-slate-500">Days Inside Box</div>
-                      <div className="text-sm mt-1">{data.darvas.days_inside_box} Days</div>
+                      <div className="text-sm mt-1">{data.darvas.days_inside_box ?? 0} Days</div>
                     </div>
                     <div className="bg-slate-950/30 p-3 rounded-xl border border-slate-850">
                       <div className="text-slate-500">Breakout Status</div>
                       <div className="text-sm mt-1">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          data.darvas.breakout_status.includes('Breakout') ? 'bg-emerald-950/40 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                          data.darvas.breakout_status?.includes('Breakout') ? 'bg-emerald-950/40 text-emerald-400' : 'bg-slate-800 text-slate-400'
                         }`}>
-                          {data.darvas.breakout_status}
+                          {data.darvas.breakout_status ?? 'Pending'}
                         </span>
                       </div>
                     </div>
@@ -424,13 +424,13 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-semibold">
                       {[
-                        { label: 'Price > SMA50', val: data.trend_template.conditions.price_above_sma50 },
-                        { label: 'Price > SMA150', val: data.trend_template.conditions.price_above_sma150 },
-                        { label: 'Price > SMA200', val: data.trend_template.conditions.price_above_sma200 },
-                        { label: 'SMA50 > SMA150', val: data.trend_template.conditions.sma50_above_sma150 },
-                        { label: 'SMA150 > SMA200', val: data.trend_template.conditions.sma150_above_sma200 },
-                        { label: 'Price > 52W Low by 30%', val: data.trend_template.conditions.price_above_52w_low_by_30pct },
-                        { label: 'Price within 25% of 52W High', val: data.trend_template.conditions.price_within_25pct_of_52w_high }
+                        { label: 'Price > SMA50', val: data.trend_template.conditions?.price_above_sma50 },
+                        { label: 'Price > SMA150', val: data.trend_template.conditions?.price_above_sma150 },
+                        { label: 'Price > SMA200', val: data.trend_template.conditions?.price_above_sma200 },
+                        { label: 'SMA50 > SMA150', val: data.trend_template.conditions?.sma50_above_sma150 },
+                        { label: 'SMA150 > SMA200', val: data.trend_template.conditions?.sma150_above_sma200 },
+                        { label: 'Price > 52W Low by 30%', val: data.trend_template.conditions?.price_above_52w_low_by_30pct },
+                        { label: 'Price within 25% of 52W High', val: data.trend_template.conditions?.price_within_25pct_of_52w_high }
                       ].map((item, i) => (
                         <div key={i} className="flex items-center justify-between p-3 bg-slate-950/20 border border-slate-850 rounded-xl">
                           <span className="text-slate-400">{item.label}</span>
@@ -448,15 +448,15 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
                     <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-xl grid grid-cols-3 gap-4 text-center text-xs font-semibold">
                       <div>
                         <div className="text-slate-500">SMA50</div>
-                        <div className="text-slate-200 mt-1 font-mono">₹{data.trend_template.sma50.toFixed(1)}</div>
+                        <div className="text-slate-200 mt-1 font-mono">₹{data.trend_template.sma50?.toFixed(1) ?? '0.0'}</div>
                       </div>
                       <div>
                         <div className="text-slate-500">SMA150</div>
-                        <div className="text-slate-200 mt-1 font-mono">₹{data.trend_template.sma150.toFixed(1)}</div>
+                        <div className="text-slate-200 mt-1 font-mono">₹{data.trend_template.sma150?.toFixed(1) ?? '0.0'}</div>
                       </div>
                       <div>
                         <div className="text-slate-500">SMA200</div>
-                        <div className="text-slate-200 mt-1 font-mono">₹{data.trend_template.sma200.toFixed(1)}</div>
+                        <div className="text-slate-200 mt-1 font-mono">₹{data.trend_template.sma200?.toFixed(1) ?? '0.0'}</div>
                       </div>
                     </div>
                   </div>
@@ -491,24 +491,24 @@ const InstitutionalStockDetail: React.FC<DetailProps> = ({ symbol, onBack }) => 
                     <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-xl space-y-3 text-xs font-semibold">
                       <div className="flex justify-between">
                         <span className="text-slate-400">Weighted RS Score</span>
-                        <span className="text-slate-200 font-bold">{data.relative_strength.rs_score.toFixed(1)}</span>
+                        <span className="text-slate-200 font-bold">{data.relative_strength.rs_score?.toFixed(1) ?? '0.0'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">6 Month Return</span>
-                        <span className={`font-mono ${data.relative_strength.return_6m >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {data.relative_strength.return_6m.toFixed(2)}%
+                        <span className={`font-mono ${(data.relative_strength.return_6m ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {data.relative_strength.return_6m?.toFixed(2) ?? '0.00'}%
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">3 Month Return</span>
-                        <span className={`font-mono ${data.relative_strength.return_3m >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {data.relative_strength.return_3m.toFixed(2)}%
+                        <span className={`font-mono ${(data.relative_strength.return_3m ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {data.relative_strength.return_3m?.toFixed(2) ?? '0.00'}%
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">1 Month Return</span>
-                        <span className={`font-mono ${data.relative_strength.return_1m >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {data.relative_strength.return_1m.toFixed(2)}%
+                        <span className={`font-mono ${(data.relative_strength.return_1m ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {data.relative_strength.return_1m?.toFixed(2) ?? '0.00'}%
                         </span>
                       </div>
                     </div>

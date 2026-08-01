@@ -647,7 +647,7 @@ class FeishuChannel(BaseChannel):
         # Write credentials back to config
         # VT-TODO: persist feishu credentials via VT config system
         try:
-            from src.config.loader import load_agent_config
+            pass
             # Credentials stored in-memory on self.config; persist via VT config
             # when channel config persistence is wired up.
         except Exception:

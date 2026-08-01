@@ -107,7 +107,7 @@ def main():
         print("\n❌ FAILED: Could not obtain authentication token")
         return 1
     
-    print(f"\n[2] Testing authenticated endpoints...")
+    print("\n[2] Testing authenticated endpoints...")
     print("-" * 80)
     
     # Protected endpoints that previously showed 401
@@ -148,7 +148,7 @@ def main():
     print(f"\nAuthenticated API Results: {passed} passed, {failed} failed")
     
     # Database validations
-    print(f"\n[3] Database Ground Truth Validations...")
+    print("\n[3] Database Ground Truth Validations...")
     print("-" * 80)
     
     try:
@@ -199,7 +199,7 @@ def main():
     with open("test_results_authenticated.json", "w") as f:
         json.dump(output, f, indent=2, default=str)
     
-    print(f"\nDetailed results saved to: test_results_authenticated.json")
+    print("\nDetailed results saved to: test_results_authenticated.json")
     
     return 0 if failed == 0 else 1
 

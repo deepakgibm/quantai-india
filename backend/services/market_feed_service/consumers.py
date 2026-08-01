@@ -97,8 +97,17 @@ class KafkaConsumerGroup:
                     
                     # Persist to Dragonfly (both new and legacy keys for compatibility)
                     try:
-                        await self.cache.set_async(f"price:{symbol}", normalized_tick, ttl=300)
-                        await self.cache.set_async(f"qai:tick:{symbol}", normalized_tick, ttl=300)
+                        from services.price_manager.market_status_service import get_market_status_service, MarketStatus
+                        status = get_market_status_service().get_status()
+                        if status == MarketStatus.OPEN:
+                            ttl = 10  # short TTL during live market
+                        elif status in (MarketStatus.HOLIDAY, MarketStatus.WEEKEND, MarketStatus.CLOSED):
+                            ttl = 18000  # 5 hours for EOD/closed prices
+                        else:
+                            ttl = 300  # 5 minutes default
+                        
+                        await self.cache.set_async(f"price:{symbol}", normalized_tick, ttl=ttl)
+                        await self.cache.set_async(f"qai:tick:{symbol}", normalized_tick, ttl=ttl)
                     except Exception as ce:
                         logger.error(f"PriceConsumer: Failed to persist to Dragonfly: {ce}")
                     
@@ -306,19 +315,8 @@ class KafkaConsumerGroup:
                         if self._producer:
                             await self._producer.send("signals.momentum", signal)
                             
-                    # Mock VCP detection: tight range followed by a volume increase
-                    if 0.1 < abs(change_pct) < 0.5:
-                        signal = {
-                            "symbol": symbol,
-                            "signal_type": "vcp",
-                            "price": ltp,
-                            "change_percent": change_pct,
-                            "timestamp": tick.get("timestamp"),
-                            "details": "Volatility contraction consolidation observed"
-                        }
-                        if self._producer:
-                            await self._producer.send("signals.vcp", signal)
-                            
+                    # Mock VCP detection has been removed to avoid false scanner signals.
+                    # VCP pattern is calculated comprehensively using institutional_scanner_service.py.
             except asyncio.CancelledError:
                 break
             except Exception as e:

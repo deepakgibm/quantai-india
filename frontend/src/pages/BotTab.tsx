@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
+import { calculatePriceChange } from '../utils/marketPrice';
 import {
   Bot, Play, Loader2, CheckCircle2, XCircle, Clock, TrendingUp,
   TrendingDown, ArrowUpCircle, ArrowDownCircle, Activity, BarChart3,
@@ -373,8 +374,17 @@ function SignalTable({ signals }: { signals: BotSignal[] }) {
                   <td className="px-4 py-3">
                     {s.ai_tag ? <AiTagBadge tag={s.ai_tag} /> : <span className="text-slate-600">—</span>}
                   </td>
-                  <td className={`px-4 py-3 font-mono font-semibold ${s.price_change_pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {s.price_change_pct >= 0 ? '+' : ''}{s.price_change_pct.toFixed(2)}%
+                  <td className="px-4 py-3 font-mono font-semibold">
+                    {(() => {
+                      const details = calculatePriceChange(s.current_price, undefined, s.price_change_pct);
+                      const isUp = details.direction === 'up';
+                      const isDown = details.direction === 'down';
+                      return (
+                        <span className={isUp ? 'text-green-500' : isDown ? 'text-rose-500' : 'text-slate-400'}>
+                          {isUp ? '▲ +' : isDown ? '▼ ' : '▬ '}{Math.abs(details.changePercent).toFixed(2)}%
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 font-mono text-slate-300">
                     ₹{s.current_price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

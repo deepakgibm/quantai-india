@@ -254,7 +254,7 @@ class Nifty500ETL:
         else:
             resume_index = self.checkpoint.get_resume_index()
             if resume_index > 0:
-                print(f"Resuming from checkpoint...")
+                print("Resuming from checkpoint...")
                 print(f"  Last completed: {self.checkpoint.data['last_completed_symbol']}")
                 print(f"  Progress: {resume_index}/{len(NIFTY_500_SYMBOLS)} symbols")
                 print(f"  Records inserted so far: {self.checkpoint.data['stats']['inserted']}")

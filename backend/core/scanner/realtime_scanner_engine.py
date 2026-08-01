@@ -13,7 +13,6 @@ import logging
 from typing import Dict, List
 from datetime import datetime
 
-from services.upstox_price_resolver import get_upstox_price_resolver, UpstoxPriceResolver
 from services.websocket_feed_manager import get_websocket_feed_manager
 from services.db_data_fetcher import get_db_data_fetcher
 
@@ -40,7 +39,6 @@ class RealTimeScannerEngine:
     ]
     
     def __init__(self):
-        self.resolver: UpstoxPriceResolver = get_upstox_price_resolver()
         self.feed_manager = get_websocket_feed_manager()
         self.stock_state: Dict[str, Dict] = {}
         self.index_state: Dict[str, Dict] = {

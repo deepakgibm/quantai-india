@@ -1,7 +1,7 @@
 import pytest
 import asyncio
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 from services.price_manager import (
     get_price_validator,
@@ -9,9 +9,7 @@ from services.price_manager import (
     get_price_calculation_engine,
     get_market_status_service,
     get_price_service,
-    PriceSource,
-    MarketStatus,
-    StockPrice
+    MarketStatus
 )
 
 def test_price_validator():
@@ -74,7 +72,6 @@ def test_market_status_service():
 
 @pytest.mark.asyncio
 async def test_price_service_deduplication():
-    from unittest.mock import patch
     service = get_price_service()
     
     mock_val = {

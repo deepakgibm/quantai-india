@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Bot, Play, AlertTriangle, TrendingUp, Activity, CheckCircle } from 'lucide-react';
-import { API_URL, getAuthHeaders } from '../services/api';
+import { API_URL, getAuthHeaders, api } from '../services/api';
 
 interface StockResult {
   symbol: string;
@@ -29,15 +29,8 @@ const AgenticBotCard: React.FC = () => {
     setResults([]);
 
     try {
-      const response = await fetch(`${API_URL}/api/agentic-bot/analyze`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ prompt })
-      });
-
-      if (!response.ok) throw new Error("Analysis failed");
-
-      const data = await response.json();
+      const data = await api.agenticBotAnalyze(prompt);
+      if (!data) throw new Error("Analysis failed");
       setResults(data.data);
     } catch (err) {
       setError("Failed to run agents. Please try again.");

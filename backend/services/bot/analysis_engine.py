@@ -19,12 +19,12 @@ class CorrelationResult:
     symbol: str
     value: float              # Correlation Score (90-day Pearson correlation)
     category: str             # Correlation Strength (HIGH, MODERATE, LOW)
-    trend: str                # Trend direction of correlation (BULLISH, BEARISH, NEUTRAL)
-    confidence: float         # Confidence index (0.0 to 1.0)
-    corr_30: float
-    corr_60: float
-    corr_90: float
-    corr_180: float
+    trend: str = "NEUTRAL"                # Trend direction of correlation (BULLISH, BEARISH, NEUTRAL)
+    confidence: float = 0.0         # Confidence index (0.0 to 1.0)
+    corr_30: float = 0.0
+    corr_60: float = 0.0
+    corr_90: float = 0.0
+    corr_180: float = 0.0
 
     @staticmethod
     def categorize(value: float) -> str:
@@ -42,10 +42,10 @@ class VolatilityResult:
     symbol: str
     std_dev: float
     atr: float
-    true_range: float
-    annualized_volatility: float
-    historical_volatility: float
     category: str
+    true_range: float = 0.0
+    annualized_volatility: float = 0.0
+    historical_volatility: float = 0.0
 
     @staticmethod
     def categorize(std_dev: float) -> str:
@@ -157,6 +157,10 @@ class AnalysisEngine:
                 stock_returns = s.set_index("date")["close"].astype(float).pct_change().dropna()
                 aligned = pd.DataFrame({"stock": stock_returns, "index": index_returns}).dropna()
                 if len(aligned) < min_overlap_days:
+                    continue
+                
+                # Filter out flat prices (zero variance in returns)
+                if aligned["stock"].std() == 0:
                     continue
 
                 # Compute rolling Pearson correlations
@@ -330,19 +334,27 @@ class AnalysisEngine:
             avg_mom_5d = float(np.mean(all_mom_5d)) if all_mom_5d else 0.0
             avg_mom_1m = float(np.mean(all_mom_1m)) if all_mom_1m else 0.0
             
-        # Determine Market Trend based on Nifty 500 Breadth Rules
-        # Bullish if at least 3 of 5 conditions are met:
-        cond_ema50_pct = pct_above_ema50 > 60.0
-        cond_ema_alignment = ema_50 > ema_200
-        cond_breadth = advances > declines
-        cond_ad_ratio = (advances / max(1, declines)) > 1.0
-        cond_momentum = avg_mom_5d > 0.0
-        
-        bullish_conditions = sum([
-            cond_ema50_pct, cond_ema_alignment, cond_breadth, cond_ad_ratio, cond_momentum
-        ])
-        
-        trend = "BULLISH" if bullish_conditions >= 3 else "BEARISH"
+        if not stock_data:
+            # If no stock data, classify trend purely on EMA alignment
+            trend = "BULLISH" if ema_50 > ema_200 else "BEARISH"
+            # Use index's own momentum as fallback
+            avg_mom_5d = ((closes.iloc[-1] - closes.iloc[-6]) / closes.iloc[-6]) * 100.0 if len(closes) >= 6 else 0.0
+            avg_mom_1m = ((closes.iloc[-1] - closes.iloc[-21]) / closes.iloc[-21]) * 100.0 if len(closes) >= 21 else 0.0
+            bullish_conditions = 3 if trend == "BULLISH" else 0
+        else:
+            # Determine Market Trend based on Nifty 500 Breadth Rules
+            # Bullish if at least 3 of 5 conditions are met:
+            cond_ema50_pct = pct_above_ema50 > 60.0
+            cond_ema_alignment = ema_50 > ema_200
+            cond_breadth = advances > declines
+            cond_ad_ratio = (advances / max(1, declines)) > 1.0
+            cond_momentum = avg_mom_5d > 0.0
+            
+            bullish_conditions = sum([
+                cond_ema50_pct, cond_ema_alignment, cond_breadth, cond_ad_ratio, cond_momentum
+            ])
+            
+            trend = "BULLISH" if bullish_conditions >= 3 else "BEARISH"
         
         result = MarketTrend(
             trend=trend,

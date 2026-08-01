@@ -8,7 +8,6 @@ from fastapi import APIRouter
 from typing import Optional
 from datetime import datetime
 import logging
-import pandas as pd
 from services.dragonfly_client import get_cache, CacheKeys
 
 logger = logging.getLogger(__name__)
